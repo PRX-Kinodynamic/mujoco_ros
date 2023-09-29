@@ -1,0 +1,3 @@
+std_msgs/Float64 steering_angle
+std_msgs/Float64 velocity
+std_msgs/Float64 duration
