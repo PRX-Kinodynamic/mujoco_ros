@@ -37,8 +37,8 @@ class MushrControlListener
     void control_callback(const mujoco::MushrControl::ConstPtr& msg)
     {
       std::vector<double> control;
-      control.push_back(msg->velocity.data);
       control.push_back(msg->steering_angle.data);
+      control.push_back(msg->velocity.data);
       sim->set_control(control);
       sim->propagate(msg->duration.data);
       ROS_INFO("Result: %f, %f", sim->d->qpos[0], sim->d->qpos[1]);
