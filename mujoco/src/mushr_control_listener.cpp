@@ -22,7 +22,8 @@ class MushrControlListener
       }
 
       bool save_trajectory;
-      if (!n.getParam("/save_trajectory", save_trajectory))
+      std::string full_param_name = ros::this_node::getName() + "/save_trajectory";
+      if (!n.getParam(full_param_name, save_trajectory))
       {
         ROS_ERROR("Failed to get param 'save_trajectory'.");
         return;
@@ -52,7 +53,11 @@ class MushrControlListener
 
     void save_callback(const std_msgs::Empty::ConstPtr& msg)
     {
-      std::string trajectory_path = package_path + "/data/trajectory.txt";
+      std::string trajectory_path, trajectory_fname, full_param_name;
+      full_param_name = ros::this_node::getName() + "/trajectory_file";
+      n.getParam(full_param_name, trajectory_fname);
+      trajectory_path = package_path + "/" + trajectory_fname;
+      ROS_INFO_STREAM("Saving trajectory to " << trajectory_path << std::endl);
       std::ofstream trajectory_file(trajectory_path);
       trajectory_file << sim->print_trajectory();
       trajectory_file.close();

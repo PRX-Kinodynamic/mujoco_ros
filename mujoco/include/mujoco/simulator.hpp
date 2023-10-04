@@ -29,6 +29,10 @@ class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_
     }
     std::cout << std::endl;
     save_trajectory = _save_trajectory;
+    if (save_trajectory)
+    {
+      add_current_state_to_trajectory();
+    }
   }
 
   ~mujoco_simulator_t()
