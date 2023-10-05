@@ -29,7 +29,15 @@ class MushrControlListener
         return;
       }
 
-      sim = std::make_shared<mujoco_simulator_t>(model_path, save_trajectory);
+      bool visualize;
+      full_param_name = ros::this_node::getName() + "/visualize";
+      if (!n.getParam(full_param_name, visualize))
+      {
+        ROS_ERROR("Failed to get param 'visualize'.");
+        return;
+      }
+
+      sim = std::make_shared<mujoco_simulator_t>(model_path, save_trajectory, visualize);
       control_subscriber = n.subscribe("control", 1000, &MushrControlListener::control_callback, this);
       reset_subscriber = n.subscribe("reset", 1000, &MushrControlListener::reset_callback, this);
       save_subscriber = n.subscribe("save_trajectory", 1000, &MushrControlListener::save_callback, this);

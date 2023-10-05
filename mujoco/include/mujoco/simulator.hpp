@@ -5,14 +5,25 @@
 class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_t>
 {
   private:
-  bool save_trajectory;
+  bool save_trajectory, visualize;
   std::vector<std::vector<double>> trajectory;
   std::vector<double> current_state;
+
+  mjvCamera cam;
+  mjvOption opt;
+  mjvScene scn;
+  mjrContext con;
+
+  GLFWwindow* window;
+
+  protected:
+  mjrRect viewport;
+
   public:
   mjModel* m;
   mjData* d;
 
-  mujoco_simulator_t(const std::string& model_path, bool _save_trajectory)
+  mujoco_simulator_t(const std::string& model_path, bool _save_trajectory, bool _visualize)
   {
     m = mj_loadXML(model_path.c_str(), NULL, NULL, 0);
     if(!m)
@@ -33,12 +44,39 @@ class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_
     {
       add_current_state_to_trajectory();
     }
+
+    visualize = _visualize;
+    if (visualize)
+    {
+      if (!glfwInit())
+        std::cerr << "Error in initializing GLFW." << std::endl;
+
+      window = glfwCreateWindow(1200, 900, "MuJoCo", NULL, NULL);
+      if (!window)
+        std::cerr << "Error in creating GLFW window." << std::endl;
+      glfwMakeContextCurrent(window);
+      glfwSwapInterval(1);
+
+      mjv_defaultCamera(&cam);
+      mjv_defaultOption(&opt);
+      mjv_defaultScene(&scn);
+      mjr_defaultContext(&con);
+      mjv_makeScene(m, &scn, 1000);
+      mjr_makeContext(m, &con, mjFONTSCALE_150);
+      viewport = { 0, 0, 1200, 900 };
+    }
   }
 
   ~mujoco_simulator_t()
   {
     mj_deleteData(d);
     mj_deleteModel(m);
+    if (visualize)
+    {
+      mjr_freeContext(&con);
+      mjv_freeScene(&scn);
+      glfwTerminate();
+    }
   }
 
   void set_control(const std::vector<double>& control)
@@ -68,6 +106,14 @@ class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_
       d->qacc_warmstart[i] = 0;
     }
     mj_step(m, d);
+    if (visualize)
+    {
+      glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
+      mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
+      mjr_render(viewport, &scn, &con);
+      glfwSwapBuffers(window);
+      glfwPollEvents();
+    }
     if (save_trajectory)
     {
       add_current_state_to_trajectory();
