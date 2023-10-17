@@ -22,13 +22,22 @@ public:
     }
 
     bool save_trajectory;
-    if (!n.getParam("/save_trajectory", save_trajectory))
+    const std::string param_name_save_trajectory{ ros::this_node::getName() + "/save_trajectory" };
+    if (!n.getParam(param_name_save_trajectory, save_trajectory))
     {
       ROS_ERROR("Failed to get param 'save_trajectory'.");
       return;
     }
 
-    sim = std::make_shared<mujoco_simulator_t>(model_path, save_trajectory);
+    bool visualize;
+    const std::string param_name_visualize{ ros::this_node::getName() + "/visualize" };
+    if (!n.getParam(param_name_visualize, visualize))
+    {
+      ROS_ERROR("Failed to get param 'visualize'.");
+      return;
+    }
+
+    sim = std::make_shared<mujoco_simulator_t>(model_path, save_trajectory, visualize);
     control_subscriber = n.subscribe("control", 1000, &MushrControlListener::control_callback, this);
     reset_subscriber = n.subscribe("reset", 1000, &MushrControlListener::reset_callback, this);
     save_subscriber = n.subscribe("save_trajectory", 1000, &MushrControlListener::save_callback, this);
@@ -52,7 +61,11 @@ public:
 
   void save_callback(const std_msgs::Empty::ConstPtr& msg)
   {
-    std::string trajectory_path = package_path + "/data/trajectory.txt";
+    std::string trajectory_path, trajectory_fname, full_param_name;
+    full_param_name = ros::this_node::getName() + "/trajectory_file";
+    n.getParam(full_param_name, trajectory_fname);
+    trajectory_path = package_path + "/" + trajectory_fname;
+    ROS_INFO_STREAM("Saving trajectory to " << trajectory_path << std::endl);
     std::ofstream trajectory_file(trajectory_path);
     trajectory_file << sim->print_trajectory();
     trajectory_file.close();
