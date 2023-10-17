@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mujoco)
+project(mujoco_ros)
+set(CMAKE_CXX_STANDARD 17)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -7,6 +8,21 @@ project(mujoco)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
+# Mujoco-relates packages
+find_package(mujoco REQUIRED PATHS $ENV{MJ_PATH}/build)
+find_package(glfw3 REQUIRED)
+
+set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")
+list(APPEND MJ_INCLUDE_DIR ${GLFW_INCLUDE_DIRS})
+
+set(MJ_LINK  mujoco::mujoco)
+list(APPEND MJ_LINK glfw)
+
+if(APPLE)
+  set(CMAKE_MACOSX_RPATH 0)
+endif()
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -117,7 +133,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
-  $ENV{MJ_PATH}/include
+  ${MJ_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -150,7 +166,7 @@ add_dependencies(mushr_control_listener ${${PROJECT_NAME}_EXPORTED_TARGETS} ${ca
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(mushr_control_listener
-  $ENV{MJ_PATH}/build/lib/libmujoco.so
+  ${MJ_LINK}
   ${catkin_LIBRARIES}
 )
 

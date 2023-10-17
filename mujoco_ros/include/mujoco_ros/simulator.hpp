@@ -1,25 +1,27 @@
 #pragma once
 #include "defs.h"
 #include "mujoco/mujoco.h"
+#include <sstream>
 
 class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_t>
 {
-  private:
+private:
   bool save_trajectory;
   std::vector<std::vector<double>> trajectory;
   std::vector<double> current_state;
-  public:
+
+public:
   mjModel* m;
   mjData* d;
 
   mujoco_simulator_t(const std::string& model_path, bool _save_trajectory)
   {
     m = mj_loadXML(model_path.c_str(), NULL, NULL, 0);
-    if(!m)
+    if (!m)
       std::cerr << "Error in loading model." << std::endl;
-    
+
     d = mj_makeData(m);
-    for (int i = 0; i < 1.0/m->opt.timestep; i++)
+    for (int i = 0; i < 1.0 / m->opt.timestep; i++)
     {
       mj_step(m, d);
     }
@@ -41,7 +43,7 @@ class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_
   {
     if (control.size() != m->nu)
       std::cerr << "Control size does not match." << std::endl;
-    
+
     for (int i = 0; i < m->nu; i++)
     {
       d->ctrl[i] = control[i];
