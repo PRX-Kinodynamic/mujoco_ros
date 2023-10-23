@@ -25,6 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   roslib
+  mj_models
 )
 
 ## System dependencies are found with CMake's conventions
@@ -61,10 +62,10 @@ find_package(glfw3 REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  MushrControl.msg
-)
+# add_message_files(
+#   FILES
+#   MushrControl.msg
+# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -118,7 +119,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS roscpp std_msgs message_runtime
+ CATKIN_DEPENDS roscpp std_msgs message_runtime mj_models
 #  DEPENDS system_lib
 )
 
@@ -166,6 +167,23 @@ target_link_libraries(mushr_control_listener
   ${MJ_LINK}
   ${catkin_LIBRARIES}
 )
+
+file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/executables/*.cpp)
+    # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
+
+foreach(f ${EXECUTABLE_FILES})
+    MESSAGE("file: ${f}")
+    GET_FILENAME_COMPONENT(fname ${f} NAME_WE )
+    add_executable(${fname} ${f})
+    add_dependencies(${fname}
+                     ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+                     ${catkin_EXPORTED_TARGETS}
+                     )
+    target_link_libraries(${fname}
+                          ${MJ_LINK}
+                          ${catkin_LIBRARIES}
+                        )
+endforeach()
 
 #############
 ## Install ##

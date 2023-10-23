@@ -1,5 +1,8 @@
-#include "mujoco_ros/control_listener.hpp"
-#include "mujoco_ros/MushrControl.h"
+#include "mj_models/MushrPlan.h"
+#include "mujoco_ros/simulator.hpp"
+#include "ros/ros.h"
+#include "ros/package.h"
+#include "std_msgs/Empty.h"
 
 class MushrControlListener
 {
@@ -12,7 +15,7 @@ private:
 public:
   MushrControlListener()
   {
-    package_path = ros::package::getPath("mujoco");
+    package_path = ros::package::getPath("mujoco_ros");
 
     std::string model_path;
     if (!n.getParam("/model_path", model_path))
@@ -43,14 +46,17 @@ public:
     save_subscriber = n.subscribe("save_trajectory", 1000, &MushrControlListener::save_callback, this);
   }
 
-  void control_callback(const mujoco_ros::MushrControl::ConstPtr& msg)
+  void control_callback(const mj_models::MushrPlan::ConstPtr& msg)
   {
-    std::vector<double> control;
-    control.push_back(msg->steering_angle.data);
-    control.push_back(msg->velocity.data);
-    sim->set_control(control);
-    sim->propagate(msg->duration.data);
-    ROS_INFO("Result: %f, %f", sim->d->qpos[0], sim->d->qpos[1]);
+    for (int i = 0; i < msg->control.size(); ++i)
+    {
+      std::vector<double> control;
+      control.push_back(msg->control[i].steering_angle.data);
+      control.push_back(msg->control[i].velocity.data);
+      sim->set_control(control);
+      sim->propagate(msg->durations[i].data);
+      ROS_INFO("Result: %f, %f", sim->d->qpos[0], sim->d->qpos[1]);
+    }
   }
 
   void reset_callback(const std_msgs::Empty::ConstPtr& msg)
