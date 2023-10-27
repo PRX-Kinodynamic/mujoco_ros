@@ -12,7 +12,7 @@ private:
 public:
   MushrControlListener()
   {
-    package_path = ros::package::getPath("mujoco");
+    package_path = ros::package::getPath("mujoco_ros");
 
     std::string model_path;
     if (!n.getParam("/model_path", model_path))

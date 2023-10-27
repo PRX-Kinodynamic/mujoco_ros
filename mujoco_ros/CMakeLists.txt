@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 ## is used, also find other catkin packages
 
 # Mujoco-relates packages
-find_package(mujoco REQUIRED PATHS $ENV{MJ_PATH}/build)
+find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
 find_package(glfw3 REQUIRED)
 
 set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")

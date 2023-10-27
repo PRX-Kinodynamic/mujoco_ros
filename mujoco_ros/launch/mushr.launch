@@ -1,7 +1,7 @@
 <launch>
-    <param name="model_path" type="string" value="$(find mujoco)/models/mushr.xml"/>
+    <param name="model_path" type="string" value="$(find mujoco_ros)/models/mushr.xml"/>
     <param name="save_trajectory" type="bool" value="false"/>
     <group ns="mushr">
-        <node pkg="mujoco" name="control_listener" type="mushr_control_listener" output="screen"/>
+        <node pkg="mujoco_ros" name="control_listener" type="mushr_control_listener" output="screen"/>
     </group>
 </launch>
