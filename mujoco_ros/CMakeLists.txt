@@ -1,12 +1,25 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mujoco)
-
-## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+project(mujoco_ros)
+set(CMAKE_CXX_STANDARD 17)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
+# Mujoco-relates packages
+find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
+find_package(glfw3 REQUIRED)
+
+set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")
+list(APPEND MJ_INCLUDE_DIR ${GLFW_INCLUDE_DIRS})
+
+set(MJ_LINK  mujoco::mujoco)
+list(APPEND MJ_LINK glfw)
+
+if(APPLE)
+  set(CMAKE_MACOSX_RPATH 0)
+endif()
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -16,7 +29,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(glfw3 REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -117,7 +130,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
-  $ENV{MJ_PATH}/include
+  ${MJ_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -150,7 +163,7 @@ add_dependencies(mushr_control_listener ${${PROJECT_NAME}_EXPORTED_TARGETS} ${ca
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(mushr_control_listener
-  $ENV{MJ_PATH}/build/lib/libmujoco.so
+  ${MJ_LINK}
   ${catkin_LIBRARIES}
 )
 
@@ -163,10 +176,10 @@ target_link_libraries(mushr_control_listener
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+catkin_install_python(PROGRAMS
+  scripts/mushr_open_loop_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
