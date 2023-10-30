@@ -7,7 +7,7 @@ Inside a fresh catkin workspace, clone this repo inside `/path/to/ws/src/`. Then
 ### Mujoco
 Download, compile and install mujoco:
 ```
-cd MUJOCO/PATH
+cd path/to/mujoco
 mkdir build & cd build
 cmake -DCMAKE_INSTALL_PREFIX="../install" ..
 make -j
