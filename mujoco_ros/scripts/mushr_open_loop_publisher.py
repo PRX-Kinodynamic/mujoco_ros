@@ -4,7 +4,7 @@ import rospy
 import numpy as np
 import rospkg
 import os
-from mujoco.msg import MushrControl
+from mujoco_ros.msg import MushrControl
 
 def talker():
     rospy.init_node('mushr_open_loop_publisher', anonymous=True)
@@ -14,7 +14,7 @@ def talker():
     rospy.sleep(2.0)
 
     full_param_name = rospy.search_param('plan_file')
-    package_path = rospkg.RosPack().get_path('mujoco')
+    package_path = rospkg.RosPack().get_path('mujoco_ros')
     plan_file = os.path.join(package_path, rospy.get_param(full_param_name))
     rospy.loginfo('Loading plan from %s', plan_file)
     plan = np.loadtxt(plan_file, delimiter=',')

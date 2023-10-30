@@ -1,7 +1,10 @@
 <launch>
     <param name="model_path" type="string" value="$(find mujoco_ros)/models/mushr.xml"/>
     <param name="save_trajectory" type="bool" value="false"/>
+    <arg name="visualize" default="true"/>
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="control_listener" type="mushr_control_listener" output="screen"/>
+        <node pkg="mujoco_ros" name="control_listener" type="mushr_control_listener" output="screen">
+            <param name="visualize" value="$(arg visualize)" />
+        </node>
     </group>
 </launch>
