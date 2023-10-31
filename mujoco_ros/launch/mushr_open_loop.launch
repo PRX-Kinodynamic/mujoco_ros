@@ -1,0 +1,17 @@
+<launch>
+    <param name="model_path" type="string" value="$(find mujoco_ros)/models/mushr.xml"/>
+    <arg name="save_trajectory" default="false"/>
+    <arg name="trajectory_file" default="data/sample_traj.txt"/> 
+    <arg name="plan_file" default="data/sample_plan.txt"/>
+    <arg name="visualize" default="true"/>
+    <group ns="mushr">
+        <node pkg="mujoco_ros" name="control_listener" type="mushr_control_listener" output="screen">
+            <param name="save_trajectory" value="$(arg save_trajectory)" />
+            <param name="trajectory_file" value="$(arg trajectory_file)" />
+            <param name="visualize" value="$(arg visualize)" />
+        </node>   
+        <node pkg="mujoco_ros" name="open_loop_publisher" type="mushr_open_loop_publisher.py" output="screen">
+            <param name="plan_file" value="$(arg plan_file)" />
+        </node>
+    </group> 
+</launch>
