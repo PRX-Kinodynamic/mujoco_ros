@@ -5,6 +5,7 @@
     <group ns="mushr">
         <node pkg="mujoco_ros" name="control_listener" type="mushr_control_listener" output="screen">
             <param name="visualize" value="$(arg visualize)" />
+            <param name="save_trajectory" value="$(arg visualize)" />
         </node>
     </group>
 </launch>
