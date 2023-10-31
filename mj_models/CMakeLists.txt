@@ -1,36 +1,20 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mujoco_ros)
+project(mj_models)
 set(CMAKE_CXX_STANDARD 17)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
-# Mujoco-relates packages
-find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
-find_package(glfw3 REQUIRED)
-
-set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")
-list(APPEND MJ_INCLUDE_DIR ${GLFW_INCLUDE_DIRS})
-
-set(MJ_LINK  mujoco::mujoco)
-list(APPEND MJ_LINK glfw)
-
-if(APPLE)
-  set(CMAKE_MACOSX_RPATH 0)
-endif()
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   message_generation
   roslib
-  mj_models
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(glfw3 REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -62,10 +46,16 @@ find_package(glfw3 REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   MushrControl.msg
-# )
+# set(MSG_DIRS "mushr")
+set(MSG_FILES "")
+set(H_BUILDER "#pragma once")
+file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
+foreach(M_DIR ${MSG_DIRS})
+  GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
+  add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
+  set(H_BUILDER "${PROJECT_NAME}/${M_NAME}.h")
+endforeach()
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -82,10 +72,10 @@ find_package(glfw3 REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -117,9 +107,9 @@ find_package(glfw3 REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+ INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS roscpp std_msgs message_runtime mj_models
+ CATKIN_DEPENDS roscpp std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -131,8 +121,8 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
-  ${MJ_INCLUDE_DIR}
-  ${catkin_INCLUDE_DIRS}
+  # ${MJ_INCLUDE_DIR}
+  # ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -149,7 +139,6 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
-add_executable(mushr_control_listener src/mushr_control_listener.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -160,13 +149,8 @@ add_executable(mushr_control_listener src/mushr_control_listener.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(mushr_control_listener ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(mushr_control_listener
-  ${MJ_LINK}
-  ${catkin_LIBRARIES}
-)
 
 #############
 ## Install ##
@@ -177,10 +161,10 @@ target_link_libraries(mushr_control_listener
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-catkin_install_python(PROGRAMS
-  scripts/mushr_open_loop_publisher.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# catkin_install_python(PROGRAMS
+#   scripts/mushr_open_loop_publisher.py
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html

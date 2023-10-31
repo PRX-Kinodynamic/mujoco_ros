@@ -1,5 +1,5 @@
 <launch>
-    <param name="model_path" type="string" value="$(find mujoco_ros)/models/mushr.xml"/>
+    <param name="model_path" type="string" value="$(find mj_models)/models/mushr.xml"/>
     <param name="save_trajectory" type="bool" value="false"/>
     <arg name="visualize" default="true"/>
     <group ns="mushr">
