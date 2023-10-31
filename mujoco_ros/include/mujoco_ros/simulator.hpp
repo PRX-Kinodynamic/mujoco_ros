@@ -43,43 +43,6 @@ public:
     {
       add_current_state_to_trajectory();
     }
-
-    visualize = _visualize;
-    if (visualize)
-    {
-      button_left = button_middle = button_right = false;
-      lastx = lasty = 0;
-      if (!glfwInit())
-        std::cerr << "Error in initializing GLFW." << std::endl;
-
-      window = glfwCreateWindow(1200, 900, "MuJoCo", NULL, NULL);
-      if (!window)
-        std::cerr << "Error in creating GLFW window." << std::endl;
-      glfwMakeContextCurrent(window);
-      glfwSwapInterval(1);
-
-      mjv_defaultCamera(&cam);
-      mjv_defaultOption(&opt);
-      mjv_defaultScene(&scn);
-      mjr_defaultContext(&con);
-      mjv_makeScene(m, &scn, 1000);
-      mjr_makeContext(m, &con, mjFONTSCALE_150);
-      viewport = { 0, 0, 1200, 900 };
-
-      glfwSetWindowUserPointer(window, this);
-      glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos) {
-        auto sim = static_cast<mujoco_simulator_t*>(glfwGetWindowUserPointer(window));
-        sim->mouse_move(window, xpos, ypos);
-      });
-      glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
-        auto sim = static_cast<mujoco_simulator_t*>(glfwGetWindowUserPointer(window));
-        sim->mouse_button(window, button, action, mods);
-      });
-      glfwSetScrollCallback(window, [](GLFWwindow* window, double xoffset, double yoffset) {
-        auto sim = static_cast<mujoco_simulator_t*>(glfwGetWindowUserPointer(window));
-        sim->scroll(window, xoffset, yoffset);
-      });
-    }
   }
 
   ~mujoco_simulator_t()
@@ -114,6 +77,14 @@ public:
     }
   }
 
+  void run()
+  {
+    while (ros::ok())
+    {
+      step_simulation();
+    }
+  }
+
   void step_simulation()
   {
     for (int i = 0; i < m->nv; i++)
@@ -121,14 +92,6 @@ public:
       d->qacc_warmstart[i] = 0;
     }
     mj_step(m, d);
-    if (visualize)
-    {
-      glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
-      mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
-      mjr_render(viewport, &scn, &con);
-      glfwSwapBuffers(window);
-      glfwPollEvents();
-    }
     if (save_trajectory)
     {
       add_current_state_to_trajectory();
@@ -173,9 +136,72 @@ public:
       add_current_state_to_trajectory();
     }
   }
+};
+
+class mujoco_simulator_visualizer_t
+{
+public:
+  mujoco_simulator_visualizer_t(mjModel* mj_model, mjData* mj_data) : _mj_model(mj_model), _mj_data(mj_data)
+  {
+    button_left = button_middle = button_right = false;
+    lastx = lasty = 0;
+    if (!glfwInit())
+      std::cerr << "Error in initializing GLFW." << std::endl;
+
+    window = glfwCreateWindow(1200, 900, "MuJoCo", NULL, NULL);
+    if (!window)
+      std::cerr << "Error in creating GLFW window." << std::endl;
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+
+    mjv_defaultCamera(&cam);
+    mjv_defaultOption(&opt);
+    mjv_defaultScene(&scn);
+    mjr_defaultContext(&con);
+    mjv_makeScene(_mj_model, &scn, 1000);
+    mjr_makeContext(_mj_model, &con, mjFONTSCALE_150);
+
+    glfwSetWindowUserPointer(window, this);
+    glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos) {
+      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      sim->mouse_move(window, xpos, ypos);
+    });
+    glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
+      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      sim->mouse_button(window, button, action, mods);
+    });
+    glfwSetScrollCallback(window, [](GLFWwindow* window, double xoffset, double yoffset) {
+      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      sim->scroll(window, xoffset, yoffset);
+    });
+  }
+
+  void operator()()
+  {
+    ros::Rate r(30);
+    mjrRect viewport{ 0, 0, 1200, 900 };
+
+    while (ros::ok())
+    {
+      glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
+      mjv_updateScene(_mj_model, _mj_data, &opt, NULL, &cam, mjCAT_ALL, &scn);
+      mjr_render(viewport, &scn, &con);
+      glfwSwapBuffers(window);
+      glfwPollEvents();
+      r.sleep();
+    }
+  }
 
 protected:
-  mjrRect viewport;
+  mjvScene scn;
+  mjrContext con;
+  mjvCamera cam;
+  mjvOption opt;
+  GLFWwindow* window;
+
+  mjModel* _mj_model;
+  mjData* _mj_data;
+
   bool button_left, button_right, button_middle;
   double lastx, lasty;
 
@@ -192,21 +218,17 @@ protected:
     {
       return;
     }
-
     // compute mouse displacement, save
     double dx = xpos - lastx;
     double dy = ypos - lasty;
     lastx = xpos;
     lasty = ypos;
-
     // get current window size
     int width, height;
     glfwGetWindowSize(window, &width, &height);
-
     // get shift key state
     bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
                       glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
-
     // determine action based on mouse button
     mjtMouse action;
     if (button_right)
@@ -223,10 +245,11 @@ protected:
     }
 
     // move camera
-    mjv_moveCamera(m, action, dx / height, dy / height, &scn, &cam);
+    mjv_moveCamera(_mj_model, action, dx / height, dy / height, &scn, &cam);
   }
   void scroll(GLFWwindow* window, double xoffset, double yoffset)
+
   {
-    mjv_moveCamera(m, mjMOUSE_ZOOM, 0, 0.05 * yoffset, &scn, &cam);
+    mjv_moveCamera(_mj_model, mjMOUSE_ZOOM, 0, 0.05 * yoffset, &scn, &cam);
   }
 };
