@@ -188,6 +188,8 @@ public:
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
       mjv_updateScene(_mj_model, _mj_data, &opt, NULL, &cam, mjCAT_ALL, &scn);
       mjr_render(viewport, &scn, &con);
+      sprintf(time_string, "Time = %f", _mj_data->time);
+      mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
       glfwSwapBuffers(window);
       glfwPollEvents();
       r.sleep();
@@ -200,6 +202,8 @@ protected:
   mjvCamera cam;
   mjvOption opt;
   GLFWwindow* window;
+
+  char* time_string = new char[100];
 
   mjModel* _mj_model;
   mjData* _mj_data;
