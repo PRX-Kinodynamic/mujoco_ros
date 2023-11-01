@@ -4,8 +4,7 @@ import rospy
 import numpy as np
 import rospkg
 import os
-from mj_models.msg import MushrControl
-from mj_models.msg import MushrPlan
+from mj_models.msg import MushrPlan, MushrControl
 from std_msgs.msg import Float64
 
 def talker():
