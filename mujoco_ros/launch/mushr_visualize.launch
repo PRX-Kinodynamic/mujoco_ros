@@ -1,0 +1,14 @@
+<launch>
+    <param name="model_path" type="string" value="$(find mj_models)/models/mushr/mushr.xml"/>
+    <arg name="plan_file" default="data/mushr_plan.txt"/>
+    <arg name="delimiter" default=","/>
+    <group ns="mushr">
+        <node pkg="mujoco_ros" name="mushr_visualize" type="mushr_visualize" output="screen">
+            <param name="visualize" value="true" />
+        </node>
+        <node pkg="mujoco_ros" name="open_loop_publisher" type="mushr_open_loop_publisher.py" output="screen">
+            <param name="plan_file" value="$(arg plan_file)" />
+            <param name="delimiter" value="$(arg delimiter)" />
+        </node>
+    </group>
+</launch>

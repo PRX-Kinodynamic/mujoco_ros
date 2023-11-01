@@ -9,34 +9,38 @@ from std_msgs.msg import Float64
 
 def talker():
     rospy.init_node('mushr_open_loop_publisher', anonymous=True)
-    pub = rospy.Publisher('control', MushrPlan, queue_size=10)
+    pub = rospy.Publisher('/mushr/plan', MushrPlan, queue_size=10)
     
     # wait for simulation to start
-    rospy.sleep(2.0)
+    rospy.sleep(5.0)
 
     full_param_name = rospy.search_param('plan_file')
+    delimiter = rospy.search_param('delimiter')
     package_path = rospkg.RosPack().get_path('mujoco_ros')
     plan_file = os.path.join(package_path, rospy.get_param(full_param_name))
     rospy.loginfo('Loading plan from %s', plan_file)
-    plan = np.loadtxt(plan_file, delimiter=',')
-    
+    plan = np.loadtxt(plan_file, delimiter=rospy.get_param(delimiter))
+    # Reshape plan into (1, 3) array if it is (3, ) array
+    if len(plan.shape) == 1:
+        plan = plan.reshape(1, 3)
+
     rate = rospy.Rate(1) 
-    plan_msg = MushrPlan()
-    controls = []
-    durations = []
+    msg = MushrPlan()
     for i in range(plan.shape[0]):
-        ctrl_msg = MushrControl()
-        ctrl_msg.steering_angle.data = plan[i, 0]
-        ctrl_msg.velocity.data = plan[i, 1]
-        duration_msg = Float64()
-        duration_msg.data = plan[i,2]
-        controls.append(ctrl_msg)
-        durations.append(duration_msg)
-
-    plan_msg.controls = controls 
-    plan_msg.durations = durations
-
-    pub.publish(plan_msg)
+        ctrl = MushrControl()
+        ctrl.steering_angle.data = float(plan[i, 0])
+        ctrl.velocity.data = float(plan[i, 1])
+        msg.controls.append(ctrl)
+        msg.durations.append(Float64(float(plan[i, 2])))
+    
+    ctrl = MushrControl()
+    ctrl.steering_angle.data = 0.0
+    ctrl.velocity.data = 0.0
+    msg.controls.append(ctrl)
+    msg.durations.append(Float64(0.0))
+    # print(msg)
+    pub.publish(msg)
+    # rate.sleep()
     
 if __name__ == '__main__':
     try:

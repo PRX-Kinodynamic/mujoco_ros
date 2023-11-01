@@ -149,7 +149,6 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
-add_executable(mushr_control_listener src/mushr_control_listener.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -157,16 +156,24 @@ add_executable(mushr_control_listener src/mushr_control_listener.cpp)
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(mushr_control_listener ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
-target_link_libraries(mushr_control_listener
-  ${MJ_LINK}
-  ${catkin_LIBRARIES}
-)
+file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
+
+foreach(f ${EXECUTABLE_FILES})
+  get_filename_component(fname ${f} NAME_WE )
+  add_executable(${fname} ${f})
+  ## Add cmake target dependencies of the executable
+  ## same as for the library above
+  add_dependencies(${fname}
+                   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+                   ${catkin_EXPORTED_TARGETS}
+                   )
+  ## Specify libraries to link a library or executable target against
+  target_link_libraries(${fname}
+                        ${MJ_LINK}
+                        ${catkin_LIBRARIES}
+                      )
+endforeach()
 
 #############
 ## Install ##
