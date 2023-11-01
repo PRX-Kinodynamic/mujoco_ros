@@ -79,9 +79,11 @@ public:
 
   void run()
   {
+    ros::Rate rate(1.0 / m->opt.timestep);
     while (ros::ok())
     {
       step_simulation();
+      rate.sleep();
     }
   }
 

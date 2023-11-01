@@ -19,19 +19,22 @@ def talker():
     package_path = rospkg.RosPack().get_path('mujoco_ros')
     plan_file = os.path.join(package_path, rospy.get_param(full_param_name))
     rospy.loginfo('Loading plan from %s', plan_file)
-    plan = np.loadtxt(plan_file, delimiter=delimiter)
-    
+    plan = np.loadtxt(plan_file, delimiter=rospy.get_param(delimiter))
+    # Reshape plan into (1, 3) array if it is (3, ) array
+    if len(plan.shape) == 1:
+        plan = plan.reshape(1, 3)
+
     rate = rospy.Rate(1) 
     msg = MushrPlan()
     for i in range(plan.shape[0]):
         ctrl = MushrControl()
-        ctrl.steering_angle.data = float(plan[i, 1])
-        ctrl.velocity.data = float(plan[i, 2])
-        msg.control.append(ctrl)
-        msg.durations.append(Float64(float(plan[i, 0])))
+        ctrl.steering_angle.data = float(plan[i, 0])
+        ctrl.velocity.data = float(plan[i, 1])
+        msg.controls.append(ctrl)
+        msg.durations.append(Float64(float(plan[i, 2])))
     # print(msg)
     pub.publish(msg)
-    rate.sleep()
+    # rate.sleep()
     
 if __name__ == '__main__':
     try:
