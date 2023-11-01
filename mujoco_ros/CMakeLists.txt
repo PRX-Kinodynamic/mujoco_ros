@@ -184,8 +184,10 @@ endforeach()
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
 catkin_install_python(PROGRAMS
-  scripts/mushr_open_loop_publisher.py
+  ${SCRIPT_FILES}
+  # scripts/mushr_open_loop_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

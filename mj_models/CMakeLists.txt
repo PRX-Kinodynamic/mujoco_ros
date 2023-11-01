@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(mj_models)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs
+  std_msgs geometry_msgs
   message_generation
   roslib
 )
@@ -48,21 +48,22 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 # set(MSG_DIRS "mushr")
 set(MSG_FILES "")
-set(H_BUILDER "#pragma once")
 file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
 foreach(M_DIR ${MSG_DIRS})
   GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
   GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
   add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
-  set(H_BUILDER "${PROJECT_NAME}/${M_NAME}.h")
 endforeach()
 
+
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -75,6 +76,7 @@ endforeach()
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
 )
 
 ################################################

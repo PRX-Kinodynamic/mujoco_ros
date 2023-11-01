@@ -1,6 +1,5 @@
 #pragma once
 #include "defs.h"
-#include "mujoco/mujoco.h"
 #include <sstream>
 
 class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_t>
@@ -17,6 +16,8 @@ private:
   mjrContext con;
 
   GLFWwindow* window;
+
+  double _frequency;
 
 public:
   mjModel* m;
@@ -79,9 +80,12 @@ public:
 
   void run()
   {
+    ros::Rate rate(mj_ros::constants::frequency);
+
     while (ros::ok())
     {
       step_simulation();
+      rate.sleep();
     }
   }
 
@@ -178,7 +182,7 @@ public:
 
   void operator()()
   {
-    ros::Rate r(30);
+    ros::WallRate r(30);
     mjrRect viewport{ 0, 0, 1200, 900 };
 
     while (ros::ok())
