@@ -50,9 +50,9 @@ public:
 
   void control_callback(const mj_models::MushrPlan::ConstPtr& msg)
   {
-    for (int i = 0; i < msg->control.size(); ++i)
+    for (int i = 0; i < msg->controls.size(); ++i)
     {
-      mj_models::copy(sim->d->ctrl, msg->control[i]);
+      mj_models::copy(sim->d->ctrl, msg->controls[i]);
       sim->propagate(msg->durations[i].data);
       ROS_INFO("Result: %f, %f", sim->d->qpos[0], sim->d->qpos[1]);
     }

@@ -27,17 +27,12 @@ public:
   void plan_callback(const boost::shared_ptr<PlanMsg const>& msg)
   {
     const std::size_t dur_size{ msg->durations.size() };
-    const std::size_t ctrl_size{ msg->control.size() };
+    const std::size_t ctrl_size{ msg->controls.size() };
     ROS_ASSERT(dur_size == ctrl_size);  // Check assertions work
     for (int i = 0; i < dur_size; ++i)
     {
-      const double ctrl_dur{ _mj_data->time + msg->durations[i].data };
-      mj_models::copy(_mj_data->ctrl, msg->control[i]);
-      while (_mj_data->time < ctrl_dur)
-      {
-        // do nothing...
-        // Could add a sleep here, but is risky since this is mujoco's sim time, not wall time
-      }
+      mj_models::copy(_mj_data->ctrl, msg->controls[i]);
+      ros::Duration(msg->durations[i].data).sleep();
     }
   }
 
