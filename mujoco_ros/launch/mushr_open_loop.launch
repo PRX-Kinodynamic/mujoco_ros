@@ -1,5 +1,5 @@
 <launch>
-    <param name="model_path" type="string" value="$(find mujoco_ros)/models/mushr.xml"/>
+    <param name="model_path" type="string" value="$(find mj_models)/models/mushr/mushr.xml"/>
     <arg name="save_trajectory" default="false"/>
     <arg name="trajectory_file" default="data/sample_traj.txt"/> 
     <arg name="plan_file" default="data/sample_plan.txt"/>
