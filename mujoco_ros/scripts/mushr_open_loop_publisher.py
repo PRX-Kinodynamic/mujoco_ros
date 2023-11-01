@@ -32,6 +32,12 @@ def talker():
         ctrl.velocity.data = float(plan[i, 1])
         msg.controls.append(ctrl)
         msg.durations.append(Float64(float(plan[i, 2])))
+    
+    ctrl = MushrControl()
+    ctrl.steering_angle.data = 0.0
+    ctrl.velocity.data = 0.0
+    msg.controls.append(ctrl)
+    msg.durations.append(Float64(0.0))
     # print(msg)
     pub.publish(msg)
     # rate.sleep()
