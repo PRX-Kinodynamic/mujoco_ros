@@ -4,7 +4,7 @@
 
 #include <mj_models/MushrControl.h>
 #include <mj_models/MushrPlan.h>
-#include <mj_models/MushrState.h>
+#include <mj_models/MushrObservation.h>
 #include <mj_models/MushrFeedback.h>
 
 namespace mj_models
@@ -34,7 +34,7 @@ inline void copy(Ctrl ctrl_out, const mj_models::MushrControl& msg)
 }
 
 template <typename Sensor>
-inline void state_from_sensors(mj_models::MushrState& msg, const Sensor& sensordata)
+inline void get_observation(mj_models::MushrObservation& msg, const Sensor& sensordata)
 {
   msg.pose.position.x = sensordata[mushr_t::sensors_t::PosX];
   msg.pose.position.y = sensordata[mushr_t::sensors_t::PosY];

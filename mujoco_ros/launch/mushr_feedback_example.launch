@@ -4,7 +4,7 @@
         <node pkg="mujoco_ros" name="mushr_feedback" type="mushr_feedback" output="screen" >
             <param name="visualize" value="true" />
         </node>
-        <node pkg="mujoco_ros" name="keyboard_service" type="keyboard_service.py" output="screen" launch-prefix="xterm -e"/> 
+        <!-- <node pkg="mujoco_ros" name="keyboard_service" type="keyboard_service.py" output="screen" launch-prefix="xterm -e"/> -->
         
     </group>
 </launch>

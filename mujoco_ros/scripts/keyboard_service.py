@@ -5,20 +5,20 @@ import curses
 
 import rospy
 from mj_models.msg import MushrControl
-from mj_models.msg import MushrState
+from mj_models.msg import MushrObservation
 from mj_models.srv import MushrFeedback,MushrFeedbackResponse
 
 screen = None
 control = MushrControl()
-state = MushrState()
+observation = MushrObservation()
 robot_name = "mushr"
 velocity_increase = 0.1
 steering_increase = 0.1
 
 def handle_service(req):
     global control
-    global state
-    state = req.state
+    global observation
+    observation = req.observation
     return MushrFeedbackResponse(control)
 
 def reset():
@@ -28,7 +28,7 @@ def reset():
 
 def keyboard_terminal():
     global control
-    global state
+    global observation
 
     feedback_service = rospy.Service('/' + robot_name + '/feedback_service', MushrFeedback, handle_service)
     rospy.init_node('keyboard_terminal', anonymous=True)
@@ -64,6 +64,7 @@ def keyboard_terminal():
             reset()
         screen.addstr(7, 5, "\tSPEED: " + str(control.velocity.data) + " \n")
         screen.addstr(8, 5, "\tSTEER: " + str(control.steering_angle.data) + " \n")
+        screen.addstr(8, 5, "\tObservation: " + str(observation) + " \n")
 
         screen.refresh()
     curses.nocbreak()

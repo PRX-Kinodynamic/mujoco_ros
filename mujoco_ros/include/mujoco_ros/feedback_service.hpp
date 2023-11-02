@@ -24,7 +24,7 @@ public:
     ros::Rate rate(_frequency);
     while (ros::ok())
     {
-      mj_models::state_from_sensors(_service.request.state, _mj_data->sensordata);
+      mj_models::get_observation(_service.request.observation, _mj_data->sensordata);
       if (_service_client.call(_service))
       {
         mj_models::copy(_mj_data->ctrl, _service.response.control);

@@ -8,7 +8,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs geometry_msgs
+  std_msgs 
+  geometry_msgs
   message_generation
   roslib
 )

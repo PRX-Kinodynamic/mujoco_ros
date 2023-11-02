@@ -1,6 +1,7 @@
 #pragma once
 #include "defs.h"
 #include <sstream>
+#include <cstdio>
 
 class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_t>
 {
@@ -16,8 +17,6 @@ private:
   mjrContext con;
 
   GLFWwindow* window;
-
-  double _frequency;
 
 public:
   mjModel* m;
@@ -189,7 +188,7 @@ public:
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
       mjv_updateScene(_mj_model, _mj_data, &opt, NULL, &cam, mjCAT_ALL, &scn);
       mjr_render(viewport, &scn, &con);
-      sprintf(time_string, "Sim time: = %f", _mj_data->time);
+      snprintf(time_string, 100, "Sim time: = %f", _mj_data->time);
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
       glfwSwapBuffers(window);
       glfwPollEvents();
