@@ -3,7 +3,13 @@
 #include <sstream>
 #include <cstdio>
 
-class mujoco_simulator_t : public std::enable_shared_from_this<mujoco_simulator_t>
+namespace mj_ros
+{
+class simulator_t;
+
+using SimulatorPtr = std::shared_ptr<simulator_t>;
+
+class simulator_t : public std::enable_shared_from_this<simulator_t>
 {
 private:
   bool save_trajectory;
@@ -18,11 +24,7 @@ private:
 
   GLFWwindow* window;
 
-public:
-  mjModel* m;
-  mjData* d;
-
-  mujoco_simulator_t(const std::string& model_path, bool _save_trajectory, bool _visualize)
+  simulator_t(const std::string& model_path, bool _save_trajectory)
   {
     m = mj_loadXML(model_path.c_str(), NULL, NULL, 0);
     if (!m)
@@ -45,7 +47,17 @@ public:
     }
   }
 
-  ~mujoco_simulator_t()
+public:
+  std::mutex _mj_reset_mutex;
+  mjModel* m;
+  mjData* d;
+
+  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string model_path, const bool save_trajectory)
+  {
+    return std::shared_ptr<simulator_t>(new simulator_t(model_path, save_trajectory));
+  }
+
+  ~simulator_t()
   {
     mj_deleteData(d);
     mj_deleteModel(m);
@@ -93,7 +105,9 @@ public:
     {
       d->qacc_warmstart[i] = 0;
     }
+    _mj_reset_mutex.lock();
     mj_step(m, d);
+    _mj_reset_mutex.unlock();
     if (save_trajectory)
     {
       add_current_state_to_trajectory();
@@ -131,8 +145,12 @@ public:
 
   void reset_simulation(const std_msgs::Empty::ConstPtr& msg)
   {
+    _mj_reset_mutex.lock();
+
     ROS_INFO("Resetting simulation.");
     reset_simulation();
+
+    _mj_reset_mutex.unlock();
   }
 
   void reset_simulation()
@@ -146,10 +164,10 @@ public:
   }
 };
 
-class mujoco_simulator_visualizer_t
+class simulator_visualizer_t
 {
 public:
-  mujoco_simulator_visualizer_t(mjModel* mj_model, mjData* mj_data) : _mj_model(mj_model), _mj_data(mj_data)
+  simulator_visualizer_t(std::shared_ptr<simulator_t> sim) : _sim(sim)
   {
     button_left = button_middle = button_right = false;
     lastx = lasty = 0;
@@ -166,20 +184,20 @@ public:
     mjv_defaultOption(&opt);
     mjv_defaultScene(&scn);
     mjr_defaultContext(&con);
-    mjv_makeScene(_mj_model, &scn, 1000);
-    mjr_makeContext(_mj_model, &con, mjFONTSCALE_150);
+    mjv_makeScene(_sim->m, &scn, 1000);
+    mjr_makeContext(_sim->m, &con, mjFONTSCALE_150);
 
     glfwSetWindowUserPointer(window, this);
     glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos) {
-      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      auto sim = static_cast<simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
       sim->mouse_move(window, xpos, ypos);
     });
     glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
-      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      auto sim = static_cast<simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
       sim->mouse_button(window, button, action, mods);
     });
     glfwSetScrollCallback(window, [](GLFWwindow* window, double xoffset, double yoffset) {
-      auto sim = static_cast<mujoco_simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
+      auto sim = static_cast<simulator_visualizer_t*>(glfwGetWindowUserPointer(window));
       sim->scroll(window, xoffset, yoffset);
     });
   }
@@ -191,13 +209,18 @@ public:
 
     while (ros::ok())
     {
+      _sim->_mj_reset_mutex.lock();
+
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
-      mjv_updateScene(_mj_model, _mj_data, &opt, NULL, &cam, mjCAT_ALL, &scn);
+      mjv_updateScene(_sim->m, _sim->d, &opt, NULL, &cam, mjCAT_ALL, &scn);
       mjr_render(viewport, &scn, &con);
-      snprintf(time_string, 100, "Sim time: = %f", _mj_data->time);
+      snprintf(time_string, 100, "Sim time: = %f", _sim->d->time);
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
       glfwSwapBuffers(window);
       glfwPollEvents();
+
+      _sim->_mj_reset_mutex.unlock();
+
       r.sleep();
     }
   }
@@ -208,11 +231,9 @@ protected:
   mjvCamera cam;
   mjvOption opt;
   GLFWwindow* window;
+  std::shared_ptr<simulator_t> _sim;
 
   char* time_string = new char[100];
-
-  mjModel* _mj_model;
-  mjData* _mj_data;
 
   bool button_left, button_right, button_middle;
   double lastx, lasty;
@@ -257,11 +278,28 @@ protected:
     }
 
     // move camera
-    mjv_moveCamera(_mj_model, action, dx / height, dy / height, &scn, &cam);
+    mjv_moveCamera(_sim->m, action, dx / height, dy / height, &scn, &cam);
   }
   void scroll(GLFWwindow* window, double xoffset, double yoffset)
 
   {
-    mjv_moveCamera(_mj_model, mjMOUSE_ZOOM, 0, 0.05 * yoffset, &scn, &cam);
+    mjv_moveCamera(_sim->m, mjMOUSE_ZOOM, 0, 0.05 * yoffset, &scn, &cam);
   }
 };
+
+// Run simulation with visualization and callbacks. Blocking function.
+void run_simulation(SimulatorPtr sim, const std::size_t callback_threads = 1, const bool visualize = true)
+{
+  std::thread step_thread(&simulator_t::run, &(*sim));  // Mj sim
+  simulator_visualizer_t visualizer{ sim };             // Mj Viz
+  ros::AsyncSpinner spinner(callback_threads);          // 1 thread for the controller
+
+  // Run threads: Mj sim is already running at this point
+  spinner.start();
+  visualizer();  // Blocking
+
+  // Join the non-visual threads
+  step_thread.join();
+  spinner.stop();
+}
+}  // namespace mj_ros

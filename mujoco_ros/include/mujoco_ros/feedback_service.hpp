@@ -12,8 +12,8 @@ template <typename Service>
 class feedback_client_t
 {
 public:
-  feedback_client_t(const std::string root, ros::NodeHandle& nh, mjData* mj_data, double frequency)
-    : _mj_data(mj_data), _frequency(frequency)
+  feedback_client_t(const std::string root, ros::NodeHandle& nh, SimulatorPtr sim, double frequency)
+    : _sim(sim), _frequency(frequency)
   {
     const std::string feedback_service_name{ root + "/feedback_service" };
     _service_client = nh.serviceClient<Service>(feedback_service_name);
@@ -24,21 +24,21 @@ public:
     ros::Rate rate(_frequency);
     while (ros::ok())
     {
-      mj_models::get_observation(_service.request.observation, _mj_data->sensordata);
+      mj_models::get_observation(_service.request.observation, _sim->d->sensordata);
       if (_service_client.call(_service))
       {
-        mj_models::copy(_mj_data->ctrl, _service.response.control);
+        mj_models::copy(_sim->d->ctrl, _service.response.control);
       }
       else
       {
-        ROS_WARN_STREAM("Failed to call service of " << typeid(*this).name());
+        ROS_WARN_STREAM_ONCE("Failed to call service of " << typeid(*this).name());
       }
       rate.sleep();
     }
   }
 
 private:
-  mjData* const _mj_data;
+  const SimulatorPtr _sim;
   ros::ServiceClient _service_client;
   Service _service;
   double _frequency;

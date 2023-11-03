@@ -27,22 +27,17 @@ int main(int argc, char** argv)
   }
 
   const std::string root{ "/mushr" };
-  std::shared_ptr<mujoco_simulator_t> sim{ std::make_shared<mujoco_simulator_t>(model_path, false, visualize) };
-  FeedbackClient feedback_client(root, n, sim->d, 10);
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
+  FeedbackClient feedback_client(root, n, sim, 10);
 
   ros::Subscriber reset_subscriber;
-  reset_subscriber = n.subscribe(root + "/reset", 1000, &mujoco_simulator_t::reset_simulation, sim.get());
+  reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   // Set the threads
-  std::thread step_thread(&mujoco_simulator_t::run, &(*sim));          // Mj sim
-  mujoco_simulator_visualizer_t visualizer{ sim->m, sim->d };          // Mj Viz
   std::thread feedback_thread(&FeedbackClient::run, feedback_client);  // Mj sim
 
-  // Run threads: Mj sim is already running at this point
-  visualizer();  // Blocking
-
-  // Join the non-visual threads
-  step_thread.join();
+  const std::size_t callback_threads{ 1 };
+  run_simulation(sim, callback_threads, visualize);  // Blocking
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;
