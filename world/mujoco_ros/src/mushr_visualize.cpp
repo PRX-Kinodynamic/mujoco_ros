@@ -1,14 +1,14 @@
 #include <thread>
 #include "mujoco_ros/control_listener.hpp"
 #include "mujoco_ros/control_listener.hpp"
-#include "mj_models/mj_mushr.hpp"
+#include "prx_models/mj_mushr.hpp"
 
 // Mujoco-Ros visualization in (almost) RT:
 // Depends on the vizualization thread, but if the viz thread slows down, it won't affect mujoco
 int main(int argc, char** argv)
 {
-  using CtrlMsg = mj_models::MushrControl;
-  using PlanMsg = mj_models::MushrPlan;
+  using CtrlMsg = prx_models::MushrControl;
+  using PlanMsg = prx_models::MushrPlan;
   const std::string node_name{ "Mujoco_Ros_viz_example" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;

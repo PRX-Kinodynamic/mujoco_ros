@@ -3,8 +3,8 @@
 #include <std_msgs/Empty.h>
 
 #include <mujoco_ros/simulator.hpp>
-#include <mj_models/MushrPlan.h>
-#include <mj_models/mj_mushr.hpp>
+#include <prx_models/MushrPlan.h>
+#include <prx_models/mj_mushr.hpp>
 
 class MushrControlListener
 {
@@ -48,11 +48,11 @@ public:
     save_subscriber = n.subscribe("save_trajectory", 1000, &MushrControlListener::save_callback, this);
   }
 
-  void control_callback(const mj_models::MushrPlan::ConstPtr& msg)
+  void control_callback(const prx_models::MushrPlan::ConstPtr& msg)
   {
     for (int i = 0; i < msg->controls.size(); ++i)
     {
-      mj_models::copy(sim->d->ctrl, msg->controls[i]);
+      prx_models::copy(sim->d->ctrl, msg->controls[i]);
       sim->propagate(msg->durations[i].data);
       ROS_INFO("Result: %f, %f", sim->d->qpos[0], sim->d->qpos[1]);
     }

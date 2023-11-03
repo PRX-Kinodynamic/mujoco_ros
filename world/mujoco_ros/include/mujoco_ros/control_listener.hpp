@@ -5,7 +5,7 @@
 #include <std_msgs/Empty.h>
 
 #include <mujoco_ros/simulator.hpp>
-#include <mj_models/mj_mushr.hpp>
+#include <prx_models/mj_mushr.hpp>
 
 template <typename CtrlMsg, typename PlanMsg>
 class controller_listener_t
@@ -21,7 +21,7 @@ public:
 
   void control_callback(const boost::shared_ptr<CtrlMsg const>& msg)
   {
-    mj_models::copy(_mj_data->ctrl, msg);
+    prx_models::copy(_mj_data->ctrl, msg);
   }
 
   void plan_callback(const boost::shared_ptr<PlanMsg const>& msg)
@@ -31,7 +31,7 @@ public:
     ROS_ASSERT(dur_size == ctrl_size);  // Check assertions work
     for (int i = 0; i < dur_size; ++i)
     {
-      mj_models::copy(_mj_data->ctrl, msg->controls[i]);
+      prx_models::copy(_mj_data->ctrl, msg->controls[i]);
       ros::Duration(msg->durations[i].data).sleep();
     }
   }

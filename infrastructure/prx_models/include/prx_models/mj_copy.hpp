@@ -1,6 +1,6 @@
 #pragma once
 
-namespace mj_models
+namespace prx_models
 {
 /**
  * Mj copy to avoid extra copies to mj_data->ctrl (or other data structure).
@@ -24,4 +24,4 @@ inline void copy(Ctrl ctrl_out, const boost::shared_ptr<Msg const> msg)
 {
   copy(ctrl_out, *msg);
 }
-}  // namespace mj_models
+}  // namespace prx_models

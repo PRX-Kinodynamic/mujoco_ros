@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>mj_models</name>
+  <name>prx_models</name>
   <version>0.0.0</version>
-  <description>The mujoco models</description>
+  <description>The robot models</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
