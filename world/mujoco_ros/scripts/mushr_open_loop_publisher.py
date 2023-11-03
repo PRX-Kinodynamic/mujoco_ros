@@ -9,7 +9,7 @@ from std_msgs.msg import Float64
 
 def talker():
     rospy.init_node('mushr_open_loop_publisher', anonymous=True)
-    pub = rospy.Publisher('/mushr/plan', MushrPlan, queue_size=10)
+    pub = rospy.Publisher(rospy.get_namespace()+'plan', MushrPlan, queue_size=10)
     
     # wait for simulation to start
     rospy.sleep(5.0)

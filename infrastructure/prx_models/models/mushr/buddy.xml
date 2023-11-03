@@ -84,4 +84,9 @@
       <joint joint="buddy_wheel_br_throttle" coef="0.25"/>
     </fixed>
   </tendon>
+  <sensor>
+   <!-- Frame position-->
+    <framepos name="global_position" objtype="body" objname="buddy"/>
+    <framequat name="global_orientation" objtype="body" objname="buddy"/>
+  </sensor>
 </mujoco>

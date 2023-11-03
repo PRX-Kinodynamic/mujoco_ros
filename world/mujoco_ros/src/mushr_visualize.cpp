@@ -28,14 +28,17 @@ int main(int argc, char** argv)
     ROS_ERROR("Failed to get param 'visualize'.");
   }
 
-  const std::string root{ "/mushr" };
-  std::shared_ptr<mujoco_simulator_t> sim{ std::make_shared<mujoco_simulator_t>(model_path, false, visualize) };
-  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(root, n, sim->d);
+  const std::string root{ ros::this_node::getNamespace() };
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
+  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
+
+  ros::Subscriber reset_subscriber;
+  reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   // Set the threads
-  std::thread step_thread(&mujoco_simulator_t::run, &(*sim));  // Mj sim
-  mujoco_simulator_visualizer_t visualizer{ sim->m, sim->d };  // Mj Viz
-  ros::AsyncSpinner spinner(1);                                // 1 thread for the controller
+  std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
+  mj_ros::simulator_visualizer_t visualizer{ sim };             // Mj Viz
+  ros::AsyncSpinner spinner(1);                                 // 1 thread for the controller
 
   // Run threads: Mj sim is already running at this point
   spinner.start();
