@@ -2,6 +2,7 @@
 #include <mujoco_ros/simulator.hpp>
 #include <mj_models/mj_mushr.hpp>
 #include "mujoco_ros/feedback_service.hpp"
+#include <std_msgs/Empty.h>
 
 int main(int argc, char** argv)
 {
@@ -28,6 +29,9 @@ int main(int argc, char** argv)
   const std::string root{ "/mushr" };
   std::shared_ptr<mujoco_simulator_t> sim{ std::make_shared<mujoco_simulator_t>(model_path, false, visualize) };
   FeedbackClient feedback_client(root, n, sim->d, 10);
+
+  ros::Subscriber reset_subscriber;
+  reset_subscriber = n.subscribe(root + "/reset", 1000, &mujoco_simulator_t::reset_simulation, sim.get());
 
   // Set the threads
   std::thread step_thread(&mujoco_simulator_t::run, &(*sim));          // Mj sim

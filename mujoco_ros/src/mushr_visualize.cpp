@@ -32,6 +32,9 @@ int main(int argc, char** argv)
   std::shared_ptr<mujoco_simulator_t> sim{ std::make_shared<mujoco_simulator_t>(model_path, false, visualize) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(root, n, sim->d);
 
+  ros::Subscriber reset_subscriber;
+  reset_subscriber = n.subscribe(root + "/reset", 1000, &mujoco_simulator_t::reset_simulation, sim.get());
+
   // Set the threads
   std::thread step_thread(&mujoco_simulator_t::run, &(*sim));  // Mj sim
   mujoco_simulator_visualizer_t visualizer{ sim->m, sim->d };  // Mj Viz

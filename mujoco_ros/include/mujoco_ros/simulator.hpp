@@ -129,6 +129,12 @@ public:
     return out.str();
   }
 
+  void reset_simulation(const std_msgs::Empty::ConstPtr& msg)
+  {
+    ROS_INFO("Resetting simulation.");
+    reset_simulation();
+  }
+
   void reset_simulation()
   {
     mj_resetData(m, d);

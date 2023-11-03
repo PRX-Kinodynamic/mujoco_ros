@@ -1,80 +1,70 @@
 #!/usr/bin/env python
 # license removed for brevity
-import sys,tty,termios
 import curses
-
 import rospy
 from mj_models.msg import MushrControl
 from mj_models.msg import MushrObservation
 from mj_models.srv import MushrFeedback,MushrFeedbackResponse
+from std_msgs.msg import Empty
 
-screen = None
-control = MushrControl()
-observation = MushrObservation()
-robot_name = "mushr"
-velocity_increase = 0.1
-steering_increase = 0.1
+class KeyboardControlService:
+    def __init__(self):
+        self.control = MushrControl()
+        self.observation = MushrObservation()
 
-def handle_service(req):
-    global control
-    global observation
-    observation = req.observation
-    return MushrFeedbackResponse(control)
+        self.velocity_increase = 0.1
+        self.steering_increase = 0.1
 
-def reset():
-    global control
-    control.steering_angle.data = 0
-    control.velocity.data = 0
+        self.feedback_service = rospy.Service(rospy.get_namespace() + 'feedback_service', MushrFeedback, self.handle_service)
+        rospy.init_node('keyboard_terminal', anonymous=True)
 
-def keyboard_terminal():
-    global control
-    global observation
+        self.reset_pub = rospy.Publisher(rospy.get_namespace() + 'reset', Empty, queue_size=10)
 
-    feedback_service = rospy.Service('/' + robot_name + '/feedback_service', MushrFeedback, handle_service)
-    rospy.init_node('keyboard_terminal', anonymous=True)
-    rate = rospy.Rate(10) # 10hz
-    screen = curses.initscr()
+        self.rate = rospy.Rate(10)
 
-    curses.noecho()
-    curses.cbreak()
-    screen.keypad(True)
-    screen.addstr("Usage: \n")
-    screen.addstr("\tUP: w or up arrow \n")
-    screen.addstr("\tDOWN: s or down arrow \n")
-    screen.addstr("\tRIGHT: d or right arrow \n")
-    screen.addstr("\tLEFT: a or left arrow \n")
-    screen.addstr("\tSTART/STOP: spacebar \n")
-    # screen.addstr("")
-    reset()
-    while not rospy.is_shutdown():
-        c = screen.getch()
-        if c == curses.KEY_UP or c == ord("w"):
-            # pub.publish()
-            control.velocity.data += velocity_increase
-        elif c == curses.KEY_DOWN or c == ord("s"):
-            control.velocity.data -= velocity_increase
-        elif c == curses.KEY_LEFT or c == ord("a"):
-            control.steering_angle.data += steering_increase
-        elif c == curses.KEY_RIGHT or c == ord("d"):
-            control.steering_angle.data -= steering_increase
-        elif c == ord("r"):
-            reset()
-            pub_start.publish(start)
-        elif c == 27:
-            reset()
-        screen.addstr(7, 5, "\tSPEED: " + str(control.velocity.data) + " \n")
-        screen.addstr(8, 5, "\tSTEER: " + str(control.steering_angle.data) + " \n")
-        screen.addstr(8, 5, "\tObservation: " + str(observation) + " \n")
+    def reset_control(self):
+        self.control.steering_angle.data = 0
+        self.control.velocity.data = 0
+    
+    def keyboard_terminal(self):
+        screen = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        screen.keypad(True)
+        self.reset_control()
 
-        screen.refresh()
-    curses.nocbreak()
-    screen.keypad(False)
-    curses.echo()
-    curses.endwin()
+        while not rospy.is_shutdown():
+            key = screen.getch()
+            if key == curses.KEY_UP or key == ord('w'):
+                self.control.velocity.data += self.velocity_increase
+            elif key == curses.KEY_DOWN or key == ord('s'):
+                self.control.velocity.data -= self.velocity_increase
+            elif key == curses.KEY_LEFT or key == ord('a'):
+                self.control.steering_angle.data += self.steering_increase
+            elif key == curses.KEY_RIGHT or key == ord('d'):
+                self.control.steering_angle.data -= self.steering_increase
+            elif key == ord('r'):
+                self.reset_pub.publish(Empty())
+                self.reset_control()
+            elif key == ord('q'):
+                break
+            screen.addstr(10, 0, 'Velocity: ' + str(self.control.velocity.data) + ' Steering: ' + str(self.control.steering_angle.data) + '\n')
+            screen.addstr(11, 0, "Position: " + str(self.observation.pose.position.x) + " " + str(self.observation.pose.position.y) + " " + str(self.observation.pose.position.z) + '\n')
+            screen.refresh()
 
+
+        curses.nocbreak()
+        screen.keypad(False)
+        curses.echo()
+        curses.endwin()
+
+    def handle_service(self,req):
+        self.observation = req.observation
+        return MushrFeedbackResponse(self.control)
+    
 if __name__ == '__main__':
     try:
-        keyboard_terminal()
+        keyboard_control_service = KeyboardControlService()
+        keyboard_control_service.keyboard_terminal()
     except rospy.ROSInterruptException:
-        # 
         pass
