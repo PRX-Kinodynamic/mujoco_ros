@@ -1,15 +1,13 @@
 #include <thread>
-#include "mujoco_ros/control_listener.hpp"
-#include "mujoco_ros/control_listener.hpp"
-#include "mj_models/mj_mushr.hpp"
+#include <mujoco_ros/simulator.hpp>
+#include <mj_models/mj_mushr.hpp>
+#include "mujoco_ros/feedback_service.hpp"
+#include <std_msgs/Empty.h>
 
-// Mujoco-Ros visualization in (almost) RT:
-// Depends on the vizualization thread, but if the viz thread slows down, it won't affect mujoco
 int main(int argc, char** argv)
 {
-  using CtrlMsg = mj_models::MushrControl;
-  using PlanMsg = mj_models::MushrPlan;
-  const std::string node_name{ "Mujoco_Ros_viz_example" };
+  using FeedbackClient = mj_ros::feedback_client_t<mj_models::MushrFeedback>;
+  const std::string node_name{ "Mujoco_Ros_feedback_example" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
 
@@ -30,23 +28,16 @@ int main(int argc, char** argv)
 
   const std::string root{ ros::this_node::getNamespace() };
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
-  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
+  FeedbackClient feedback_client(n, sim, 10);
 
   ros::Subscriber reset_subscriber;
   reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   // Set the threads
-  std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
-  mj_ros::simulator_visualizer_t visualizer{ sim };             // Mj Viz
-  ros::AsyncSpinner spinner(1);                                 // 1 thread for the controller
+  std::thread feedback_thread(&FeedbackClient::run, feedback_client);  // Mj sim
 
-  // Run threads: Mj sim is already running at this point
-  spinner.start();
-  visualizer();  // Blocking
-
-  // Join the non-visual threads
-  step_thread.join();
-  spinner.stop();
+  const std::size_t callback_threads{ 1 };
+  run_simulation(sim, callback_threads, visualize);  // Blocking
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;
