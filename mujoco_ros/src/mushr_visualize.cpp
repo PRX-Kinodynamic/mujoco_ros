@@ -28,9 +28,9 @@ int main(int argc, char** argv)
     ROS_ERROR("Failed to get param 'visualize'.");
   }
 
-  const std::string root{ "/mushr" };
+  const std::string root{ ros::this_node::getNamespace() };
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
-  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(root, n, sim->d);
+  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
 
   ros::Subscriber reset_subscriber;
   reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());

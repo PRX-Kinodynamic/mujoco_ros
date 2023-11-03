@@ -11,8 +11,9 @@ template <typename CtrlMsg, typename PlanMsg>
 class controller_listener_t
 {
 public:
-  controller_listener_t(const std::string root, ros::NodeHandle& nh, mjData* mj_data) : _mj_data(mj_data)
+  controller_listener_t(ros::NodeHandle& nh, mjData* mj_data) : _mj_data(mj_data)
   {
+    const std::string root{ ros::this_node::getNamespace() };
     const std::string ctrl_topic{ root + "/control" };
     const std::string plan_topic{ root + "/plan" };
     _control_subscriber = nh.subscribe(ctrl_topic, 1000, &controller_listener_t::control_callback, this);

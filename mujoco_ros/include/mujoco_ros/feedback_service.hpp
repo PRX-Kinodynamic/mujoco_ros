@@ -12,9 +12,10 @@ template <typename Service>
 class feedback_client_t
 {
 public:
-  feedback_client_t(const std::string root, ros::NodeHandle& nh, SimulatorPtr sim, double frequency)
+  feedback_client_t(ros::NodeHandle& nh, SimulatorPtr sim, double frequency)
     : _sim(sim), _frequency(frequency)
   {
+    const std::string root{ ros::this_node::getNamespace()};
     const std::string feedback_service_name{ root + "/feedback_service" };
     _service_client = nh.serviceClient<Service>(feedback_service_name);
   }

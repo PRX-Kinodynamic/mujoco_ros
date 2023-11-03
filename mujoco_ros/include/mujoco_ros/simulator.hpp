@@ -2,6 +2,7 @@
 #include "defs.h"
 #include <sstream>
 #include <cstdio>
+#include <mutex>
 
 namespace mj_ros
 {
