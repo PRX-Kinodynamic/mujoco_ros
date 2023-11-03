@@ -1,5 +1,5 @@
 <launch>
-    <param name="model_path" type="string" value="$(find mj_models)/models/mushr/mushr.xml"/>
+    <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
     <group ns="mushr">
         <node pkg="mujoco_ros" name="mushr_feedback" type="mushr_feedback" output="screen" >
             <param name="visualize" value="true" />

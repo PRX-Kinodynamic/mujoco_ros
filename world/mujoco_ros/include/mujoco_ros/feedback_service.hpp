@@ -12,10 +12,9 @@ template <typename Service>
 class feedback_client_t
 {
 public:
-  feedback_client_t(ros::NodeHandle& nh, SimulatorPtr sim, double frequency)
-    : _sim(sim), _frequency(frequency)
+  feedback_client_t(ros::NodeHandle& nh, SimulatorPtr sim, double frequency) : _sim(sim), _frequency(frequency)
   {
-    const std::string root{ ros::this_node::getNamespace()};
+    const std::string root{ ros::this_node::getNamespace() };
     const std::string feedback_service_name{ root + "/feedback_service" };
     _service_client = nh.serviceClient<Service>(feedback_service_name);
   }
@@ -25,10 +24,10 @@ public:
     ros::Rate rate(_frequency);
     while (ros::ok())
     {
-      mj_models::get_observation(_service.request.observation, _sim->d->sensordata);
+      prx_models::get_observation(_service.request.observation, _sim->d->sensordata);
       if (_service_client.call(_service))
       {
-        mj_models::copy(_sim->d->ctrl, _service.response.control);
+        prx_models::copy(_sim->d->ctrl, _service.response.control);
       }
       else
       {

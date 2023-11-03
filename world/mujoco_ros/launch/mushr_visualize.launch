@@ -1,5 +1,5 @@
 <launch>
-    <param name="model_path" type="string" value="$(find mj_models)/models/mushr/mushr.xml"/>
+    <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
     <arg name="plan_file" default="data/mushr_plan.txt"/>
     <arg name="delimiter" default=","/>
     <group ns="mushr">

@@ -2,9 +2,9 @@
 # license removed for brevity
 import curses
 import rospy
-from mj_models.msg import MushrControl
-from mj_models.msg import MushrObservation
-from mj_models.srv import MushrFeedback,MushrFeedbackResponse
+from prx_models.msg import MushrControl
+from prx_models.msg import MushrObservation
+from prx_models.srv import MushrFeedback,MushrFeedbackResponse
 from std_msgs.msg import Empty
 
 class KeyboardControlService:

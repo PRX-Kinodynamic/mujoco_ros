@@ -3,6 +3,7 @@
 #include <sstream>
 #include <cstdio>
 #include <mutex>
+#include <thread>
 
 namespace mj_ros
 {

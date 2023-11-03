@@ -1,12 +1,13 @@
 #include <thread>
 #include <mujoco_ros/simulator.hpp>
-#include <mj_models/mj_mushr.hpp>
-#include "mujoco_ros/feedback_service.hpp"
+#include <prx_models/mj_mushr.hpp>
 #include <std_msgs/Empty.h>
+
+#include "mujoco_ros/feedback_service.hpp"
 
 int main(int argc, char** argv)
 {
-  using FeedbackClient = mj_ros::feedback_client_t<mj_models::MushrFeedback>;
+  using FeedbackClient = mj_ros::feedback_client_t<prx_models::MushrFeedback>;
   const std::string node_name{ "Mujoco_Ros_feedback_example" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
