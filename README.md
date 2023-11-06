@@ -17,7 +17,7 @@ export MJ_PATH=$(pwd)
 ```
 
 ## TODOs
-[*] Visualization support
-[*] Executing an open-loop plan from a file
-[*] Closed-loop execution via a service (control in, next observation out) 
-[ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
+- [x] Visualization support
+- [x] Executing an open-loop plan from a file
+- [x] Closed-loop execution via a service (control in, next observation out) 
+- [ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
