@@ -16,7 +16,7 @@ int main(int argc, char** argv)
   const std::string package_path{ ros::package::getPath("mujoco_ros") };
 
   std::string model_path;
-  bool visualize;
+  bool visualize, save_trajectory;
   if (!n.getParam("/model_path", model_path))
   {
     ROS_ERROR("Failed to get param 'model_path'.");
@@ -28,8 +28,14 @@ int main(int argc, char** argv)
     ROS_ERROR("Failed to get param 'visualize'.");
   }
 
+  const std::string param_name_save_trajectory { ros::this_node::getName() + "/save_trajectory" };
+  if (!n.getParam(param_name_save_trajectory, save_trajectory))
+  {
+    ROS_ERROR("Failed to get param 'save_trajectory'.");
+  }
+
   const std::string root{ ros::this_node::getNamespace() };
-  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
 
   ros::Subscriber reset_subscriber;
