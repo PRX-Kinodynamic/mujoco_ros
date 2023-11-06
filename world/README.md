@@ -1,8 +1,8 @@
 # World
-Packages related to real robots or simulation
+Packages related to the real or simulated robot.
 
-## Mujoco Ros
-	* Mujoco execution with ROS
+## mujoco_ros
+* Mujoco execution with ROS
 
-## Mushr 
-ToDo
+## MuSHR hardware
+TODO
