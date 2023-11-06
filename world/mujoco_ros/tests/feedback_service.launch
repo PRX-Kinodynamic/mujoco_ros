@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <test pkg="mujoco_ros" test-name="test_feedback_service" type="test_feedback_service" />
+</launch>
