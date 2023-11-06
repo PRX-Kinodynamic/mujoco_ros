@@ -1,0 +1,16 @@
+
+<launch>
+  <arg name="car_name" default="car" />
+  <arg name="tf_prefix" default="$(arg car_name)"/>
+  <node name="rplidarNode"          pkg="rplidar_ros"  type="rplidarNode" output="screen">
+    <param name="serial_port"         type="string" value="/dev/ttyUSB0"/>
+    <param name="serial_baudrate"     type="int"    value="115200"/><!--A1/A2 -->
+    <!--param name="serial_baudrate"     type="int"    value="256000"--><!--A3 -->
+    <param name="frame_id"            type="string" value="/$(arg tf_prefix)/laser_link/"/>
+    <param name="inverted"            type="bool"   value="false"/>
+    <param name="angle_compensate"    type="bool"   value="true"/>
+  </node>
+
+  <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser_link"
+    args="0.2245 0.0 0.2 0.0 0.0  0.0 /base_footprint /laser 40" />
+</launch>
