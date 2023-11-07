@@ -1,0 +1,8 @@
+prx_models/MushrObservation current_observation
+motion_planning/PlannerGoal goal_configuration
+std_msgs/Float64 planning_duration
+---
+prx_models/MushrPlan output_plan
+uint8 TYPE_SUCCESS=1
+uint8 TYPE_FAILURE=0
+uint8 planner_output

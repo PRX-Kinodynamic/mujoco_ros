@@ -37,7 +37,7 @@ int main(int argc, char** argv)
 
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
-  mj_ros::ground_truth_pose_t<prx_models::MushrObservation> ground_truth_pose(n, sim, 30);
+  mj_ros::ground_truth_pose_t<prx_models::MushrObservation> ground_truth_pose(n, sim, 15);
 
   ros::Subscriber reset_subscriber;
   reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
