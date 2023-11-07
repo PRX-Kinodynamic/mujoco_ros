@@ -86,7 +86,7 @@
   </tendon>
   <sensor>
    <!-- Frame position-->
-    <framepos name="global_position" objtype="body" objname="world"/>
-    <framequat name="global_orientation" objtype="body" objname="world"/>
+    <framepos name="global_position" objtype="xbody" objname="buddy"/>
+    <framequat name="global_orientation" objtype="xbody" objname="buddy"/>
   </sensor>
 </mujoco>
