@@ -27,7 +27,10 @@ public:
 
   bool service_callback(typename Service::Request& request, typename Service::Response& response)
   {
-    _planner->plan(request, response);
+    prx::condition_check_t checker("time", request.planning_duration.data);
+    _planner->resolve_query(&checker);
+    _planner->fulfill_query();
+    // Copy from planner to response
     return true;
   }
 };

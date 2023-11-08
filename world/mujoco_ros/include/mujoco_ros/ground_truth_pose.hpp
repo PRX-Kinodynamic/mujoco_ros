@@ -26,13 +26,12 @@ public:
       _publisher.publish(_message);
       rate.sleep();
     }
-  
   }
 
 private:
   const SimulatorPtr _sim;
   ros::Publisher _publisher;
   double _frequency;
-  Observation _message; 
+  Observation _message;
 };
 }  // namespace mj_ros
