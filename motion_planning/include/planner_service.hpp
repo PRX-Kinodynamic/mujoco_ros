@@ -1,4 +1,4 @@
-#include "ml4kp_defs.h"
+#include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
 
@@ -11,6 +11,7 @@ private:
   ros::ServiceServer _service_server;
   PlannerPtr _planner;
   Service _service;
+
 public:
   planner_service_t(ros::NodeHandle& nh, PlannerPtr planner) : _planner(planner)
   {

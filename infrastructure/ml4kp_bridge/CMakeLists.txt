@@ -106,9 +106,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR}
-#  LIBRARIES mujoco
+ LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
-#  DEPENDS system_lib
+ # DEPENDS ML4KP
 )
 
 ###########
@@ -125,6 +125,11 @@ include_directories(
 )
 
 ## Declare a C++ library
+# Consider all src to add to the library (no executables in this package)
+# file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
+add_library(${PROJECT_NAME} INTERFACE)
+add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/mujoco.cpp
 # )
@@ -156,9 +161,10 @@ foreach(f ${EXECUTABLE_FILES})
     add_dependencies(${fname}
                      ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                      ${catkin_EXPORTED_TARGETS}
+                     ${PROJECT_NAME}
                      )
     target_link_libraries(${fname}
-                          ML4KP::ML4KP
+                          ${PROJECT_NAME}
                           ${catkin_LIBRARIES}
                         )
 endforeach()
@@ -214,12 +220,10 @@ file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
 
 message(STATUS "TEST HERE")
 foreach(f_test ${TESTS_FILES})
-  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
-  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
-  if(TARGET ${PROJECT_NAME}-test)
-    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} ${ML4KP_LIBRARIES})
-  endif()
+  get_filename_component(fname ${f_test} NAME_WE )
+  catkin_add_gtest(${fname}-test ${f_test})
+  MESSAGE(STATUS "${fname}-test ${f_test}")
+  target_link_libraries(${fname}-test ${catkin_LIBRARIES} ${PROJECT_NAME})
 endforeach()
 
 ## Add folders to be run by python nosetests
