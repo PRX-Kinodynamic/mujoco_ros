@@ -6,10 +6,6 @@ set(CMAKE_CXX_STANDARD 17)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
-# Mujoco-relates packages
-find_package(Eigen3 REQUIRED)
-find_package(rostest REQUIRED)
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
