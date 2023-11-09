@@ -1,5 +1,5 @@
 #include <ml4kp_bridge/defs.h>
-#include "motion_planning/MushrPlanner.h"
+#include "prx_models/MushrPlanner.h"
 
 #include <ros/ros.h>
 
@@ -11,11 +11,7 @@ int main(int argc, char** argv)
   std::string plant_name = "Ackermann_FO";
   std::string plant_path = "Ackermann_FO";
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
-  if (plant == nullptr)
-  {
-    ROS_ERROR("Failed to create plant");
-    return 1;
-  }
+  prx_assert(plant != nullptr, "Failed to create plant");
 
   prx::world_model_t planning_model({ plant }, {});
   planning_model.create_context("planner_context", { plant_name }, {});
