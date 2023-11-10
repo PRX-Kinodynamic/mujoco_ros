@@ -35,7 +35,7 @@ mushr+=("world/mushr/mushr/mushr_description")
 
 # Simulation (Mujoco)
 simulation=("world/mujoco_ros")
-simulation+=("world/mushr/mushr_sim")
+# simulation+=("world/mushr/mushr_sim")
 
 # Perception
 # perception=("")

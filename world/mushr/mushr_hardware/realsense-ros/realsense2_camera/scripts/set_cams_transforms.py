@@ -1,29 +1,15 @@
-# Copyright 2023 Intel Corporation. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-import rclpy
-from rclpy.node import Node
+import rospy
 import sys
+import tf
+import tf2_ros
 import geometry_msgs.msg
 
 import termios
 import tty
 import os
+import time
 import math
 import json
-from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
-from tf_transformations import quaternion_from_euler
 
 
 def getch():
@@ -46,9 +32,9 @@ def print_status(status):
     sys.stdout.write('%-8s%-8s%-8s%-40s\r' % (status['mode'], status[status['mode']]['value'], status[status['mode']]['step'], status['message']))
 
 
-def publish_status(node, broadcaster, status):
+def publish_status(broadcaster, status):
     static_transformStamped = geometry_msgs.msg.TransformStamped()
-    static_transformStamped.header.stamp = node.get_clock().now().to_msg()
+    static_transformStamped.header.stamp = rospy.Time.now()
     static_transformStamped.header.frame_id = from_cam
 
     static_transformStamped.child_frame_id = to_cam
@@ -56,7 +42,7 @@ def publish_status(node, broadcaster, status):
     static_transformStamped.transform.translation.y = status['y']['value']
     static_transformStamped.transform.translation.z = status['z']['value']
 
-    quat = quaternion_from_euler(math.radians(status['roll']['value']),
+    quat = tf.transformations.quaternion_from_euler(math.radians(status['roll']['value']),
                                                     math.radians(status['pitch']['value']),
                                                     math.radians(status['azimuth']['value']))
     static_transformStamped.transform.rotation.x = quat[0]
@@ -72,7 +58,9 @@ if __name__ == '__main__':
         print ('set_cams_transforms.py from_cam to_cam x y z azimuth pitch roll')
         print ('x, y, z: in meters')
         print ('azimuth, pitch, roll: in degrees')
+        print
         print ('If parameters are not given read last used parameters.')
+        print
         print ('[OPTIONS]')
         print ('--file <file name> : if given, default values are loaded from file')
         sys.exit(-1)
@@ -105,27 +93,27 @@ if __name__ == '__main__':
             print ('Initial parameters must be given for initial run or if an un-initialized file has been given.')
             sys.exit(-1)
 
-    rclpy.init()
-    node = Node('my_static_tf2_broadcaster')
-    #rospy.init_node('my_static_tf2_broadcaster')
-    broadcaster = StaticTransformBroadcaster(node)
+    rospy.init_node('my_static_tf2_broadcaster')
+    broadcaster = tf2_ros.StaticTransformBroadcaster()
 
     print
     print ('Press the following keys to change mode: x, y, z, (a)zimuth, (p)itch, (r)oll')
     print ('For each mode, press 6 to increase by step and 4 to decrease')
     print ('Press + to multiply step by 2 or - to divide')
+    print
     print ('Press Q to quit')
+    print
 
     status_keys = [key[0] for key in status.keys()]
     print ('%-8s%-8s%-8s%s' % ('Mode', 'value', 'step', 'message'))
     print_status(status)
-    publish_status(node, broadcaster, status)
+    publish_status(broadcaster, status)
     while True:
         kk = getch()
         status['message'] = ''
         try:
             key_idx = status_keys.index(kk)
-            status['mode'] = list(status.keys())[key_idx]
+            status['mode'] = status.keys()[key_idx]
         except ValueError as e:
             if kk.upper() == 'Q':
                 sys.stdout.write('\n')
@@ -142,7 +130,7 @@ if __name__ == '__main__':
                 status['message'] = 'Invalid key:' + kk
 
         print_status(status)
-        publish_status(node, broadcaster, status)
+        publish_status(broadcaster, status)
         json.dump(status, open(filename, 'w'), indent=4)
 
     #rospy.spin()
