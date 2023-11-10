@@ -13,7 +13,6 @@ private:
   ros::Publisher _plan_publisher;
   Service _service;
   Observation _most_recent_observation;
-  ros::Rate _rate{ 10 };
 
 public:
   planner_client_t(ros::NodeHandle& nh)

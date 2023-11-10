@@ -13,7 +13,6 @@ private:
   QueryPtr _query;
   SpecPtr _spec;
   Service _service;
-  ros::Rate _rate{ 10 };
 
 public:
   planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query)
