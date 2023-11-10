@@ -1,4 +1,6 @@
 #pragma once
+#include "eigen3/Eigen/Dense"
+#include "geometry_msgs/Pose2D.h"
 
 #include "prx_models/mj_copy.hpp"
 
@@ -6,6 +8,7 @@
 #include <prx_models/MushrPlan.h>
 #include <prx_models/MushrObservation.h>
 #include <prx_models/MushrFeedback.h>
+#include <prx_models/MushrPlanner.h>
 
 namespace prx_models
 {
@@ -44,4 +47,43 @@ inline void get_observation(prx_models::MushrObservation& msg, const Sensor& sen
   msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW];
 }
 
+template <typename StateSpacePoint>
+inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg)
+{
+  state->at(0) = msg.pose.position.x;
+  state->at(1) = msg.pose.position.y;
+  Eigen::Quaterniond quat = Eigen::Quaterniond(msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y,
+                                               msg.pose.orientation.z);
+  Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
+  state->at(2) = euler[2];
+}
+
+template <typename StateSpacePoint>
+inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
+{
+  state->at(0) = msg.x;
+  state->at(1) = msg.y;
+  state->at(2) = msg.theta;
+}
+
+template <typename Ctrl>
+inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
+{
+  msg.steering_angle.data = ctrl[0];
+  msg.velocity.data = ctrl[1];
+}
+
+template <typename PrxPlan>
+inline void copy(prx_models::MushrPlan& msg, PrxPlan& plan)
+{
+  for (unsigned i = 0; i < plan.size(); i++)
+  {
+    prx_models::MushrControl ctrl_msg;
+    std_msgs::Float64 duration;
+    copy(ctrl_msg, *plan.at(i).control);
+    duration.data = plan.at(i).duration;
+    msg.controls.push_back(ctrl_msg);
+    msg.durations.push_back(duration);
+  }
+}
 }  // namespace prx_models

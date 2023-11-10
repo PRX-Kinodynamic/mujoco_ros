@@ -1,21 +1,17 @@
 cmake_minimum_required(VERSION 3.5)
-project(ml4kp_bridge)
+project(task_planning)
 set(CMAKE_CXX_STANDARD 17)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
-# Mujoco-relates packages
-find_package(Eigen3 REQUIRED)
-find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
-find_package(rostest REQUIRED)
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   message_generation
   roslib
+  motion_planning
 )
 
 ## System dependencies are found with CMake's conventions
@@ -73,6 +69,7 @@ find_package(catkin REQUIRED COMPONENTS
 # generate_messages(
 #   DEPENDENCIES
 #   std_msgs
+#   prx_models
 # )
 
 ################################################
@@ -105,10 +102,10 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR}
- LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp std_msgs message_runtime 
- # DEPENDS ML4KP
+#  INCLUDE_DIRS include
+#  LIBRARIES mujoco
+ CATKIN_DEPENDS roscpp std_msgs message_runtime motion_planning
+#  DEPENDS system_lib
 )
 
 ###########
@@ -119,17 +116,10 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
-  ${ML4KP_INCLUDE_DIR}
-  ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-# Consider all src to add to the library (no executables in this package)
-# file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
-add_library(${PROJECT_NAME} INTERFACE)
-add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/mujoco.cpp
 # )
@@ -161,10 +151,8 @@ foreach(f ${EXECUTABLE_FILES})
     add_dependencies(${fname}
                      ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                      ${catkin_EXPORTED_TARGETS}
-                     ${PROJECT_NAME}
                      )
     target_link_libraries(${fname}
-                          ${PROJECT_NAME}
                           ${catkin_LIBRARIES}
                         )
 endforeach()
@@ -220,10 +208,12 @@ file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
 
 message(STATUS "TEST HERE")
 foreach(f_test ${TESTS_FILES})
-  get_filename_component(fname ${f_test} NAME_WE )
-  catkin_add_gtest(${fname}-test ${f_test})
-  MESSAGE(STATUS "${fname}-test ${f_test}")
-  target_link_libraries(${fname}-test ${catkin_LIBRARIES} ${PROJECT_NAME})
+  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
+  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
+  if(TARGET ${PROJECT_NAME}-test)
+    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
+    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
+  endif()
 endforeach()
 
 ## Add folders to be run by python nosetests
