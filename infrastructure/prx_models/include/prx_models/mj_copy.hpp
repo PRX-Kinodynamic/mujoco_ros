@@ -10,7 +10,7 @@ namespace prx_models
  *   inline void copy(Ctrl ctrl_out, const mj_models::RobotCtrl& msg)
  *   {
  *     (...)
- *   }
+*   }
  */
 
 template <typename Ctrl, typename Msg>
@@ -23,5 +23,11 @@ template <typename Ctrl, typename Msg>
 inline void copy(Ctrl ctrl_out, const boost::shared_ptr<Msg const> msg)
 {
   copy(ctrl_out, *msg);
+}
+
+template <typename StateSpacePoint, typename Msg>
+inline void copy(StateSpacePoint& state, const boost::shared_ptr<Msg const> msg)
+{
+  copy(state, *msg);
 }
 }  // namespace prx_models

@@ -13,7 +13,7 @@ public:
   ground_truth_pose_t(ros::NodeHandle& nh, SimulatorPtr sim, double frequency) : _sim(sim), _frequency(frequency)
   {
     const std::string root{ ros::this_node::getNamespace() };
-    const std::string topic_name{ root + "/ground_truth_pose" };
+    const std::string topic_name{ root + "/pose" };
     _publisher = nh.advertise<Observation>(topic_name, 1000);
   }
 

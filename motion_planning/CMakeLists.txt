@@ -103,8 +103,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES mujoco
+ INCLUDE_DIRS include
+ LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge
 #  DEPENDS system_lib
 )
@@ -121,9 +121,7 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mujoco.cpp
-# )
+add_library(${PROJECT_NAME} INTERFACE)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
