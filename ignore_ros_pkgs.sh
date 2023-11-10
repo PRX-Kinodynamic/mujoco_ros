@@ -14,7 +14,7 @@ populate_catkin_ignore () {
 
 ## List packages needed
 # ML4KP-bridge
-ml4kp_bridge=("infrastructure/ml4kp_bridge/CMakeLists.txt")
+ml4kp_bridge=("infrastructure/ml4kp_bridge")
 
 # Mushr
 mushr=("world/mushr/mushr/mushr_base/mushr_base/mushr_base")
