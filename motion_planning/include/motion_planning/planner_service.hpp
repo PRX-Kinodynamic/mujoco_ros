@@ -1,6 +1,5 @@
 #include <ml4kp_bridge/defs.h>
-#include "prx_models/mj_copy.hpp"
-
+#include <prx_models/mj_mushr.hpp>
 #include <ros/ros.h>
 
 namespace mj_ros
