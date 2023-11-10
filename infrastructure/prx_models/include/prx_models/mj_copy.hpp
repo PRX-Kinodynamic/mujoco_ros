@@ -6,28 +6,34 @@ namespace prx_models
  * Mj copy to avoid extra copies to mj_data->ctrl (or other data structure).
  * For each controller, is only necesary to implement a copy function that takes a
  * reference to the control message (no pointer):
- *   template <typename Ctrl>
- *   inline void copy(Ctrl ctrl_out, const mj_models::RobotCtrl& msg)
+ *   template <typename SpacePoint>
+ *   inline void copy(SpacePoint SpacePoint_out, const mj_models::RobotSpacePoint& msg)
  *   {
  *     (...)
  *   }
  */
 
-template <typename Ctrl, typename Msg>
-inline void copy(Ctrl ctrl_out, const boost::shared_ptr<Msg> msg)
+template <typename SpacePoint, typename Msg>
+inline void copy(SpacePoint SpacePoint_out, const boost::shared_ptr<Msg> msg)
 {
-  copy(ctrl_out, *msg);
+  copy(SpacePoint_out, *msg);
 }
 
-template <typename Ctrl, typename Msg>
-inline void copy(Ctrl ctrl_out, const boost::shared_ptr<Msg const> msg)
+template <typename SpacePoint, typename Msg>
+inline void copy(SpacePoint SpacePoint_out, const boost::shared_ptr<Msg const> msg)
 {
-  copy(ctrl_out, *msg);
+  copy(SpacePoint_out, *msg);
 }
 
-// template <typename StateSpacePoint, typename Msg>
-// inline void copy(StateSpacePoint& state, const boost::shared_ptr<Msg const> msg)
-// {
-//   copy(state, *msg);
-// }
+template <typename SpacePoint, typename Msg>
+inline void copy(boost::shared_ptr<Msg> msg, SpacePoint SpacePoint_out)
+{
+  copy(SpacePoint_out, *msg);
+}
+
+template <typename SpacePoint, typename Msg>
+inline void copy(boost::shared_ptr<Msg const> msg, SpacePoint SpacePoint_out)
+{
+  copy(SpacePoint_out, *msg);
+}
 }  // namespace prx_models

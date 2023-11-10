@@ -13,6 +13,7 @@ private:
   QueryPtr _query;
   SpecPtr _spec;
   Service _service;
+  ros::Rate _rate{ 10 };
 
 public:
   planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query)
@@ -23,20 +24,13 @@ public:
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
   }
 
-  void run()
-  {
-    ros::spin();
-  }
-
   bool service_callback(typename Service::Request& request, typename Service::Response& response)
   {
+    ROS_INFO("Planner service was called.");
     prx::condition_check_t checker("time", request.planning_duration.data.toSec());
 
-    ROS_INFO(typeid(request.current_observation).name());
-    ROS_INFO(typeid(request.goal_configuration).name());
-
     prx_models::copy(_query->start_state, request.current_observation);
-    // prx_models::copy(_query->goal_state, request.goal_configuration);
+    prx_models::copy(_query->goal_state, request.goal_configuration);
 
     _planner->link_and_setup_spec(_spec);
     _planner->preprocess();
@@ -46,7 +40,7 @@ public:
 
     if (_query->solution_traj.size() > 0)
     {
-      // prx_models::copy(response.output_plan, _query->solution_plan);
+      prx_models::copy(response.output_plan, _query->solution_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
     else

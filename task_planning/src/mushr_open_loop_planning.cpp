@@ -43,11 +43,23 @@ int main(int argc, char** argv)
   dirt->preprocess();
   dirt->link_and_setup_query(dirt_query);
 
+  ros::AsyncSpinner spinner(1);
+
   using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::dirt_t>, prx::dirt_specification_t*,
                                                    prx::dirt_query_t*, prx_models::MushrPlanner>;
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query);
-  planner_service.run();
 
-  using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
+  using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation, prx_models::MushrPlan>;
   PlannerClient planner_client(n);
+
+  geometry_msgs::Pose2D goal_configuration;
+  goal_configuration.x = 5.0;
+  goal_configuration.y = 5.0;
+  goal_configuration.theta = 0.0;
+  
+  spinner.start();
+  planner_client.call_service(goal_configuration);
+  spinner.stop();
+
+  return 0;
 }
