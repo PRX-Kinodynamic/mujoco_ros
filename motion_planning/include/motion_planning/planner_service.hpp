@@ -47,7 +47,6 @@ public:
       ROS_WARN("No solution found");
       response.planner_output = Service::Response::TYPE_FAILURE;
     }
-    _query->clear_outputs();
     _planner->reset();
     return true;
   }
