@@ -52,15 +52,23 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## Generate messages in the 'msg' folder
 # add_message_files(
-#   FILES
-#   PlannerGoal.msg
-# )
+set(MSG_FILES "")
+file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
+foreach(M_DIR ${MSG_DIRS})
+  GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
+  add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
+endforeach()
 
-# Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   MushrPlanner.srv
-# )
+## Generate services in the 'srv' folder
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
+
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,10 +78,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -218,12 +226,12 @@ endforeach()
 ## Add gtest based cpp test target and link libraries
 file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
 
-message(STATUS "TEST HERE")
 foreach(f_test ${TESTS_FILES})
   get_filename_component(fname ${f_test} NAME_WE )
-  catkin_add_gtest(${fname}-test ${f_test})
-  MESSAGE(STATUS "${fname}-test ${f_test}")
-  target_link_libraries(${fname}-test ${catkin_LIBRARIES} ${PROJECT_NAME})
+  set(test_name "test-${fname}")
+  MESSAGE(STATUS "Test: ${test_name}")
+  catkin_add_gtest(${test_name} ${f_test})
+  target_link_libraries(${test_name} ${catkin_LIBRARIES}  )
 endforeach()
 
 ## Add folders to be run by python nosetests
