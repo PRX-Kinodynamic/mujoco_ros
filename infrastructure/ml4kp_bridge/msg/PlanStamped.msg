@@ -1,2 +1,2 @@
 std_msgs/Header header
-ml4kp_bridge/Plan steps
+ml4kp_bridge/Plan plan
