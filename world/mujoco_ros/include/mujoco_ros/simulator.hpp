@@ -5,6 +5,9 @@
 #include <mutex>
 #include <thread>
 
+#include <geometry_msgs/Pose2D.h>
+#include <std_msgs/Float64.h>
+
 namespace mj_ros
 {
 class simulator_t;
@@ -204,7 +207,7 @@ public:
     });
   }
 
-  void operator()()
+  void run()
   {
     ros::WallRate r(30);
     mjrRect viewport{ 0, 0, 1200, 900 };
@@ -215,6 +218,23 @@ public:
 
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
       mjv_updateScene(_sim->m, _sim->d, &opt, NULL, &cam, mjCAT_ALL, &scn);
+
+      if (goal_position.size() != 0)
+      {
+        mjvGeom* goal_geom = scn.geoms + scn.ngeom++;
+        mjv_initGeom(goal_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
+        goal_geom->rgba[0] = 0.0;
+        goal_geom->rgba[1] = 1.0;
+        goal_geom->rgba[2] = 0.0;
+        goal_geom->rgba[3] = 0.5;
+        goal_geom->size[0] = goal_radius;
+        goal_geom->size[1] = goal_radius;
+        goal_geom->size[2] = goal_radius;
+        goal_geom->pos[0] = goal_position[0];
+        goal_geom->pos[1] = goal_position[1];
+        goal_geom->pos[2] = 0.0;
+      }
+
       mjr_render(viewport, &scn, &con);
       snprintf(time_string, 100, "Sim time: = %f", _sim->d->time);
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
@@ -227,6 +247,16 @@ public:
     }
   }
 
+  inline void set_goal_pos(const geometry_msgs::Pose2D::ConstPtr& msg)
+  {
+    goal_position = { msg->x, msg->y };
+  }
+
+  inline void set_goal_radius(const std_msgs::Float64::ConstPtr& msg)
+  {
+    goal_radius = msg->data;
+  }
+
 protected:
   mjvScene scn;
   mjrContext con;
@@ -234,6 +264,9 @@ protected:
   mjvOption opt;
   GLFWwindow* window;
   std::shared_ptr<simulator_t> _sim;
+
+  std::vector<double> goal_position;
+  double goal_radius;
 
   char* time_string = new char[100];
 
@@ -298,7 +331,7 @@ void run_simulation(SimulatorPtr sim, const std::size_t callback_threads = 1, co
 
   // Run threads: Mj sim is already running at this point
   spinner.start();
-  visualizer();  // Blocking
+  visualizer.run();  // Blocking
 
   // Join the non-visual threads
   step_thread.join();

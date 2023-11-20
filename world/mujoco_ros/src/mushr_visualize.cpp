@@ -9,10 +9,10 @@ int main(int argc, char** argv)
 {
   using CtrlMsg = prx_models::MushrControl;
   using PlanMsg = prx_models::MushrPlan;
-  const std::string root{ ros::this_node::getNamespace() };
-  const std::string node_name{ root + "/Simulation" };
+  const std::string node_name{ "MuSHRSimulation" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
+  const std::string root{ ros::this_node::getNamespace() };
 
   const std::string package_path{ ros::package::getPath("mujoco_ros") };
 
@@ -28,6 +28,7 @@ int main(int argc, char** argv)
   {
     ROS_ERROR("Failed to get param 'visualize'.");
   }
+  ROS_WARN("Currently, visualization is always on.");
 
   const std::string param_name_save_trajectory { ros::this_node::getName() + "/save_trajectory" };
   if (!n.getParam(param_name_save_trajectory, save_trajectory))
@@ -45,13 +46,17 @@ int main(int argc, char** argv)
   // Set the threads
   std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
   std::thread publisher_thread(&mj_ros::ground_truth_pose_t<prx_models::MushrObservation>::run, &ground_truth_pose);
-  mj_ros::simulator_visualizer_t visualizer{ sim };             // Mj Viz
+  std::shared_ptr<mj_ros::simulator_visualizer_t> visualizer;
+  visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
   ros::AsyncSpinner spinner(1);                                 // 1 thread for the controller
-
   
+  ros::Subscriber goal_pos_subscriber, goal_radius_subscriber;
+  goal_pos_subscriber = n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
+  goal_radius_subscriber = n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
+
   // Run threads: Mj sim is already running at this point
   spinner.start();
-  visualizer();  // Blocking
+  visualizer->run();  // Blocking
 
   // Join the non-visual threads
   step_thread.join();

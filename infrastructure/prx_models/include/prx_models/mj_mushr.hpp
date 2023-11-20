@@ -85,5 +85,9 @@ inline void copy(prx_models::MushrPlan& msg, PrxPlan& plan)
     msg.controls.push_back(ctrl_msg);
     msg.durations.push_back(duration);
   }
+  prx_models::MushrControl ctrl_msg;
+  std_msgs::Float64 duration;
+  msg.controls.push_back(ctrl_msg);
+  msg.durations.push_back(duration);
 }
 }  // namespace prx_models
