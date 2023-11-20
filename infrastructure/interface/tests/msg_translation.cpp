@@ -15,13 +15,13 @@ TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
   const std::size_t u_dim{ 2 };
   plan.steps.resize(2);
 
-  plan.steps[0].control.state.resize(u_dim);
-  plan.steps[1].control.state.resize(u_dim);
+  plan.steps[0].control.point.resize(u_dim);
+  plan.steps[1].control.point.resize(u_dim);
 
-  plan.steps[0].control.state[0].data = 1.0;
-  plan.steps[0].control.state[1].data = 1.5;
-  plan.steps[1].control.state[0].data = 2.0;
-  plan.steps[1].control.state[1].data = 2.5;
+  plan.steps[0].control.point[0].data = 1.0;
+  plan.steps[0].control.point[1].data = 1.5;
+  plan.steps[1].control.point[0].data = 2.0;
+  plan.steps[1].control.point[1].data = 2.5;
 
   interface::translate_msg(mushr_plan, plan);
 

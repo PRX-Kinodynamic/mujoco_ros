@@ -8,10 +8,10 @@ namespace ml4kp_bridge
 {
 inline void copy(ml4kp_bridge::SpacePoint& msg, const prx::space_snapshot_t& state)
 {
-  msg.state.resize(state.size());
-  for (std::size_t i = 0; i < msg.state.size(); ++i)
+  msg.point.resize(state.size());
+  for (std::size_t i = 0; i < msg.point.size(); ++i)
   {
-    msg.state[i].data = state[i];
+    msg.point[i].data = state[i];
   }
 }
 
@@ -24,10 +24,10 @@ inline void copy(ml4kp_bridge::SpacePointStamped& msg, const prx::space_snapshot
 
 inline void copy(prx::space_snapshot_t& state, const ml4kp_bridge::SpacePoint& msg)
 {
-  ROS_ASSERT(state.size() == msg.state.size());
-  for (std::size_t i = 0; i < msg.state.size(); ++i)
+  ROS_ASSERT(state.size() == msg.point.size());
+  for (std::size_t i = 0; i < msg.point.size(); ++i)
   {
-    state[i] = msg.state[i].data;
+    state[i] = msg.point[i].data;
   }
 }
 

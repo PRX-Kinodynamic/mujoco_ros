@@ -37,9 +37,9 @@ TEST(SpaceBridge, test_copy_msg_from_state)
 
   ml4kp_bridge::copy(msg, state);
 
-  ASSERT_DOUBLE_EQ(1.0, msg.space_point.state[0].data);
-  ASSERT_DOUBLE_EQ(2.0, msg.space_point.state[1].data);
-  ASSERT_DOUBLE_EQ(3.1415, msg.space_point.state[2].data);
+  ASSERT_DOUBLE_EQ(1.0, msg.space_point.point[0].data);
+  ASSERT_DOUBLE_EQ(2.0, msg.space_point.point[1].data);
+  ASSERT_DOUBLE_EQ(3.1415, msg.space_point.point[2].data);
   ASSERT_LT(0, msg.header.seq);
   ASSERT_LT(msg.header.stamp, ros::Time::now());  // stamp <= now
 };
@@ -54,10 +54,10 @@ TEST(SpaceBridge, test_copy_state_from_msg)
 
   msg.header.seq = 10;
   msg.header.stamp = ros::Time::now();
-  msg.space_point.state.resize(3);
-  msg.space_point.state[0].data = 1;
-  msg.space_point.state[1].data = 2;
-  msg.space_point.state[2].data = 3.1415;
+  msg.space_point.point.resize(3);
+  msg.space_point.point[0].data = 1;
+  msg.space_point.point[1].data = 2;
+  msg.space_point.point[2].data = 3.1415;
   ml4kp_bridge::copy(state, msg);
 
   ASSERT_DOUBLE_EQ(1.0, state->at(0));
@@ -82,13 +82,13 @@ TEST(TrajectoryBridge, test_copy_msg_from_trajectory)
 
   ml4kp_bridge::copy(msg, trajectory);
 
-  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].state[0].data);
-  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].state[1].data);
-  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].state[2].data);
+  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].point[0].data);
+  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].point[1].data);
+  ASSERT_DOUBLE_EQ(1.0, msg.trajectory.data[0].point[2].data);
 
-  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].state[0].data);
-  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].state[1].data);
-  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].state[2].data);
+  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].point[0].data);
+  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].point[1].data);
+  ASSERT_DOUBLE_EQ(2.0, msg.trajectory.data[1].point[2].data);
 
   ASSERT_LT(0, msg.header.seq);
   ASSERT_LT(msg.header.stamp, ros::Time::now());  // stamp <= now
@@ -105,14 +105,14 @@ TEST(TrajectoryBridge, test_copy_trajectory_from_msg)
 
   ml4kp_bridge::SpacePoint pt0{};
   ml4kp_bridge::SpacePoint pt1{};
-  pt0.state.resize(3);
-  pt1.state.resize(3);
-  pt0.state[0].data = 1;
-  pt0.state[1].data = 1;
-  pt0.state[2].data = 1;
-  pt1.state[0].data = 2;
-  pt1.state[1].data = 2;
-  pt1.state[2].data = 2;
+  pt0.point.resize(3);
+  pt1.point.resize(3);
+  pt0.point[0].data = 1;
+  pt0.point[1].data = 1;
+  pt0.point[2].data = 1;
+  pt1.point[0].data = 2;
+  pt1.point[1].data = 2;
+  pt1.point[2].data = 2;
   msg.trajectory.data.push_back(pt0);
   msg.trajectory.data.push_back(pt1);
 
@@ -144,9 +144,9 @@ TEST(PlanStepBridge, test_copy_msg_from_plan_step)
 
   ml4kp_bridge::copy(msg, plan_step);
 
-  ASSERT_DOUBLE_EQ(msg.plan_step.control.state[0].data, 1.0);
-  ASSERT_DOUBLE_EQ(msg.plan_step.control.state[1].data, 2.0);
-  ASSERT_DOUBLE_EQ(msg.plan_step.control.state[2].data, 3.0);
+  ASSERT_DOUBLE_EQ(msg.plan_step.control.point[0].data, 1.0);
+  ASSERT_DOUBLE_EQ(msg.plan_step.control.point[1].data, 2.0);
+  ASSERT_DOUBLE_EQ(msg.plan_step.control.point[2].data, 3.0);
   ASSERT_LT(msg.header.stamp, ros::Time::now());  // stamp <= now
 };
 
@@ -162,10 +162,10 @@ TEST(PlanStepBridge, test_copy_plan_step_from_msg)
   prx::plan_step_t plan_step{ ctrl_pt, duration };
   ml4kp_bridge::PlanStepStamped msg;
 
-  msg.plan_step.control.state.resize(3);
-  msg.plan_step.control.state[0].data = 1.0;
-  msg.plan_step.control.state[1].data = 2.0;
-  msg.plan_step.control.state[2].data = 3.0;
+  msg.plan_step.control.point.resize(3);
+  msg.plan_step.control.point[0].data = 1.0;
+  msg.plan_step.control.point[1].data = 2.0;
+  msg.plan_step.control.point[2].data = 3.0;
 
   ml4kp_bridge::copy(plan_step, msg);
 
@@ -194,12 +194,12 @@ TEST(PlanBridge, test_copy_msg_from_plan)
 
   ml4kp_bridge::copy(msg, plan);
 
-  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.state[0].data, 1.0);
-  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.state[1].data, 1.0);
-  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.state[2].data, 1.0);
-  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.state[0].data, 2.0);
-  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.state[1].data, 2.0);
-  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.state[2].data, 2.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.point[0].data, 1.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.point[1].data, 1.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[0].control.point[2].data, 1.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.point[0].data, 2.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.point[1].data, 2.0);
+  ASSERT_DOUBLE_EQ(msg.plan.steps[1].control.point[2].data, 2.0);
   ASSERT_LT(msg.header.stamp, ros::Time::now());  // stamp <= now
 };
 
@@ -212,14 +212,14 @@ TEST(PlanBridge, test_copy_plan_from_msg)
   ml4kp_bridge::PlanStamped msg;
 
   msg.plan.steps.resize(2);
-  msg.plan.steps[0].control.state.resize(3);
-  msg.plan.steps[1].control.state.resize(3);
-  msg.plan.steps[0].control.state[0].data = 1.0;
-  msg.plan.steps[0].control.state[1].data = 1.0;
-  msg.plan.steps[0].control.state[2].data = 1.0;
-  msg.plan.steps[1].control.state[0].data = 2.0;
-  msg.plan.steps[1].control.state[1].data = 2.0;
-  msg.plan.steps[1].control.state[2].data = 2.0;
+  msg.plan.steps[0].control.point.resize(3);
+  msg.plan.steps[1].control.point.resize(3);
+  msg.plan.steps[0].control.point[0].data = 1.0;
+  msg.plan.steps[0].control.point[1].data = 1.0;
+  msg.plan.steps[0].control.point[2].data = 1.0;
+  msg.plan.steps[1].control.point[0].data = 2.0;
+  msg.plan.steps[1].control.point[1].data = 2.0;
+  msg.plan.steps[1].control.point[2].data = 2.0;
 
   ml4kp_bridge::copy(plan, msg);
 
