@@ -24,7 +24,8 @@ public:
     ros::Rate rate(_frequency);
     while (ros::ok())
     {
-      prx_models::get_observation(_service.request.observation, _sim->d->sensordata);
+      ROS_WARN("This service needs to be re-factored to talk to the interface.");
+      // prx_models::get_observation(_service.request.observation, _sim->d->sensordata);
       if (_service_client.call(_service))
       {
         prx_models::copy(_sim->d->ctrl, _service.response.control);

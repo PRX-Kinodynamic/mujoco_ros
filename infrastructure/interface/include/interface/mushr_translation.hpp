@@ -1,7 +1,6 @@
 #pragma once
 
-#include <ml4kp_bridge/defs.h>
-
+#include "defs.hpp"
 #include <prx_models/mj_mushr.hpp>
 
 namespace interface
@@ -23,4 +22,9 @@ inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge:
   }
 }
 
+inline void translate_msg(prx_models::MushrObservation& mushr_observation,
+                          const mujoco_ros::SensorDataStamped& observation)
+{
+  get_observation(mushr_observation, observation.raw_sensor_data);
+}
 }  // namespace interface

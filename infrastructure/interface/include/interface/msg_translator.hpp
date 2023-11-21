@@ -1,6 +1,6 @@
 #pragma once
 
-#include <interface/msg_translation.hpp>
+#include "defs.hpp"
 
 namespace interface
 {

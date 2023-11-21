@@ -64,7 +64,7 @@ int main(int argc, char** argv)
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query);
 
   using PlannerClient =
-      mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation, prx_models::MushrPlan>;
+      mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation, ml4kp_bridge::Plan>;
   PlannerClient planner_client(n);
 
   const std::string root{ ros::this_node::getNamespace() };

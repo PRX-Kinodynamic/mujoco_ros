@@ -1,6 +1,6 @@
 #include <thread>
 #include "mujoco_ros/control_listener.hpp"
-#include "mujoco_ros/ground_truth_pose.hpp"
+#include "mujoco_ros/sensordata_publisher.hpp"
 #include "prx_models/mj_mushr.hpp"
 
 // Mujoco-Ros visualization in (almost) RT:
@@ -38,14 +38,14 @@ int main(int argc, char** argv)
 
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
-  mj_ros::ground_truth_pose_t<prx_models::MushrObservation> ground_truth_pose(n, sim, 15);
+  mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
 
   ros::Subscriber reset_subscriber;
   reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   // Set the threads
   std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
-  std::thread publisher_thread(&mj_ros::ground_truth_pose_t<prx_models::MushrObservation>::run, &ground_truth_pose);
+  std::thread publisher_thread(&mj_ros::sensordata_publisher_t::run, &sensordata_publisher);
   std::shared_ptr<mj_ros::simulator_visualizer_t> visualizer;
   visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
   ros::AsyncSpinner spinner(1);                                 // 1 thread for the controller

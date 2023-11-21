@@ -1,0 +1,10 @@
+<launch>
+    <group ns="mushr">
+        <node pkg="interface" name="mushr_sim_interface" type="mushr_sim_interface" output="screen">
+            <param name="perception_from_topic" value="sensordata" />
+            <param name="perception_to_topic" value="pose" />
+            <param name="control_from_topic" value="ml4kp_plan" />
+            <param name="control_to_topic" value="plan" />
+        </node>
+    </group>
+</launch>

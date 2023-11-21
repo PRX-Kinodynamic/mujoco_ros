@@ -1,7 +1,6 @@
 #include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
-#include <mutex>
 
 namespace mj_ros
 {
@@ -23,7 +22,7 @@ public:
     const std::string service_name{ root + "/planner_service" };
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
-    _plan_publisher = nh.advertise<Plan>(root + "/plan", 1000, true);
+    _plan_publisher = nh.advertise<Plan>(root + "/ml4kp_plan", 1000, true);
   }
 
   void observation_callback(const Observation& message)
