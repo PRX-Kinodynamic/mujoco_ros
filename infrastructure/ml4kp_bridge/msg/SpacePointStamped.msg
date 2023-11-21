@@ -1,0 +1,3 @@
+std_msgs/Header header
+ml4kp_bridge/SpacePoint space_point
+std_msgs/String space_name

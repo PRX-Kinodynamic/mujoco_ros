@@ -1,0 +1,8 @@
+<launch>
+    <group ns="interface">
+            <param name="from_topic" value="mushr_plan" />
+            <param name="to_topic" value="ml4kp_plan" />
+        <node pkg="interface" name="msgs_interface" type="msgs_interface" output="screen">
+        </node>
+    </group>
+</launch>

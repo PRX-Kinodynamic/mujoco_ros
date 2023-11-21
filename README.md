@@ -16,6 +16,14 @@ cd ..
 export MJ_PATH=$(pwd) 
 ```
 
+## Tests
+Running tests for all packages:
+```
+catkin_make               # Compile and generate msgs
+catkin_make run_tests     # Run tests 
+catkin_test_results       # Check for failures
+```
+
 ## TODOs
 - [x] Visualization support
 - [x] Executing an open-loop plan from a file

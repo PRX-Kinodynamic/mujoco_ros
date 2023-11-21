@@ -79,14 +79,14 @@ inline void copy(prx_models::MushrPlan& msg, PrxPlan& plan)
   for (unsigned i = 0; i < plan.size(); i++)
   {
     prx_models::MushrControl ctrl_msg;
-    std_msgs::Float64 duration;
+    std_msgs::Duration duration;
     copy(ctrl_msg, *plan.at(i).control);
-    duration.data = plan.at(i).duration;
+    duration.data = ros::Duration(plan.at(i).duration);
     msg.controls.push_back(ctrl_msg);
     msg.durations.push_back(duration);
   }
   prx_models::MushrControl ctrl_msg;
-  std_msgs::Float64 duration;
+  std_msgs::Duration duration;
   msg.controls.push_back(ctrl_msg);
   msg.durations.push_back(duration);
 }
