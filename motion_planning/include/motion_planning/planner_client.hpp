@@ -1,6 +1,7 @@
 #include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
+#include <mutex>
 
 namespace mj_ros
 {
@@ -13,6 +14,7 @@ private:
   ros::Publisher _plan_publisher;
   Service _service;
   Observation _most_recent_observation;
+  bool _obs_received{ false };
 
 public:
   planner_client_t(ros::NodeHandle& nh)
@@ -21,18 +23,29 @@ public:
     const std::string service_name{ root + "/planner_service" };
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
-    _plan_publisher = nh.advertise<Plan>(root + "/plan", 1000);
+    _plan_publisher = nh.advertise<Plan>(root + "/plan", 1000, true);
   }
 
   void observation_callback(const Observation& message)
   {
     _most_recent_observation = message;
+    _obs_received = true;
   }
 
-  void call_service(const geometry_msgs::Pose2D& goal_configuration)
+  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius)
   {
+    while (!_obs_received)
+    {
+      ros::Duration(0.1).sleep();
+    }
     ROS_INFO("Calling planner service");
     _service.request.current_observation = _most_recent_observation;
+    ROS_INFO("Current observation: %f, %f, %f, %f, %f, %f", _service.request.current_observation.pose.position.x,
+             _service.request.current_observation.pose.position.y,
+             _service.request.current_observation.pose.orientation.w,
+             _service.request.current_observation.pose.orientation.x,
+             _service.request.current_observation.pose.orientation.y,
+             _service.request.current_observation.pose.orientation.z);
     _service.request.planning_duration.data = ros::Duration(1.0);
     _service.request.goal_configuration = goal_configuration;
     if (_service_client.call(_service))

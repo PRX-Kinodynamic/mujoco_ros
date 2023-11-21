@@ -1,0 +1,12 @@
+<launch> 
+    <arg name = "traj_file" default = "traj.txt"/>  
+    <arg name = "plan_file" default = "plan.txt"/>
+    <arg name = "out_html"  default = "ROS_output.html"/>
+    <group ns="mushr">
+        <node pkg="task_planning" name="single_shot_planner" type="mushr_open_loop_planning" output="screen">
+            <param name="traj_file" value="$(arg traj_file)" />
+            <param name="plan_file" value="$(arg plan_file)" />
+            <param name="out_html"  value="$(arg out_html)" />
+        </node>
+    </group>
+</launch>
