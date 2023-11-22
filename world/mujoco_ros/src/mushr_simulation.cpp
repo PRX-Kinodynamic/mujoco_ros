@@ -29,7 +29,7 @@ int main(int argc, char** argv)
     ROS_ERROR("Failed to get param 'visualize'.");
   }
 
-  const std::string param_name_save_trajectory { ros::this_node::getName() + "/save_trajectory" };
+  const std::string param_name_save_trajectory{ ros::this_node::getName() + "/save_trajectory" };
   if (!n.getParam(param_name_save_trajectory, save_trajectory))
   {
     ROS_ERROR("Failed to get param 'save_trajectory'.");
@@ -46,19 +46,23 @@ int main(int argc, char** argv)
   std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
   std::thread publisher_thread(&mj_ros::sensordata_publisher_t::run, &sensordata_publisher);
   std::shared_ptr<mj_ros::simulator_visualizer_t> visualizer;
-  if (visualize) visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
-  ros::AsyncSpinner spinner(1);                                 // 1 thread for the controller
-  
+  if (visualize)
+    visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
+  ros::AsyncSpinner spinner(1);  // 1 thread for the controller
+
+  ros::Subscriber goal_pos_subscriber, goal_radius_subscriber;
   if (visualize)
   {
-    ros::Subscriber goal_pos_subscriber, goal_radius_subscriber;
-    goal_pos_subscriber = n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
-    goal_radius_subscriber = n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
+    goal_pos_subscriber =
+        n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
+    goal_radius_subscriber =
+        n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
   }
-  
+
   // Run threads: Mj sim is already running at this point
   spinner.start();
-  if (visualize) visualizer->run();  // Blocking
+  if (visualize)
+    visualizer->run();  // Blocking
 
   // Join the non-visual threads
   step_thread.join();
