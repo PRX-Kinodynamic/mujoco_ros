@@ -35,6 +35,7 @@ public:
   {
     while (!_obs_received)
     {
+      ROS_INFO("Waiting for observation");
       ros::Duration(0.1).sleep();
     }
     ROS_INFO("Calling planner service");
