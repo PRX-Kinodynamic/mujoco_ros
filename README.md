@@ -31,3 +31,4 @@ catkin_test_results       # Check for failures
 - [ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
 - [ ] Use nodelets for faster message copies?
 - [ ] Check for unnecessary copies
+- [ ] Replace the current `feedback_client` (or at least refactor it) so it spawns `mushr_simulation` and connects via topics.
