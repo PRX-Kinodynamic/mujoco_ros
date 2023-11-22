@@ -15,6 +15,11 @@ int main(int argc, char** argv)
   prx::simulation_step = 0.1;
   ROS_WARN("Using simulation step %f", prx::simulation_step);
 
+  const std::string root{ ros::this_node::getNamespace() };
+  int random_seed;
+  n.getParam(ros::this_node::getName() + "/random_seed", random_seed);
+  prx::init_random(random_seed);
+
   std::string plant_name = "MushrAnalytical";
   std::string plant_path = "MushrAnalytical";
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
@@ -67,7 +72,6 @@ int main(int argc, char** argv)
       mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation, ml4kp_bridge::Plan>;
   PlannerClient planner_client(n);
 
-  const std::string root{ ros::this_node::getNamespace() };
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
