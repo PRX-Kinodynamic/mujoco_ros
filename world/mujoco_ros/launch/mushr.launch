@@ -3,7 +3,7 @@
     <param name="save_trajectory" type="bool" value="false"/>
     <arg name="visualize" default="true"/>
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="control_listener" type="mushr_visualize" output="screen">
+        <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg visualize)" />
         </node>

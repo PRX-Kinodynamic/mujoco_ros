@@ -4,6 +4,7 @@
 
 #include "prx_models/mj_copy.hpp"
 
+#include <mujoco_ros/SensorDataStamped.h>
 #include <prx_models/MushrControl.h>
 #include <prx_models/MushrPlan.h>
 #include <prx_models/MushrObservation.h>
@@ -35,16 +36,23 @@ inline void copy(Ctrl ctrl_out, const prx_models::MushrControl& msg)
   ctrl_out[1] = msg.velocity.data;
 }
 
-template <typename Sensor>
-inline void get_observation(prx_models::MushrObservation& msg, const Sensor& sensordata)
+template <typename Ctrl>
+inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
 {
-  msg.pose.position.x = sensordata[mushr_t::sensors_t::PosX];
-  msg.pose.position.y = sensordata[mushr_t::sensors_t::PosY];
-  msg.pose.position.z = sensordata[mushr_t::sensors_t::PosZ];
-  msg.pose.orientation.x = sensordata[mushr_t::sensors_t::QuatX];
-  msg.pose.orientation.y = sensordata[mushr_t::sensors_t::QuatY];
-  msg.pose.orientation.z = sensordata[mushr_t::sensors_t::QuatZ];
-  msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW];
+  msg.steering_angle.data = ctrl[0];
+  msg.velocity.data = ctrl[1];
+}
+
+template <typename SensorData>
+inline void get_observation(prx_models::MushrObservation& msg, const SensorData& sensordata)
+{
+  msg.pose.position.x = sensordata[mushr_t::sensors_t::PosX].data;
+  msg.pose.position.y = sensordata[mushr_t::sensors_t::PosY].data;
+  msg.pose.position.z = sensordata[mushr_t::sensors_t::PosZ].data;
+  msg.pose.orientation.x = sensordata[mushr_t::sensors_t::QuatX].data;
+  msg.pose.orientation.y = sensordata[mushr_t::sensors_t::QuatY].data;
+  msg.pose.orientation.z = sensordata[mushr_t::sensors_t::QuatZ].data;
+  msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW].data;
 }
 
 template <typename StateSpacePoint>
@@ -64,30 +72,5 @@ inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
   state->at(0) = msg.x;
   state->at(1) = msg.y;
   state->at(2) = msg.theta;
-}
-
-template <typename Ctrl>
-inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
-{
-  msg.steering_angle.data = ctrl[0];
-  msg.velocity.data = ctrl[1];
-}
-
-template <typename PrxPlan>
-inline void copy(prx_models::MushrPlan& msg, PrxPlan& plan)
-{
-  for (unsigned i = 0; i < plan.size(); i++)
-  {
-    prx_models::MushrControl ctrl_msg;
-    std_msgs::Duration duration;
-    copy(ctrl_msg, *plan.at(i).control);
-    duration.data = ros::Duration(plan.at(i).duration);
-    msg.controls.push_back(ctrl_msg);
-    msg.durations.push_back(duration);
-  }
-  prx_models::MushrControl ctrl_msg;
-  std_msgs::Duration duration;
-  msg.controls.push_back(ctrl_msg);
-  msg.durations.push_back(duration);
 }
 }  // namespace prx_models

@@ -1,5 +1,6 @@
 # Infrastructure
-(Or interface if needed at some point)
+## interface
+A perception output in, controls out infrastructure for sim or real-robot agnostic communication.
 
 ## prx_models
 * Robot Models, either real or for simulation

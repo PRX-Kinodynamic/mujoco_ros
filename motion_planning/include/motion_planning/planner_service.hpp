@@ -1,4 +1,6 @@
 #include <ml4kp_bridge/defs.h>
+#include <ml4kp_bridge/plan_bridge.hpp>
+
 #include <prx_models/mj_mushr.hpp>
 #include <ros/ros.h>
 
@@ -39,7 +41,8 @@ public:
 
     if (_query->solution_traj.size() > 0)
     {
-      prx_models::copy(response.output_plan, _query->solution_plan);
+      _query->solution_plan.append_onto_back(0.0);
+      ml4kp_bridge::copy(response.output_plan, _query->solution_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
     else

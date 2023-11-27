@@ -6,6 +6,6 @@ Download the ML4KP library, compile and install.
 (Export the `DIRTMP_PATH` variable)
 
 ## TODOs
-- [ ] Add open-loop planning
+- [x] Add open-loop planning
 - [ ] Add service for close-loop control
 

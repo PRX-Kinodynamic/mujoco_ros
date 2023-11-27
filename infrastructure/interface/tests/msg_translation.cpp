@@ -4,7 +4,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <prx_models/mj_mushr.hpp>
 
-#include <interface/msg_translation.hpp>
+#include <interface/mushr_translation.hpp>
 
 TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
 {

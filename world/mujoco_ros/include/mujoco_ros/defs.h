@@ -11,3 +11,4 @@
 #include "ros/ros.h"
 #include "mujoco/mujoco.h"
 #include "std_msgs/Empty.h"
+#include "mujoco_ros/SensorDataStamped.h"
