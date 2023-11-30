@@ -1,6 +1,6 @@
 <launch> 
-    <arg name = "traj_file" default = "traj.txt"/>  
-    <arg name = "plan_file" default = "plan.txt"/>
+    <arg name = "traj_file" default = "ml4kp_traj.txt"/>  
+    <arg name = "plan_file" default = "ml4kp_plan.txt"/>
     <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
@@ -12,5 +12,6 @@
             <param name="out_html"  value="$(arg out_html)" />
             <param name="random_seed" value="$(arg random_seed)" />
         </node>
+        <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find task_planning)/data/$(arg namespace).bag"/>
     </group>
 </launch>
