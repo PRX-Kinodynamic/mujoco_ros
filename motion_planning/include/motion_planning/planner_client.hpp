@@ -14,6 +14,7 @@ private:
   Service _service;
   Observation _most_recent_observation;
   bool _obs_received{ false };
+  double _preprocess_start_time, _query_fulfill_end_time;
 
 public:
   planner_client_t(ros::NodeHandle& nh)
@@ -25,13 +26,23 @@ public:
     _plan_publisher = nh.advertise<Plan>(root + "/ml4kp_plan", 1000, true);
   }
 
+  double get_preprocess_time() const
+  {
+    return _preprocess_start_time;
+  }
+
+  double get_query_fulfill_time() const
+  {
+    return _query_fulfill_end_time;
+  }
+
   void observation_callback(const Observation& message)
   {
     _most_recent_observation = message;
     _obs_received = true;
   }
 
-  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius)
+  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0)
   {
     while (!_obs_received)
     {
@@ -39,6 +50,7 @@ public:
       ros::Duration(0.1).sleep();
     }
     ROS_INFO("Calling planner service");
+    _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
     ROS_INFO("Current observation: %f, %f, %f, %f, %f, %f", _service.request.current_observation.pose.position.x,
              _service.request.current_observation.pose.position.y,
@@ -65,6 +77,7 @@ public:
     {
       ROS_ERROR("Service call failed");
     }
+    _query_fulfill_end_time = ros::Time::now().toSec();
   }
 };
 }  // namespace mj_ros

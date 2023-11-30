@@ -15,6 +15,7 @@ private:
   QueryPtr _query;
   SpecPtr _spec;
   Service _service;
+  double _preprocess_end_time, _query_fulfill_start_time;
 
 public:
   planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query)
@@ -23,6 +24,16 @@ public:
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
+  }
+
+  double get_preprocess_time() const
+  {
+    return _preprocess_end_time;
+  }
+
+  double get_query_fulfill_time() const
+  {
+    return _query_fulfill_start_time;
   }
 
   bool service_callback(typename Service::Request& request, typename Service::Response& response)
@@ -36,7 +47,9 @@ public:
     _planner->link_and_setup_spec(_spec);
     _planner->preprocess();
     _planner->link_and_setup_query(_query);
+    _preprocess_end_time = ros::Time::now().toSec();
     _planner->resolve_query(&checker);
+    _query_fulfill_start_time = ros::Time::now().toSec();
     _planner->fulfill_query();
 
     if (_query->solution_traj.size() > 0)

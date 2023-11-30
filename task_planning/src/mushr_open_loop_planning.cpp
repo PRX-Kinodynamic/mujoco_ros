@@ -80,6 +80,9 @@ int main(int argc, char** argv)
   goal_radius_publisher.publish(goal_radius);
   planner_client.call_service(goal_configuration, goal_radius);
 
+  ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
+  ROS_INFO("Query fulfill time: %f", planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
+
   std::string plan_file_name;
   n.getParam(ros::this_node::getName() + "/plan_file", plan_file_name);
   std::string plan_file_path = ros::package::getPath("task_planning") + "/data/" + plan_file_name;
