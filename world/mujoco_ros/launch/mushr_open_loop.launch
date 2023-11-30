@@ -3,9 +3,10 @@
     <arg name="plan_file" default="data/mushr_plan.txt"/>
     <arg name="delimiter" default=","/>
     <arg name="save_trajectory" default="false"/>
+    <arg name="visualize" default="true"/>
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="mushr_visualize" type="mushr_visualize" output="screen">
-            <param name="visualize" value="true" />
+        <node pkg="mujoco_ros" name="mushr_simulation" type="mushr_simulation" output="screen">
+            <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
         </node>
         <node pkg="mujoco_ros" name="open_loop_publisher" type="mushr_open_loop_publisher.py" output="screen">
