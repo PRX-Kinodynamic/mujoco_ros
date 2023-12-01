@@ -82,14 +82,13 @@ int main(int argc, char** argv)
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
-  double planning_duration, execution_duration;
-  n.getParam(ros::this_node::getName() + "/planning_duration", planning_duration);
-  n.getParam(ros::this_node::getName() + "/execution_duration", execution_duration);
+  double planning_cycle_duration;
+  n.getParam(ros::this_node::getName() + "/planning_duration", planning_cycle_duration);
 
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
-  planner_client.call_service(goal_configuration, goal_radius, planning_duration, execution_duration);
+  planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
 
   ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
   ROS_INFO("Query fulfill time: %f", planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());

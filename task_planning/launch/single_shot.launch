@@ -6,8 +6,7 @@
     <arg name = "random_seed" default = "0"/>
     <arg name = "goal_x" default = "3.0"/>
     <arg name = "goal_y" default = "3.0"/>
-    <arg name = "planning_duration" default = "1.0"/>
-    <arg name = "execution_duration" default = "60.0"/>
+    <arg name = "planning_cycle_duration" default = "1.0"/>
     <include file="$(find interface)/launch/$(arg namespace)_interface.launch"/>
     <group ns="$(arg namespace)">
         <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_open_loop_planning" output="screen">
@@ -17,8 +16,7 @@
             <param name="random_seed" value="$(arg random_seed)" />
             <param name="goal_x" value="$(arg goal_x)" />
             <param name="goal_y" value="$(arg goal_y)" />
-            <param name="planning_duration" value="$(arg planning_duration)" />
-            <param name="execution_duration" value="$(arg execution_duration)" />
+            <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
         </node>
         <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find task_planning)/data/$(arg namespace).bag"/>
     </group>

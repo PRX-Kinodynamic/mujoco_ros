@@ -50,10 +50,10 @@ public:
       ROS_WARN("Waiting for observation");
       ros::Duration(0.1).sleep();
     }
-    ROS_INFO("Calling planner service");
+    ROS_DEBUG("Calling planner service");
     _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
-    ROS_INFO("Current observation: %f, %f, %f, %f, %f, %f", _service.request.current_observation.pose.position.x,
+    ROS_DEBUG("Current observation: %f, %f, %f, %f, %f, %f", _service.request.current_observation.pose.position.x,
              _service.request.current_observation.pose.position.y,
              _service.request.current_observation.pose.orientation.w,
              _service.request.current_observation.pose.orientation.x,
