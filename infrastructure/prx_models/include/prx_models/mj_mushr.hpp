@@ -32,15 +32,19 @@ struct mushr_t
 template <typename Ctrl>
 inline void copy(Ctrl ctrl_out, const prx_models::MushrControl& msg)
 {
-  ctrl_out[0] = msg.steering_angle.data;
-  ctrl_out[1] = msg.velocity.data;
+  // ctrl_out[0] = msg.steering_angle.data;
+  // ctrl_out[1] = msg.velocity.data;
+  ctrl_out[0] = msg.velocity.data;
+  ctrl_out[1] = msg.steering_angle.data;
 }
 
 template <typename Ctrl>
 inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
 {
-  msg.steering_angle.data = ctrl[0];
-  msg.velocity.data = ctrl[1];
+  // msg.steering_angle.data = ctrl[0];
+  // msg.velocity.data = ctrl[1];
+  msg.velocity.data = ctrl[0];
+  msg.steering_angle.data = ctrl[1];
 }
 
 template <typename SensorData>
@@ -72,5 +76,7 @@ inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
   state->at(0) = msg.x;
   state->at(1) = msg.y;
   state->at(2) = msg.theta;
+  state->at(3) = 0.0;
+  ROS_WARN("Setting current velocity to 0.0");
 }
 }  // namespace prx_models

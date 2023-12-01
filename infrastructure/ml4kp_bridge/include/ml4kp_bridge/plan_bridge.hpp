@@ -42,4 +42,13 @@ inline void copy(prx::plan_t& plan, const ml4kp_bridge::PlanStamped& msg)
   copy(plan, msg.plan);
 }
 
+inline void add_zero_control(prx::plan_t& plan)
+{
+  plan.append_onto_back(0.0);
+  for (unsigned i = 0; i < plan.back().control->get_dim(); ++i)
+  {
+    plan.back().control->at(i) = 0.0;
+  }
+}
+
 }  // namespace ml4kp_bridge

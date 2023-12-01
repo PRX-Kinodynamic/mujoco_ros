@@ -1,7 +1,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <ml4kp_bridge/plan_bridge.hpp>
 
-#include <prx_models/mj_mushr.hpp>
+#include <prx_models/mj_copy.hpp>
 #include <ros/ros.h>
 
 namespace mj_ros
@@ -38,7 +38,6 @@ public:
 
   bool service_callback(typename Service::Request& request, typename Service::Response& response)
   {
-    ROS_INFO("Planner service was called.");
     prx::condition_check_t checker("time", request.planning_duration.data.toSec());
 
     prx_models::copy(_query->start_state, request.current_observation);
@@ -54,7 +53,24 @@ public:
 
     if (_query->solution_traj.size() > 0)
     {
-      _query->solution_plan.append_onto_back(0.0);
+      double execution_time = request.execution_duration.data.toSec();
+      if (execution_time < _query->solution_plan.duration())
+      {
+        double accumulated_duration = 0.0;
+        unsigned index = 0;
+        for (; index < _query->solution_plan.size(); index++)
+        {
+          accumulated_duration += _query->solution_plan[index].duration;
+          if (accumulated_duration > execution_time)
+          {
+            accumulated_duration -= _query->solution_plan[index].duration;
+            break;
+          }
+        }
+        _query->solution_plan.resize(index + 1);
+        _query->solution_plan.back().duration = execution_time - accumulated_duration;
+      }
+      ml4kp_bridge::add_zero_control(_query->solution_plan);
       ml4kp_bridge::copy(response.output_plan, _query->solution_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }

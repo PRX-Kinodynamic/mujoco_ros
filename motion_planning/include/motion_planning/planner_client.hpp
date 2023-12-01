@@ -42,11 +42,12 @@ public:
     _obs_received = true;
   }
 
-  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0)
+  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0,
+                    double execution_duration = 60.0)
   {
     while (!_obs_received)
     {
-      ROS_INFO("Waiting for observation");
+      ROS_WARN("Waiting for observation");
       ros::Duration(0.1).sleep();
     }
     ROS_INFO("Calling planner service");
@@ -58,14 +59,15 @@ public:
              _service.request.current_observation.pose.orientation.x,
              _service.request.current_observation.pose.orientation.y,
              _service.request.current_observation.pose.orientation.z);
-    _service.request.planning_duration.data = ros::Duration(1.0);
+    _service.request.planning_duration.data = ros::Duration(planning_duration);
+    _service.request.execution_duration.data = ros::Duration(execution_duration);
     _service.request.goal_configuration = goal_configuration;
     if (_service_client.call(_service))
     {
-      ROS_INFO("Service call successful");
+      ROS_DEBUG("Service call successful");
       if (_service.response.planner_output == Service::Response::TYPE_SUCCESS)
       {
-        ROS_INFO("Publishing plan");
+        ROS_DEBUG("Publishing plan");
         _plan_publisher.publish(_service.response.output_plan);
       }
       else

@@ -6,3 +6,4 @@
 - [ ] Add goal radius/goal check to planner query?
 - [ ] Re-planning node
 - [ ] Quality-of-life improvements to bag file processing
+- [ ] Add visualization of the ML4KP-planned trajectory in MuJoCo
