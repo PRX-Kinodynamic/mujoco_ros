@@ -8,7 +8,7 @@
     <arg name = "postprocess_timeout" default = "0.1" />
     <include file="$(find interface)/launch/$(arg namespace)_interface.launch"/>
     <group ns="$(arg namespace)">
-        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_open_loop_planning" output="screen">
+        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_replanning" output="screen">
             <param name="random_seed" value="$(arg random_seed)" />
             <param name="goal_x" value="$(arg goal_x)" />
             <param name="goal_y" value="$(arg goal_y)" />
