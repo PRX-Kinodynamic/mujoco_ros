@@ -1,7 +1,7 @@
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
-#include "motion_planning/planner_service.hpp"
+#include "motion_planning/single_shot_planner_service.hpp"
 #include "motion_planning/planner_client.hpp"
 
 #include <ros/ros.h>

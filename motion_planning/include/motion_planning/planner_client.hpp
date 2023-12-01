@@ -43,7 +43,7 @@ public:
   }
 
   void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0,
-                    double execution_duration = 60.0)
+                    bool first_cycle = true)
   {
     while (!_obs_received)
     {
@@ -60,7 +60,7 @@ public:
              _service.request.current_observation.pose.orientation.y,
              _service.request.current_observation.pose.orientation.z);
     _service.request.planning_duration.data = ros::Duration(planning_duration);
-    _service.request.execution_duration.data = ros::Duration(execution_duration);
+    _service.request.first_cycle.data = first_cycle;
     _service.request.goal_configuration = goal_configuration;
     if (_service_client.call(_service))
     {

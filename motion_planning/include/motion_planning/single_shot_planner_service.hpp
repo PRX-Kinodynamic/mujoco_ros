@@ -53,23 +53,6 @@ public:
 
     if (_query->solution_traj.size() > 0)
     {
-      double execution_time = request.execution_duration.data.toSec();
-      if (execution_time < _query->solution_plan.duration())
-      {
-        double accumulated_duration = 0.0;
-        unsigned index = 0;
-        for (; index < _query->solution_plan.size(); index++)
-        {
-          accumulated_duration += _query->solution_plan[index].duration;
-          if (accumulated_duration > execution_time)
-          {
-            accumulated_duration -= _query->solution_plan[index].duration;
-            break;
-          }
-        }
-        _query->solution_plan.resize(index + 1);
-        _query->solution_plan.back().duration = execution_time - accumulated_duration;
-      }
       ml4kp_bridge::add_zero_control(_query->solution_plan);
       ml4kp_bridge::copy(response.output_plan, _query->solution_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
