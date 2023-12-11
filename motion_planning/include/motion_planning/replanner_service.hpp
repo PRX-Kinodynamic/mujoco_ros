@@ -81,7 +81,7 @@ public:
       double execution_time = request.planning_duration.data.toSec();
       step_plan->clear();
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
-      ml4kp_bridge::add_zero_control(*step_plan);
+      // ml4kp_bridge::add_zero_control(*step_plan);
       ml4kp_bridge::copy(response.output_plan, step_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
