@@ -88,6 +88,8 @@ public:
     else
     {
       ROS_WARN("No solution found");
+      step_plan->clear();
+      ml4kp_bridge::add_zero_control(*step_plan, request.planning_duration.data.toSec());
       response.planner_output = Service::Response::TYPE_FAILURE;
     }
     _planner->reset();

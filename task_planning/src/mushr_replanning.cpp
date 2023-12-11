@@ -88,5 +88,16 @@ int main(int argc, char** argv)
   planner_service.set_preprocess_timeout(preprocess_timeout);
   planner_service.set_postprocess_timeout(postprocess_timeout);
 
-  ROS_ERROR("Todo: Implement calling service after checking the step plan implementation");
+  bool first_cycle = true;
+  spinner.start();
+  goal_pos_publisher.publish(goal_configuration);
+  goal_radius_publisher.publish(goal_radius);
+  while (true)
+  {
+    ros::Duration(planning_cycle_duration).sleep();
+    planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
+    first_cycle = false;
+  }
+
+  return 0;
 }
