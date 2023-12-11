@@ -73,32 +73,17 @@ public:
     _preprocess_end_time = ros::Time::now().toSec();
     _planner->resolve_query(&checker);
     _query_fulfill_start_time = ros::Time::now().toSec();
+    _query->clear_outputs();
     _planner->fulfill_query();
 
     if (_query->solution_traj.size() > 0)
     {
-      double execution_time = request.first_cycle.data ? request.planning_duration.data.toSec() * 2.0
-                                                  : request.planning_duration.data.toSec();
-      if (execution_time < _query->solution_plan.duration())
-      {
-        double accumulated_duration = 0.0;
-        unsigned index = 0;
-        for (; index < _query->solution_plan.size(); index++)
-        {
-          accumulated_duration += _query->solution_plan[index].duration;
-          if (accumulated_duration > execution_time)
-          {
-            accumulated_duration -= _query->solution_plan[index].duration;
-            break;
-          }
-        }
-        _query->solution_plan.resize(index + 1);
-        _query->solution_plan.back().duration = execution_time - accumulated_duration;
-      }
-      ml4kp_bridge::add_zero_control(_query->solution_plan);
-      ml4kp_bridge::copy(response.output_plan, _query->solution_plan);
+      double execution_time = request.planning_duration.data.toSec();
+      step_plan->clear();
+      _query->solution_plan.copy_to(0, execution_time, *step_plan);
+      ml4kp_bridge::add_zero_control(*step_plan);
+      ml4kp_bridge::copy(response.output_plan, step_plan);
       response.planner_output = Service::Response::TYPE_SUCCESS;
-      ROS_ERROR("Right now, the plan partitioning is not taking place...");
     }
     else
     {

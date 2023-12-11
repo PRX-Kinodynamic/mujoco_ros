@@ -3,3 +3,4 @@
 ./CMakeLists.txt
 /CMakeLists.txt
 .vscode/
+*.bag
