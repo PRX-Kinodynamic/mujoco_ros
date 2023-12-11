@@ -4,8 +4,9 @@
     <arg name="delimiter" default=","/>
     <arg name="save_trajectory" default="false"/>
     <arg name="visualize" default="true"/>
-    <arg name "trajectory_output_file" default="data/mushr_trajectory.txt"/>
-    <group ns="mushr">
+    <arg name = "namespace" default = "mushr"/>
+    <arg name="trajectory_output_file" default="data/mushr_trajectory.txt"/>
+    <group ns="$(arg namespace)">
         <node pkg="mujoco_ros" name="mushr_simulation" type="mushr_simulation" output="screen">
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
@@ -15,5 +16,6 @@
             <param name="plan_file" value="$(arg plan_file)" />
             <param name="delimiter" value="$(arg delimiter)" />
         </node>
+        <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find mujoco_ros)/data/$(arg namespace).bag"/>
     </group>
 </launch>
