@@ -10,7 +10,7 @@
     <map znear="0.001" />
   </visual>
   <worldbody>
-    <geom contype="1" friction="1 0 0" name="floor0" pos="0 0 0" euler="0 0 0" size="100 100 0.01" type="box" material="matplane0" condim="6"/> 
+    <geom contype="1" friction="1 0 0.01" name="floor0" pos="0 0 0" euler="0 0 0" size="100 100 0.01" type="box" material="matplane0" condim="6"/> 
     <!-- <geom contype="1" friction="1 0 0.001" name="floor2" pos="-2 0 0" euler="0 0 0" size="1 1 0.1" type="plane" material="matplane" condim="6"/>  -->
 
 

@@ -2,6 +2,7 @@
 #include "eigen3/Eigen/Dense"
 #include "geometry_msgs/Pose2D.h"
 
+#include <ml4kp_bridge/defs.h>
 #include "prx_models/mj_copy.hpp"
 
 #include <mujoco_ros/SensorDataStamped.h>
@@ -32,19 +33,15 @@ struct mushr_t
 template <typename Ctrl>
 inline void copy(Ctrl ctrl_out, const prx_models::MushrControl& msg)
 {
-  // ctrl_out[0] = msg.steering_angle.data;
-  // ctrl_out[1] = msg.velocity.data;
-  ctrl_out[0] = msg.velocity.data;
-  ctrl_out[1] = msg.steering_angle.data;
+  ctrl_out[0] = msg.steering_angle.data;
+  ctrl_out[1] = msg.velocity.data;
 }
 
 template <typename Ctrl>
 inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
 {
-  // msg.steering_angle.data = ctrl[0];
-  // msg.velocity.data = ctrl[1];
-  msg.velocity.data = ctrl[0];
-  msg.steering_angle.data = ctrl[1];
+  msg.steering_angle.data = ctrl[0];
+  msg.velocity.data = ctrl[1];
 }
 
 template <typename SensorData>
@@ -66,8 +63,10 @@ inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg
   state->at(1) = msg.pose.position.y;
   Eigen::Quaterniond quat = Eigen::Quaterniond(msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y,
                                                msg.pose.orientation.z);
-  Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
+  // Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
+  Eigen::Vector3d euler = prx::quaternion_to_euler(quat);
   state->at(2) = euler[2];
+  // ROS_WARN("Copying observation: %f, %f, %f", state->at(0), state->at(1), state->at(2));
 }
 
 template <typename StateSpacePoint>
