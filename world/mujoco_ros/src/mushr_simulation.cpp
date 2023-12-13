@@ -50,13 +50,16 @@ int main(int argc, char** argv)
     visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
   ros::AsyncSpinner spinner(1);  // 1 thread for the controller
 
-  ros::Subscriber goal_pos_subscriber, goal_radius_subscriber;
+  ros::Subscriber goal_pos_subscriber, goal_radius_subscriber, trajectory_subscriber;
   if (visualize)
   {
     goal_pos_subscriber =
         n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
     goal_radius_subscriber =
         n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
+    // Is this ok for this to subscribe directly to ml4kp_traj?
+    trajectory_subscriber = n.subscribe(root + "/ml4kp_traj", 1000,
+                                        &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get());
   }
 
   // Run threads: Mj sim is already running at this point

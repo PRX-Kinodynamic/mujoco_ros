@@ -7,6 +7,7 @@
 
 #include <geometry_msgs/Pose2D.h>
 #include <std_msgs/Float64.h>
+#include <ml4kp_bridge/defs.h>
 
 namespace mj_ros
 {
@@ -235,6 +236,27 @@ public:
         goal_geom->pos[2] = 0.0;
       }
 
+      if (trajectory_to_visualize.size() > 0)
+      {
+        float linecolor[4] = { 1.0, 0.0, 0.0, 1.0 };
+        double linewidth = 3.0;
+        double lineheight = 0.1;
+        int step = 10;
+        for (int i = step; i < trajectory_to_visualize.size(); i+=step)
+        {
+          if (scn.ngeom >= scn.maxgeom)
+          {
+            ROS_WARN("Max geom reached.");
+            break;
+          }
+          mjvGeom* line_geom = scn.geoms + scn.ngeom++;
+          mjv_initGeom(line_geom, mjGEOM_LINE, NULL, NULL, NULL, linecolor);
+          mjv_makeConnector(line_geom, mjGEOM_LINE, linewidth, trajectory_to_visualize[i - step][0],
+                            trajectory_to_visualize[i - step][1], lineheight, trajectory_to_visualize[i][0],
+                            trajectory_to_visualize[i][1], lineheight);
+        }
+      }
+
       mjr_render(viewport, &scn, &con);
       snprintf(time_string, 100, "Sim time: = %f", _sim->d->time);
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
@@ -257,6 +279,22 @@ public:
     goal_radius = msg->data;
   }
 
+  inline void set_trajectory_to_visualize(const ml4kp_bridge::Trajectory::ConstPtr& msg)
+  {
+    trajectory_to_visualize.clear();
+    const std::vector<ml4kp_bridge::SpacePoint>& points = msg->data;
+    for (const auto& point : points)
+    {
+      const std::vector<std_msgs::Float64>& values = point.point;
+      std::vector<double> point_to_add;
+      for (const auto& value : values)
+      {
+        point_to_add.push_back(value.data);
+      }
+      trajectory_to_visualize.push_back(point_to_add);
+    }
+  }
+
 protected:
   mjvScene scn;
   mjrContext con;
@@ -267,6 +305,8 @@ protected:
 
   std::vector<double> goal_position;
   double goal_radius;
+
+  std::vector<std::vector<double>> trajectory_to_visualize;
 
   char* time_string = new char[100];
 
