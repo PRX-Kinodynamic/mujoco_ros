@@ -242,6 +242,19 @@ public:
         double linewidth = 3.0;
         double lineheight = 0.1;
         int step = 10;
+        // Plot start state as a small sphere
+        mjvGeom* start_geom = scn.geoms + scn.ngeom++;
+        mjv_initGeom(start_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
+        start_geom->rgba[0] = 1.0;
+        start_geom->rgba[1] = 0.0;
+        start_geom->rgba[2] = 0.0;
+        start_geom->rgba[3] = 0.5;
+        start_geom->size[0] = 0.05;
+        start_geom->size[1] = 0.05;
+        start_geom->size[2] = 0.05;
+        start_geom->pos[0] = trajectory_to_visualize[0][0];
+        start_geom->pos[1] = trajectory_to_visualize[0][1];
+        start_geom->pos[2] = lineheight;
         for (int i = step; i < trajectory_to_visualize.size(); i+=step)
         {
           if (scn.ngeom >= scn.maxgeom)
