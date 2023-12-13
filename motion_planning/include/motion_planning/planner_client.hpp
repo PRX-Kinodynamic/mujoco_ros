@@ -4,26 +4,27 @@
 
 namespace mj_ros
 {
-template <typename Service, typename Observation, typename Plan>
+template <typename Service, typename Observation>
 class planner_client_t
 {
 private:
   ros::ServiceClient _service_client;
   ros::Subscriber _obs_subscriber;
-  ros::Publisher _plan_publisher;
+  ros::Publisher _plan_publisher, _traj_publisher;
   Service _service;
   Observation _most_recent_observation;
-  bool _obs_received{ false };
+  bool _obs_received{ false }, _publish_trajectory{ false };
   double _preprocess_start_time, _query_fulfill_end_time;
 
 public:
-  planner_client_t(ros::NodeHandle& nh)
+  planner_client_t(ros::NodeHandle& nh, bool publish_trajectory = false) : _publish_trajectory(publish_trajectory)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
-    _plan_publisher = nh.advertise<Plan>(root + "/ml4kp_plan", 1000, true);
+    _plan_publisher = nh.advertise<ml4kp_bridge::Plan>(root + "/ml4kp_plan", 1000, true);
+    _traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>(root + "/ml4kp_traj", 1000, true);
   }
 
   double get_preprocess_time() const
@@ -62,6 +63,7 @@ public:
     _service.request.planning_duration.data = ros::Duration(planning_duration);
     _service.request.first_cycle.data = first_cycle;
     _service.request.goal_configuration = goal_configuration;
+    _service.request.return_trajectory.data = _publish_trajectory;
     if (_service_client.call(_service))
     {
       ROS_DEBUG("Service call successful");
@@ -69,6 +71,10 @@ public:
       {
         ROS_DEBUG("Publishing plan");
         _plan_publisher.publish(_service.response.output_plan);
+        if (_publish_trajectory)
+        {
+          _traj_publisher.publish(_service.response.output_trajectory);
+        }
       }
       else
       {

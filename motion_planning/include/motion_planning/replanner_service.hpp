@@ -1,6 +1,4 @@
 #include <ml4kp_bridge/defs.h>
-#include <ml4kp_bridge/plan_bridge.hpp>
-
 #include <prx_models/mj_copy.hpp>
 #include <ros/ros.h>
 
@@ -83,6 +81,10 @@ public:
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
       // ml4kp_bridge::add_zero_control(*step_plan);
       ml4kp_bridge::copy(response.output_plan, step_plan);
+      if (request.return_trajectory.data)
+      {
+        ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
+      }
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
     else
