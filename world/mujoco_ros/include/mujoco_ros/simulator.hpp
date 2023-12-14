@@ -11,8 +11,10 @@
 namespace mj_ros
 {
 class simulator_t;
+class simulator_visualizer_t;
 
 using SimulatorPtr = std::shared_ptr<simulator_t>;
+using VisualizerPtr = std::shared_ptr<simulator_visualizer_t>;
 
 class simulator_t : public std::enable_shared_from_this<simulator_t>
 {
@@ -31,11 +33,21 @@ private:
 
   simulator_t(const std::string& model_path, bool _save_trajectory)
   {
-    m = mj_loadXML(model_path.c_str(), NULL, NULL, 0);
-    if (!m)
+    std::cout << model_path << std::endl;
+    std::string error;
+    error.reserve(1000);
+    std::cout << "error: " << error.capacity() << std::endl;
+    m = mj_loadXML(model_path.c_str(), NULL, error.data(), error.capacity());
+    if (!m or error.size() != 0)
+    {
       std::cerr << "Error in loading model." << std::endl;
+      std::cout << error << std::endl;
+    }
 
+    printf("%.5f\n", m->opt.timestep);
     d = mj_makeData(m);
+    std::cout << "timestep: " << m->opt.timestep << std::endl;
+    ROS_ASSERT(m->opt.timestep > 0);
     for (int i = 0; i < 1.0 / m->opt.timestep; i++)
     {
       mj_step(m, d);
@@ -50,6 +62,7 @@ private:
     {
       add_current_state_to_trajectory();
     }
+    std::cout << "timestep: " << m->opt.timestep << std::endl;
   }
 
 public:
@@ -172,7 +185,7 @@ public:
 class simulator_visualizer_t
 {
 public:
-  simulator_visualizer_t(std::shared_ptr<simulator_t> sim) : _sim(sim)
+  simulator_visualizer_t(SimulatorPtr& sim) : _sim(sim)
   {
     button_left = button_middle = button_right = false;
     lastx = lasty = 0;
@@ -207,6 +220,13 @@ public:
     });
   }
 
+  static VisualizerPtr initialize(SimulatorPtr& sim, const bool viz = true)
+  {
+    if (viz)
+      return std::make_shared<simulator_visualizer_t>(sim);
+    return nullptr;
+  }
+
   void run()
   {
     ros::WallRate r(30);
@@ -216,6 +236,7 @@ public:
     {
       _sim->_mj_reset_mutex.lock();
 
+      glfwMakeContextCurrent(window);
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
       mjv_updateScene(_sim->m, _sim->d, &opt, NULL, &cam, mjCAT_ALL, &scn);
 
@@ -322,19 +343,43 @@ protected:
   }
 };
 
-// Run simulation with visualization and callbacks. Blocking function.
-void run_simulation(SimulatorPtr sim, const std::size_t callback_threads = 1, const bool visualize = true)
+template <class... RunnableObjects, std::enable_if_t<sizeof...(RunnableObjects) == 0, bool> = true>
+void run_thread(std::vector<std::thread>& threads, RunnableObjects&... runnable_objects)
 {
-  std::thread step_thread(&simulator_t::run, &(*sim));  // Mj sim
-  simulator_visualizer_t visualizer{ sim };             // Mj Viz
-  ros::AsyncSpinner spinner(callback_threads);          // 1 thread for the controller
+}
+
+template <class First, class... RunnableObjects>
+inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
+{
+  threads.emplace_back(&First::run, &first);
+  run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
+}
+// Run simulation with visualization and callbacks. Blocking function.
+template <class... RunnableObjects>
+void run_simulation(SimulatorPtr sim, VisualizerPtr visualizer, const std::size_t callback_threads = 1,
+                    RunnableObjects&... runnable_objects)
+{
+  simulator_t& sim_ref{ *sim };
+  // std::thread step_thread(&simulator_t::run, &(*sim));  // Mj sim
+  std::vector<std::thread> threads{};
+
+  run_thread(threads, sim_ref, runnable_objects...);
+
+  ros::AsyncSpinner spinner(callback_threads);  // 1 thread for the controller
 
   // Run threads: Mj sim is already running at this point
   spinner.start();
-  visualizer.run();  // Blocking
-
+  if (visualizer)
+  {
+    // Visualizer has to run on the main thread
+    visualizer->run();  // Blocking
+  }
+  // sim->run();
   // Join the non-visual threads
-  step_thread.join();
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
   spinner.stop();
 }
 }  // namespace mj_ros

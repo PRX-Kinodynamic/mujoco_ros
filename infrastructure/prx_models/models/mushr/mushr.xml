@@ -3,14 +3,18 @@
 <mujoco model="mushr_nano">
   <compiler angle="radian" />
   <size njmax="500" nconmax="100"/>
-  <option timestep="0.001" integrator="Euler"/>
-  <option>
-      <flag multiccd="enable"/>
-  </option>
+  <!-- <option timestep="0.002" integrator="Euler"/> -->
+  <!-- <option> -->
+      <!-- <flag multiccd="enable"/> -->
+  <!-- </option> -->
   <include file="buddy.xml"/>
   <!-- <include file="friction_floor_1.xml"/> -->
-  <include file="../friction_floors/friction_floor_uniform.xml"/>
+  <!-- <include file="../friction_floors/friction_floor_uniform.xml"/> -->
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00000.xml"/>
+  <include file="lab_markers.xml"/>
+  <!-- <include file="../aruco_mip_36h12/multitags/multitags_2x3.xml"/> -->
   <!-- <include file="../friction_floors/friction_floor_midpatch.xml"/> -->
+  <include file="../friction_floors/friction_floor_midpatch_lab.xml"/>
   <!-- <include file="friction_floor_uniform.xml"/> -->
   <asset>
     <texture name="texplane" type="2d" builtin="checker" rgb1="0.26 0.12 0.36" rgb2="0.23 0.09 0.33" width="100" height="100" mark="cross" markrgb=".8 .8 .8"/>
@@ -21,5 +25,6 @@
     <map znear="0.001" />
   </visual>
   <worldbody>
+        <camera name="camera_0" pos="1.5 1.5 3" euler="0 0 0"/>
   </worldbody>
 </mujoco>

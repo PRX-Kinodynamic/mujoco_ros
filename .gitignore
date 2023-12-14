@@ -3,3 +3,5 @@
 ./CMakeLists.txt
 /CMakeLists.txt
 .vscode/
+/infrastructure/prx_models/models/aruco_mip_36h12/imgs/
+/infrastructure/prx_models/models/aruco_mip_36h12/tags/

@@ -156,6 +156,9 @@ include_directories(
 
 ## Specify libraries to link a library or executable target against
 
+add_subdirectory(models/aruco_mip_36h12)
+
+
 #############
 ## Install ##
 #############

@@ -3,6 +3,7 @@
 #include "mujoco_ros/sensordata_publisher.hpp"
 #include "prx_models/mj_mushr.hpp"
 
+#include "mujoco_ros/camera_publisher.hpp"
 // Mujoco-Ros visualization in (almost) RT:
 // Depends on the vizualization thread, but if the viz thread slows down, it won't affect mujoco
 int main(int argc, char** argv)
@@ -34,7 +35,6 @@ int main(int argc, char** argv)
   {
     ROS_ERROR("Failed to get param 'save_trajectory'.");
   }
-
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
@@ -42,32 +42,33 @@ int main(int argc, char** argv)
   ros::Subscriber reset_subscriber;
   reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
-  // Set the threads
-  std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
-  std::thread publisher_thread(&mj_ros::sensordata_publisher_t::run, &sensordata_publisher);
-  std::shared_ptr<mj_ros::simulator_visualizer_t> visualizer;
-  if (visualize)
-    visualizer = std::make_shared<mj_ros::simulator_visualizer_t>(sim);
-  ros::AsyncSpinner spinner(1);  // 1 thread for the controller
-
-  ros::Subscriber goal_pos_subscriber, goal_radius_subscriber;
+  std::vector<ros::Subscriber> sim_subscribers;
+  mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, visualize) };
   if (visualize)
   {
-    goal_pos_subscriber =
-        n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
-    goal_radius_subscriber =
-        n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
+    sim_subscribers.push_back(
+        n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get()));
+    sim_subscribers.push_back(
+        n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get()));
   }
+  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
+  // PRX_DEBUG_PRINT;
+  mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
+
+  // Set the threads
+  // std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
+  // std::thread publisher_thread(&mj_ros::sensordata_publisher_t::run, &sensordata_publisher);
+  // ros::AsyncSpinner spinner(1);  // 1 thread for the controller
 
   // Run threads: Mj sim is already running at this point
-  spinner.start();
-  if (visualize)
-    visualizer->run();  // Blocking
+  // spinner.start();
+  // if (visualize)
+  //   visualizer->run();  // Blocking
 
-  // Join the non-visual threads
-  step_thread.join();
-  publisher_thread.join();
-  spinner.stop();
+  // // Join the non-visual threads
+  // step_thread.join();
+  // publisher_thread.join();
+  // spinner.stop();
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;

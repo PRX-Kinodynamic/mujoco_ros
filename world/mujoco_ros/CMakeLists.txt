@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 # Mujoco-relates packages
 find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
 find_package(glfw3 REQUIRED)
+find_package(OpenCV REQUIRED )
 
 set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")
 list(APPEND MJ_INCLUDE_DIR ${GLFW_INCLUDE_DIRS})
@@ -26,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   roslib
   prx_models
+  cv_bridge
 )
 
 ## System dependencies are found with CMake's conventions
@@ -137,6 +139,7 @@ include_directories(
   include
   ${MJ_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS} 
 )
 
 ## Declare a C++ library
@@ -176,6 +179,7 @@ foreach(f ${EXECUTABLE_FILES})
   target_link_libraries(${fname}
                         ${MJ_LINK}
                         ${catkin_LIBRARIES}
+                        ${OpenCV_LIBS} 
                       )
 endforeach()
 
