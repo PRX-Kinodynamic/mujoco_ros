@@ -232,7 +232,7 @@ public:
     ros::WallRate r(30);
     mjrRect viewport{ 0, 0, 1200, 900 };
 
-    while (ros::ok())
+    while (ros::ok() and !glfwWindowShouldClose(window))
     {
       _sim->_mj_reset_mutex.lock();
 
@@ -266,6 +266,7 @@ public:
 
       r.sleep();
     }
+    ros::shutdown();
   }
 
   inline void set_goal_pos(const geometry_msgs::Pose2D::ConstPtr& msg)

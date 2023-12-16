@@ -28,8 +28,6 @@ public:
     mjv_defaultOption(&_mj_option);
     mjv_defaultScene(&_mj_scene);
     mjr_defaultContext(&_mj_context);
-    mjv_makeScene(_sim->m, &_mj_scene, 1000);
-    mjr_makeContext(_sim->m, &_mj_context, mjFONTSCALE_150);
 
     _header.seq = 0;
     _header.stamp = ros::Time::now();
@@ -44,9 +42,11 @@ public:
     if (!_glfw_window)
       ROS_ERROR("Error in creating GLFW window.");
 
-    // glfwMakeContextCurrent(_glfw_window);
-    mjr_makeContext(_sim->m, &_mj_context, mjFONTSCALE_150);
+    glfwMakeContextCurrent(_glfw_window);
+    // The next three calls need to be AFTER glfwMakeContextCurrent
     mjv_defaultCamera(&_mj_camera);
+    mjv_makeScene(_sim->m, &_mj_scene, 1000);
+    mjr_makeContext(_sim->m, &_mj_context, mjFONTSCALE_150);
 
     for (int i = 0; i < _sim->m->ncam; ++i)
     {
@@ -62,30 +62,23 @@ public:
         _mj_viewport.height = 720;
         _mj_camera.type = mjtCamera::mjCAMERA_FIXED;                                   // camera type (mjtCamera)
         _mj_camera.fixedcamid = mj_name2id(_sim->m, mjOBJ_CAMERA, _cam_name.c_str());  // fixed camera id
+        _cv_pixels = cv::Mat(_mj_viewport.height, _mj_viewport.width, CV_8UC3);
         // _mj_camera.trackbodyid = _sim->m->cam_targetbodyid[i];                   // body id to track
       }
     }
-    PRX_DEBUG_VARS(_mj_camera.lookat[0], _mj_camera.lookat[1], _mj_camera.lookat[2]);
   }
 
   void get_frame()
   {
     glfwMakeContextCurrent(_glfw_window);
-    // PRX_DEBUG_PRINT;
-    // // _mj_viewport = mjr_maxViewport(&_mj_context);
-    glfwGetFramebufferSize(_glfw_window, &_mj_viewport.width, &_mj_viewport.height);
-    // PRX_DEBUG_PRINT;
+
     mjv_updateScene(_sim->m, _sim->d, &_mj_option, NULL, &_mj_camera, mjCAT_ALL, &_mj_scene);
-    // PRX_DEBUG_PRINT;
     mjr_render(_mj_viewport, &_mj_scene, &_mj_context);
     glfwSwapBuffers(_glfw_window);
 
-    PRX_DEBUG_VARS(_mj_viewport.width, _mj_viewport.height);
-
-    _cv_pixels = cv::Mat(_mj_viewport.height, _mj_viewport.width, CV_8UC3);
     mjr_readPixels(_cv_pixels.data, nullptr, _mj_viewport, &_mj_context);
-    // cvtColor(_cv_pixels, _cv_pixels, cv::COLOR_RGB2BGR);
-    // cv::flip(_cv_pixels, _cv_pixels, 0);
+    cvtColor(_cv_pixels, _cv_pixels, cv::COLOR_RGB2BGR);
+    cv::flip(_cv_pixels, _cv_pixels, 0);
     _header.seq++;
     _header.stamp = ros::Time::now();
     _message = cv_bridge::CvImage(_header, "bgr8", _cv_pixels).toImageMsg();
@@ -100,7 +93,6 @@ public:
       _publisher.publish(_message);
       _rate.sleep();
     }
-    cv::imwrite("/Users/Gary/Downloads/dbg.png", _cv_pixels);
   }
 
 private:
