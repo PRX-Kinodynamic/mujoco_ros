@@ -13,7 +13,9 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   roslib
   ml4kp_bridge
+  rosbag_storage
   cv_bridge
+  rosbag
 )
 
 ## System dependencies are found with CMake's conventions

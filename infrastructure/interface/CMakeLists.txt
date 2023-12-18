@@ -178,6 +178,13 @@ foreach(f ${EXECUTABLE_FILES})
                       )
 endforeach()
 
+
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 #############
 ## Install ##
 #############
