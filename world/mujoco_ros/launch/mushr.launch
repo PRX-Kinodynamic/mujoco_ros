@@ -7,6 +7,9 @@
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg visualize)" />
         </node>
+        <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
+            <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+    </node>
     </group>
 </launch>
 

@@ -24,7 +24,7 @@ int main(int argc, char** argv)
   interface::get_param_and_check(nh, root + "/control_from_topic", control_subscriber_topic);
   interface::get_param_and_check(nh, root + "/control_to_topic", control_publisher_topic);
 
-  interface::msg_translator_t<prx_models::MushrObservation, mujoco_ros::SensorDataStamped> observation_translator(
+  interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped> observation_translator(
       nh, perception_subscriber_topic, perception_publisher_topic);
 
   interface::msg_translator_t<prx_models::MushrPlan, ml4kp_bridge::Plan> control_translator(

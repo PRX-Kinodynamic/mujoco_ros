@@ -23,7 +23,7 @@ inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge:
 }
 
 inline void translate_msg(prx_models::MushrObservation& mushr_observation,
-                          const mujoco_ros::SensorDataStamped& observation)
+                          const interface::SensorDataStamped& observation)
 {
   get_observation(mushr_observation, observation.raw_sensor_data);
 }

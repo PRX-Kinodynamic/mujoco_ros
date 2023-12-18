@@ -1,0 +1,19 @@
+<launch>
+    <!--<node pkg="perception" type="aruco_detection" name="camera_microsoft" output="screen">
+    	<rosparam command="load" file="$(find perception)/config/microsoft_lifecam_cinema.yaml" />
+    </node>-->
+    <node pkg="perception" type="aruco_detection" name="camera_c615" output="screen">
+    	<rosparam command="load" file="$(find perception)/config/hd_webcam_c615.yaml" />
+    </node>
+    <node pkg="perception" type="aruco_detection" name="camera_logitech" output="screen">
+    	<rosparam command="load" file="$(find perception)/config/logitech_brio.yaml" />
+    </node>
+    <machine name="pracsys-pi1" address="192.168.0.150" env-loader="/home/pracsys-pi1/raspi_ros_perception/env.sh" user="pracsys-pi1" />
+    <node machine="pracsys-pi1" pkg="perception" type="aruco_detection" name="rasPi1_aruco_detection" output="screen">
+    	<rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+    </node>
+    <machine name="pracsys-pi2" address="192.168.0.152" env-loader="/home/pracsys/raspi_ros_perception/env.sh" user="pracsys" />
+    <node machine="pracsys-pi2" pkg="perception" type="aruco_detection" name="rasPi2_aruco_detection" output="screen">
+        <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+    </node>
+</launch>

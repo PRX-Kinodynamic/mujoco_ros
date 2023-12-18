@@ -4,7 +4,7 @@
 
 #include "prx_models/mj_copy.hpp"
 
-#include <mujoco_ros/SensorDataStamped.h>
+#include <interface/SensorDataStamped.h>
 #include <prx_models/MushrControl.h>
 #include <prx_models/MushrPlan.h>
 #include <prx_models/MushrObservation.h>

@@ -13,7 +13,7 @@
 #include "ros/ros.h"
 #include "mujoco/mujoco.h"
 #include "std_msgs/Empty.h"
-#include "mujoco_ros/SensorDataStamped.h"
+#include <interface/SensorDataStamped.h>
 
 #define PRX_DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
