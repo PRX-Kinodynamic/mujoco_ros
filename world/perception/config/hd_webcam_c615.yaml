@@ -1,4 +1,4 @@
-camera_id: 0
+camera: "/dev/video0"
 height: 1080 
 width: 1920
 frequency: 30

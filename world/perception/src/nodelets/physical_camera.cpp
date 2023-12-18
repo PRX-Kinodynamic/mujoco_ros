@@ -31,16 +31,18 @@ private:
     _topic_name = ros::this_node::getNamespace() + _topic_name;
     int height{ 0 };
     int width{ 0 };
-    int camera_id{ 0 };
     double frequency{ 30 };
-
-    NODELET_PARAM_SETUP(private_nh, camera_id);
+    std::string camera{ 0 };
+    NODELET_PARAM_SETUP(private_nh, camera);
     NODELET_PARAM_SETUP(private_nh, height);
     NODELET_PARAM_SETUP(private_nh, width);
     NODELET_PARAM_SETUP(private_nh, frequency);
-
+#if __linux__
     // _cap.open(_camera_id, cv::CAP_V4L2);
-    _cap.open(camera_id, cv::CAP_ANY);  // This is supposedly more general
+    _cap.open(camera, cv::CAP_ANY);  // This is supposedly more general
+#else
+    _cap.open(std::stoi(camera), cv::CAP_ANY);
+#endif
 
     _cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     _cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
@@ -51,14 +53,14 @@ private:
     _cap.set(cv::CAP_PROP_AUTO_WB, 1);
     _cap.set(cv::CAP_PROP_AUTO_EXPOSURE, 0);
 
-    NODELET_INFO_STREAM("Camera: " << camera_id);
+    NODELET_INFO_STREAM("Camera: " << camera);
     NODELET_INFO_STREAM("cv::CAP_PROP_FRAME_WIDTH: " << _cap.get(cv::CAP_PROP_FRAME_WIDTH));
     NODELET_INFO_STREAM("cv::CAP_PROP_FRAME_HEIGHT: " << _cap.get(cv::CAP_PROP_FRAME_HEIGHT));
     NODELET_INFO_STREAM("cv::CAP_PROP_FPS: " << _cap.get(cv::CAP_PROP_FPS));
 
     if (!_cap.isOpened())
     {
-      ROS_ERROR_STREAM("Error opening the video source" << camera_id << ".");
+      ROS_ERROR_STREAM("Error opening the video source '" << camera << "'.");
       ROS_ERROR_STREAM("On linux, consider using command 'v4l2-ctl --list-devices'");
       exit(-1);
     }
