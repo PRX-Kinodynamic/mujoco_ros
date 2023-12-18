@@ -1,16 +1,11 @@
-<!-- <launch> -->
-    <!-- <node pkg="perception" type="aruco_detection" name="camera_logitech" output="screen"> -->
-        <!-- <rosparam command="load" file="$(find perception)/config/logitech_brio.yaml" /> -->
-        <!-- <param name="stop_service" value="/general/stop" /> -->
-    <!-- </node> -->
-<!-- </launch> -->
-
 <launch>
+    <arg name="camera_config" default="$(find perception)/config/logitech_brio.yaml"/>
+
     <group ns="aruco_detection_0">
         <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
 
     <node pkg="nodelet" type="nodelet" name="physical_camera_nodelet_t" args="load perception/physical_camera_nodelet_t standalone_nodelet" output="screen">
-        <rosparam command="load" file="$(find perception)/config/macos_cam.yaml" />
+        <rosparam command="load" file="$(arg camera_config)" />
     </node>         
     <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t standalone_nodelet" output="screen">
         <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
