@@ -1,0 +1,5 @@
+camera_id: 0
+height: 720 
+width: 1280
+frequency: 30
+display_video: false
