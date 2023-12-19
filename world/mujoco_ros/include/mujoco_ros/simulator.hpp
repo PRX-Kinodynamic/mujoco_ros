@@ -208,6 +208,57 @@ public:
     });
   }
 
+  void draw_goal()
+  {
+    if (goal_position.size() != 0)
+    {
+      mjvGeom* goal_geom = scn.geoms + scn.ngeom++;
+      mjv_initGeom(goal_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
+      goal_geom->rgba[0] = 0.0;
+      goal_geom->rgba[1] = 1.0;
+      goal_geom->rgba[2] = 0.0;
+      goal_geom->rgba[3] = 0.5;
+      goal_geom->size[0] = goal_radius;
+      goal_geom->size[1] = goal_radius;
+      goal_geom->size[2] = goal_radius;
+      goal_geom->pos[0] = goal_position[0];
+      goal_geom->pos[1] = goal_position[1];
+      goal_geom->pos[2] = 0.0;
+    }
+  }
+
+  void draw_trajectory()
+  {
+    if (trajectory_to_visualize.size() > 0)
+    {
+      mjvGeom* start_geom = scn.geoms + scn.ngeom++;
+      mjv_initGeom(start_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
+      start_geom->rgba[0] = 1.0;
+      start_geom->rgba[1] = 0.0;
+      start_geom->rgba[2] = 0.0;
+      start_geom->rgba[3] = 0.5;
+      start_geom->size[0] = 0.05;
+      start_geom->size[1] = 0.05;
+      start_geom->size[2] = 0.05;
+      start_geom->pos[0] = trajectory_to_visualize[0][0];
+      start_geom->pos[1] = trajectory_to_visualize[0][1];
+      start_geom->pos[2] = lineheight;
+      for (int i = line_step; i < trajectory_to_visualize.size(); i += line_step)
+      {
+        if (scn.ngeom >= scn.maxgeom)
+        {
+          ROS_WARN("Max geom reached.");
+          break;
+        }
+        mjvGeom* line_geom = scn.geoms + scn.ngeom++;
+        mjv_initGeom(line_geom, mjGEOM_LINE, NULL, NULL, NULL, linecolor);
+        mjv_makeConnector(line_geom, mjGEOM_LINE, linewidth, trajectory_to_visualize[i - line_step][0],
+                          trajectory_to_visualize[i - line_step][1], lineheight, trajectory_to_visualize[i][0],
+                          trajectory_to_visualize[i][1], lineheight);
+      }
+    }
+  }
+
   void run()
   {
     ros::WallRate r(30);
@@ -220,55 +271,8 @@ public:
       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
       mjv_updateScene(_sim->m, _sim->d, &opt, NULL, &cam, mjCAT_ALL, &scn);
 
-      if (goal_position.size() != 0)
-      {
-        mjvGeom* goal_geom = scn.geoms + scn.ngeom++;
-        mjv_initGeom(goal_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
-        goal_geom->rgba[0] = 0.0;
-        goal_geom->rgba[1] = 1.0;
-        goal_geom->rgba[2] = 0.0;
-        goal_geom->rgba[3] = 0.5;
-        goal_geom->size[0] = goal_radius;
-        goal_geom->size[1] = goal_radius;
-        goal_geom->size[2] = goal_radius;
-        goal_geom->pos[0] = goal_position[0];
-        goal_geom->pos[1] = goal_position[1];
-        goal_geom->pos[2] = 0.0;
-      }
-
-      if (trajectory_to_visualize.size() > 0)
-      {
-        float linecolor[4] = { 1.0, 0.0, 0.0, 1.0 };
-        double linewidth = 3.0;
-        double lineheight = 0.1;
-        int step = 10;
-        // Plot start state as a small sphere
-        mjvGeom* start_geom = scn.geoms + scn.ngeom++;
-        mjv_initGeom(start_geom, mjGEOM_SPHERE, NULL, NULL, NULL, NULL);
-        start_geom->rgba[0] = 1.0;
-        start_geom->rgba[1] = 0.0;
-        start_geom->rgba[2] = 0.0;
-        start_geom->rgba[3] = 0.5;
-        start_geom->size[0] = 0.05;
-        start_geom->size[1] = 0.05;
-        start_geom->size[2] = 0.05;
-        start_geom->pos[0] = trajectory_to_visualize[0][0];
-        start_geom->pos[1] = trajectory_to_visualize[0][1];
-        start_geom->pos[2] = lineheight;
-        for (int i = step; i < trajectory_to_visualize.size(); i+=step)
-        {
-          if (scn.ngeom >= scn.maxgeom)
-          {
-            ROS_WARN("Max geom reached.");
-            break;
-          }
-          mjvGeom* line_geom = scn.geoms + scn.ngeom++;
-          mjv_initGeom(line_geom, mjGEOM_LINE, NULL, NULL, NULL, linecolor);
-          mjv_makeConnector(line_geom, mjGEOM_LINE, linewidth, trajectory_to_visualize[i - step][0],
-                            trajectory_to_visualize[i - step][1], lineheight, trajectory_to_visualize[i][0],
-                            trajectory_to_visualize[i][1], lineheight);
-        }
-      }
+      draw_goal();
+      draw_trajectory();
 
       mjr_render(viewport, &scn, &con);
       snprintf(time_string, 100, "Sim time: = %f", _sim->d->time);
@@ -308,6 +312,13 @@ public:
     }
   }
 
+  inline void reset(const std_msgs::Empty::ConstPtr& msg)
+  {
+    goal_position.clear();
+    goal_radius = 0.0;
+    trajectory_to_visualize.clear();
+  }
+
 protected:
   mjvScene scn;
   mjrContext con;
@@ -325,6 +336,11 @@ protected:
 
   bool button_left, button_right, button_middle;
   double lastx, lasty;
+
+  float linecolor[4] = { 1.0, 0.0, 0.0, 1.0 };
+  double linewidth = 3.0;
+  double lineheight = 0.1;
+  double line_step = 10;
 
   void mouse_button(GLFWwindow* window, int button, int act, int mods)
   {

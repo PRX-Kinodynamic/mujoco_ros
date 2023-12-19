@@ -4,8 +4,7 @@
     <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
-    <arg name = "goal_x" default = "3.0"/>
-    <arg name = "goal_y" default = "3.0"/>
+    <arg name = "goal_config" default = "[3.0, 3.0, 0.0]"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "visualize" default = "false"/>
     <include file="$(find interface)/launch/$(arg namespace)_interface.launch"/>
@@ -15,8 +14,7 @@
             <param name="plan_file" value="$(arg plan_file)" />
             <param name="out_html"  value="$(arg out_html)" />
             <param name="random_seed" value="$(arg random_seed)" />
-            <param name="goal_x" value="$(arg goal_x)" />
-            <param name="goal_y" value="$(arg goal_y)" />
+            <param name="goal_config" value="$(arg goal_config)" />
             <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
             <param name="visualize" value="$(arg visualize)" />
         </node>

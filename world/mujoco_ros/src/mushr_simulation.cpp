@@ -39,8 +39,8 @@ int main(int argc, char** argv)
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
 
-  ros::Subscriber reset_subscriber;
-  reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
+  ros::Subscriber reset_subscriber_for_sim, reset_subscriber_for_viz;
+  reset_subscriber_for_sim = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   // Set the threads
   std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
@@ -57,9 +57,10 @@ int main(int argc, char** argv)
         n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get());
     goal_radius_subscriber =
         n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get());
-    // Is this ok for this to subscribe directly to ml4kp_traj?
+    // TODO: Is this ok for this to subscribe directly to ml4kp_traj?
     trajectory_subscriber = n.subscribe(root + "/ml4kp_traj", 1000,
-                                        &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get());
+                                          &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get());
+    reset_subscriber_for_viz = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get());
   }
 
   // Run threads: Mj sim is already running at this point

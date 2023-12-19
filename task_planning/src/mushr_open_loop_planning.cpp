@@ -3,6 +3,7 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/single_shot_planner_service.hpp"
 #include "motion_planning/planner_client.hpp"
+#include "utils.hpp"
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -46,14 +47,14 @@ int main(int argc, char** argv)
   dirt_spec->blossom_number = 25;
   dirt_spec->use_pruning = false;
 
-  double goal_x, goal_y;
-  n.getParam(ros::this_node::getName() + "/goal_x", goal_x);
-  n.getParam(ros::this_node::getName() + "/goal_y", goal_y);
+  std::string goal_config_str;
+  n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
+  std::vector<double> goal_config = string_to_vector<double>(goal_config_str, ',');
 
   geometry_msgs::Pose2D goal_configuration;
-  goal_configuration.x = goal_x;
-  goal_configuration.y = goal_y;
-  goal_configuration.theta = 0.0;
+  goal_configuration.x = goal_config[0];
+  goal_configuration.y = goal_config[1];
+  goal_configuration.theta = goal_config[2];
 
   std_msgs::Float64 goal_radius;
   goal_radius.data = 0.25;

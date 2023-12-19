@@ -1,8 +1,7 @@
 <launch> 
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
-    <arg name = "goal_x" default = "3.0"/>
-    <arg name = "goal_y" default = "3.0"/>
+    <arg name = "goal_config" default = "[3.0, 3.0, 0.0]"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "preprocess_timeout" default = "0.1" />
     <arg name = "postprocess_timeout" default = "0.1" />
@@ -11,8 +10,7 @@
     <group ns="$(arg namespace)">
         <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_replanning" output="screen">
             <param name="random_seed" value="$(arg random_seed)" />
-            <param name="goal_x" value="$(arg goal_x)" />
-            <param name="goal_y" value="$(arg goal_y)" />
+            <param name="goal_config" value="$(arg goal_config)" />
             <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
             <param name="preprocess_timeout" value="$(arg preprocess_timeout)" />
             <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
