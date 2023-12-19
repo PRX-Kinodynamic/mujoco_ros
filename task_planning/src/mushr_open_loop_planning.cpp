@@ -85,7 +85,8 @@ int main(int argc, char** argv)
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
   double planning_cycle_duration;
-  n.getParam(ros::this_node::getName() + "/planning_duration", planning_cycle_duration);
+  n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
+  ROS_INFO("Planning duration: %f", planning_cycle_duration);
 
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);

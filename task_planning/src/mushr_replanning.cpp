@@ -85,7 +85,7 @@ int main(int argc, char** argv)
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
   double planning_cycle_duration, preprocess_timeout, postprocess_timeout;
-  n.getParam(ros::this_node::getName() + "/planning_duration", planning_cycle_duration);
+  n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
   n.getParam(ros::this_node::getName() + "/preprocess_timeout", preprocess_timeout);
   n.getParam(ros::this_node::getName() + "/postprocess_timeout", postprocess_timeout);
   planner_service.set_preprocess_timeout(preprocess_timeout);
