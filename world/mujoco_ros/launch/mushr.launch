@@ -11,7 +11,8 @@
         </node>
         <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
             <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
-    </node>
+        </node>
     </group>
+        <include file="$(find estimation)/launch/mj_estimation.launch" ns="mushr"/>
 </launch>
 

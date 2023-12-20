@@ -1,0 +1,15 @@
+marker_length: 0.167
+robot_id: 0
+markers_positions:
+  - id: 50
+    position: [-1.5, 1.0, 0.0]
+  - id: 51
+    position: [0.0, 1.0, 0.0]
+  - id: 52
+    position: [1.5, 1.0, 0.0]
+  - id: 53
+    position: [-1.5, -1.0, 0.0]
+  - id: 54
+    position: [0.0, -1.0, 0.0]
+  - id: 55
+    position: [1.5, -1.0, 0.0]

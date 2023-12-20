@@ -11,6 +11,7 @@ find_package(catkin REQUIRED
   message_generation
   interface
   nodelet
+  prx_models
   )
 find_package(OpenCV 4.8.0 REQUIRED
   COMPONENTS

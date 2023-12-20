@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="estimation" name="aruco_estimation" type="aruco_estimation" output="screen">
+	 	<rosparam command="load" file="$(find estimation)/config/lab_2x3_markers_positions.yaml" />
+	</node>
+</launch>
