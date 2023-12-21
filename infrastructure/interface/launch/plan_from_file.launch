@@ -1,0 +1,25 @@
+<launch>
+    <arg name="plan_topic_name" default="/mushr/plan" />
+
+    <group ns="mushr">
+        <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
+
+        <node pkg="nodelet" type="nodelet" name="AckermannDrivePlanStepper" 
+            args="load interface/AckermannDrivePlanStepper standalone_nodelet" 
+            output="screen">
+            <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+            <param name="subscriber_topic" value="$(arg plan_topic_name)" />
+            <param name="frequency" value="10" />
+        </node>         
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
+            args="load ml4kp_bridge/plan_from_file_t standalone_nodelet" 
+            output="screen">
+            <param name="publisher_topic" value="$(arg plan_topic_name)" />
+            <param name="plan_file" value="$(env ML4KP_ROS)/plan0.txt" />
+            <param name="control_dimension" value="2" />
+            <param name="control_topology" value="EE" />
+
+        </node>
+    </group>
+  
+</launch>

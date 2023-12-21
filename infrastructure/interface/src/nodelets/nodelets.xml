@@ -1,0 +1,10 @@
+<library path="lib/libinterface_nodelets">
+  <class 
+      name="interface/AckermannDrivePlanStepper" 
+      type="interface::AckermannDrivePlanStepper" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to step over plan to ackermann drive
+    </description>
+  </class>
+</library>

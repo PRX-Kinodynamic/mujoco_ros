@@ -1,0 +1,10 @@
+<library path="lib/libml4kp_bridge_nodelets">
+  <class 
+      name="ml4kp_bridge/plan_from_file_t" 
+      type="ml4kp_bridge::plan_from_file_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish a plan from a file
+    </description>
+  </class>
+</library>

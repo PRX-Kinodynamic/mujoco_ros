@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   message_generation
+  nodelet
   roslib
 )
 
@@ -138,27 +139,17 @@ include_directories(
 add_library(${PROJECT_NAME} INTERFACE)
 add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
 target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mujoco.cpp
-# )
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
-
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
+### Nodelets as a library
+set(NODELET_LIB ${PROJECT_NAME}_nodelets)
+file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+add_library(${NODELET_LIB} ${NODELET_FILES})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 
+### Executable files
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
 
