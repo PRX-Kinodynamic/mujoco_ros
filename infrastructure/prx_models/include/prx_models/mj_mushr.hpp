@@ -2,6 +2,7 @@
 #include "eigen3/Eigen/Dense"
 #include "geometry_msgs/Pose2D.h"
 
+#include <ml4kp_bridge/defs.h>
 #include "prx_models/mj_copy.hpp"
 
 #include <mujoco_ros/SensorDataStamped.h>
@@ -62,8 +63,10 @@ inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg
   state->at(1) = msg.pose.position.y;
   Eigen::Quaterniond quat = Eigen::Quaterniond(msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y,
                                                msg.pose.orientation.z);
-  Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
+  // Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
+  Eigen::Vector3d euler = prx::quaternion_to_euler(quat);
   state->at(2) = euler[2];
+  // ROS_WARN("Copying observation: %f, %f, %f", state->at(0), state->at(1), state->at(2));
 }
 
 template <typename StateSpacePoint>
@@ -72,5 +75,7 @@ inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
   state->at(0) = msg.x;
   state->at(1) = msg.y;
   state->at(2) = msg.theta;
+  state->at(3) = 0.0;
+  ROS_WARN("Setting current velocity to 0.0");
 }
 }  // namespace prx_models

@@ -5,7 +5,7 @@ import numpy as np
 import rospkg
 import os
 from prx_models.msg import MushrPlan, MushrControl
-from std_msgs.msg import Float64
+from std_msgs.msg import Duration
 
 def talker():
     rospy.init_node('mushr_open_loop_publisher', anonymous=True)
@@ -31,13 +31,13 @@ def talker():
         ctrl.steering_angle.data = float(plan[i, 0])
         ctrl.velocity.data = float(plan[i, 1])
         msg.controls.append(ctrl)
-        msg.durations.append(Float64(float(plan[i, 2])))
+        msg.durations.append(Duration(rospy.Duration.from_sec(plan[i, 2])))
     
     ctrl = MushrControl()
     ctrl.steering_angle.data = 0.0
     ctrl.velocity.data = 0.0
     msg.controls.append(ctrl)
-    msg.durations.append(Float64(0.0))
+    msg.durations.append(Duration(rospy.Duration.from_sec(0.0)))
     # print(msg)
     pub.publish(msg)
     # rate.sleep()

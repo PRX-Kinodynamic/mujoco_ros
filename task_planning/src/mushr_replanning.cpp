@@ -1,13 +1,12 @@
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
-#include "motion_planning/single_shot_planner_service.hpp"
+#include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
 #include "utils.hpp"
 
 #include <ros/ros.h>
 #include <ros/package.h>
-#include <fstream>
 
 int main(int argc, char** argv)
 {
@@ -18,6 +17,7 @@ int main(int argc, char** argv)
   const std::string root{ ros::this_node::getNamespace() };
   int random_seed;
   n.getParam(ros::this_node::getName() + "/random_seed", random_seed);
+  // TODO: Does this need to be set inside the client/service for better determinism?
   prx::init_random(random_seed);
 
   // std::string plant_name = "MushrAnalytical";
@@ -80,50 +80,27 @@ int main(int argc, char** argv)
   n.getParam(ros::this_node::getName() + "/visualize", visualize_trajectory);
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, visualize_trajectory);
-  
+
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
-  double planning_cycle_duration;
+  double planning_cycle_duration, preprocess_timeout, postprocess_timeout;
   n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
-  ROS_INFO("Planning duration: %f", planning_cycle_duration);
+  n.getParam(ros::this_node::getName() + "/preprocess_timeout", preprocess_timeout);
+  n.getParam(ros::this_node::getName() + "/postprocess_timeout", postprocess_timeout);
+  planner_service.set_preprocess_timeout(preprocess_timeout);
+  planner_service.set_postprocess_timeout(postprocess_timeout);
 
+  bool first_cycle = true;
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
-  planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
-
-  ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
-  ROS_INFO("Query fulfill time: %f",
-           planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
-
-  std::string plan_file_name;
-  n.getParam(ros::this_node::getName() + "/plan_file", plan_file_name);
-  std::string plan_file_path = ros::package::getPath("task_planning") + "/data/" + plan_file_name;
-  ROS_INFO("Saving plan to %s", plan_file_path.c_str());
-
-  std::string traj_file_name;
-  n.getParam(ros::this_node::getName() + "/traj_file", traj_file_name);
-  std::string traj_file_path = ros::package::getPath("task_planning") + "/data/" + traj_file_name;
-  ROS_INFO("Saving trajectory to %s", traj_file_path.c_str());
-
-  std::ofstream plan_file, traj_file;
-  plan_file.open(plan_file_path);
-  traj_file.open(traj_file_path);
-  plan_file << dirt_query->solution_plan.print() << std::endl;
-  traj_file << dirt_query->solution_traj.print() << std::endl;
-  plan_file.close();
-  traj_file.close();
-
-  std::string out_html;
-  n.getParam(ros::this_node::getName() + "/out_html", out_html);
-
-  prx::three_js_group_t* vis_group = new prx::three_js_group_t({ plant }, {});
-  std::string body_name = plant_name + "/body";
-  vis_group->add_vis_infos(prx::info_geometry_t::FULL_LINE, dirt_query->tree_visualization, body_name, ss);
-  vis_group->add_animation(dirt_query->solution_traj, ss, dirt_query->start_state);
-  vis_group->output_html(out_html);
-  delete vis_group;
+  while (true)
+  {
+    ros::Duration(planning_cycle_duration).sleep();
+    planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
+    first_cycle = false;
+  }
 
   return 0;
 }

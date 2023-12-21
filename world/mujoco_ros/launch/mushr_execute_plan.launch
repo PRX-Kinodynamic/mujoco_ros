@@ -3,14 +3,19 @@
     <arg name="plan_file" default="data/mushr_plan.txt"/>
     <arg name="delimiter" default=","/>
     <arg name="save_trajectory" default="false"/>
-    <group ns="mushr">
-        <node pkg="mujoco_ros" name="mushr_visualize" type="mushr_visualize" output="screen">
-            <param name="visualize" value="true" />
+    <arg name="visualize" default="true"/>
+    <arg name = "namespace" default = "mushr"/>
+    <arg name="trajectory_output_file" default="data/mushr_trajectory.txt"/>
+    <group ns="$(arg namespace)">
+        <node pkg="mujoco_ros" name="mushr_simulation" type="mushr_simulation" output="screen">
+            <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
+            <param name="trajectory_output_file" value="$(arg trajectory_output_file)" />
         </node>
         <node pkg="mujoco_ros" name="open_loop_publisher" type="mushr_open_loop_publisher.py" output="screen">
             <param name="plan_file" value="$(arg plan_file)" />
             <param name="delimiter" value="$(arg delimiter)" />
         </node>
+        <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find mujoco_ros)/data/$(arg namespace).bag"/>
     </group>
 </launch>

@@ -1,20 +1,18 @@
 <launch> 
-    <arg name = "traj_file" default = "ml4kp_traj.txt"/>  
-    <arg name = "plan_file" default = "ml4kp_plan.txt"/>
-    <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
     <arg name = "goal_config" default = "[3.0, 3.0, 0.0]"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
+    <arg name = "preprocess_timeout" default = "0.1" />
+    <arg name = "postprocess_timeout" default = "0.1" />
     <arg name = "visualize" default = "false"/>
     <group ns="$(arg namespace)">
-        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_open_loop_planning" output="screen">
-            <param name="traj_file" value="$(arg traj_file)" />
-            <param name="plan_file" value="$(arg plan_file)" />
-            <param name="out_html"  value="$(arg out_html)" />
+        <node pkg="task_planning" name="replanner" type="$(arg namespace)_replanning" output="screen">
             <param name="random_seed" value="$(arg random_seed)" />
             <param name="goal_config" value="$(arg goal_config)" />
             <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
+            <param name="preprocess_timeout" value="$(arg preprocess_timeout)" />
+            <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
             <param name="visualize" value="$(arg visualize)" />
         </node>
         <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find task_planning)/data/$(arg namespace).bag"/>

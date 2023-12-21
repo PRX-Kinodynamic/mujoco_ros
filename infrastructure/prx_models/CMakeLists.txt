@@ -113,7 +113,7 @@ generate_messages(
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime
+ CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime ml4kp_bridge
 #  DEPENDS system_lib
 )
 
