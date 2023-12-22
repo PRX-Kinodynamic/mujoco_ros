@@ -1,7 +1,15 @@
 <library path="lib/libinterface_nodelets">
   <class 
-      name="interface/AckermannDrivePlanStepper" 
-      type="interface::AckermannDrivePlanStepper" 
+      name="interface/MushrFromSpacePointNodelet" 
+      type="interface::MushrFromSpacePointNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to step over plan to mushr (mujoco) control
+    </description>
+  </class>
+  <class 
+      name="interface/AckermannFromSpacePointNodelet" 
+      type="interface::AckermannFromSpacePointNodelet" 
       base_class_type="nodelet::Nodelet">
     <description> 
       Nodelet to step over plan to ackermann drive

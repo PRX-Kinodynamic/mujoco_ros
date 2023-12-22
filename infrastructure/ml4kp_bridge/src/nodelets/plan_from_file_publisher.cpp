@@ -30,11 +30,14 @@ protected:
     }
     _control_space = std::make_shared<prx::space_t>(_topology, _address, "plan_control_space");
     _plan = std::make_shared<prx::plan_t>(_control_space.get());
-    const std::string publisher_name{ ros::this_node::getNamespace() + "/plan" };
+    _plan->from_file(_plan_file);
+    copy(_plan_msg, _plan);
+
+    // const std::string publisher_name{ ros::this_node::getNamespace() + "/plan" };
     const std::string service_name{ ros::this_node::getNamespace() + "/publish_plan" };
 
     _timer = private_nh.createTimer(ros::Duration(1.0), &plan_from_file_t::timer_callback, this, true, false);
-    _publisher = private_nh.advertise<ml4kp_bridge::PlanStamped>(publisher_name, 1, true);
+    _publisher = private_nh.advertise<ml4kp_bridge::PlanStamped>(_publisher_topic, 1, true);
 
     _service = private_nh.advertiseService(service_name, &plan_from_file_t::service_callback, this);
   }
@@ -46,8 +49,6 @@ protected:
 
   void timer_callback(const ros::TimerEvent& event)
   {
-    _plan->from_file(_plan_file);
-    copy(_plan_msg, _plan);
     _publisher.publish(_plan_msg);
     _timer.stop();
   }
