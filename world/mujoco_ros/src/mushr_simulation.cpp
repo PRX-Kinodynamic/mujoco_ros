@@ -39,8 +39,8 @@ int main(int argc, char** argv)
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
 
-  ros::Subscriber reset_subscriber;
-  reset_subscriber = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
+  ros::Subscriber reset_subscriber_for_sim, reset_subscriber_for_viz;
+  reset_subscriber_for_sim = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   std::vector<ros::Subscriber> sim_subscribers;
   mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, visualize) };
@@ -50,9 +50,13 @@ int main(int argc, char** argv)
         n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get()));
     sim_subscribers.push_back(
         n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get()));
+    sim_subscribers.push_back(n.subscribe(root + "/ml4kp_traj", 1000,
+                                          &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize,
+                                          visualizer.get()));
+    sim_subscribers.push_back(n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
   }
+
   mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
-  // PRX_DEBUG_PRINT;
   mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
 
   // Set the threads

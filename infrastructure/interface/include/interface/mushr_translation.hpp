@@ -16,8 +16,8 @@ inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge:
   {
     const ml4kp_bridge::PlanStep plan_step{ plan.steps[i] };
     // copy(mushr_plan.controls[i], plan_step.control.state);
-    mushr_plan.controls[i].steering_angle.data = plan_step.control.point[0].data;
-    mushr_plan.controls[i].velocity.data = plan_step.control.point[1].data;
+    mushr_plan.controls[i].velocity.data = plan_step.control.point[0].data;
+    mushr_plan.controls[i].steering_angle.data = plan_step.control.point[1].data;
     mushr_plan.durations[i] = plan.steps[i].duration;
   }
 }
