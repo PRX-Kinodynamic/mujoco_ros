@@ -1,7 +1,8 @@
 <launch>
+    <arg name="simulation" default="true" />
     <arg name="plan_from_file_topic" default="/mushr/plan_read" />
     <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
-    <arg name="simulation" default="true" />
+    <arg name="plan_filename" default="$(env ML4KP_ROS)/plan0.txt" />
 
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
@@ -9,7 +10,7 @@
         <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
             args="load ml4kp_bridge/plan_from_file_t standalone_nodelet" 
             output="screen">
-            <param name="plan_file" value="$(env ML4KP_ROS)/plan0.txt" />
+            <param name="plan_file" value="$(arg plan_filename)" />
             <param name="control_dimension" value="2" />
             <param name="control_topology" value="EE" />
             <param name="publisher_topic" value="$(arg plan_from_file_topic)" />
