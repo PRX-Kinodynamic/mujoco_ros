@@ -63,7 +63,6 @@ private:
     {
       add_current_state_to_trajectory();
     }
-    std::cout << "timestep: " << m->opt.timestep << std::endl;
   }
 
 public:

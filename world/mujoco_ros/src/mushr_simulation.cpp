@@ -50,29 +50,14 @@ int main(int argc, char** argv)
         n.subscribe(root + "/goal_pos", 1000, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get()));
     sim_subscribers.push_back(
         n.subscribe(root + "/goal_radius", 1000, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get()));
-    sim_subscribers.push_back(n.subscribe(root + "/ml4kp_traj", 1000,
-                                          &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize,
-                                          visualizer.get()));
-    sim_subscribers.push_back(n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
+    sim_subscribers.push_back(n.subscribe(
+        root + "/ml4kp_traj", 1000, &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get()));
+    sim_subscribers.push_back(
+        n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
   }
 
   mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
   mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
-
-  // Set the threads
-  // std::thread step_thread(&mj_ros::simulator_t::run, &(*sim));  // Mj sim
-  // std::thread publisher_thread(&mj_ros::sensordata_publisher_t::run, &sensordata_publisher);
-  // ros::AsyncSpinner spinner(1);  // 1 thread for the controller
-
-  // Run threads: Mj sim is already running at this point
-  // spinner.start();
-  // if (visualize)
-  //   visualizer->run();  // Blocking
-
-  // // Join the non-visual threads
-  // step_thread.join();
-  // publisher_thread.join();
-  // spinner.stop();
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;

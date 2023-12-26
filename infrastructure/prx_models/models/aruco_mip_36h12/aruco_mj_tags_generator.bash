@@ -1,7 +1,8 @@
 #!/bin/bash
 
 aruco_path=${1}
-imgs_tar="${aruco_path}/imgs.tar.gz"
+imgs_dir="${aruco_path}/imgs"
+imgs_tar="${imgs_dir}.tar.gz"
 tags_directory="${aruco_path}/tags"
 
 function generate_aruco_mj_xml () {
@@ -40,13 +41,22 @@ function generate_aruco_mj_xml () {
 EOT
 }
 
-echo "Generating Aruco Files"
-tar xf ${imgs_tar}
+if [ -d "${imgs_dir}" ]; then
+  echo "Images dir exists"
+else
+  echo "Extracting images"
+  tar xf ${imgs_tar}
+fi
 
-mkdir -p ${tags_directory}
+if [ -d "${tags_directory}" ]; then
+  echo "Aruco mujoco tags exists"
+else
+  echo "Generating aruco mujoco tags"
+  mkdir ${tags_directory}
+  for num in $(seq -f "%05g" 00 249); do
+  	generate_aruco_mj_xml ${num}
+  done
+fi
 
-for num in $(seq -f "%05g" 00 249); do
-	generate_aruco_mj_xml ${num}
-done
 
 
