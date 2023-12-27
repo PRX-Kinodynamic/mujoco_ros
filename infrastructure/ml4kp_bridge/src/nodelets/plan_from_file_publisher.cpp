@@ -5,7 +5,7 @@
 #include <pluginlib/class_list_macros.hpp>
 
 #include <ml4kp_bridge/plan_bridge.hpp>
-#include <ml4kp_bridge/GetStringSrv.h>
+#include <ml4kp_bridge/SendString.h>
 #include <std_srvs/Empty.h>
 namespace ml4kp_bridge
 {
@@ -47,7 +47,7 @@ protected:
     _service_filename = private_nh.advertiseService(service_plan_filename, &plan_from_file_t::filename_callback, this);
   }
 
-  bool filename_callback(ml4kp_bridge::GetStringSrv::Request& request, ml4kp_bridge::GetStringSrv::Response& response)
+  bool filename_callback(ml4kp_bridge::SendString::Request& request, ml4kp_bridge::SendString::Response& response)
   {
     const std::filesystem::path filename{ request.string };
 

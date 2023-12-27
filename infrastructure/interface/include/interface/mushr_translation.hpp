@@ -1,6 +1,5 @@
 #pragma once
 
-#include "defs.hpp"
 #include <prx_models/mj_mushr.hpp>
 
 namespace interface
