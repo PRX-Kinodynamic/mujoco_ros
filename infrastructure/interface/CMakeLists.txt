@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   geometry_msgs
+  sensor_msgs
   message_generation
   roslib
   ml4kp_bridge
@@ -173,6 +174,11 @@ foreach(f ${EXECUTABLE_FILES})
                       )
 endforeach()
 
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 #############
 ## Install ##
 #############
