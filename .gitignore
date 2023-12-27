@@ -2,3 +2,4 @@
 **.DS_Store
 ./CMakeLists.txt
 /CMakeLists.txt
+**CATKIN_IGNORE

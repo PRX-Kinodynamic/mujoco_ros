@@ -1,0 +1,48 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+  <!-- Change car name to match the name of the car, e.g. car1 -->
+  <arg name="car_name" default="mushr" />
+  <!-- Set to 1 if you want to run the map_server -->
+  <arg name="map_server" value = "0" />
+
+  <!-- Could be racecar-mit, racecar-uw-tx2, or racecar-uw-nano -->
+  <arg name="racecar_version" default="racecar-ru" />
+
+  <!-- Use mocap published car pose instead of using odom -->
+  <arg name="use_mocap" default="false" />
+
+  <group ns="$(arg car_name)">
+
+    <!-- <param name="robot_description" -->
+           <!-- textfile="$(find mushr_description)/robots/$(arg racecar_version).urdf"/> -->
+
+    <group ns="vesc">
+         <!-- <include file="$(find vesc_main)/launch/vesc_nodelet.launch"> -->
+         <include file="$(find vesc_main)/launch/vesc.launch">
+             <arg name="racecar_version" value="$(arg racecar_version)" />
+             <arg name="car_name" default="/$(arg car_name)" />
+         </include>
+        <!-- <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" respawn="true" output="screen"/> -->
+    </group>
+<!--
+    <group ns="mux"> 
+      <arg name="nodelet_manager_name"  default="nodelet_manager"/> 
+
+      <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager_name)" args="manager"/>
+
+      <include file="$(find ackermann_cmd_mux)/launch/ackermann_cmd_mux.launch">
+        <arg name="nodelet_manager_name" value="$(arg nodelet_manager_name)" />
+        <arg name="config_file" value="$(find ackermann_cmd_mux)/param/mux.yaml" />
+      </include>
+    </group>
+    -->
+    <include file="$(find mushr_base)/launch/includes/racecar_state.launch">
+        <arg name="tf_prefix" value="$(arg car_name)" />
+        <arg name="use_mocap" value="$(arg use_mocap)" />
+    </include>
+
+  </group>
+  <!-- <remap from="/mushr/mux/ackermann_cmd_mux/input/navigation" to="/mushr/mux/ackermann_cmd_mux/input/default"/> -->
+
+
+</launch>
