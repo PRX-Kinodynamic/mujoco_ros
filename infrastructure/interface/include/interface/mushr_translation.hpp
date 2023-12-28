@@ -1,10 +1,17 @@
 #pragma once
 
-#include "defs.hpp"
 #include <prx_models/mj_mushr.hpp>
 
 namespace interface
 {
+
+inline void translate_msg(prx_models::MushrControl& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
+{
+  using prx_models::mushr_t::control::steering_idx;
+  using prx_models::mushr_t::control::velocity_idx;
+  ctrl_msg.steering_angle.data = point_msg.point[steering_idx].data;
+  ctrl_msg.velocity.data = point_msg.point[velocity_idx].data;
+}
 
 inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge::Plan& plan)
 {
