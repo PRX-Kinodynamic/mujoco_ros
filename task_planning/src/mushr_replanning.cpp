@@ -98,8 +98,16 @@ int main(int argc, char** argv)
   while (true)
   {
     ros::Duration(planning_cycle_duration).sleep();
-    planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
-    first_cycle = false;
+    if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
+    {
+      planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
+      first_cycle = false;
+    }
+    else
+    {
+      ROS_WARN("Goal reached, not replanning");
+      break;
+    }
   }
 
   return 0;
