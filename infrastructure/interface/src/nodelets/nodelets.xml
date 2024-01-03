@@ -15,4 +15,12 @@
       Nodelet to step over plan to ackermann drive
     </description>
   </class>
+  <class 
+      name="interface/GroundTruthPoseNodelet" 
+      type="interface::GroundTruthPoseNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish ground truth pose from sensordata
+    </description>
+  </class>
 </library>
