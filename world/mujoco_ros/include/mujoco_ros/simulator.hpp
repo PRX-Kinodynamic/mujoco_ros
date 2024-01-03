@@ -37,7 +37,6 @@ private:
     std::cout << model_path << std::endl;
     std::string error;
     error.reserve(1000);
-    std::cout << "error: " << error.capacity() << std::endl;
     m = mj_loadXML(model_path.c_str(), NULL, error.data(), error.capacity());
     if (!m or error.size() != 0)
     {
@@ -45,9 +44,8 @@ private:
       std::cout << error << std::endl;
     }
 
-    printf("%.5f\n", m->opt.timestep);
     d = mj_makeData(m);
-    std::cout << "timestep: " << m->opt.timestep << std::endl;
+    std::cout << "Simulation timestep: " << m->opt.timestep << std::endl;
     ROS_ASSERT(m->opt.timestep > 0);
     for (int i = 0; i < 1.0 / m->opt.timestep; i++)
     {

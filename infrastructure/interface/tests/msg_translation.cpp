@@ -9,26 +9,26 @@
 TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
 {
   prx_models::MushrPlan mushr_plan;
-  ml4kp_bridge::Plan plan;
+  ml4kp_bridge::PlanStamped stamped_plan;
 
   const std::size_t plan_size{ 2 };
   const std::size_t u_dim{ 2 };
-  plan.steps.resize(2);
+  stamped_plan.plan.steps.resize(2);
 
-  plan.steps[0].control.point.resize(u_dim);
-  plan.steps[1].control.point.resize(u_dim);
+  stamped_plan.plan.steps[0].control.point.resize(u_dim);
+  stamped_plan.plan.steps[1].control.point.resize(u_dim);
 
-  plan.steps[0].control.point[0].data = 1.0;
-  plan.steps[0].control.point[1].data = 1.5;
-  plan.steps[1].control.point[0].data = 2.0;
-  plan.steps[1].control.point[1].data = 2.5;
+  stamped_plan.plan.steps[0].control.point[0].data = 1.0;
+  stamped_plan.plan.steps[0].control.point[1].data = 1.5;
+  stamped_plan.plan.steps[1].control.point[0].data = 2.0;
+  stamped_plan.plan.steps[1].control.point[1].data = 2.5;
 
-  interface::translate_msg(mushr_plan, plan);
+  interface::translate_msg(mushr_plan, stamped_plan);
 
-  ASSERT_DOUBLE_EQ(1.0, mushr_plan.controls[0].steering_angle.data);
-  ASSERT_DOUBLE_EQ(1.5, mushr_plan.controls[0].velocity.data);
-  ASSERT_DOUBLE_EQ(2.0, mushr_plan.controls[1].steering_angle.data);
-  ASSERT_DOUBLE_EQ(2.5, mushr_plan.controls[1].velocity.data);
+  ASSERT_DOUBLE_EQ(1.5, mushr_plan.controls[0].steering_angle.data);
+  ASSERT_DOUBLE_EQ(1.0, mushr_plan.controls[0].velocity.data);
+  ASSERT_DOUBLE_EQ(2.5, mushr_plan.controls[1].steering_angle.data);
+  ASSERT_DOUBLE_EQ(2.0, mushr_plan.controls[1].velocity.data);
 };
 
 int main(int argc, char** argv)

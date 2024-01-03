@@ -23,7 +23,7 @@ public:
     const std::string service_name{ root + "/planner_service" };
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
-    _plan_publisher = nh.advertise<ml4kp_bridge::Plan>(root + "/ml4kp_plan", 1000, true);
+    _plan_publisher = nh.advertise<ml4kp_bridge::PlanStamped>(root + "/ml4kp_plan", 1000, true);
     _traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>(root + "/ml4kp_traj", 1000, true);
   }
 
@@ -43,6 +43,18 @@ public:
     _obs_received = true;
   }
 
+  // TODO: This is probably not the best place to have this (should be inside mj_mushr.hpp)
+  bool is_goal_reached(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius)
+  {
+    if (!_obs_received)
+    {
+      ROS_WARN("Waiting for observation");
+      return false;
+    }
+    return std::hypot(goal_configuration.x - _most_recent_observation.pose.position.x,
+                      goal_configuration.y - _most_recent_observation.pose.position.y) < goal_radius.data;
+  }
+
   void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0,
                     bool first_cycle = true)
   {
@@ -51,15 +63,8 @@ public:
       ROS_WARN("Waiting for observation");
       ros::Duration(0.1).sleep();
     }
-    ROS_DEBUG("Calling planner service");
     _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
-    ROS_DEBUG("Current observation: %f, %f, %f, %f, %f, %f", _service.request.current_observation.pose.position.x,
-             _service.request.current_observation.pose.position.y,
-             _service.request.current_observation.pose.orientation.w,
-             _service.request.current_observation.pose.orientation.x,
-             _service.request.current_observation.pose.orientation.y,
-             _service.request.current_observation.pose.orientation.z);
     _service.request.planning_duration.data = ros::Duration(planning_duration);
     _service.request.first_cycle.data = first_cycle;
     _service.request.goal_configuration = goal_configuration;
@@ -67,7 +72,13 @@ public:
     if (_service_client.call(_service))
     {
       ROS_DEBUG("Service call successful");
-      if (_service.response.planner_output == Service::Response::TYPE_SUCCESS)
+      if (is_goal_reached(goal_configuration, goal_radius))
+      {
+        ROS_INFO("Goal reached. Not publishing plan");
+        // TODO: Check if zero control has been published last
+        // If not, can we send from here?
+      }
+      else if (_service.response.planner_output == Service::Response::TYPE_SUCCESS)
       {
         ROS_DEBUG("Publishing plan");
         _plan_publisher.publish(_service.response.output_plan);
