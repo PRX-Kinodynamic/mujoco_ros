@@ -1,7 +1,5 @@
 #pragma once
 
-#include "defs.hpp"
-
 namespace interface
 {
 template <class To, class From>

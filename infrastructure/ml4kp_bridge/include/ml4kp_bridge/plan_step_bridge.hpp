@@ -5,9 +5,9 @@
 #include <prx/simulation/playback/plan.hpp>
 
 #include <ml4kp_bridge/msgs_utils.hpp>
+#include <ml4kp_bridge/space_bridge.hpp>
 
 #include <ml4kp_bridge/PlanStepStamped.h>
-
 namespace ml4kp_bridge
 {
 inline void copy(ml4kp_bridge::PlanStep& msg, const prx::plan_step_t& plan_step)

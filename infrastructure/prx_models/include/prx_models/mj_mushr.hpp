@@ -15,20 +15,25 @@
 namespace prx_models
 {
 
-struct mushr_t
+namespace mushr_t
 {
-  static constexpr std::size_t u_dim{ 2 };
-  struct sensors_t
-  {
-    static constexpr std::size_t PosX{ 0 };
-    static constexpr std::size_t PosY{ 1 };
-    static constexpr std::size_t PosZ{ 2 };
-    static constexpr std::size_t QuatW{ 3 };
-    static constexpr std::size_t QuatX{ 4 };
-    static constexpr std::size_t QuatY{ 5 };
-    static constexpr std::size_t QuatZ{ 6 };
-  };
-};
+static constexpr std::size_t u_dim{ 2 };
+namespace control
+{
+static constexpr std::size_t steering_idx{ 0 };
+static constexpr std::size_t velocity_idx{ 1 };
+};  // namespace control
+namespace sensors_t
+{
+static constexpr std::size_t PosX{ 0 };
+static constexpr std::size_t PosY{ 1 };
+static constexpr std::size_t PosZ{ 2 };
+static constexpr std::size_t QuatW{ 3 };
+static constexpr std::size_t QuatX{ 4 };
+static constexpr std::size_t QuatY{ 5 };
+static constexpr std::size_t QuatZ{ 6 };
+};  // namespace sensors_t
+};  // namespace mushr_t
 
 template <typename Ctrl>
 inline void copy(Ctrl ctrl_out, const prx_models::MushrControl& msg)
