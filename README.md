@@ -29,7 +29,8 @@ catkin_test_results       # Check for failures
 - [x] Executing an open-loop plan from a file
 - [x] Closed-loop execution via a service (control in, next observation out) 
 - [x] Use nodelets for faster message copies?
+- [x] Replace the old message translation code while having a way to simulate sensor data if necessary.
+- [ ] Check nodelet frequencies and topic names
 - [ ] Check for unnecessary copies
-- [ ] Replace the old message translation code while having a way to simulate sensor data if necessary.
 - [ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
 - [ ] Replace the current `feedback_client` (or at least refactor it) so it spawns `mushr_simulation` and connects via topics.
