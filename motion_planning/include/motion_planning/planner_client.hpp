@@ -23,7 +23,7 @@ public:
     const std::string service_name{ root + "/planner_service" };
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
-    _plan_publisher = nh.advertise<ml4kp_bridge::Plan>(root + "/ml4kp_plan", 1000, true);
+    _plan_publisher = nh.advertise<ml4kp_bridge::PlanStamped>(root + "/ml4kp_plan", 1000, true);
     _traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>(root + "/ml4kp_traj", 1000, true);
   }
 
