@@ -14,33 +14,15 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
   const std::string root{ ros::this_node::getNamespace() };
-
-  const std::string package_path{ ros::package::getPath("mujoco_ros") };
+  const std::string node_name_prefix { ros::this_node::getName() };
 
   std::string model_path;
   bool visualize, save_trajectory, publish_ground_truth_pose;
-  if (!n.getParam("/model_path", model_path))
-  {
-    ROS_ERROR("Failed to get param 'model_path'.");
-  }
 
-  const std::string param_name_visualize{ ros::this_node::getName() + "/visualize" };
-  if (!n.getParam(param_name_visualize, visualize))
-  {
-    ROS_ERROR("Failed to get param 'visualize'.");
-  }
-
-  const std::string param_name_save_trajectory{ ros::this_node::getName() + "/save_trajectory" };
-  if (!n.getParam(param_name_save_trajectory, save_trajectory))
-  {
-    ROS_ERROR("Failed to get param 'save_trajectory'.");
-  }
-
-  const std::string publish_ground_truth_pose_param_name{ ros::this_node::getName() + "/publish_ground_truth_pose" };
-  if (!n.getParam(publish_ground_truth_pose_param_name, publish_ground_truth_pose))
-  {
-    ROS_ERROR("Failed to get param 'publish_ground_truth_pose'.");
-  }
+  get_param_and_check(n,  "/model_path", model_path);
+  get_param_and_check(n, node_name_prefix + "/visualize", visualize);
+  get_param_and_check(n, node_name_prefix + "/save_trajectory", save_trajectory);
+  get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
 
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
