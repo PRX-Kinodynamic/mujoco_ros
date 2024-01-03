@@ -18,7 +18,7 @@ int main(int argc, char** argv)
   const std::string package_path{ ros::package::getPath("mujoco_ros") };
 
   std::string model_path;
-  bool visualize, save_trajectory;
+  bool visualize, save_trajectory, publish_ground_truth_pose;
   if (!n.getParam("/model_path", model_path))
   {
     ROS_ERROR("Failed to get param 'model_path'.");
@@ -35,6 +35,13 @@ int main(int argc, char** argv)
   {
     ROS_ERROR("Failed to get param 'save_trajectory'.");
   }
+
+  const std::string publish_ground_truth_pose_param_name{ ros::this_node::getName() + "/publish_ground_truth_pose" };
+  if (!n.getParam(publish_ground_truth_pose_param_name, publish_ground_truth_pose))
+  {
+    ROS_ERROR("Failed to get param 'publish_ground_truth_pose'.");
+  }
+
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
@@ -57,7 +64,14 @@ int main(int argc, char** argv)
   }
 
   mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
-  mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
+  if (publish_ground_truth_pose)
+  { 
+    mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);
+  }
+  else
+  {
+    mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
+  }
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;
