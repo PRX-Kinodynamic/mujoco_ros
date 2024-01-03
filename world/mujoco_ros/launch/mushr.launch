@@ -1,6 +1,6 @@
 <launch>
-    <arg name = "namespace" default = "mushr"/>
     <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
+    <arg name = "namespace" default = "mushr"/>
     <arg name="save_trajectory" default="false"/>
     <arg name="visualize" default="true"/>
     <arg name="publish_ground_truth_pose" default="false"/>
