@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   interface::msg_translator_t<prx_models::MushrObservation, mujoco_ros::SensorDataStamped> observation_translator(
       nh, perception_subscriber_topic, perception_publisher_topic);
 
-  interface::msg_translator_t<prx_models::MushrPlan, ml4kp_bridge::Plan> control_translator(
+  interface::msg_translator_t<prx_models::MushrPlan, ml4kp_bridge::PlanStamped> control_translator(
       nh, control_subscriber_topic, control_publisher_topic);
 
   ros::spin();

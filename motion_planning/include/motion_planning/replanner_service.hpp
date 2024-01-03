@@ -74,12 +74,16 @@ public:
     _query->clear_outputs();
     _planner->fulfill_query();
 
+    double execution_time = request.planning_duration.data.toSec();
     if (_query->solution_traj.size() > 0)
     {
-      double execution_time = request.planning_duration.data.toSec();
+      double plan_duration = _query->solution_cost;
+      if (plan_duration < execution_time)
+      {
+        ml4kp_bridge::add_zero_control(_query->solution_plan, execution_time - plan_duration + prx::simulation_step);
+      }
       step_plan->clear();
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
-      // ml4kp_bridge::add_zero_control(*step_plan);
       ml4kp_bridge::copy(response.output_plan, step_plan);
       if (request.return_trajectory.data)
       {
@@ -91,7 +95,7 @@ public:
     {
       ROS_WARN("No solution found");
       step_plan->clear();
-      ml4kp_bridge::add_zero_control(*step_plan, request.planning_duration.data.toSec());
+      ml4kp_bridge::add_zero_control(*step_plan, execution_time);
       response.planner_output = Service::Response::TYPE_FAILURE;
     }
     _planner->reset();

@@ -4,7 +4,7 @@ std_msgs/Duration planning_duration
 std_msgs/Bool first_cycle 
 std_msgs/Bool return_trajectory
 ---
-ml4kp_bridge/Plan output_plan
+ml4kp_bridge/PlanStamped output_plan
 ml4kp_bridge/Trajectory output_trajectory
 uint8 TYPE_SUCCESS=1
 uint8 TYPE_FAILURE=0
