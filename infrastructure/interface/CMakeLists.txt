@@ -15,9 +15,12 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   ml4kp_bridge
   prx_models
+  cv_bridge
+  image_transport
   ackermann_msgs
   nodelet
 )
+find_package(OpenCV REQUIRED )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -129,6 +132,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS} 
 )
 
 ### Nodelets as a library
@@ -153,6 +157,7 @@ foreach(f ${EXECUTABLE_FILES})
   ## Specify libraries to link a library or executable target against
   target_link_libraries(${fname}
                         ${catkin_LIBRARIES}
+                        ${OpenCV_LIBS} 
                       )
 endforeach()
 

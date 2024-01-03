@@ -1,0 +1,18 @@
+<mujoco model="multitags_2x3">
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00050.xml"/>
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00051.xml"/>
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00052.xml"/>
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00053.xml"/>
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00054.xml"/>
+  <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00055.xml"/>
+
+  <worldbody>
+    <geom class="geom_aruco_mip_36h12_00050" pos="0 0 0.01" material="material_aruco_mip_36h12_00050"/>
+    <geom class="geom_aruco_mip_36h12_00051" pos="0 1.5 0.01" material="material_aruco_mip_36h12_00051"/>
+    <geom class="geom_aruco_mip_36h12_00052" pos="0 3 0.01" material="material_aruco_mip_36h12_00052"/> 
+
+    <geom class="geom_aruco_mip_36h12_00053" pos="2 0 0.01" material="material_aruco_mip_36h12_00053" /> 
+    <geom class="geom_aruco_mip_36h12_00054" pos="2 1.5 0.01" material="material_aruco_mip_36h12_00054" />
+    <geom class="geom_aruco_mip_36h12_00055" pos="2 3 0.01" material="material_aruco_mip_36h12_00055" /> 
+  </worldbody>
+</mujoco>

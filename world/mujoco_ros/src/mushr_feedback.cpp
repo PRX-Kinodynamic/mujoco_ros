@@ -38,7 +38,10 @@ int main(int argc, char** argv)
   std::thread feedback_thread(&FeedbackClient::run, feedback_client);  // Mj sim
 
   const std::size_t callback_threads{ 1 };
-  run_simulation(sim, callback_threads, visualize);  // Blocking
+  mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, visualize) };
+
+  // run_simulation(sim, visualizer, callback_threads);  // Blocking
+  run_simulation(sim, visualizer, callback_threads);  // Blocking
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;
