@@ -6,6 +6,7 @@
 
 namespace interface
 {
+
 template <typename T>
 void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var)
 {
@@ -21,6 +22,12 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
   if (!nh.getParam(GET_VARIABLE_NAME(var), var))                                                                       \
   {                                                                                                                    \
     NODELET_ERROR_STREAM("Parameter " << GET_VARIABLE_NAME(var) << " is needed.");                                     \
+  }
+
+#define NODELET_PARAM_SETUP_WITH_DEFAULT(nh, var, default_value)                                                       \
+  if (!nh.getParam(GET_VARIABLE_NAME(var), var))                                                                       \
+  {                                                                                                                    \
+    var = default_value;                                                                                               \
   }
 
 template <typename T>

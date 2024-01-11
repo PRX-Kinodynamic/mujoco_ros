@@ -13,6 +13,6 @@
             <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
         </node>
     </group>
-        <include file="$(find estimation)/launch/mj_estimation.launch" ns="mushr"/>
+        <include file="$(find estimation)/launch/mj_estimation.launch" />
 </launch>
 

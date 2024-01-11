@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ros/ros.h>
+#include <regex>
 #define PRX_DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
 namespace dbg
@@ -12,7 +13,7 @@ inline void print_variables(std::string name)
 }
 
 template <typename Var0, class... Vars>
-inline void print_variables(std::string name, Var0& var, Vars&... vars)
+inline void print_variables(std::string name, Var0 var, Vars... vars)
 {
   const std::regex regex(",(\\s*)+");
   std::string var_name{ name };
