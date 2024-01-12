@@ -38,15 +38,15 @@ static constexpr std::size_t QuatZ{ 6 };
 template <typename Ctrl>
 inline void copy(Ctrl ctrl_out, const prx_models::MushrControl& msg)
 {
-  ctrl_out[0] = msg.steering_angle.data;
-  ctrl_out[1] = msg.velocity.data;
+  ctrl_out[mushr_t::control::steering_idx] = msg.steering_angle.data;
+  ctrl_out[mushr_t::control::velocity_idx] = msg.velocity.data;
 }
 
 template <typename Ctrl>
 inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
 {
-  msg.steering_angle.data = ctrl[0];
-  msg.velocity.data = ctrl[1];
+  msg.steering_angle.data = ctrl[mushr_t::control::steering_idx];
+  msg.velocity.data = ctrl[mushr_t::control::velocity_idx];
 }
 
 template <typename SensorData>

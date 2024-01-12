@@ -1,17 +1,16 @@
 <launch>
 
-	<arg name="simulation" value="true"/>
-
-	<arg name="mujoco_cam_file" value="$(find estimation)/config/mujoco_cam.yaml"/>
 	<arg name="logitech_cam_file" value="$(find estimation)/config/cTw_cam0.yaml"/>
-
-	<arg name="cam_file" if="$(arg simulation)" value="$(arg mujoco_cam_file)" />
-  <arg name="cam_file" unless="$(arg simulation)" value="$(arg logitech_cam_file)" />
-  
+  <arg name="cam_file" value="$(arg logitech_cam_file)" />
+  	
+  <!-- </aruco_detection_0/camera/rgb -->
+  <!-- <remap from="/aruco_detection_0/camera/rgb" to="/mushr/camera/rgb"/> -->
+  <!-- <remap from="/mushr/camera/rgb" to="/aruco_detection_0/camera/rgb"/> -->
   <group ns="mushr">
+  	
     <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
 
-    <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t standalone_nodelet" output="screen">
+    <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t standalone_nodelet" output="screen">
         <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
     </node>
     <node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" args="load estimation/aruco_cTw_nodelet_t standalone_nodelet" output="screen">
@@ -40,8 +39,12 @@
     </node>   
  
    </group>
-	<node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
-		args="0 0 0 0 0 0 1  marker_50 world" />
+
 	<!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
-		<!-- args="0 0 0 0 0 0 1  marker_54 world" /> -->
+		<!-- args="0 0 0 0 0 0 1  marker_50 world" /> -->
+  <arg name="world_marker_tran" value="0 0 0" />
+  <arg name="world_marker_quat" value="0 0 1 0" />
+
+	<node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+		args="$(arg world_marker_tran) $(arg world_marker_quat) marker_54 world" />
 </launch>

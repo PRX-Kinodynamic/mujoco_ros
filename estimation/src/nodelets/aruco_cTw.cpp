@@ -28,8 +28,7 @@ class aruco_cTw_nodelet_t : public nodelet::Nodelet
 {
 public:
   aruco_cTw_nodelet_t()
-    : _publish_markers_img(false)
-    , _robot_pose_topic_name("/aruco_cTw/robot_pose")
+    : _robot_pose_topic_name("/aruco_cTw/robot_pose")
     , _markers_viz_topic_name("/aruco_cTw/markers")
     , _Tvec(3, 1, CV_64FC1)
     , _Rvec(1, 3, CV_64FC1)
@@ -37,7 +36,6 @@ public:
     , _camera_matrix(3, 3, CV_64FC1)
     , _eg_rot(_cv_rot.ptr<double>())
     , _eg_tvec(_Tvec.ptr<double>())
-    , _header()
   {
   }
 
@@ -80,7 +78,6 @@ private:
     _dist_coeffs.push_back(dist_coeffs);
 
     _robot_id = robot_id;
-    _main_marker = main_marker;
     _rot_offset = Eigen::AngleAxisd(rotation_offset[0], Eigen::Vector3d::UnitX()) *
                   Eigen::AngleAxisd(rotation_offset[1], Eigen::Vector3d::UnitY()) *
                   Eigen::AngleAxisd(rotation_offset[2], Eigen::Vector3d::UnitZ());
@@ -188,10 +185,11 @@ private:
 
       if (marker.id == _robot_id)
       {
-        // _vec = _eg_rot * _front + _eg_tvec;
         const Eigen::Quaterniond quat{ _eg_rot * _rot_offset };
         copy(pose_msg.pose.position, _eg_tvec);
         copy(pose_msg.pose.orientation, quat);
+        tf::quaternionEigenToTF(quat, _tf_quat);
+        _transform.setRotation(_tf_quat);
         _robot_pose_publisher.publish(pose_msg);
         frame_name = "robot_" + std::to_string(marker.id);
       }
@@ -206,16 +204,6 @@ private:
   tf::Transform _transform;
   tf::TransformBroadcaster _transform_broadcaster;
 
-  bool _publish_markers_img;
-
-  cv::VideoCapture _cap;
-
-  std_msgs::Header _header;
-  interface::stamped_markers _markers_msg;
-  std::vector<aruconano::Marker> _markers;
-
-  sensor_msgs::Image _dbg_msg;
-
   cv::Mat _Rvec, _Tvec;
   cv::Mat _cv_rot;
   Eigen::Map<Eigen::Matrix3d> _eg_rot;
@@ -224,13 +212,11 @@ private:
   std::vector<cv::Point2d> _marker;
   Eigen::Vector3d _front;
 
-  // std::vector<cv::Point2f> _marker;
   std::vector<cv::Point3d> _marker_corners;
   std::vector<Eigen::Vector3d> _eg_corners;
 
   cv::Mat _camera_matrix;
   cv::Mat _dist_coeffs;
-  double _marker_size;
   ros::Publisher _robot_pose_publisher;
   ros::Publisher _markers_viz_publisher;
   ros::Subscriber _markers_subscriber;
@@ -239,7 +225,6 @@ private:
 
   Eigen::Matrix3d _rot_offset;
   int _robot_id;
-  int _main_marker;
 };
 }  // namespace estimation
 PLUGINLIB_EXPORT_CLASS(estimation::aruco_cTw_nodelet_t, nodelet::Nodelet);

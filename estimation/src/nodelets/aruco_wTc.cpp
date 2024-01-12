@@ -44,10 +44,9 @@ public:
     , _Rvec(1, 3, CV_64FC1)
     , _img_topic_name("/wTc/image")
     , _cv_world_rot(3, 3, CV_64FC1)
-    , _eg_vec(0.2, 0.0, 0.0)
     , _goal_color(0, 255, 0, 128)
-    , _transform(Transform::Identity())
     , _color_rgb({ cv::Scalar(0, 0, 255), cv::Scalar(0, 255, 0), cv::Scalar(255, 0, 0) })
+    , _robot_pose_offset(0.2, 0.0, 0.0)
   {
   }
 
@@ -83,6 +82,7 @@ private:
     std::string camera_frame;
     std::string world_frame;
     std::string robot_frame;
+    double robot_pose_offset;
 
     NODELET_PARAM_SETUP(private_nh, dist_coeffs);
     NODELET_PARAM_SETUP(private_nh, camera_matrix);
@@ -93,7 +93,9 @@ private:
     NODELET_PARAM_SETUP(private_nh, camera_frame);
     NODELET_PARAM_SETUP(private_nh, world_frame);
     NODELET_PARAM_SETUP(private_nh, robot_frame);
+    NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0])
 
+    _robot_pose_offset[0] = robot_pose_offset;
     _camera_frame = camera_frame;
     _world_frame = world_frame;
     _robot_frame = robot_frame;
@@ -129,7 +131,8 @@ private:
     _cv_traj.clear();
     for (auto& state : message->trajectory.data)
     {
-      _cv_traj.emplace_back(state.point[0].data, state.point[1].data, state.point[2].data);
+      // x,y,z: setting z=0 for now
+      _cv_traj.emplace_back(state.point[0].data, state.point[1].data, 0.0);
       _msgs_received[PointIdx::trajectory] = true;
     }
     cv::projectPoints(_cv_traj, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_traj);
@@ -137,9 +140,7 @@ private:
 
   void get_goal_rad(const std_msgs::Float64ConstPtr message)
   {
-    _cv_points[PointIdx::goal_rad].x = _cv_points[PointIdx::goal_pose].x - message->data;
-    _cv_points[PointIdx::goal_rad].y = _cv_points[PointIdx::goal_pose].y - 0.0;
-    _cv_points[PointIdx::goal_rad].z = _cv_points[PointIdx::goal_pose].z - 0.0;
+    _goal_rad = message->data;
     _msgs_received[PointIdx::goal_rad] = true;
   }
   void get_goal_pose(const geometry_msgs::Pose2DConstPtr message)
@@ -181,18 +182,28 @@ private:
         _cv_points[PointIdx::robot_center].z = _tf_robot.getOrigin().z();
         _msgs_received[PointIdx::robot_center] = true;
 
-        _cv_points[PointIdx::robot_front].x = 0.2 + _tf_robot.getOrigin().x();
-        _cv_points[PointIdx::robot_front].y = 0.0 + _tf_robot.getOrigin().y();
-        _cv_points[PointIdx::robot_front].z = 0.0 + _tf_robot.getOrigin().z();
+        const tf::Quaternion& tf_q{ _tf_robot.getRotation() };
+        const Eigen::Quaterniond quat{ tf_q.getW(), tf_q.getX(), tf_q.getY(), tf_q.getZ() };
+        const Eigen::Vector3d offset_rot{ quat * _robot_pose_offset };
+        _cv_points[PointIdx::robot_front].x = offset_rot[0] + _tf_robot.getOrigin().x();
+        _cv_points[PointIdx::robot_front].y = offset_rot[1] + _tf_robot.getOrigin().y();
+        _cv_points[PointIdx::robot_front].z = offset_rot[2] + _tf_robot.getOrigin().z();
         _msgs_received[PointIdx::robot_front] = true;
       }
+
+      if (_msgs_received[PointIdx::goal_pose] and _msgs_received[PointIdx::goal_rad])
+      {
+        _cv_points[PointIdx::goal_rad] = _cv_points[PointIdx::goal_pose] + cv::Point3d(_goal_rad, 0, 0);
+      }
+
       cv::projectPoints(_cv_points, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_points);
 
       if (_msgs_received[PointIdx::goal_pose] and _msgs_received[PointIdx::goal_rad])
       {
         const cv::Point2d pt_aux{ _image_points[PointIdx::goal_pose] - _image_points[PointIdx::goal_rad] };
         const double rad{ std::sqrt(pt_aux.ddot(pt_aux)) };
-        cv::circle(frame->image, _image_points[PointIdx::goal_pose], rad, _goal_color, cv::LineTypes::FILLED);
+
+        cv::circle(frame->image, _image_points[PointIdx::goal_pose], rad, _goal_color, 3, cv::LineTypes::LINE_AA);
       }
 
       cv::line(frame->image, _image_points[PointIdx::zero], _image_points[PointIdx::x_normal], _color_rgb[0], 2);
@@ -208,7 +219,10 @@ private:
 
       if (_msgs_received[PointIdx::trajectory])
       {
-        cv::polylines(frame->image, _cv_traj, false, _color_rgb[0] + _color_rgb[1], 2);
+        for (int i = 0; i < _image_traj.size() - 1; ++i)
+        {
+          cv::line(frame->image, _image_traj[i], _image_traj[i + 1], _color_rgb[0] + _color_rgb[2], 2);
+        }
       }
 
       _frame_publisher.publish(frame);
@@ -219,9 +233,6 @@ private:
   tf::StampedTransform _tf;
   tf::StampedTransform _tf_robot;
   std::string _camera_frame, _world_frame, _robot_frame;
-
-  cv::Quat<double> _cv_quat;
-  Transform _transform;
 
   ros::Subscriber _rgb_subscriber;
   ros::Subscriber _goal_pose_subscriber;
@@ -238,18 +249,19 @@ private:
   cv::Mat _Rvec;
   cv::Mat _Tvec;
 
+  const std::vector<cv::Scalar> _color_rgb;
+
   double _goal_rad;
   const cv::Scalar _goal_color;
-  const std::vector<cv::Scalar> _color_rgb;
 
   std::vector<cv::Point3d> _cv_points;
   std::vector<cv::Point3d> _cv_traj;
   std::vector<cv::Point2d> _image_points;
   std::vector<cv::Point2d> _image_traj;
-  Eigen::Vector3d _eg_vec;
   std::vector<bool> _msgs_received;
 
   cv::Mat _cv_world_rot;
+  Eigen::Vector3d _robot_pose_offset;
 };
 }  // namespace estimation
 
