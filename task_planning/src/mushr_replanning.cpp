@@ -32,10 +32,8 @@ int main(int argc, char** argv)
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
-  // std::vector<double> min_control_limits = { -1., -0.5 };
-  // std::vector<double> max_control_limits = { 1., 0.5 };
-  std::vector<double> min_control_limits = { -.5, -1. };
-  std::vector<double> max_control_limits = { .5, 1. };
+  std::vector<double> min_control_limits = { -1., -0.5 };
+  std::vector<double> max_control_limits = { 1., 0.5 };
   cs->set_bounds(min_control_limits, max_control_limits);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");

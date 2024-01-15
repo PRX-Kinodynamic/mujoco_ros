@@ -28,10 +28,7 @@ inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge:
     mushr_plan.durations[i] = stamped_plan.plan.steps[i].duration;
   }
 }
-inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge::PlanStamped& msg)
-{
-  translate_msg(mushr_plan, msg.plan);
-}
+
 inline void translate_msg(prx_models::MushrObservation& mushr_observation,
                           const interface::SensorDataStamped& observation)
 {

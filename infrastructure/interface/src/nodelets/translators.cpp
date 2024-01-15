@@ -16,7 +16,7 @@ using MushrFromSpacePointNodelet = interface::msg_translator_t<prx_models::Mushr
 using AckermannFromSpacePointNodelet =
     interface::msg_translator_t<ackermann_msgs::AckermannDriveStamped, ml4kp_bridge::SpacePoint>;
 using GroundTruthPoseNodelet = 
-    interface::msg_translator_t<prx_models::MushrObservation, mujoco_ros::SensorDataStamped>;
+    interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped>;
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::AckermannFromSpacePointNodelet, nodelet::Nodelet);

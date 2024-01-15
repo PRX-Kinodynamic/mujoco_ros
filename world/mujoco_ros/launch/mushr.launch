@@ -30,15 +30,16 @@
             <param name="frequency" value="15" />
         </node>
 
+        <node unless="$(arg publish_ground_truth_pose)" pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
+            <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+        </node>
+
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
         </node>
-        <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
-            <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
-        </node>
     </group>
-        <include file="$(find estimation)/launch/mj_estimation.launch" />
+    <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" />
 </launch>
 
