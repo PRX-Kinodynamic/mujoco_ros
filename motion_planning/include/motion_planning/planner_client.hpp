@@ -24,7 +24,7 @@ public:
     _service_client = nh.serviceClient<Service>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
     _plan_publisher = nh.advertise<ml4kp_bridge::PlanStamped>(root + "/ml4kp_plan", 1000, true);
-    _traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>(root + "/ml4kp_traj", 1000, true);
+    _traj_publisher = nh.advertise<ml4kp_bridge::TrajectoryStamped>(root + "/ml4kp_traj", 1000, true);
   }
 
   double get_preprocess_time() const
