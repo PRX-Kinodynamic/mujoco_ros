@@ -8,5 +8,8 @@ A perception output in, controls out infrastructure for sim or real-robot agnost
 
 ## ml4kp_bridge
 * Import of [ML4KP](https://github.com/PRX-Kinodynamic/ML4KP-devel) for planning, estimation and control.
-	
+
+
+## TODOs
+- [ ] `imgs/` directory inside `prx_models/models/`	is sometimes not extracted correctly.
 
