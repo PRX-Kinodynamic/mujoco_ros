@@ -115,8 +115,6 @@ private:
   ros::Publisher _markers_publisher;
   ros::Subscriber _rgb_subscriber;
 
-  cv::VideoCapture _cap;
-
   std::string _img_topic_name;
   std::string _markers_topic_name;
   std::string _rgb_topic_name;
