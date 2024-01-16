@@ -13,14 +13,7 @@ find_package(catkin REQUIRED
   nodelet
   prx_models
   )
-find_package(OpenCV 4.8.0 REQUIRED
-  COMPONENTS
-  core
-  imgproc
-  imgcodecs
-  CONFIG
-  )
-
+find_package(OpenCV 4.6.0 REQUIRED)
 
 ###################################
 ## catkin specific configuration ##
@@ -47,7 +40,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(include 
-	${catkin_INCLUDE_DIRS}		
+${catkin_INCLUDE_DIRS}		
 	)
 
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
@@ -56,7 +49,7 @@ target_include_directories(${NODELET_LIB} PUBLIC include
   ${catkin_INCLUDE_DIRS})
 
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
 # if(catkin_EXPORTED_LIBRARIES)
 # endif()
 
