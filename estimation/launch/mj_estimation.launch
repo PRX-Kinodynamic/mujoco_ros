@@ -8,7 +8,8 @@
 	<arg name="cam_file" if="$(arg simulation)" value="$(arg mujoco_cam_file)" />
   <arg name="cam_file" unless="$(arg simulation)" value="$(arg logitech_cam_file)" />
   
-  <group ns="mushr">
+  <arg name="current_ns" value="mushr"/>
+  <group ns="$(arg current_ns)">
     <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
 
     <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t standalone_nodelet" output="screen">
@@ -16,23 +17,24 @@
     </node>
     <node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" args="load estimation/aruco_cTw_nodelet_t standalone_nodelet" output="screen">
       <rosparam command="load" file="$(arg cam_file)" />
+      <param name="vizualize_markers" value="true" />
     </node>  
 
     <node pkg="nodelet" type="nodelet" name="aruco_wTc_nodelet_t" args="load estimation/aruco_wTc_nodelet_t standalone_nodelet" output="screen">
       <rosparam command="load" file="$(arg cam_file)" />
-      <param name="pose_topic" value="/mushr/aruco_cTw/robot_pose" />
-      <param name="image_topic" value="/mushr/camera/rgb"/>
-      <param name="goal_pose_topic" value="/mushr/goal_pos"/>
-			<param name="goal_rad_topic" value="/mushr/goal_radius"/>
-			<param name="trajectory_topic" value="/mushr/ml4kp_traj"/>
+      <param name="pose_topic" value="/$(arg current_ns)/aruco_cTw/robot_pose" />
+      <param name="image_topic" value="/$(arg current_ns)/camera/rgb"/>
+      <param name="goal_pose_topic" value="/$(arg current_ns)/goal_pos"/>
+			<param name="goal_rad_topic" value="/$(arg current_ns)/goal_radius"/>
+			<param name="trajectory_topic" value="/$(arg current_ns)/ml4kp_traj"/>
 			<param name="camera_frame" value="camera"/>
 			<param name="world_frame" value="world"/>
 			<param name="robot_frame" value="robot_0"/>
     </node>   
 
     <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" args="load estimation/plant_estimator_nodelet_t standalone_nodelet" output="screen">
-			<param name="plan_topic" value="/mushr/ml4kp_plan"/>
-			<param name="trajectory_topic" value="/mushr/ml4kp_traj"/>
+			<param name="plan_topic" value="/$(arg current_ns)/ml4kp_plan"/>
+			<param name="trajectory_topic" value="/$(arg current_ns)/ml4kp_traj"/>
 			<param name="simulation_step" value="0.1"/>
 			<param name="observation_dim" value="3"/>
 			<param name="world_frame" value="world"/>

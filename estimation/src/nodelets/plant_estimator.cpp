@@ -20,10 +20,10 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
-#include <interface/stamped_markers.h>
-#include <interface/defs.hpp>
+#include <interface/StampedMarkers.h>
 #include <ml4kp_bridge/defs.h>
+#include <utils/rosparams_utils.hpp>
+
 namespace estimation
 {
 class plant_estimator_nodelet_t : public nodelet::Nodelet
@@ -70,8 +70,8 @@ private:
     _collision_group = context.second;
     _state_space.reset(_system_group->get_state_space());
     _control_space.reset(_system_group->get_control_space());
-    std::vector<double> min_control_limits = { -1., -1. };
-    std::vector<double> max_control_limits = { 1., 1. };
+    std::vector<double> min_control_limits = { -1., -0.5. };
+    std::vector<double> max_control_limits = { 1., 0.5 };
     _control_space->set_bounds(min_control_limits, max_control_limits);
 
     _plan = std::make_shared<prx::plan_t>(_control_space.get());

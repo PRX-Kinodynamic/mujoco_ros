@@ -17,10 +17,9 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
-#include <interface/stamped_markers.h>
-#include <interface/defs.hpp>
+#include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
+#include <utils/rosparams_utils.hpp>
 
 namespace estimation
 {
@@ -49,20 +48,22 @@ private:
     int robot_id;
     int main_marker;
     int front_corner;
-    double marker_length;
+    double marker_size;
     std::string markers_topic_name;
     std::vector<double> rotation_offset;
     std::vector<double> camera_matrix;
     std::vector<double> dist_coeffs;
+    bool vizualize_markers;
 
     NODELET_PARAM_SETUP(private_nh, camera_matrix);
     NODELET_PARAM_SETUP(private_nh, dist_coeffs);
     NODELET_PARAM_SETUP(private_nh, front_corner);
     NODELET_PARAM_SETUP(private_nh, main_marker);
-    NODELET_PARAM_SETUP(private_nh, marker_length);
+    NODELET_PARAM_SETUP(private_nh, marker_size);
     NODELET_PARAM_SETUP(private_nh, markers_topic_name);
     NODELET_PARAM_SETUP(private_nh, robot_id);
 
+    NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, vizualize_markers, false);
     NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, rotation_offset, std::vector<double>({ 0.0, 0.0, 0.0 }))
 
     _camera_matrix.at<double>(0, 0) = camera_matrix[0];
@@ -77,6 +78,7 @@ private:
 
     _dist_coeffs.push_back(dist_coeffs);
 
+    _vizualize_markers = vizualize_markers;
     _robot_id = robot_id;
     _rot_offset = Eigen::AngleAxisd(rotation_offset[0], Eigen::Vector3d::UnitX()) *
                   Eigen::AngleAxisd(rotation_offset[1], Eigen::Vector3d::UnitY()) *
@@ -87,19 +89,27 @@ private:
 
     _markers_subscriber = private_nh.subscribe(markers_topic_name, 1, &aruco_cTw_nodelet_t::detect, this);
 
-    _marker_corners = { { -marker_length / 2.0, marker_length / 2.0, 0.0 },
-                        { marker_length / 2.0, marker_length / 2.0, 0.0 },
-                        { marker_length / 2.0, -marker_length / 2.0, 0.0 },
-                        { -marker_length / 2.0, -marker_length / 2.0, 0.0 } };
+    _marker_corners = { { -marker_size / 2.0, marker_size / 2.0, 0.0 },
+                        { marker_size / 2.0, marker_size / 2.0, 0.0 },
+                        { marker_size / 2.0, -marker_size / 2.0, 0.0 },
+                        { -marker_size / 2.0, -marker_size / 2.0, 0.0 } };
 
-    _eg_corners = { { -marker_length / 2.0, marker_length / 2.0, 0.0 },
-                    { marker_length / 2.0, marker_length / 2.0, 0.0 },
-                    { marker_length / 2.0, -marker_length / 2.0, 0.0 },
-                    { -marker_length / 2.0, -marker_length / 2.0, 0.0 } };
+    _eg_corners = { { -marker_size / 2.0, marker_size / 2.0, 0.0 },
+                    { marker_size / 2.0, marker_size / 2.0, 0.0 },
+                    { marker_size / 2.0, -marker_size / 2.0, 0.0 },
+                    { -marker_size / 2.0, -marker_size / 2.0, 0.0 } };
 
     _front = Eigen::Vector3d(0, _eg_corners[front_corner][1], 0);
 
     _marker.resize(4);
+    _viz_markers.header.frame_id = "camera";
+    _viz_markers.type = visualization_msgs::Marker::LINE_LIST;
+    _viz_markers.color.r = 1;
+    _viz_markers.color.g = 0;
+    _viz_markers.color.b = 0;
+    _viz_markers.color.a = 1;
+    _viz_markers.scale.x = 0.01;
+    // markers.resize(8);
   }
 
   static void copy(geometry_msgs::Quaternion& quat_msg, const Eigen::Quaterniond& quat)
@@ -116,18 +126,42 @@ private:
     point.z = vec[2];
   }
 
-  void detect(const interface::stamped_markersConstPtr message)
+  void add_marker_viz()
+  {
+    if (_vizualize_markers)
+    {
+      const Eigen::Vector3d v0{ _eg_rot * _eg_corners[0] + _eg_tvec };
+      const Eigen::Vector3d v1{ _eg_rot * _eg_corners[1] + _eg_tvec };
+      const Eigen::Vector3d v2{ _eg_rot * _eg_corners[2] + _eg_tvec };
+      const Eigen::Vector3d v3{ _eg_rot * _eg_corners[3] + _eg_tvec };
+
+      const std::size_t idx{ _viz_markers.points.size() };
+      _viz_markers.points.insert(_viz_markers.points.end(), 8, geometry_msgs::Point());
+      // 0-1
+      copy(_viz_markers.points[idx + 0], v0);
+      copy(_viz_markers.points[idx + 1], v1);
+      // 1-2
+      copy(_viz_markers.points[idx + 2], v1);
+      copy(_viz_markers.points[idx + 3], v2);
+      // 2-3
+      copy(_viz_markers.points[idx + 4], v2);
+      copy(_viz_markers.points[idx + 5], v3);
+      // 3-0
+      copy(_viz_markers.points[idx + 6], v3);
+      copy(_viz_markers.points[idx + 7], v0);
+      // Colors: needed per point
+      _viz_markers.colors.insert(_viz_markers.colors.end(), 8, _viz_markers.color);
+      copy(_viz_markers.pose.position, Eigen::Vector3d::Zero());
+      copy(_viz_markers.pose.orientation, Eigen::Quaterniond::Identity());
+    }
+  }
+
+  void detect(const interface::StampedMarkersConstPtr message)
   {
     geometry_msgs::PoseStamped pose_msg;
-    visualization_msgs::Marker markers_polygon;
-    markers_polygon.header.frame_id = "camera";
+    _viz_markers.points.clear();
+    _viz_markers.colors.clear();
     pose_msg.header.frame_id = "camera";
-    markers_polygon.type = visualization_msgs::Marker::LINE_LIST;
-    markers_polygon.color.r = 1;
-    markers_polygon.color.g = 0;
-    markers_polygon.color.b = 0;
-    markers_polygon.color.a = 1;
-    markers_polygon.scale.x = 0.01;
 
     // for (int i = 0; i < message->markers.size(); ++i)
     for (auto marker : message->markers)
@@ -146,36 +180,9 @@ private:
 
       cv::Rodrigues(_Rvec, _cv_rot);
 
-      // 0-1
-      _vec = _eg_rot * _eg_corners[0] + _eg_tvec;
-      markers_polygon.points.emplace_back();
-      copy(markers_polygon.points.back(), _vec);
-      _vec = _eg_rot * _eg_corners[1] + _eg_tvec;
-      markers_polygon.points.emplace_back();
-      copy(markers_polygon.points.back(), _vec);
-
-      // 1-2
-      _vec = _eg_rot * _eg_corners[2] + _eg_tvec;
-      markers_polygon.points.push_back(markers_polygon.points.back());
-      markers_polygon.points.emplace_back();
-      copy(markers_polygon.points.back(), _vec);
-
-      // 2-3
-      _vec = _eg_rot * _eg_corners[3] + _eg_tvec;
-      markers_polygon.points.push_back(markers_polygon.points.back());
-      markers_polygon.points.emplace_back();
-      copy(markers_polygon.points.back(), _vec);
-
-      // 3-0
-      markers_polygon.points.push_back(markers_polygon.points.back());
-      markers_polygon.points.push_back(markers_polygon.points[markers_polygon.points.size() - 7]);
-
-      // Colors: needed per point
-      markers_polygon.colors.insert(markers_polygon.colors.end(), 8, markers_polygon.color);
-
+      add_marker_viz();
       // Pose reference for all markers.
-      copy(markers_polygon.pose.position, Eigen::Vector3d::Zero());
-      copy(markers_polygon.pose.orientation, Eigen::Quaterniond::Identity());
+
       const Eigen::Quaterniond quat{ _eg_rot * _rot_offset };
       tf::vectorEigenToTF(_eg_tvec, _tf_vec);
       tf::quaternionEigenToTF(quat, _tf_quat);
@@ -196,7 +203,8 @@ private:
 
       _transform_broadcaster.sendTransform(tf::StampedTransform(_transform, ros::Time::now(), "camera", frame_name));
     }
-    _markers_viz_publisher.publish(markers_polygon);
+
+    _markers_viz_publisher.publish(_viz_markers);
   }
 
   tf::Vector3 _tf_vec;
@@ -225,6 +233,9 @@ private:
 
   Eigen::Matrix3d _rot_offset;
   int _robot_id;
+
+  visualization_msgs::Marker _viz_markers;
+  bool _vizualize_markers;
 };
 }  // namespace estimation
 PLUGINLIB_EXPORT_CLASS(estimation::aruco_cTw_nodelet_t, nodelet::Nodelet);

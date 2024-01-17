@@ -25,11 +25,10 @@
 #include <opencv2/videoio.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-#include <interface/utils.hpp>
-#include <interface/stamped_markers.h>
-#include <interface/defs.hpp>
+#include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
+#include <utils/rosparams_utils.hpp>
 
 namespace estimation
 {
@@ -110,7 +109,6 @@ private:
     _camera_matrix.at<double>(2, 0) = 0;
     _camera_matrix.at<double>(2, 1) = 0;
     _camera_matrix.at<double>(2, 2) = 1;
-    PRX_DEBUG_VARS(_camera_matrix);
 
     _cv_points.resize(PointIdx::TOTAL);
     _image_points.resize(PointIdx::TOTAL);
