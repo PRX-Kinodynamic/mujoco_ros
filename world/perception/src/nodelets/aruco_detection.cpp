@@ -13,9 +13,9 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
-#include <interface/stamped_markers.h>
+#include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
+#include <utils/rosparams_utils.hpp>
 
 namespace perception
 {
@@ -50,7 +50,7 @@ private:
     _markers_msg.header.frame_id = _markers_topic_name;
 
     _frame_marker_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
-    _markers_publisher = private_nh.advertise<interface::stamped_markers>(_markers_topic_name, 1);
+    _markers_publisher = private_nh.advertise<interface::StampedMarkers>(_markers_topic_name, 1);
     _rgb_subscriber = private_nh.subscribe(_rgb_topic_name, 1, &aruco_detection_nodelet_t::detect, this);
   }
 
@@ -120,7 +120,7 @@ private:
   std::string _rgb_topic_name;
 
   std_msgs::Header _header;
-  interface::stamped_markers _markers_msg;
+  interface::StampedMarkers _markers_msg;
   std::vector<aruconano::Marker> _markers;
 
   sensor_msgs::Image _dbg_msg;
