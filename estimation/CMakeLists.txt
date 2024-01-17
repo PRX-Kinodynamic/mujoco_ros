@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   tf
   tf_conversions
+  utils
 )
 
 ###################################

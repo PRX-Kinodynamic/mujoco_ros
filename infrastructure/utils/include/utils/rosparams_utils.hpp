@@ -4,7 +4,7 @@
 
 #define ROS_PARAM_SETUP(nh, var) (interface::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
 
-namespace interface
+namespace utils
 {
 
 template <typename T>
@@ -17,7 +17,6 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
   }
 }
 
-// (interface::nodelet_get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
 #define NODELET_PARAM_SETUP(nh, var)                                                                                   \
   if (!nh.getParam(GET_VARIABLE_NAME(var), var))                                                                       \
   {                                                                                                                    \
@@ -30,14 +29,4 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
     var = default_value;                                                                                               \
   }
 
-template <typename T>
-void print_container(const std::string& name, const T& container)
-{
-  std::cout << name << ": ";
-  for (auto e : container)
-  {
-    std::cout << e << ", ";
-  }
-  std::cout << std::endl;
-}
-}  // namespace interface
+}  // namespace utils

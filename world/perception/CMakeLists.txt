@@ -12,6 +12,7 @@ find_package(catkin REQUIRED
   interface
   nodelet
   prx_models
+  utils
   )
 find_package(OpenCV 4.6.0 REQUIRED)
 

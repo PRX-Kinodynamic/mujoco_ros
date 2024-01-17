@@ -2,7 +2,7 @@
 
 #include <ros/ros.h>
 #include <regex>
-#define PRX_DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
+#define DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
 namespace dbg
 {
@@ -33,12 +33,4 @@ inline void print_variables(std::string name, Var0 var, Vars... vars)
 }
 
 }  // namespace dbg
-#define PRX_DEBUG_VARS(...) dbg::print_variables(#__VA_ARGS__, __VA_ARGS__);
-
-namespace interface
-{
-template <typename To, typename From>
-void translate_msg(To& to_msg, const From& from_msg)
-{
-}
-}  // namespace interface
+#define DEBUG_VARS(...) dbg::print_variables(#__VA_ARGS__, __VA_ARGS__);

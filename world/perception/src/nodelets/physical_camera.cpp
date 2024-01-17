@@ -13,8 +13,7 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
-
+#include <utils/rosparams_utils.hpp>
 // Nodelet to read from a physical camera and publish to '*Namespace*/camera/rgb' at a given framerate
 // As a nodelet, publishing to another nodelet in the same manager is equivalent to a pointer copy
 namespace perception

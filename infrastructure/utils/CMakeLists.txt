@@ -1,18 +1,17 @@
 cmake_minimum_required(VERSION 3.5)
-project(task_planning)
+project(utils)
 set(CMAKE_CXX_STANDARD 17)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
+find_package(rostest REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
-  message_generation
+  geometry_msgs
   roslib
-  motion_planning
-  utils
 )
 
 ## System dependencies are found with CMake's conventions
@@ -48,16 +47,23 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   PlannerGoal.msg
-# )
+# set(MSG_DIRS "mushr")
+set(MSG_FILES "")
+file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
+foreach(M_DIR ${MSG_DIRS})
+  GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
+  add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
+endforeach()
 
-# Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   MushrPlanner.srv
-# )
+## Generate services in the 'srv' folder
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -67,11 +73,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-#   prx_models
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -105,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS roscpp std_msgs message_runtime motion_planning
+ CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -118,44 +124,36 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS} 
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mujoco.cpp
-# )
+### Nodelets as a library
+set(NODELET_LIB ${PROJECT_NAME}_nodelets)
+file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+list(LENGTH NODELET_FILES TOTAL_NODELET_FILES)
+if (${TOTAL_NODELET_FILES} GREATER "0")
+  add_library(${NODELET_LIB} ${NODELET_FILES})
+  target_include_directories(${NODELET_LIB} PUBLIC include  ${catkin_INCLUDE_DIRS})
+  add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
+  target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
+endif()
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
-
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-
+### Executable files
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
-    # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
-
 foreach(f ${EXECUTABLE_FILES})
-    MESSAGE("file: ${f}")
-    GET_FILENAME_COMPONENT(fname ${f} NAME_WE )
-    add_executable(${fname} ${f})
-    add_dependencies(${fname}
-                     ${${PROJECT_NAME}_EXPORTED_TARGETS} 
-                     ${catkin_EXPORTED_TARGETS}
-                     )
-    target_link_libraries(${fname}
-                          ${catkin_LIBRARIES}
-                        )
+  get_filename_component(fname ${f} NAME_WE )
+  add_executable(${fname} ${f})
+  ## Add cmake target dependencies of the executable
+  ## same as for the library above
+  add_dependencies(${fname}
+                   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+                   ${catkin_EXPORTED_TARGETS}
+                   )
+  ## Specify libraries to link a library or executable target against
+  target_link_libraries(${fname}
+                        ${catkin_LIBRARIES}
+                        ${OpenCV_LIBS} 
+                      )
 endforeach()
 
 #############
@@ -205,16 +203,18 @@ endforeach()
 #############
 
 ## Add gtest based cpp test target and link libraries
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)
+# if(TARGET ${PROJECT_NAME}-test)
+#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+# endif()
 file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
-
-message(STATUS "TEST HERE")
+set(gtest_disable_pthreads OFF)
 foreach(f_test ${TESTS_FILES})
-  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
-  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
-  if(TARGET ${PROJECT_NAME}-test)
-    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
-  endif()
+  get_filename_component(fname ${f_test} NAME_WE )
+  set(test_name "test_${fname}")
+  MESSAGE(STATUS "Test: ${test_name}")
+  catkin_add_gtest(${test_name} ${f_test})
+  target_link_libraries(${test_name} ${catkin_LIBRARIES}  )
 endforeach()
 
 ## Add folders to be run by python nosetests

@@ -3,7 +3,8 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/single_shot_planner_service.hpp"
 #include "motion_planning/planner_client.hpp"
-#include "utils.hpp"
+
+#include <utils/std_utils.cpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -49,7 +50,7 @@ int main(int argc, char** argv)
 
   std::string goal_config_str;
   n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = string_to_vector<double>(goal_config_str, ',');
+  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
 
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];
@@ -80,7 +81,7 @@ int main(int argc, char** argv)
   n.getParam(ros::this_node::getName() + "/visualize", visualize_trajectory);
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, visualize_trajectory);
-  
+
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
