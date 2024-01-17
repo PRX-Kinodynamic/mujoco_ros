@@ -5,7 +5,7 @@
 
 #include <interface/mushr_translation.hpp>
 #include <interface/msg_translator.hpp>
-#include <interface/utils.hpp>
+#include <utils/rosparams_utils.hpp>
 
 int main(int argc, char** argv)
 {
@@ -19,10 +19,10 @@ int main(int argc, char** argv)
   std::string control_subscriber_topic{};
   std::string control_publisher_topic{};
 
-  interface::get_param_and_check(nh, root + "/perception_from_topic", perception_subscriber_topic);
-  interface::get_param_and_check(nh, root + "/perception_to_topic", perception_publisher_topic);
-  interface::get_param_and_check(nh, root + "/control_from_topic", control_subscriber_topic);
-  interface::get_param_and_check(nh, root + "/control_to_topic", control_publisher_topic);
+  utils::get_param_and_check(nh, root + "/perception_from_topic", perception_subscriber_topic);
+  utils::get_param_and_check(nh, root + "/perception_to_topic", perception_publisher_topic);
+  utils::get_param_and_check(nh, root + "/control_from_topic", control_subscriber_topic);
+  utils::get_param_and_check(nh, root + "/control_to_topic", control_publisher_topic);
 
   interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped> observation_translator(
       nh, perception_subscriber_topic, perception_publisher_topic);
