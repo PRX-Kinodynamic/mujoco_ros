@@ -70,7 +70,7 @@ private:
     _collision_group = context.second;
     _state_space.reset(_system_group->get_state_space());
     _control_space.reset(_system_group->get_control_space());
-    std::vector<double> min_control_limits = { -1., -0.5. };
+    std::vector<double> min_control_limits = { -1., -0.5 };
     std::vector<double> max_control_limits = { 1., 0.5 };
     _control_space->set_bounds(min_control_limits, max_control_limits);
 

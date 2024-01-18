@@ -12,4 +12,5 @@ A perception output in, controls out infrastructure for sim or real-robot agnost
 
 ## TODOs
 - [ ] `imgs/` directory inside `prx_models/models/`	is sometimes not extracted correctly.
+- [ ] Do we need `mushr_sim_interface.cpp` anymore?
 
