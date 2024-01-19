@@ -4,7 +4,7 @@
     <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
-    <arg name = "goal_config" default = "[3.0, 3.0, 0.0]"/>
+    <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "visualize" default = "false"/>
     <group ns="$(arg namespace)">

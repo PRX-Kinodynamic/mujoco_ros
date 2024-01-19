@@ -1,7 +1,7 @@
 <launch> 
     <arg name = "namespace" default = "mushr"/>
     <arg name = "random_seed" default = "0"/>
-    <arg name = "goal_config" default = "[3.0, 3.0, 0.0]"/>
+    <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "preprocess_timeout" default = "0.1" />
     <arg name = "postprocess_timeout" default = "0.1" />
