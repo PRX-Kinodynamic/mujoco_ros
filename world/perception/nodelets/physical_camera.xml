@@ -1,0 +1,12 @@
+<library path="lib/libperception_nodelets">
+  <class name="perception/physical_camera_nodelet_t" type="perception::physical_camera_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to read and publish from physical cameras
+    </description>
+  </class>
+  <class name="perception/aruco_detection_nodelet_t" type="perception::aruco_detection_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to detect aruco markers from an image topic
+    </description>
+  </class>
+</library>

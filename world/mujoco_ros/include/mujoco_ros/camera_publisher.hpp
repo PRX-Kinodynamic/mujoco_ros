@@ -37,7 +37,7 @@ public:
       ROS_ERROR("Error in initializing GLFW.");
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), NULL, NULL);
+    _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), glfwGetPrimaryMonitor(), NULL);
 
     if (!_glfw_window)
       ROS_ERROR("Error in creating GLFW window.");

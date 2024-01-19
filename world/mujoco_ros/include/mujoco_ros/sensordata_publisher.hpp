@@ -13,7 +13,7 @@ public:
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string topic_name{ root + "/sensordata" };
-    _publisher = nh.advertise<mujoco_ros::SensorDataStamped>(topic_name, 1000, true);
+    _publisher = nh.advertise<interface::SensorDataStamped>(topic_name, 1000, true);
   }
 
   void run()
@@ -37,6 +37,6 @@ private:
   SimulatorPtr _sim;
   double _frequency;
   ros::Publisher _publisher;
-  mujoco_ros::SensorDataStamped _message;
+  interface::SensorDataStamped _message;
 };
 }  // namespace mj_ros

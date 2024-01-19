@@ -1,14 +1,14 @@
 <launch>
     <arg name="simulation" default="true" />
-    <arg name="plan_from_file_topic" default="/mushr/plan_read" />
+    <arg name="plan_from_file_topic" default="/mushr/ml4kp_plan" />
     <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
     <arg name="plan_filename" default="$(env ML4KP_ROS)/plan0.txt" />
 
     <group ns="mushr">
-        <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>
 
         <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
-            args="load ml4kp_bridge/plan_from_file_t standalone_nodelet" 
+            args="load ml4kp_bridge/plan_from_file_t plan_from_file_nodelet_manager" 
             output="screen">
             <param name="plan_file" value="$(arg plan_filename)" />
             <param name="control_dimension" value="2" />
@@ -16,7 +16,7 @@
             <param name="publisher_topic" value="$(arg plan_from_file_topic)" />
         </node>
          <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
-            args="load ml4kp_bridge/plan_stepper_t standalone_nodelet" 
+            args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_from_file_topic)" />
             <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
@@ -24,7 +24,7 @@
         </node>    
 
         <node if="$(arg simulation)" pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet" 
-            args="load interface/MushrFromSpacePointNodelet standalone_nodelet" 
+            args="load interface/MushrFromSpacePointNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/control" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
@@ -32,7 +32,7 @@
         </node>         
 
         <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
-            args="load interface/AckermannFromSpacePointNodelet standalone_nodelet" 
+            args="load interface/AckermannFromSpacePointNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />

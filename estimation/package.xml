@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>estimation</name>
+  <version>0.0.0</version>
+  <description>The robot models</description>
+
+  <maintainer email="eg585@rutgers.edu">Edgar</maintainer>
+
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>nodelet</build_depend>
+  <build_depend>ml4kp_bridge</build_depend>
+  <build_depend>interface</build_depend>
+  <build_depend>prx_models</build_depend>
+
+  <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>ml4kp_bridge</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nodelet</exec_depend>
+  <exec_depend>interface</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>prx_models</exec_depend>
+
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <nodelet plugin="${prefix}/src/nodelets/nodelets.xml"/>
+  </export>
+</package>

@@ -2,6 +2,7 @@
 #include "mujoco_ros/control_listener.hpp"
 #include "mujoco_ros/sensordata_publisher.hpp"
 #include "prx_models/mj_mushr.hpp"
+#include <utils/rosparams_utils.hpp>
 
 #include "mujoco_ros/camera_publisher.hpp"
 // Mujoco-Ros visualization in (almost) RT:
@@ -19,10 +20,10 @@ int main(int argc, char** argv)
   std::string model_path;
   bool visualize, save_trajectory, publish_ground_truth_pose;
 
-  get_param_and_check(n,  "/model_path", model_path);
-  get_param_and_check(n, node_name_prefix + "/visualize", visualize);
-  get_param_and_check(n, node_name_prefix + "/save_trajectory", save_trajectory);
-  get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
+  utils::get_param_and_check(n,  "/model_path", model_path);
+  utils::get_param_and_check(n, node_name_prefix + "/visualize", visualize);
+  utils::get_param_and_check(n, node_name_prefix + "/save_trajectory", save_trajectory);
+  utils::get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
 
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);

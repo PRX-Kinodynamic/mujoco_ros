@@ -28,6 +28,8 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   prx_models
   cv_bridge
+  interface
+  utils
 )
 
 ## System dependencies are found with CMake's conventions

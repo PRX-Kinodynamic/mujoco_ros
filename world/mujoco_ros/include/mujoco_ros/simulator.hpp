@@ -315,10 +315,11 @@ public:
     goal_radius = msg->data;
   }
 
-  inline void set_trajectory_to_visualize(const ml4kp_bridge::Trajectory::ConstPtr& msg)
+  inline void set_trajectory_to_visualize(const ml4kp_bridge::TrajectoryStampedConstPtr& message)
   {
+    const ml4kp_bridge::Trajectory& msg{ message->trajectory };
     trajectory_to_visualize.clear();
-    const std::vector<ml4kp_bridge::SpacePoint>& points = msg->data;
+    const std::vector<ml4kp_bridge::SpacePoint>& points = msg.data;
     for (const auto& point : points)
     {
       const std::vector<std_msgs::Float64>& values = point.point;

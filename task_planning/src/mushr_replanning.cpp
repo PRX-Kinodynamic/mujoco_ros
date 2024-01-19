@@ -3,7 +3,7 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
-#include "utils.hpp"
+#include <utils/std_utils.cpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -32,10 +32,8 @@ int main(int argc, char** argv)
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
-  // std::vector<double> min_control_limits = { -1., -0.5 };
-  // std::vector<double> max_control_limits = { 1., 0.5 };
-  std::vector<double> min_control_limits = { -.5, -1. };
-  std::vector<double> max_control_limits = { .5, 1. };
+  std::vector<double> min_control_limits = { -1., -0.5 };
+  std::vector<double> max_control_limits = { 1., 0.5 };
   cs->set_bounds(min_control_limits, max_control_limits);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
@@ -49,7 +47,7 @@ int main(int argc, char** argv)
 
   std::string goal_config_str;
   n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = string_to_vector<double>(goal_config_str, ',');
+  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
 
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];

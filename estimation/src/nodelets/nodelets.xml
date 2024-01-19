@@ -1,0 +1,17 @@
+<library path="lib/libestimation_nodelets">
+  <class name="estimation/aruco_cTw_nodelet_t" type="estimation::aruco_cTw_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to get poses from opencvPNP
+    </description>
+  </class>
+  <class name="estimation/aruco_wTc_nodelet_t" type="estimation::aruco_wTc_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to put poses in camera frame
+    </description>
+  </class>
+  <class name="estimation/plant_estimator_nodelet_t" type="estimation::plant_estimator_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to estimate the future states of the robot
+    </description>
+  </class>
+</library>

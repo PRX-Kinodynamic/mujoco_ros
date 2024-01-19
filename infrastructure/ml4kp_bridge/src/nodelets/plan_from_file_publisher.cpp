@@ -4,6 +4,7 @@
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.hpp>
 
+#include <ml4kp_bridge/PlanStamped.h>
 #include <ml4kp_bridge/plan_bridge.hpp>
 #include <ml4kp_bridge/SendString.h>
 #include <std_srvs/Empty.h>
@@ -40,7 +41,6 @@ protected:
     const std::string service_name{ ros::this_node::getNamespace() + "/plan_reader/publish_plan" };
     const std::string service_plan_filename{ ros::this_node::getNamespace() + "/plan_reader/set_plan" };
 
-    _timer = private_nh.createTimer(ros::Duration(1.0), &plan_from_file_t::timer_callback, this, true, false);
     _publisher = private_nh.advertise<ml4kp_bridge::PlanStamped>(_publisher_topic, 1, true);
 
     _service = private_nh.advertiseService(service_name, &plan_from_file_t::service_callback, this);
@@ -67,14 +67,9 @@ protected:
 
   bool service_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
   {
-    _timer.start();
-    return true;
-  }
-
-  void timer_callback(const ros::TimerEvent& event)
-  {
     _publisher.publish(_plan_msg);
-    _timer.stop();
+
+    return true;
   }
 
   std::string _plan_file;
@@ -89,7 +84,6 @@ protected:
 
   ml4kp_bridge::PlanStamped _plan_msg;
 
-  ros::Timer _timer;
   ros::Publisher _publisher;
   ros::ServiceServer _service;
   ros::ServiceServer _service_filename;
