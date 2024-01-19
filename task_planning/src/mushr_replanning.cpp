@@ -95,7 +95,6 @@ int main(int argc, char** argv)
   goal_radius_publisher.publish(goal_radius);
   while (true)
   {
-    ros::Duration(planning_cycle_duration).sleep();
     if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
       planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
@@ -106,6 +105,7 @@ int main(int argc, char** argv)
       ROS_WARN("Goal reached, not replanning");
       break;
     }
+    ros::Duration(planning_cycle_duration).sleep();
   }
 
   return 0;
