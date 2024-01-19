@@ -14,26 +14,6 @@
             <param name="frequency" value="10" />
         </node>
 
-        <node pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet"  
-            args="load interface/MushrFromSpacePointNodelet standalone_nodelet"  
-            output="screen">
-            <param name="publisher_topic" value="/mushr/control" />
-            <param name="subscriber_topic" value="/mushr/plan_stepper/control" />
-            <param name="frequency" value="10" />
-        </node>
-
-        <node if="$(arg publish_ground_truth_pose)" pkg="nodelet" type="nodelet" name="GroundTruthPoseNodelet"  
-            args="load interface/GroundTruthPoseNodelet standalone_nodelet"  
-            output="screen">
-            <param name="publisher_topic" value="/mushr/pose" />
-            <param name="subscriber_topic" value="/mushr/sensordata" />
-            <param name="frequency" value="15" />
-        </node>
-
-        <node unless="$(arg publish_ground_truth_pose)" pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
-            <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
-        </node>
-
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
@@ -41,5 +21,8 @@
         </node>
     </group>
     <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" />
+    <include file="$(find interface)/launch/mushr_interface.launch">
+        <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" />
+    </include>
 </launch>
 

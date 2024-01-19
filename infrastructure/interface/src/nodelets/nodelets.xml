@@ -23,4 +23,12 @@
       Nodelet to publish ground truth pose from sensordata
     </description>
   </class>
+  <class 
+      name="interface/MushrObservationFromArucoNodelet"
+      type="interface::MushrObservationFromArucoNodelet"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to publish mushr observation from aruco detection
+    </description>
+  </class>
 </library>

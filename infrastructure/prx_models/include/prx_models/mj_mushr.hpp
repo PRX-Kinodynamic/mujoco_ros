@@ -20,8 +20,8 @@ namespace mushr_t
 static constexpr std::size_t u_dim{ 2 };
 namespace control
 {
-static constexpr std::size_t velocity_idx{ 0 };
-static constexpr std::size_t steering_idx{ 1 };
+static constexpr std::size_t velocity_idx{ 1 };
+static constexpr std::size_t steering_idx{ 0 };
 };  // namespace control
 namespace sensors_t
 {
@@ -59,6 +59,19 @@ inline void get_observation(prx_models::MushrObservation& msg, const SensorData&
   msg.pose.orientation.y = sensordata[mushr_t::sensors_t::QuatY].data;
   msg.pose.orientation.z = sensordata[mushr_t::sensors_t::QuatZ].data;
   msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW].data;
+}
+
+template <typename Pose>
+inline void copy(prx_models::MushrObservation& msg, const Pose& pose)
+{
+  const Eigen::Quaterniond quat{pose.rotation()};
+  msg.pose.position.x = pose.translation().x();
+  msg.pose.position.y = pose.translation().y();
+  msg.pose.position.z = 0.0;
+  msg.pose.orientation.x = quat.x();
+  msg.pose.orientation.y = quat.y();
+  msg.pose.orientation.z = quat.z();
+  msg.pose.orientation.w = quat.w();
 }
 
 template <typename StateSpacePoint>
