@@ -7,7 +7,6 @@
 #include <ackermann_msgs/AckermannDriveStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 
-#include "interface/ackermann_msg.hpp"
 #include "interface/mushr_translation.hpp"
 #include "interface/nodelets/msg_translator.hpp"
 #include "interface/nodelets/plant_estimator.hpp"

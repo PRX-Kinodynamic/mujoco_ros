@@ -1,6 +1,7 @@
 #pragma once
 #include "eigen3/Eigen/Dense"
 #include "geometry_msgs/Pose2D.h"
+#include <ackermann_msgs/AckermannDriveStamped.h>
 
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/mj_copy.hpp"
