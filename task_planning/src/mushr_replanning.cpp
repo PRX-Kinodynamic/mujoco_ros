@@ -93,8 +93,10 @@ int main(int argc, char** argv)
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
-  while (true)
+  double start_time = ros::Time::now().toSec();
+  while (ros::ok())
   {
+    ROS_INFO("Time now: %f", ros::Time::now().toSec() - start_time);
     if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
       planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
@@ -105,8 +107,11 @@ int main(int argc, char** argv)
       ROS_WARN("Goal reached, not replanning");
       break;
     }
-    ros::Duration(planning_cycle_duration).sleep();
+    ros::spinOnce();
+    // ros::Duration(planning_cycle_duration).sleep();
   }
+
+  spinner.stop();
 
   return 0;
 }
