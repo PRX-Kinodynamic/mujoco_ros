@@ -12,15 +12,15 @@
 	<group ns="$(arg current_ns)">
 		<node pkg="nodelet" type="nodelet" name="mj_estimation_nodelet"  args="manager" output="screen"/>
 
-		<node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t standalone_nodelet" output="screen">
+		<node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="load perception/aruco_detection_nodelet_t mj_estimation_nodelet" output="screen">
 			<rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
 		</node>
-		<node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" args="load estimation/aruco_cTw_nodelet_t standalone_nodelet" output="screen">
+		<node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" args="load estimation/aruco_cTw_nodelet_t mj_estimation_nodelet" output="screen">
 		<rosparam command="load" file="$(arg cam_file)" />
 		<param name="vizualize_markers" value="true" />
 		</node>  
 
-		<node pkg="nodelet" type="nodelet" name="aruco_wTc_nodelet_t" args="load estimation/aruco_wTc_nodelet_t standalone_nodelet" output="screen">
+		<node pkg="nodelet" type="nodelet" name="aruco_wTc_nodelet_t" args="load estimation/aruco_wTc_nodelet_t mj_estimation_nodelet" output="screen">
 		<rosparam command="load" file="$(arg cam_file)" />
 		<param name="pose_topic" value="/$(arg current_ns)/aruco_cTw/robot_pose" />
 		<param name="image_topic" value="/$(arg current_ns)/camera/rgb"/>
