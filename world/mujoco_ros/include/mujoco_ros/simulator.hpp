@@ -9,6 +9,8 @@
 #include <std_msgs/Float64.h>
 #include <ml4kp_bridge/defs.h>
 
+#include <utils/rosparams_utils.hpp>
+
 namespace mj_ros
 {
 class simulator_t;
@@ -32,9 +34,15 @@ private:
 
   GLFWwindow* window;
 
-  simulator_t(const std::string& model_path, bool _save_trajectory)
+  simulator_t(const std::string node_name, ros::NodeHandle& nh)
   {
-    std::cout << model_path << std::endl;
+    std::string model_path;
+    bool _save_trajectory;
+
+    utils::get_param_and_check(nh, node_name + "/model_path", model_path);
+    utils::get_param_and_check(nh, node_name + "/save_trajectory", _save_trajectory);
+
+    ROS_INFO("Loading model from %s", model_path.c_str());
     std::string error;
     error.reserve(1000);
     m = mj_loadXML(model_path.c_str(), NULL, error.data(), error.capacity());
@@ -68,9 +76,9 @@ public:
   mjModel* m;
   mjData* d;
 
-  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string model_path, const bool save_trajectory)
+  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string node_name, ros::NodeHandle& nh)
   {
-    return std::shared_ptr<simulator_t>(new simulator_t(model_path, save_trajectory));
+    return std::shared_ptr<simulator_t>(new simulator_t(node_name, nh));
   }
 
   ~simulator_t()

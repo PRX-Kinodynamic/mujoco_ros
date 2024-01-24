@@ -17,15 +17,12 @@ int main(int argc, char** argv)
   const std::string root{ ros::this_node::getNamespace() };
   const std::string node_name_prefix { ros::this_node::getName() };
 
-  std::string model_path;
-  bool visualize, save_trajectory, publish_ground_truth_pose;
+  bool visualize, publish_ground_truth_pose;
 
-  utils::get_param_and_check(n,  "/model_path", model_path);
   utils::get_param_and_check(n, node_name_prefix + "/visualize", visualize);
-  utils::get_param_and_check(n, node_name_prefix + "/save_trajectory", save_trajectory);
   utils::get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
 
-  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(node_name_prefix, n) };
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
 

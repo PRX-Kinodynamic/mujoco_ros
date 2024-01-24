@@ -28,7 +28,7 @@ int main(int argc, char** argv)
   }
 
   const std::string root{ ros::this_node::getNamespace() };
-  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(node_name,n) };
   FeedbackClient feedback_client(n, sim, 10);
 
   ros::Subscriber reset_subscriber;
