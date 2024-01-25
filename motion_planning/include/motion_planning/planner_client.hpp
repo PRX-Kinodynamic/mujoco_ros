@@ -48,7 +48,6 @@ public:
   {
     if (!_obs_received)
     {
-      ROS_WARN("Waiting for observation");
       return false;
     }
     return std::hypot(goal_configuration.x - _most_recent_observation.pose.position.x,
@@ -60,7 +59,7 @@ public:
   {
     while (!_obs_received)
     {
-      ROS_WARN("Waiting for observation");
+      ROS_WARN("Service waiting for observation");
       ros::Duration(0.1).sleep();
     }
     _preprocess_start_time = ros::Time::now().toSec();

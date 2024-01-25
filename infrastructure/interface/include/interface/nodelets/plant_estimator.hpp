@@ -46,7 +46,7 @@ private:
     _header.stamp = ros::Time::now();
     _header.frame_id = "world";
 
-    _pose_timer = private_nh.createTimer(ros::Duration(0.1), &plant_estimator_t::estimate_pose, this);
+    _pose_timer = private_nh.createTimer(ros::Duration(0.0333), &plant_estimator_t::estimate_pose, this);
     _observation_publisher = private_nh.advertise<Observation>(observation_topic, 1, true);
   }
 

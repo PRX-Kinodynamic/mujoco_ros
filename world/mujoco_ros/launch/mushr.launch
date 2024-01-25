@@ -1,20 +1,10 @@
 <launch>
-    <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
     <arg name="save_trajectory" default="false"/>
     <arg name="visualize" default="true"/>
     <arg name="publish_ground_truth_pose" default="false"/>
     <group ns="mushr">
-        <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
-
-        <node pkg="nodelet" type="nodelet" name="PlanStepperNodelet"  
-            args="load ml4kp_bridge/plan_stepper_t standalone_nodelet"  
-            output="screen">
-            <param name="subscriber_topic" value="/mushr/ml4kp_plan" />
-            <param name="publisher_topic" value="/mushr/plan_stepper/control"/>
-            <param name="frequency" value="10" />
-        </node>
-
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
+            <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />

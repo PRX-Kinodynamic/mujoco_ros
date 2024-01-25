@@ -82,25 +82,34 @@ int main(int argc, char** argv)
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
 
+  int max_cycles;
   double planning_cycle_duration, preprocess_timeout, postprocess_timeout;
   n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
   n.getParam(ros::this_node::getName() + "/preprocess_timeout", preprocess_timeout);
   n.getParam(ros::this_node::getName() + "/postprocess_timeout", postprocess_timeout);
+  n.getParam(ros::this_node::getName() + "/max_cycles", max_cycles);
   planner_service.set_preprocess_timeout(preprocess_timeout);
   planner_service.set_postprocess_timeout(postprocess_timeout);
 
-  bool first_cycle = true;
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
   double start_time = ros::Time::now().toSec();
-  while (ros::ok())
+  double prev_time = ros::Time::now().toSec();
+  double current_time = ros::Time::now().toSec();
+  int current_cycle = 0;
+  while(ros::ok() && current_cycle < max_cycles)
   {
-    ROS_INFO("Time now: %f", ros::Time::now().toSec() - start_time);
     if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
-      planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, first_cycle);
-      first_cycle = false;
+      current_time = ros::Time::now().toSec();
+      if (current_time - prev_time >= planning_cycle_duration)
+      {
+        ROS_INFO("Cycle %d Elapsed Time: %f", current_cycle, current_time - start_time);
+        planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, current_cycle == 0);
+        prev_time = current_time;
+        current_cycle++;
+      }
     }
     else
     {
@@ -108,7 +117,9 @@ int main(int argc, char** argv)
       break;
     }
     ros::spinOnce();
-    // ros::Duration(planning_cycle_duration).sleep();
+    // ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
+    // ROS_INFO("Query fulfill time: %f",
+    //        planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
   }
 
   spinner.stop();

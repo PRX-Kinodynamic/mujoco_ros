@@ -12,7 +12,7 @@
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_translate_topic)" />
             <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
-            <param name="frequency" value="10" />
+            <param name="frequency" value="100" />
         </node>    
 
         <node if="$(arg simulation)" pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet" 
@@ -20,7 +20,7 @@
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
             <param name="publisher_topic" value="/mushr/control" />
-            <param name="frequency" value="10" />
+            <param name="frequency" value="100" />
         </node>         
 
         <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
@@ -28,7 +28,7 @@
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
-            <param name="frequency" value="10" />
+            <param name="frequency" value="100" />
         </node>   
 
         <node if="$(arg ground_truth_pose_used)" pkg="nodelet" type="nodelet" name="GroundTruthPoseNodelet"  
