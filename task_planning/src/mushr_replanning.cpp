@@ -20,10 +20,9 @@ int main(int argc, char** argv)
   // TODO: Does this need to be set inside the client/service for better determinism?
   prx::init_random(random_seed);
 
-  // std::string plant_name = "MushrAnalytical";
-  // std::string plant_path = "MushrAnalytical";
-  std::string plant_name = "mushr";
-  std::string plant_path = "mushr";
+  auto params = prx::param_loader("plants/mushr.yaml");
+  std::string plant_name = params["name"].as<std::string> ();
+  std::string plant_path = params["path"].as<std::string> ();
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
@@ -32,9 +31,15 @@ int main(int argc, char** argv)
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
-  std::vector<double> min_control_limits = { -1., -0.5 };
-  std::vector<double> max_control_limits = { 1., 0.5 };
+  auto ps = planning_context.first->get_parameter_space();
+  std::vector<double> min_control_limits = params["control_space"]["lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_control_limits = params["control_space"]["upper_bound"].as<std::vector<double> >();
+  std::vector<double> min_state_limits = params["state_space"]["lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_state_limits = params["state_space"]["upper_bound"].as<std::vector<double> >();
+  ss->set_bounds(min_state_limits, max_state_limits);
   cs->set_bounds(min_control_limits, max_control_limits);
+  std::vector<double> param_values = params["parameter_space"]["values"].as<std::vector<double> >();
+  ps->copy_from(param_values);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
@@ -106,7 +111,7 @@ int main(int argc, char** argv)
       if (current_time - prev_time >= planning_cycle_duration)
       {
         ROS_INFO("Cycle %d Elapsed Time: %f", current_cycle, current_time - start_time);
-        planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration, current_cycle == 0);
+        planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
         prev_time = current_time;
         current_cycle++;
       }

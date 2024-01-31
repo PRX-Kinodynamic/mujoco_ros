@@ -54,8 +54,7 @@ public:
                       goal_configuration.y - _most_recent_observation.pose.position.y) < goal_radius.data;
   }
 
-  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0,
-                    bool first_cycle = true)
+  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0)
   {
     while (!_obs_received)
     {
@@ -65,7 +64,6 @@ public:
     _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
     _service.request.planning_duration.data = ros::Duration(planning_duration);
-    _service.request.first_cycle.data = first_cycle;
     _service.request.goal_configuration = goal_configuration;
     _service.request.return_trajectory.data = _publish_trajectory;
     if (_service_client.call(_service))

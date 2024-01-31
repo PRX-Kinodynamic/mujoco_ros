@@ -28,6 +28,7 @@ public:
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
 
     step_plan = new prx::plan_t(_spec->control_space);
+    ml4kp_bridge::add_zero_control(*step_plan);
     step_traj = new prx::trajectory_t(_spec->state_space);
   }
 
@@ -58,12 +59,9 @@ public:
     prx_models::copy(_query->start_state, request.current_observation);
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
-    if (!request.first_cycle.data)
-    {
-      step_traj->clear();
-      _spec->propagate(_query->start_state, *step_plan, *step_traj);
-      _spec->state_space->copy_point(_query->start_state, step_traj->back());
-    }
+    step_traj->clear();
+    _spec->propagate(_query->start_state, *step_plan, *step_traj);
+    _spec->state_space->copy_point(_query->start_state, step_traj->back());
 
     _planner->link_and_setup_spec(_spec);
     _planner->preprocess();
