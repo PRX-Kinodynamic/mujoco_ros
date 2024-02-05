@@ -5,7 +5,7 @@
     <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "max_cycles" default="30"/>
     <arg name = "preprocess_timeout" default = "0.05" />
-    <arg name = "postprocess_timeout" default = "0.2" />
+    <arg name = "postprocess_timeout" default = "0.1" />
     <arg name = "visualize" default = "false"/>
     <arg name = "record" default = "false"/>
     <group ns="$(arg namespace)">

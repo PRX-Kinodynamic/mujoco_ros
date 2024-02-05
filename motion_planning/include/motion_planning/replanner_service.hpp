@@ -54,14 +54,15 @@ public:
 
   bool service_callback(typename Service::Request& request, typename Service::Response& response)
   {
-    prx::condition_check_t checker("time", request.planning_duration.data.toSec() - preprocess_timeout - postprocess_timeout);
+    prx::condition_check_t checker("time",
+                                   request.planning_duration.data.toSec() - preprocess_timeout - postprocess_timeout);
 
     prx_models::copy(_query->start_state, request.current_observation);
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     step_traj->clear();
     _spec->propagate(_query->start_state, *step_plan, *step_traj);
-    _spec->state_space->copy_point(_query->start_state, step_traj->back());
+    _spec->state_space->copy(_query->start_state, step_traj->back());
 
     _planner->link_and_setup_spec(_spec);
     _planner->preprocess();

@@ -21,8 +21,8 @@ int main(int argc, char** argv)
   prx::init_random(random_seed);
 
   auto params = prx::param_loader("plants/mushr.yaml");
-  std::string plant_name = params["name"].as<std::string> ();
-  std::string plant_path = params["path"].as<std::string> ();
+  std::string plant_name = params["name"].as<std::string>();
+  std::string plant_path = params["path"].as<std::string>();
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
   dirt_query->start_state = ss->make_point();
   dirt_query->goal_state = ss->make_point();
   dirt_query->goal_region_radius = goal_radius.data;
-  dirt_query->get_visualization = true;
+  dirt_query->get_visualization = false;
   ROS_WARN("Using default goal check");
 
   dirt->link_and_setup_spec(dirt_spec);
@@ -99,11 +99,11 @@ int main(int argc, char** argv)
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
-  double start_time = ros::Time::now().toSec();
   double prev_time = ros::Time::now().toSec();
+  double start_time = ros::Time::now().toSec();
   double current_time = ros::Time::now().toSec();
   int current_cycle = 0;
-  while(ros::ok() && current_cycle < max_cycles)
+  while (ros::ok() && current_cycle <= max_cycles)
   {
     if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
@@ -114,6 +114,9 @@ int main(int argc, char** argv)
         planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
         prev_time = current_time;
         current_cycle++;
+        ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
+        ROS_INFO("Query fulfill time: %f",
+                 planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
       }
     }
     else
@@ -122,9 +125,6 @@ int main(int argc, char** argv)
       break;
     }
     ros::spinOnce();
-    // ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
-    // ROS_INFO("Query fulfill time: %f",
-    //        planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
   }
 
   spinner.stop();

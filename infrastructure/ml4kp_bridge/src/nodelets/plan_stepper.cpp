@@ -53,7 +53,7 @@ protected:
           _next_time = ros::Time::now() + _plan.steps[_current_plan_step].duration.data;
           _ctrl = _plan.steps[_current_plan_step].control;
           _current_plan_step++;
-          ROS_INFO("Next time: %f", _next_time.toSec());
+          ROS_DEBUG("Next time: %f", _next_time.toSec());
         }
       }
       else if (_current_plan_step == _plan.steps.size())
