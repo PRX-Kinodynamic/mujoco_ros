@@ -15,9 +15,10 @@ private:
   Observation _most_recent_observation;
   bool _obs_received{ false }, _publish_trajectory{ false };
   double _preprocess_start_time, _query_fulfill_end_time;
+  int _control_dim;
 
 public:
-  planner_client_t(ros::NodeHandle& nh, bool publish_trajectory = false) : _publish_trajectory(publish_trajectory)
+  planner_client_t(ros::NodeHandle& nh, bool publish_trajectory, int control_dim) : _publish_trajectory(publish_trajectory), _control_dim(control_dim)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
@@ -72,8 +73,9 @@ public:
       if (is_goal_reached(goal_configuration, goal_radius))
       {
         ROS_INFO("Goal reached. Not publishing plan");
-        // TODO: Check if zero control has been published last
-        // If not, can we send from here?
+        _service.response.output_plan.plan.steps.clear();
+        ml4kp_bridge::add_zero_plan(_service.response.output_plan, planning_duration, _control_dim);
+        _plan_publisher.publish(_service.response.output_plan);
       }
       else if (_service.response.planner_output == Service::Response::TYPE_SUCCESS)
       {

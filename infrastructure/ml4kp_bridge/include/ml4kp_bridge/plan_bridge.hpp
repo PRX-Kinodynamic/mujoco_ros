@@ -48,4 +48,14 @@ inline void add_zero_control(prx::plan_t& plan, double duration = 0.0)
   Vec(plan.back().control) = Eigen::VectorXd::Zero(plan.back().control->get_dim());
 }
 
+inline void add_zero_plan(ml4kp_bridge::PlanStamped& plan_stamped, double duration = 0.0, int dim = 2)
+{
+  plan_stamped.plan.steps.push_back(ml4kp_bridge::PlanStep());
+  plan_stamped.plan.steps.back().duration.data = ros::Duration(duration);
+  plan_stamped.plan.steps.back().control.point.resize(dim);
+  for (int i = 0; i < dim; ++i)
+  {
+    plan_stamped.plan.steps.back().control.point[i].data = 0.0;
+  }
+}
 }  // namespace ml4kp_bridge

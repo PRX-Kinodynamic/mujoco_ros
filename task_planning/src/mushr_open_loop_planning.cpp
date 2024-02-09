@@ -80,7 +80,7 @@ int main(int argc, char** argv)
   bool visualize_trajectory;
   n.getParam(ros::this_node::getName() + "/visualize", visualize_trajectory);
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
-  PlannerClient planner_client(n, visualize_trajectory);
+  PlannerClient planner_client(n, visualize_trajectory, cs->get_dimension());
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);

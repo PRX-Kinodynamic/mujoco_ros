@@ -26,8 +26,12 @@ int main(int argc, char** argv)
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
-  prx::world_model_t planning_model({ plant }, {});
-  planning_model.create_context("planner_context", { plant_name }, {});
+  auto obstacles = prx::load_obstacles("environments/obstacle_0.yaml");
+  std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list = obstacles.second;
+  std::vector<std::string> obstacle_names = obstacles.first;
+
+  prx::world_model_t planning_model({ plant }, {obstacle_list});
+  planning_model.create_context("planner_context", { plant_name }, {obstacle_names});
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
@@ -82,7 +86,7 @@ int main(int argc, char** argv)
   bool visualize_trajectory;
   n.getParam(ros::this_node::getName() + "/visualize", visualize_trajectory);
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
-  PlannerClient planner_client(n, visualize_trajectory);
+  PlannerClient planner_client(n, visualize_trajectory, cs->get_dimension());
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
