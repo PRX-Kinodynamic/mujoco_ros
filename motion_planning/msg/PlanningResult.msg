@@ -1,0 +1,2 @@
+std_msgs/Bool goal_reached
+std_msgs/Float64 total_time

@@ -3,6 +3,7 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
+#include "motion_planning/PlanningResult.h"
 #include <utils/std_utils.cpp>
 
 #include <ros/ros.h>
@@ -12,17 +13,18 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
   ros::NodeHandle n;
-  prx::simulation_step = 0.01;
 
   const std::string root{ ros::this_node::getNamespace() };
-  int random_seed;
-  n.getParam(ros::this_node::getName() + "/random_seed", random_seed);
-  // TODO: Does this need to be set inside the client/service for better determinism?
-  prx::init_random(random_seed);
+  std::string params_fname;
+  n.getParam(ros::this_node::getName() + "/params_file", params_fname);
+  auto params = prx::param_loader(params_fname);
 
-  auto params = prx::param_loader("plants/mushr.yaml");
-  std::string plant_name = params["name"].as<std::string>();
-  std::string plant_path = params["path"].as<std::string>();
+  // TODO: Does this need to be set inside the client/service for better determinism?
+  prx::init_random(params["random_seed"].as<int>());
+
+  prx::simulation_step = params["simulation_step"].as<double>();
+  std::string plant_name = params["/plant/name"].as<std::string>();
+  std::string plant_path = params["/plant/path"].as<std::string>();
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
@@ -36,13 +38,13 @@ int main(int argc, char** argv)
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
   auto ps = planning_context.first->get_parameter_space();
-  std::vector<double> min_control_limits = params["control_space"]["lower_bound"].as<std::vector<double> >();
-  std::vector<double> max_control_limits = params["control_space"]["upper_bound"].as<std::vector<double> >();
-  std::vector<double> min_state_limits = params["state_space"]["lower_bound"].as<std::vector<double> >();
-  std::vector<double> max_state_limits = params["state_space"]["upper_bound"].as<std::vector<double> >();
+  std::vector<double> min_control_limits = params["/plant/control_space/lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_control_limits = params["/plant/control_space/upper_bound"].as<std::vector<double> >();
+  std::vector<double> min_state_limits = params["/plant/state_space/lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_state_limits = params["/plant/state_space/upper_bound"].as<std::vector<double> >();
   ss->set_bounds(min_state_limits, max_state_limits);
   cs->set_bounds(min_control_limits, max_control_limits);
-  std::vector<double> param_values = params["parameter_space"]["values"].as<std::vector<double> >();
+  std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double> >();
   ps->copy_from(param_values);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
@@ -90,6 +92,8 @@ int main(int argc, char** argv)
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
+  ros::Publisher planning_result_publisher = n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
+  motion_planning::PlanningResult planning_result_msg;
 
   int max_cycles;
   double planning_cycle_duration, preprocess_timeout, postprocess_timeout;
@@ -126,9 +130,20 @@ int main(int argc, char** argv)
     else
     {
       ROS_WARN("Goal reached, not replanning");
+      planning_result_msg.goal_reached.data = true;
+      planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
+      planning_result_publisher.publish(planning_result_msg);
       break;
     }
     ros::spinOnce();
+  }
+
+  if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
+  {
+    ROS_WARN("Goal not reached");
+    planning_result_msg.goal_reached.data = false;
+    planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
+    planning_result_publisher.publish(planning_result_msg);
   }
 
   spinner.stop();

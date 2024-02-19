@@ -61,8 +61,10 @@ public:
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     step_traj->clear();
+    ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state,4));
     _spec->propagate(_query->start_state, *step_plan, *step_traj);
     _spec->state_space->copy(_query->start_state, step_traj->back());
+    ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state,4));
 
     _planner->link_and_setup_spec(_spec);
     _planner->preprocess();

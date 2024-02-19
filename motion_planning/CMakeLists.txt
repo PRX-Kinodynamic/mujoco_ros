@@ -48,10 +48,13 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   PlannerGoal.msg
-# )
+set(MSG_FILES "")
+file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
+foreach(M_DIR ${MSG_DIRS})
+  GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
+  add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
+endforeach()
 
 # Generate services in the 'srv' folder
 # add_service_files(
@@ -67,11 +70,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-#   prx_models
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##

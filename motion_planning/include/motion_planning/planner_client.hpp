@@ -16,6 +16,9 @@ private:
   bool _obs_received{ false }, _publish_trajectory{ false };
   double _preprocess_start_time, _query_fulfill_end_time;
   int _control_dim;
+  
+  Eigen::VectorXd _linear_velocity;
+  std_msgs::Float64 _estimated_linear_velocity;
 
 public:
   planner_client_t(ros::NodeHandle& nh, bool publish_trajectory, int control_dim) : _publish_trajectory(publish_trajectory), _control_dim(control_dim)
@@ -26,6 +29,7 @@ public:
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
     _plan_publisher = nh.advertise<ml4kp_bridge::PlanStamped>(root + "/ml4kp_plan", 1000, true);
     _traj_publisher = nh.advertise<ml4kp_bridge::TrajectoryStamped>(root + "/ml4kp_traj", 1000, true);
+    _linear_velocity = Eigen::VectorXd::Zero(3);
   }
 
   double get_preprocess_time() const
@@ -40,6 +44,13 @@ public:
 
   void observation_callback(const Observation& message)
   {
+    if (_obs_received)
+    {
+      // Calculate linear velocity
+      double dt = (message.header.stamp - _most_recent_observation.header.stamp).toSec();
+      _linear_velocity = Eigen::Vector3d((message.pose.position.x - _most_recent_observation.pose.position.x) / dt,
+                                         (message.pose.position.y - _most_recent_observation.pose.position.y) / dt, 0.0);
+    }
     _most_recent_observation = message;
     _obs_received = true;
   }
@@ -64,12 +75,15 @@ public:
     }
     _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
+    _estimated_linear_velocity.data = std::sqrt(_linear_velocity[0] * _linear_velocity[0] + _linear_velocity[1] * _linear_velocity[1]);
+    _service.request.current_observation.float_extra.push_back(_estimated_linear_velocity);
     _service.request.planning_duration.data = ros::Duration(planning_duration);
     _service.request.goal_configuration = goal_configuration;
     _service.request.return_trajectory.data = _publish_trajectory;
     if (_service_client.call(_service))
     {
       ROS_DEBUG("Service call successful");
+      ROS_DEBUG_STREAM("Current obs: " << _most_recent_observation.pose.position.x << ", " << _most_recent_observation.pose.position.y);
       if (is_goal_reached(goal_configuration, goal_radius))
       {
         ROS_INFO("Goal reached. Not publishing plan");

@@ -14,30 +14,39 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
   ros::NodeHandle n;
-  prx::simulation_step = 0.01;
 
   const std::string root{ ros::this_node::getNamespace() };
-  int random_seed;
-  n.getParam(ros::this_node::getName() + "/random_seed", random_seed);
-  prx::init_random(random_seed);
+  std::string params_fname;
+  n.getParam(ros::this_node::getName() + "/params_file", params_fname);
+  auto params = prx::param_loader(params_fname);
 
-  // std::string plant_name = "MushrAnalytical";
-  // std::string plant_path = "MushrAnalytical";
-  std::string plant_name = "mushr";
-  std::string plant_path = "mushr";
+  // TODO: Does this need to be set inside the client/service for better determinism?
+  prx::init_random(params["random_seed"].as<int>());
+
+  prx::simulation_step = params["simulation_step"].as<double>();
+  std::string plant_name = params["/plant/name"].as<std::string>();
+  std::string plant_path = params["/plant/path"].as<std::string>();
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
-  prx::world_model_t planning_model({ plant }, {});
-  planning_model.create_context("planner_context", { plant_name }, {});
+  auto obstacles = prx::load_obstacles("environments/obstacle_0.yaml");
+  std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list = obstacles.second;
+  std::vector<std::string> obstacle_names = obstacles.first;
+
+  prx::world_model_t planning_model({ plant }, {obstacle_list});
+  planning_model.create_context("planner_context", { plant_name }, {obstacle_names});
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
-  // std::vector<double> min_control_limits = { -1., -0.5 };
-  // std::vector<double> max_control_limits = { 1., 0.5 };
-  std::vector<double> min_control_limits = { -.5, -1. };
-  std::vector<double> max_control_limits = { .5, 1. };
+  auto ps = planning_context.first->get_parameter_space();
+  std::vector<double> min_control_limits = params["/plant/control_space/lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_control_limits = params["/plant/control_space/upper_bound"].as<std::vector<double> >();
+  std::vector<double> min_state_limits = params["/plant/state_space/lower_bound"].as<std::vector<double> >();
+  std::vector<double> max_state_limits = params["/plant/state_space/upper_bound"].as<std::vector<double> >();
+  ss->set_bounds(min_state_limits, max_state_limits);
   cs->set_bounds(min_control_limits, max_control_limits);
+  std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double> >();
+  ps->copy_from(param_values);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
@@ -119,7 +128,7 @@ int main(int argc, char** argv)
   std::string out_html;
   n.getParam(ros::this_node::getName() + "/out_html", out_html);
 
-  prx::three_js_group_t* vis_group = new prx::three_js_group_t({ plant }, {});
+  prx::three_js_group_t* vis_group = new prx::three_js_group_t({ plant }, { obstacle_list });
   std::string body_name = plant_name + "/body";
   vis_group->add_vis_infos(prx::info_geometry_t::FULL_LINE, dirt_query->tree_visualization, body_name, ss);
   vis_group->add_animation(dirt_query->solution_traj, ss, dirt_query->start_state);
