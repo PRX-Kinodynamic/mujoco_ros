@@ -1,6 +1,7 @@
 #include <thread>
 #include "mujoco_ros/control_listener.hpp"
 #include "mujoco_ros/sensordata_publisher.hpp"
+#include "mujoco_ros/Collision.h"
 #include "prx_models/mj_mushr.hpp"
 #include <utils/rosparams_utils.hpp>
 
@@ -28,6 +29,8 @@ int main(int argc, char** argv)
 
   ros::Subscriber reset_subscriber_for_sim, reset_subscriber_for_viz;
   reset_subscriber_for_sim = n.subscribe(root + "/reset", 1000, &mj_ros::simulator_t::reset_simulation, sim.get());
+
+  ros::ServiceServer collision_service = n.advertiseService(root + "/collision", &mj_ros::simulator_t::in_collision, sim.get());
 
   std::vector<ros::Subscriber> sim_subscribers;
   mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, visualize) };
