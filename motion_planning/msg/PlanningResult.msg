@@ -1,2 +1,3 @@
 std_msgs/Bool goal_reached
+std_msgs/Bool in_collision
 std_msgs/Float64 total_time
