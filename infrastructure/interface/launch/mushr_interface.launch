@@ -3,6 +3,7 @@
     <arg name="ground_truth_pose_used" default="false" />
     <arg name="plan_translate_topic" default="/mushr/ml4kp_plan" />
     <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
+    <arg name="reset_topic" default="/mushr/reset" />
 
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="mushr_interface_manager"  args="manager" output="screen"/>
@@ -12,6 +13,7 @@
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_translate_topic)" />
             <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
+            <param name="reset_topic" value="$(arg reset_topic)"/>
             <param name="frequency" value="100" />
         </node>    
 

@@ -5,6 +5,7 @@
 #include "motion_planning/planner_client.hpp"
 #include "motion_planning/PlanningResult.h"
 #include "mujoco_ros/Collision.h"
+#include "std_msgs/Empty.h"
 #include <utils/std_utils.cpp>
 
 #include <ros/ros.h>
@@ -95,6 +96,7 @@ int main(int argc, char** argv)
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
   ros::Publisher planning_result_publisher =
       n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
+  ros::Publisher reset_publisher = n.advertise<std_msgs::Empty>(root + "/reset", 1, true);
   motion_planning::PlanningResult planning_result_msg;
 
   ros::ServiceClient collision_client = n.serviceClient<mujoco_ros::Collision>(root + "/collision");
@@ -150,6 +152,8 @@ int main(int argc, char** argv)
         planning_result_msg.in_collision.data = true;
         planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
         planning_result_publisher.publish(planning_result_msg);
+        std_msgs::Empty reset_msg;
+        reset_publisher.publish(reset_msg);
         break;
       }
     }

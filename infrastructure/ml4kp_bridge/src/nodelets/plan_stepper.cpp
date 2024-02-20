@@ -3,6 +3,7 @@
 #include <pluginlib/class_list_macros.hpp>
 
 #include <ml4kp_bridge/plan_bridge.hpp>
+#include <std_msgs/Empty.h>
 namespace ml4kp_bridge
 {
 
@@ -22,16 +23,26 @@ protected:
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
     std::string publisher_topic{};
     std::string subscriber_topic{};
+    std::string reset_topic{};
     double frequency;
     private_nh.getParam("publisher_topic", publisher_topic);
     private_nh.getParam("subscriber_topic", subscriber_topic);
     private_nh.getParam("frequency", frequency);
+    private_nh.getParam("reset_topic", reset_topic);
 
     _timer_duration = ros::Duration(1.0 / frequency);
     _timer = private_nh.createTimer(_timer_duration, &plan_stepper_t::timer_callback, this);
     _publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(publisher_topic, 1, true);
     _subscriber = private_nh.subscribe(subscriber_topic, 1, &plan_stepper_t::get_plan, this);
+    _reset_subscriber = private_nh.subscribe(reset_topic, 1, &plan_stepper_t::reset, this);
     _next_time = ros::Time::now();
+  }
+
+  void reset(const std_msgs::EmptyConstPtr reset_msg)
+  {
+    _plan.steps.clear();
+    _current_plan_step = 0;
+    _plan_received = false;
   }
 
   void get_plan(const ml4kp_bridge::PlanStampedConstPtr plan_in)
@@ -41,6 +52,7 @@ protected:
     std::copy(plan_in->plan.steps.begin(), plan_in->plan.steps.end(), std::back_inserter(_plan.steps));
     _plan_received = true;
   }
+
   void timer_callback(const ros::TimerEvent& event)
   {
     if (_plan_received)
@@ -88,6 +100,7 @@ protected:
   ros::Timer _timer;
   ros::Publisher _publisher;
   ros::Subscriber _subscriber;
+  ros::Subscriber _reset_subscriber;
 
   ml4kp_bridge::Plan _plan;
 
