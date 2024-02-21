@@ -112,8 +112,11 @@ int main(int argc, char** argv)
   planner_service.set_postprocess_timeout(postprocess_timeout);
 
   spinner.start();
-  goal_pos_publisher.publish(goal_configuration);
-  goal_radius_publisher.publish(goal_radius);
+  if (visualize_trajectory)
+  {
+    goal_pos_publisher.publish(goal_configuration);
+    goal_radius_publisher.publish(goal_radius);
+  }
   double prev_time = ros::Time::now().toSec();
   double start_time = ros::Time::now().toSec();
   double current_time = ros::Time::now().toSec();

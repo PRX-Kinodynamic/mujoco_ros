@@ -102,6 +102,7 @@ public:
       }
       else
       {
+        _plan_publisher.publish(_service.response.output_plan);
         ROS_WARN("No plan found");
       }
     }
