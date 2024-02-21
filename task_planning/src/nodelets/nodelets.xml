@@ -1,0 +1,10 @@
+<library path="lib/libtask_planning_nodelets">
+  <class 
+      name="task_planning/feedback_nodelet_t" 
+      type="task_planning::feedback_nodelet_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to set goals for a feedback controller
+    </description>
+  </class>
+</library>

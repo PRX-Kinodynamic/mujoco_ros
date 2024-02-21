@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(task_planning)
 set(CMAKE_CXX_STANDARD 17)
+add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+
+set(BUILD_WITH_ROGUE ON CACHE BOOL "Build with RoGuE planner")
+if (BUILD_WITH_ROGUE)
+  add_definitions(-DBUILD_WITH_ROGUE)
+endif()
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -10,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   message_generation
+  nodelet
   roslib
   motion_planning
   utils
@@ -104,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES mujoco
+ LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime motion_planning
 #  DEPENDS system_lib
 )
@@ -119,6 +126,17 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
+
+add_library(${PROJECT_NAME} INTERFACE)
+
+set(NODELET_LIB ${PROJECT_NAME}_nodelets)
+file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+add_library(${NODELET_LIB} ${NODELET_FILES})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+### Executable files
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
