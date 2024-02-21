@@ -1,0 +1,18 @@
+<launch>
+    <arg name="goal_radius" value="0.25"/>
+
+    <group ns="control">
+        <node pkg="interface" type="ackermann_pose_feedback" name="ackermann_pose_feedback" output="screen">
+            <param name="pose_topic" value="/mushr/feedback_goal_pos" />
+            <param name="control_topic" value="/mushr/plan_stepper/control" />
+            <param name="kp" value="0.5" />
+            <param name="ka" value="1.5" />
+            <param name="kb" value="-0.25" />
+            <param name="robot_frame" value="robot_0" />
+            <param name="world_frame" value="world" />
+            <param name="goal_radius_topic" value="/mushr/feedback_goal_rad" />
+        </node>
+    </group>
+    
+    <!-- <node pkg="rostopic" type="rostopic" name="goal_publisher" args="pub /mushr/goal_radius std_msgs/Float64 'data: $(arg goal_radius)'" output="screen"/> -->
+</launch>
