@@ -1,0 +1,90 @@
+<launch>
+  <arg name="curr_namespace" default="desktop07" />
+  <arg name="camera_config" default="$(find perception)/config/logitech_brio_desktop07.yaml"/>
+  <arg name="world_frame" default="world"/>
+  <arg name="robot_frame" default="C0_robot_0"/>
+  <arg name="camera_frame" default="C0"/>
+  <arg name="main_marker" default="121"/>
+  <arg name="plan_topic" default="/mushr/ml4kp_plan"/>
+  <arg name="trajectory_topic" default="/mushr/ml4kp_traj"/>
+  <arg name="robot_id" default="0"/>
+  <arg name="marker_length" default="0.164"/>
+  <arg name="markers_topic_name" default="/$(arg curr_namespace)/markers"/>
+  <arg name="rotation_offset" default="[0.0,0.0, -1.57079632679]"/>
+  <arg name="front_corner" default="0"/>
+  <arg name="camera_id" default="0"/>
+
+  <arg name="marker_world_translation" default="0 0 0"/>
+  <arg name="marker_world_quat" default="0 0 0. 1."/>
+  <arg name="cameras_quat" default="0 0 0.998 0.0457"/>
+  <!-- <arg name="marker_world_quat" default="0 0 0 1"/> -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_C0C1" 
+    args="$(arg marker_world_translation) $(arg marker_world_quat) C0_marker_121 $(arg world_frame)" />
+  <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
+    <!-- args="0 0 0 $(arg marker_world_quat) C0_marker_121 C1_marker_121"/> -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+    args="3.735 -0.45 -0.13 $(arg cameras_quat) C0 C1"/>
+     
+  <group ns="$(arg curr_namespace)">
+
+    <!-- Manager nodelet -->
+    <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>
+
+    <!-- Camera reader -->
+    <node pkg="nodelet" type="nodelet" name="physical_camera_nodelet_t" output="screen"
+      args="load perception/physical_camera_nodelet_t standalone_nodelet" >
+      <rosparam command="load" file="$(arg camera_config)" />
+    </node>      
+
+    <!-- Aruco detection -->
+    <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" output="screen"
+      args="load perception/aruco_detection_nodelet_t standalone_nodelet" >
+      <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+    </node>
+
+    <!-- camera To world -->
+    <node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" output="screen"
+      args="load estimation/aruco_cTw_nodelet_t standalone_nodelet">
+      <rosparam command="load" file="$(arg camera_config)" />
+      <param name="front_corner"        value="$(arg front_corner)" />
+      <param name="main_marker"         value="$(arg main_marker)" />
+      <param name="marker_length"       value="$(arg marker_length)" />
+      <param name="markers_topic_name"  value="$(arg markers_topic_name)" />
+      <param name="robot_id"            value="$(arg robot_id)" />
+      <param name="camera_id"           value="0"/>
+      <rosparam param="rotation_offset" subst_value="True">$(arg rotation_offset)</rosparam>
+    </node>  
+  
+    <!-- world To camera -->
+    <node pkg="nodelet" type="nodelet" name="aruco_wTc_nodelet_t" output="screen"
+      args="load estimation/aruco_wTc_nodelet_t standalone_nodelet" >
+      <rosparam command="load" file="$(arg camera_config)" />
+      <param name="image_topic" value="/$(arg curr_namespace)/camera/rgb"/>
+      <param name="goal_pose_topic" value="/mushr/feedback_goal_pos"/>
+      <param name="goal_rad_topic" value="/mushr/feedback_goal_rad"/>
+      <param name="trajectory_topic" value="$(arg trajectory_topic)"/>
+      <param name="camera_frame" value="$(arg camera_frame)"/>
+      <param name="world_frame" value="$(arg world_frame)"/>
+      <param name="robot_frame" value="$(arg robot_frame)"/>
+      <param name="camera_id"           value="0"/>
+
+    </node>  
+
+    <node pkg="nodelet" type="nodelet" name="robot_estimation_simple_nodelet_t" output="screen"
+      args="load estimation/robot_estimation_simple_nodelet_t standalone_nodelet" >
+      <param name="robot_frame_0" value="C0_robot_0"/>
+      <param name="robot_frame_1" value="C1_robot_0"/>
+    </node>   
+
+    <!-- Plant estimator -->
+    <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" output="screen"
+      args="load estimation/plant_estimator_nodelet_t standalone_nodelet" >
+      <param name="plan_topic" value="$(arg plan_topic)"/>
+      <param name="trajectory_topic" value="$(arg trajectory_topic)"/>
+      <param name="simulation_step" value="0.1"/>
+      <param name="observation_dim" value="3"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="robot_0"/>
+    </node>  
+  </group>
+</launch>

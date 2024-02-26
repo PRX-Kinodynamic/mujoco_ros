@@ -1,0 +1,25 @@
+<launch>
+    <arg name="plan_from_file_topic" default="/mushr/ml4kp_plan" />
+    <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
+
+    <group ns="mushr">
+        <node pkg="nodelet" type="nodelet" name="plan_stepper_nodelet_manager"  args="manager" output="screen"/>
+
+         <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+            args="load ml4kp_bridge/plan_stepper_t plan_stepper_nodelet_manager" 
+            output="screen">
+            <param name="subscriber_topic" value="$(arg plan_from_file_topic)" />
+            <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
+            <param name="frequency" value="10" />
+        </node>       
+
+        <node pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
+            args="load interface/AckermannFromSpacePointNodelet plan_stepper_nodelet_manager" 
+            output="screen">
+            <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+            <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
+            <param name="frequency" value="10" />
+        </node>         
+    </group>
+  
+</launch>

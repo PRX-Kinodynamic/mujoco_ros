@@ -132,6 +132,7 @@ private:
     {
       _ctrl.point[0].data = 0;
       _ctrl.point[1].data = 0;
+      _desired_pose_received = false;
       return true;
     }
     return false;

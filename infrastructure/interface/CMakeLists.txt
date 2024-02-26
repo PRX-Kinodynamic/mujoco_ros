@@ -19,6 +19,9 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   ackermann_msgs
   nodelet
+  rosbag
+  rosbag_storage
+  tf
   utils
 )
 find_package(OpenCV REQUIRED )
