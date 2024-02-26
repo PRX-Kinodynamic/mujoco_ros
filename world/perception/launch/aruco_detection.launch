@@ -1,5 +1,5 @@
 <launch>
-    <arg name="camera_config" default="$(find perception)/config/logitech_brio.yaml"/>
+    <arg name="camera_config" default="$(find perception)/config/logitech_brio_desktop07.yaml"/>
 
     <group ns="aruco_detection_0">
         <node pkg="nodelet" type="nodelet" name="standalone_nodelet"  args="manager" output="screen"/>

@@ -1,5 +1,0 @@
-camera: "/dev/video0"
-height: 720 
-width: 1080
-frequency: 50
-display_video: true

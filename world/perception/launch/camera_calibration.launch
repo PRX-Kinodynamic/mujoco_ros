@@ -1,0 +1,17 @@
+<launch>
+    <arg name="camera_config" default="$(find perception)/config/logitech_brio_desktop07.yaml"/>
+    
+    <node pkg="nodelet" type="nodelet" name="physical_camera_nodelet"  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="physical_camera_nodelet_t" output="screen"
+        args="load perception/physical_camera_nodelet_t physical_camera_nodelet">
+        <rosparam command="load" file="$(arg camera_config)" />
+    </node>    
+
+    <node pkg="perception" type="camera_calibration.py" name="camera_calibration" output="screen">
+        <param name="~image_topic" value="/camera/rgb" />
+        <param name="~frame_capture_time" value="1" />
+        <param name="~images_to_collect" value="300" />
+        <param name="~square_length" value="32"/>
+    </node>
+</launch>
