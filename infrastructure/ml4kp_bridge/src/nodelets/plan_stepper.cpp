@@ -5,7 +5,6 @@
 #include <ml4kp_bridge/plan_bridge.hpp>
 namespace ml4kp_bridge
 {
-
 // Class to execute a plan: given a plan, step over it at `frequency` rate publishing
 // each control as ml4kp_bridge::SpacePoint on the topic defined by parameter `publisher_topic`.
 // To be used with a msg_translator nodelet to avoid copies/networking of msgs.
@@ -43,21 +42,45 @@ protected:
   }
   void timer_callback(const ros::TimerEvent& event)
   {
-    if (_plan_received && _current_plan_step < _plan.steps.size())
+    if (_plan_received)
     {
-      if (ros::Time::now() > _next_time)
+      if (_current_plan_step < _plan.steps.size())
       {
-        _next_time = ros::Time::now() + _plan.steps[_current_plan_step].duration.data;
-        _current_plan_step++;
+        if (ros::Time::now() > _next_time)
+        {
+          // We still have some plan steps to execute
+          _next_time = ros::Time::now() + _plan.steps[_current_plan_step].duration.data;
+          _ctrl = _plan.steps[_current_plan_step].control;
+          _current_plan_step++;
+          ROS_DEBUG("Next time: %f", _next_time.toSec());
+        }
       }
-      _publisher.publish(_plan.steps[_current_plan_step - 1].control);
+      else if (_current_plan_step == _plan.steps.size())
+      {
+        // Executing the last step of the current plan
+        if (ros::Time::now() > _next_time)
+        {
+          // We have exhausted the current plan
+          _plan.steps.clear();
+          _current_plan_step = 0;
+          _plan_received = false;
+        }
+      }
+      else
+      {
+        // We have exhausted the current plan
+        _plan.steps.clear();
+        _current_plan_step = 0;
+        _plan_received = false;
+      }
     }
-    else
+    if (_plan_received)
     {
-      _plan.steps.clear();
-      _current_plan_step = 0;
+      _publisher.publish(_ctrl);
     }
   }
+
+  ml4kp_bridge::SpacePoint _ctrl;
 
   bool _plan_received;
   ros::Duration _timer_duration;

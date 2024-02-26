@@ -1,4 +1,5 @@
 #include <prx/utilities/defs.hpp>
+#include <prx/utilities/general/constants.hpp>
 #include <prx/simulation/plants/plants.hpp>
 #include <prx/planning/world_model.hpp>
 #include <prx/planning/planners/dirt.hpp>
