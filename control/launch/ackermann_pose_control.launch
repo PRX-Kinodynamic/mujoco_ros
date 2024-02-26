@@ -1,0 +1,32 @@
+<launch>
+    <arg name="simulation" default="true" />
+    <arg name="plan_from_file_topic" default="/mushr/ml4kp_plan" />
+    <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
+
+    <group ns="control">
+        <node pkg="nodelet" type="nodelet" name="control_nodelet_manager"  args="manager" output="screen"/>
+
+        <!-- <node pkg="interface" type="ackermann_pose_feedback" name="ackermann_pose_feedback" output="screen"> -->
+        <node pkg="nodelet" type="nodelet" name="ackermann_feedback_pose_control_t" 
+            args="load control/ackermann_feedback_pose_control_t control_nodelet_manager" 
+            output="screen">
+            <param name="pose_topic" value="/mushr/feedback_goal_pos" />
+            <param name="control_topic" value="/mushr/plan_stepper/control" />
+            <param name="kp" value="0.1" />
+            <param name="ka" value="1.5" />
+            <param name="kb" value="-0.25" />
+            <param name="robot_frame" value="robot_0" />
+            <param name="world_frame" value="world" />
+            <param name="goal_radius_topic" value="/mushr/feedback_goal_rad" />
+        </node>
+
+        <node pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
+            args="load interface/AckermannFromSpacePointNodelet control_nodelet_manager" 
+            output="screen">
+            <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+            <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
+            <param name="frequency" value="30" />
+        </node>         
+    </group>
+  
+</launch>
