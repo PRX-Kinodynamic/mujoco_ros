@@ -6,6 +6,8 @@
 #include "prx_models/mj_copy.hpp"
 
 #include <interface/SensorDataStamped.h>
+
+#include <ml4kp_bridge/defs.h>
 #include <prx_models/MushrControl.h>
 #include <prx_models/MushrPlan.h>
 #include <prx_models/MushrObservation.h>
@@ -14,7 +16,6 @@
 
 namespace prx_models
 {
-
 namespace mushr_t
 {
 static constexpr std::size_t u_dim{ 2 };
@@ -66,8 +67,8 @@ inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg
 {
   state->at(0) = msg.pose.position.x;
   state->at(1) = msg.pose.position.y;
-  Eigen::Quaterniond quat = Eigen::Quaterniond(msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y,
-                                               msg.pose.orientation.z);
+  const Eigen::Quaterniond quat(msg.pose.orientation.w, msg.pose.orientation.x, msg.pose.orientation.y,
+                                msg.pose.orientation.z);
   // Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
   Eigen::Vector3d euler = prx::quaternion_to_euler(quat);
   state->at(2) = euler[2];

@@ -127,7 +127,7 @@ catkin_package(
 include_directories(
   include
   # ${MJ_INCLUDE_DIR}
-  # ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
