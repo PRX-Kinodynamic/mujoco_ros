@@ -1,0 +1,13 @@
+<launch>
+  <arg name="tf_filename" default="data/tf_out.txt"/>
+  <arg name="current_ns" default="utils"/>
+  <!-- <param name="/use_sim_time" value="true"/> -->
+  <group ns="$(arg current_ns)">
+    <node pkg="utils" type="tf_to_file" name="tf_to_file" output="screen">
+      <rosparam command="load" file="$(find utils)/config/mj_tf_to_file.yaml" />
+    	<!-- <rosparam command="load" file="$(find utils)/config/tf_to_file.yaml" /> -->
+      <param name="filename" value="$(arg tf_filename)" />
+    </node>
+  </group>
+<!-- 1705620073.86 -->
+</launch>
