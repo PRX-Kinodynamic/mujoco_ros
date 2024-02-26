@@ -17,15 +17,17 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
+#include <utils/rosparams_utils.hpp>
 #include <interface/StampedMarkers.h>
-#include <interface/defs.hpp>
 #include <aruco/aruco_nano.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
+
+#include <utils/dbg_utils.hpp>
+
 namespace estimation
 {
 class robot_estimation_simple_nodelet_t : public nodelet::Nodelet
@@ -79,9 +81,9 @@ private:
     const double x{ (q1.x() + q2.x()) / 2.0 };
     const double y{ (q1.y() + q2.y()) / 2.0 };
     const double z{ (q1.z() + q2.z()) / 2.0 };
-    PRX_DEBUG_VARS(q1)
-    PRX_DEBUG_VARS(q2)
-    PRX_DEBUG_VARS(w, x, y, z)
+    DEBUG_VARS(q1)
+    DEBUG_VARS(q2)
+    DEBUG_VARS(w, x, y, z)
     return Eigen::Quaterniond(w, x, y, z);
     // const double w1{ q1[0] };
     // const double w2{ q2[0] };

@@ -17,11 +17,11 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
-#include <interface/utils.hpp>
+// #include <interface/utils.hpp>
 #include <interface/StampedMarkers.h>
-#include <interface/defs.hpp>
 #include <aruco/aruco_nano.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {
@@ -85,7 +85,7 @@ private:
     _vizualize_markers = vizualize_markers;
     _camera_name = "C" + std::to_string(camera_id);
     _robot_id = robot_id;
-    PRX_DEBUG_VARS(_camera_name);
+    DEBUG_VARS(_camera_name);
     _rot_offset = Eigen::AngleAxisd(rotation_offset[0], Eigen::Vector3d::UnitX()) *
                   Eigen::AngleAxisd(rotation_offset[1], Eigen::Vector3d::UnitY()) *
                   Eigen::AngleAxisd(rotation_offset[2], Eigen::Vector3d::UnitZ());
@@ -95,6 +95,7 @@ private:
 
     _markers_subscriber = private_nh.subscribe(markers_topic_name, 1, &aruco_cTw_nodelet_t::detect, this);
 
+    DEBUG_PRINT
     _marker_corners = { { -marker_size / 2.0, marker_size / 2.0, 0.0 },
                         { marker_size / 2.0, marker_size / 2.0, 0.0 },
                         { marker_size / 2.0, -marker_size / 2.0, 0.0 },
@@ -105,8 +106,10 @@ private:
                     { marker_size / 2.0, -marker_size / 2.0, 0.0 },
                     { -marker_size / 2.0, -marker_size / 2.0, 0.0 } };
 
+    DEBUG_PRINT
     _front = Eigen::Vector3d(0, _eg_corners[front_corner][1], 0);
 
+    DEBUG_PRINT
     _marker.resize(4);
     _viz_markers.header.frame_id = _camera_name;
     _viz_markers.type = visualization_msgs::Marker::LINE_LIST;
@@ -115,6 +118,7 @@ private:
     _viz_markers.color.b = 0;
     _viz_markers.color.a = 1;
     _viz_markers.scale.x = 0.01;
+    DEBUG_PRINT
     // markers.resize(8);
   }
 

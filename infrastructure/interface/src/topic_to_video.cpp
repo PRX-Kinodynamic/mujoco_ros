@@ -29,10 +29,10 @@
 #include <tf2_msgs/TFMessage.h>
 #include <opencv2/videoio.hpp>
 
-#include "interface/defs.hpp"
-#include "interface/execution_status.hpp"
-#include "interface/rosbag_record.hpp"
-#include "interface/StampedMarkers.h"
+#include <utils/rosparams_utils.hpp>
+#include <interface/execution_status.hpp>
+#include <interface/rosbag_record.hpp>
+#include <interface/StampedMarkers.h>
 
 class topic_to_video_t
 {
@@ -96,7 +96,7 @@ int main(int argc, char** argv)
   utilities::execution_status_t execution_status(nh, stop_topic);
 
   std::ostringstream video_name;
-  video_name << video_directory << "/v_" << interface::timestamp() << "_" << video_id << ".avi";
+  video_name << video_directory << "/v_" << utils::timestamp() << "_" << video_id << ".avi";
   ROS_INFO_STREAM("Video name: " << video_name.str());
 
   topic_to_video_t topic_to_video(nh, video_name.str(), image_topic, width, height);

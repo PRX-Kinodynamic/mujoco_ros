@@ -1,13 +1,13 @@
 #pragma once
 #include <any>
-#include "interface/utils.hpp"
+#include <utils/rosparams_utils.hpp>
 
 namespace interface
 {
 void init_bag(rosbag::Bag* bag, const std::string rosbag_directory)
 {
   std::ostringstream bag_name;
-  bag_name << rosbag_directory << "/b_" << interface::timestamp() << ".bag";
+  bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
   bag->open(bag_name.str(), rosbag::bagmode::Write);
   ROS_INFO_STREAM("Bag name: " << bag_name.str());
 }

@@ -22,6 +22,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <interface/StampedMarkers.h>
 #include <ml4kp_bridge/defs.h>
+#include <prx_models/MushrObservation.h>
 #include <utils/rosparams_utils.hpp>
 
 namespace estimation

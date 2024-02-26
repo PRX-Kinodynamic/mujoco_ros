@@ -8,6 +8,7 @@ find_package(OpenCV REQUIRED )
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   interface
+  prx_models
   ml4kp_bridge
   roscpp
   std_msgs

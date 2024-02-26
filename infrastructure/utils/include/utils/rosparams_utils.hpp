@@ -2,7 +2,7 @@
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
-#define ROS_PARAM_SETUP(nh, var) (interface::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
+#define ROS_PARAM_SETUP(nh, var) (utils::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
 
 namespace utils
 {

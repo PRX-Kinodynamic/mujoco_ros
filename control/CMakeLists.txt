@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   interface
   tf
   nodelet
+  utils
 )
 
 ## System dependencies are found with CMake's conventions

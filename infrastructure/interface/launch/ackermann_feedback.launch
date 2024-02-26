@@ -1,5 +1,6 @@
 <launch>
     <arg name="goal_radius" value="0.25"/>
+    <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
 
     <group ns="control">
         <node pkg="interface" type="ackermann_pose_feedback" name="ackermann_pose_feedback" output="screen">
@@ -12,6 +13,7 @@
             <param name="world_frame" value="world" />
             <param name="goal_radius_topic" value="/mushr/feedback_goal_rad" />
         </node>
+ 
     </group>
     
     <!-- <node pkg="rostopic" type="rostopic" name="goal_publisher" args="pub /mushr/goal_radius std_msgs/Float64 'data: $(arg goal_radius)'" output="screen"/> -->

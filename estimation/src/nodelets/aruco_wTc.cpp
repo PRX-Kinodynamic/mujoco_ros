@@ -24,6 +24,7 @@
 #include <aruco/aruco_nano.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {

@@ -8,7 +8,7 @@
   <arg name="plan_topic" default="/mushr/ml4kp_plan"/>
   <arg name="trajectory_topic" default="/mushr/ml4kp_traj"/>
   <arg name="robot_id" default="0"/>
-  <arg name="marker_length" default="0.164"/>
+  <arg name="marker_size" default="0.164"/>
   <arg name="markers_topic_name" default="/$(arg curr_namespace)/markers"/>
   <arg name="rotation_offset" default="[0.0,0.0, -1.57079632679]"/>
   <arg name="front_corner" default="0"/>
@@ -48,7 +48,7 @@
       <rosparam command="load" file="$(arg camera_config)" />
       <param name="front_corner"        value="$(arg front_corner)" />
       <param name="main_marker"         value="$(arg main_marker)" />
-      <param name="marker_length"       value="$(arg marker_length)" />
+      <param name="marker_size"       value="$(arg marker_size)" />
       <param name="markers_topic_name"  value="$(arg markers_topic_name)" />
       <param name="robot_id"            value="$(arg robot_id)" />
       <param name="camera_id"           value="0"/>
