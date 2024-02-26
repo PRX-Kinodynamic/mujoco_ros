@@ -84,8 +84,9 @@ private:
     _header.frame_id = "world";
 
     _plan_subscriber = private_nh.subscribe(plan_topic, 1, &plant_estimator_nodelet_t::get_plan, this);
-    _trajectory_publisher = private_nh.advertise<ml4kp_bridge::TrajectoryStamped>(trajectory_topic, 1);
+    // _trajectory_publisher = private_nh.advertise<ml4kp_bridge::TrajectoryStamped>(trajectory_topic, 1);
     _pose_timer = private_nh.createTimer(ros::Duration(0.1), &plant_estimator_nodelet_t::estimate_pose, this);
+    _observation_publisher = private_nh.advertise<prx_models::MushrObservation>("/mushr/pose", 1);
   }
 
   void correct_pose()
@@ -93,7 +94,8 @@ private:
     // For now, only from transform to state
     _current_state->at(0) = _robot_transform.translation()[0];
     _current_state->at(1) = _robot_transform.translation()[1];
-    _current_state->at(2) = _robot_transform.translation()[1];
+    const double theta{ prx::quaternion_to_euler(Eigen::Quaterniond(_robot_transform.rotation()))[2] };
+    _current_state->at(2) = theta;
   }
 
   void estimate_pose(const ros::TimerEvent& event)
@@ -104,6 +106,21 @@ private:
       tf::transformTFToEigen(_tf_robot, _robot_transform);
     }
     correct_pose();
+
+    const Eigen::Quaterniond quat{ _robot_transform.rotation() };
+    const Eigen::Vector3d vec{ prx::quaternion_to_euler(quat) };
+    // PRX_DEBUG_VARS(quat);
+    // PRX_DEBUG_VARS(vec.transpose());
+
+    _observation.header.stamp = ros::Time::now();
+    _observation.pose.position.x = _robot_transform.translation()[0];
+    _observation.pose.position.y = _robot_transform.translation()[1];
+    _observation.pose.position.z = 0.0;
+    _observation.pose.orientation.w = quat.w();
+    _observation.pose.orientation.x = quat.x();
+    _observation.pose.orientation.y = quat.y();
+    _observation.pose.orientation.z = quat.z();
+    _observation_publisher.publish(_observation);
   }
 
   void get_plan(const ml4kp_bridge::PlanStampedConstPtr message)
@@ -117,7 +134,7 @@ private:
     _header.stamp = ros::Time::now();
     traj_msg.header = _header;
     ml4kp_bridge::copy(traj_msg.trajectory, _estimated_traj);
-    _trajectory_publisher.publish(traj_msg);
+    // _trajectory_publisher.publish(traj_msg);
   }
 
   std_msgs::Header _header;
@@ -143,7 +160,10 @@ private:
 
   ros::Subscriber _plan_subscriber;
   ros::Publisher _trajectory_publisher;
+  ros::Publisher _observation_publisher;
   ros::Timer _pose_timer;
+
+  prx_models::MushrObservation _observation;
 };
 }  // namespace estimation
 PLUGINLIB_EXPORT_CLASS(estimation::plant_estimator_nodelet_t, nodelet::Nodelet);

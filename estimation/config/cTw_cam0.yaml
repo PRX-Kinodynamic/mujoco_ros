@@ -4,6 +4,5 @@ marker_size: 0.167
 
 markers_topic_name: "/mushr/markers"
 rotation_offset: [0, 0, -1.5707963268]
-camera_matrix: [497.67147877, 0, 607.36793058, 0, 492.46510858, 372.1106171]
-dist_coeffs: [-6.62715899e-2, -5.83370433e-3, 2.84978724e-2, -1.59403498e-5, -1.53564087e-3]
+
 front_corner: 2

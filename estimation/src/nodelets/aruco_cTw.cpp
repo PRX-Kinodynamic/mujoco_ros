@@ -17,7 +17,9 @@
 #include <opencv2/videoio.hpp>
 
 #include <cv_bridge/cv_bridge.h>
+#include <interface/utils.hpp>
 #include <interface/StampedMarkers.h>
+#include <interface/defs.hpp>
 #include <aruco/aruco_nano.h>
 #include <utils/rosparams_utils.hpp>
 
@@ -50,11 +52,13 @@ private:
     int front_corner;
     double marker_size;
     std::string markers_topic_name;
+    int camera_id;
     std::vector<double> rotation_offset;
     std::vector<double> camera_matrix;
     std::vector<double> dist_coeffs;
     bool vizualize_markers;
 
+    NODELET_PARAM_SETUP(private_nh, camera_id);
     NODELET_PARAM_SETUP(private_nh, camera_matrix);
     NODELET_PARAM_SETUP(private_nh, dist_coeffs);
     NODELET_PARAM_SETUP(private_nh, front_corner);
@@ -79,7 +83,9 @@ private:
     _dist_coeffs.push_back(dist_coeffs);
 
     _vizualize_markers = vizualize_markers;
+    _camera_name = "C" + std::to_string(camera_id);
     _robot_id = robot_id;
+    PRX_DEBUG_VARS(_camera_name);
     _rot_offset = Eigen::AngleAxisd(rotation_offset[0], Eigen::Vector3d::UnitX()) *
                   Eigen::AngleAxisd(rotation_offset[1], Eigen::Vector3d::UnitY()) *
                   Eigen::AngleAxisd(rotation_offset[2], Eigen::Vector3d::UnitZ());
@@ -102,7 +108,7 @@ private:
     _front = Eigen::Vector3d(0, _eg_corners[front_corner][1], 0);
 
     _marker.resize(4);
-    _viz_markers.header.frame_id = "camera";
+    _viz_markers.header.frame_id = _camera_name;
     _viz_markers.type = visualization_msgs::Marker::LINE_LIST;
     _viz_markers.color.r = 1;
     _viz_markers.color.g = 0;
@@ -188,20 +194,21 @@ private:
       tf::quaternionEigenToTF(quat, _tf_quat);
       _transform.setOrigin(_tf_vec);
       _transform.setRotation(_tf_quat);
-      std::string frame_name{ "marker_" + std::to_string(marker.id) };
+      std::string frame_name{ _camera_name + "_marker_" + std::to_string(marker.id) };
 
       if (marker.id == _robot_id)
       {
-        const Eigen::Quaterniond quat{ _eg_rot * _rot_offset };
+        const Eigen::Quaterniond quat_robot{ _eg_rot * _rot_offset };
         copy(pose_msg.pose.position, _eg_tvec);
-        copy(pose_msg.pose.orientation, quat);
-        tf::quaternionEigenToTF(quat, _tf_quat);
+        copy(pose_msg.pose.orientation, quat_robot);
+        tf::quaternionEigenToTF(quat_robot, _tf_quat);
         _transform.setRotation(_tf_quat);
         _robot_pose_publisher.publish(pose_msg);
-        frame_name = "robot_" + std::to_string(marker.id);
+        frame_name = _camera_name + "_robot_" + std::to_string(_robot_id);
       }
 
-      _transform_broadcaster.sendTransform(tf::StampedTransform(_transform, ros::Time::now(), "camera", frame_name));
+      _transform_broadcaster.sendTransform(
+          tf::StampedTransform(_transform, ros::Time::now(), _camera_name, frame_name));
     }
 
     _markers_viz_publisher.publish(_viz_markers);
@@ -230,6 +237,7 @@ private:
   ros::Subscriber _markers_subscriber;
   std::string _robot_pose_topic_name;
   std::string _markers_viz_topic_name;
+  std::string _camera_name;
 
   Eigen::Matrix3d _rot_offset;
   int _robot_id;

@@ -17,12 +17,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <visualization_msgs/Marker.h>
 
-#include <opencv2/core/hal/interface.h>
-#include <opencv2/core/quaternion.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/opencv.hpp>
-#include <opencv2/videoio.hpp>
 #include <cv_bridge/cv_bridge.h>
 
 #include <interface/StampedMarkers.h>

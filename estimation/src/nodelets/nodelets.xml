@@ -14,4 +14,9 @@
       Nodelet to estimate the future states of the robot
     </description>
   </class>
+  <class name="estimation/robot_estimation_simple_nodelet_t" type="estimation::robot_estimation_simple_nodelet_t" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to estimate the future states of the robot
+    </description>
+  </class>
 </library>

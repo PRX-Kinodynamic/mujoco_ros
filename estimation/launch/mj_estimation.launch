@@ -1,6 +1,6 @@
 <launch>
 
-	<arg name="simulation" value="true"/>
+	<arg name="simulation" value="false"/>
 
 	<arg name="mujoco_cam_file" value="$(find estimation)/config/mujoco_cam.yaml"/>
 	<arg name="logitech_cam_file" value="$(find estimation)/config/cTw_cam0.yaml"/>
