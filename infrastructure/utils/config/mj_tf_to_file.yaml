@@ -1,0 +1,13 @@
+transforms:
+  - root: "world"
+    child: "C0_robot_0"
+  # - root: "marker_50"
+  #   child: "marker_51"
+  # - root: "marker_50"
+  #   child: "marker_52"
+  # - root: "marker_50"
+  #   child: "marker_53"
+  # - root: "marker_50"
+  #   child: "marker_54"
+  # - root: "marker_50"
+  #   child: "marker_55"
