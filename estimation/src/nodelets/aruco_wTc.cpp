@@ -29,6 +29,7 @@
 #include <aruco/aruco_nano.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {
@@ -73,14 +74,16 @@ private:
 
     std::vector<double> camera_matrix;
     std::vector<double> dist_coeffs;
+    std::vector<std::string> trajectory_topics;
 
     std::string image_topic;
     std::string goal_pose_topic;
     std::string goal_rad_topic;
-    std::string trajectory_topic;
+    // std::string trajectory_topic;
     std::string camera_frame;
     std::string world_frame;
     std::string robot_frame;
+    std::string reset_topic;
     double robot_pose_offset;
 
     NODELET_PARAM_SETUP(private_nh, dist_coeffs);
@@ -88,10 +91,11 @@ private:
     NODELET_PARAM_SETUP(private_nh, image_topic);
     NODELET_PARAM_SETUP(private_nh, goal_pose_topic);
     NODELET_PARAM_SETUP(private_nh, goal_rad_topic);
-    NODELET_PARAM_SETUP(private_nh, trajectory_topic);
+    NODELET_PARAM_SETUP(private_nh, trajectory_topics);
     NODELET_PARAM_SETUP(private_nh, camera_frame);
     NODELET_PARAM_SETUP(private_nh, world_frame);
     NODELET_PARAM_SETUP(private_nh, robot_frame);
+    NODELET_PARAM_SETUP(private_nh, reset_topic);
     NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0])
 
     _robot_pose_offset[0] = robot_pose_offset;
@@ -119,21 +123,33 @@ private:
     _rgb_subscriber = private_nh.subscribe(image_topic, 1, &aruco_wTc_nodelet_t::get_image, this);
     _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &aruco_wTc_nodelet_t::get_goal_pose, this);
     _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &aruco_wTc_nodelet_t::get_goal_rad, this);
-    _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &aruco_wTc_nodelet_t::get_trajectory, this);
-
+    _reset_subscriber = private_nh.subscribe(reset_topic, 1, &aruco_wTc_nodelet_t::reset, this);
     _frame_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
+    for (int i = 0; i < trajectory_topics.size(); ++i)
+    {
+      _cv_trajs.emplace_back();
+      _image_trajs.emplace_back();
+      _traj_colors.emplace_back(_color_rgb[i] + _color_rgb[2]);
+      _trajectory_subscribers.push_back(private_nh.subscribe<ml4kp_bridge::TrajectoryStamped>(
+          trajectory_topics[i], 1, boost::bind(&aruco_wTc_nodelet_t::get_trajectory, this, _1, i)));
+    }
   }
 
-  void get_trajectory(const ml4kp_bridge::TrajectoryStampedConstPtr message)
+  void reset(const std_msgs::Empty empty)
   {
-    _cv_traj.clear();
+    _image_traj_exec.clear();
+  }
+
+  void get_trajectory(const ml4kp_bridge::TrajectoryStampedConstPtr message, const std::size_t& traj_idx)
+  {
+    _cv_trajs[traj_idx].clear();
     for (auto& state : message->trajectory.data)
     {
-      // x,y,z: setting z=0 for now
-      _cv_traj.emplace_back(state.point[0].data, state.point[1].data, 0.0);
+      // x,y,z: setting z=cte for now
+      _cv_trajs[traj_idx].emplace_back(state.point[0].data, state.point[1].data, 0.2295);
       _msgs_received[PointIdx::trajectory] = true;
     }
-    cv::projectPoints(_cv_traj, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_traj);
+    cv::projectPoints(_cv_trajs[traj_idx], _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_trajs[traj_idx]);
   }
 
   void get_goal_rad(const std_msgs::Float64ConstPtr message)
@@ -141,6 +157,7 @@ private:
     _goal_rad = message->data;
     _msgs_received[PointIdx::goal_rad] = true;
   }
+
   void get_goal_pose(const geometry_msgs::Pose2DConstPtr message)
   {
     _cv_points[PointIdx::goal_pose].x = message->x;
@@ -212,14 +229,26 @@ private:
       {
         cv::arrowedLine(frame->image, _image_points[PointIdx::robot_center], _image_points[PointIdx::robot_front],
                         _color_rgb[0], 3);
+        _image_traj_exec.push_back(_image_points[PointIdx::robot_center]);
         _msgs_received[PointIdx::robot_front] = false;
+
+        for (int i = 0; i < _image_traj_exec.size(); ++i)
+        {
+          cv::circle(frame->image, _image_traj_exec[i], 1, _color_rgb[0] + _color_rgb[1] / 2, -1,
+                     cv::LineTypes::FILLED);
+        }
       }
 
       if (_msgs_received[PointIdx::trajectory])
       {
-        for (int i = 0; i < _image_traj.size() - 1; ++i)
+        for (int i = 0; i < _image_trajs.size(); ++i)
         {
-          cv::line(frame->image, _image_traj[i], _image_traj[i + 1], _color_rgb[0] + _color_rgb[2], 2);
+          const std::vector<cv::Point2d>& img_traj{ _image_trajs[i] };
+          const cv::Scalar& color{ _traj_colors[i] };
+          for (int j = 0; j < img_traj.size() - 1; ++j)
+          {
+            cv::line(frame->image, img_traj[j], img_traj[j + 1], color, 2);
+          }
         }
       }
 
@@ -235,7 +264,8 @@ private:
   ros::Subscriber _rgb_subscriber;
   ros::Subscriber _goal_pose_subscriber;
   ros::Subscriber _goal_rad_subscriber;
-  ros::Subscriber _trajectory_subscriber;
+  ros::Subscriber _reset_subscriber;
+  std::vector<ros::Subscriber> _trajectory_subscribers;
 
   ros::Publisher _frame_publisher;
 
@@ -248,15 +278,17 @@ private:
   cv::Mat _Tvec;
 
   const std::vector<cv::Scalar> _color_rgb;
+  std::vector<cv::Scalar> _traj_colors;
 
   double _goal_rad;
   const cv::Scalar _goal_color;
 
   std::vector<cv::Point3d> _cv_points;
-  std::vector<cv::Point3d> _cv_traj;
   std::vector<cv::Point2d> _image_points;
-  std::vector<cv::Point2d> _image_traj;
+  std::vector<cv::Point2d> _image_traj_exec;
   std::vector<bool> _msgs_received;
+  std::vector<std::vector<cv::Point2d>> _image_trajs;
+  std::vector<std::vector<cv::Point3d>> _cv_trajs;
 
   cv::Mat _cv_world_rot;
   Eigen::Vector3d _robot_pose_offset;

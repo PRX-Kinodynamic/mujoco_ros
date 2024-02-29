@@ -26,10 +26,12 @@
       <param name="image_topic" value="/$(arg current_ns)/camera/rgb"/>
       <param name="goal_pose_topic" value="/$(arg current_ns)/goal_pos"/>
 			<param name="goal_rad_topic" value="/$(arg current_ns)/goal_radius"/>
-			<param name="trajectory_topic" value="/$(arg current_ns)/ml4kp_traj"/>
-			<param name="camera_frame" value="camera"/>
+			<!-- <param name="trajectory_topics" value="[/$(arg current_ns)/ml4kp_traj]"/> -->
+			<param name="trajectory_topics" type="yaml" value="[/mushr/ml4kp_traj]" />
+			<param name="camera_frame" value="C0"/>
 			<param name="world_frame" value="world"/>
-			<param name="robot_frame" value="robot_0"/>
+			<param name="robot_frame" value="C0_robot_0"/>
+			<param name="reset_topic" value="/$(arg current_ns)/aruco_wtc/reset"/>
     </node>   
 
     <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" args="load estimation/plant_estimator_nodelet_t standalone_nodelet" output="screen">
