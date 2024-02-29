@@ -3,14 +3,16 @@
 <mujoco model="mushr_nano">
   <compiler angle="radian" />
   <size njmax="500" nconmax="100"/>
-  <!-- <option timestep="0.002" integrator="Euler"/> -->
+  <option timestep="0.01" integrator="RK4"/>
   <!-- <option> -->
       <!-- <flag multiccd="enable"/> -->
   <!-- </option> -->
   <include file="buddy.xml"/>
   <!-- <include file="friction_floor_1.xml"/> -->
+  <!-- <include file="../friction_floors/friction_floor_twopatch.xml"/> -->
   <include file="../friction_floors/friction_floor_uniform.xml"/>
   <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00000.xml"/>
+  <!-- <include file="../obstacles/obstacle_0.xml"/> -->
   <include file="lab_markers.xml"/>
   <!-- <include file="../aruco_mip_36h12/multitags/multitags_2x3.xml"/> -->
   <!-- <include file="../friction_floors/friction_floor_midpatch.xml"/> -->
@@ -25,6 +27,6 @@
     <map znear="0.001" />
   </visual>
   <worldbody>
-        <camera name="camera_0" pos="1 1.5 3" euler="0 0 1.5708" fovy="50"/>
+        <camera name="observer_camera" pos="1 3.0 5.0" euler="0 0 1.5708" fovy="50"/>
   </worldbody>
 </mujoco>

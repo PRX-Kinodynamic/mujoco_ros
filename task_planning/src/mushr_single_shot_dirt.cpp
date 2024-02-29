@@ -3,6 +3,9 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/single_shot_planner_service.hpp"
 #include "motion_planning/planner_client.hpp"
+#include "motion_planning/PlanningResult.h"
+#include "mujoco_ros/Collision.h"
+#include "std_msgs/Empty.h"
 
 #include <utils/std_utils.cpp>
 
@@ -29,23 +32,23 @@ int main(int argc, char** argv)
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
-  auto obstacles = prx::load_obstacles("environments/obstacle_0.yaml");
+  auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
   std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list = obstacles.second;
   std::vector<std::string> obstacle_names = obstacles.first;
 
-  prx::world_model_t planning_model({ plant }, {obstacle_list});
-  planning_model.create_context("planner_context", { plant_name }, {obstacle_names});
+  prx::world_model_t planning_model({ plant }, { obstacle_list });
+  planning_model.create_context("planner_context", { plant_name }, { obstacle_names });
   auto planning_context = planning_model.get_context("planner_context");
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
   auto ps = planning_context.first->get_parameter_space();
-  std::vector<double> min_control_limits = params["/plant/control_space/lower_bound"].as<std::vector<double> >();
-  std::vector<double> max_control_limits = params["/plant/control_space/upper_bound"].as<std::vector<double> >();
-  std::vector<double> min_state_limits = params["/plant/state_space/lower_bound"].as<std::vector<double> >();
-  std::vector<double> max_state_limits = params["/plant/state_space/upper_bound"].as<std::vector<double> >();
+  std::vector<double> min_control_limits = params["/plant/control_space/lower_bound"].as<std::vector<double>>();
+  std::vector<double> max_control_limits = params["/plant/control_space/upper_bound"].as<std::vector<double>>();
+  std::vector<double> min_state_limits = params["/plant/state_space/lower_bound"].as<std::vector<double>>();
+  std::vector<double> max_state_limits = params["/plant/state_space/upper_bound"].as<std::vector<double>>();
   ss->set_bounds(min_state_limits, max_state_limits);
   cs->set_bounds(min_control_limits, max_control_limits);
-  std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double> >();
+  std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double>>();
   ps->copy_from(param_values);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
@@ -93,19 +96,59 @@ int main(int argc, char** argv)
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
+  ros::Publisher planning_result_publisher =
+      n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
+  ros::Publisher reset_publisher = n.advertise<std_msgs::Empty>(root + "/reset", 1, true);
+  motion_planning::PlanningResult planning_result_msg;
+
+  ros::ServiceClient collision_client = n.serviceClient<mujoco_ros::Collision>(root + "/collision");
+  mujoco_ros::Collision collision_srv;
 
   double planning_cycle_duration;
   n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
   ROS_INFO("Planning duration: %f", planning_cycle_duration);
 
   spinner.start();
-  goal_pos_publisher.publish(goal_configuration);
-  goal_radius_publisher.publish(goal_radius);
+  if (visualize_trajectory)
+  {
+    goal_pos_publisher.publish(goal_configuration);
+    goal_radius_publisher.publish(goal_radius);
+  }
+
   planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
 
+  double start_time = ros::Time::now().toSec();
   ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
   ROS_INFO("Query fulfill time: %f",
            planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
+
+  while (ros::ok())
+  {
+    if (planner_client.is_goal_reached(goal_configuration, goal_radius))
+    {
+      ROS_INFO("Goal reached");
+      planning_result_msg.goal_reached.data = true;
+      planning_result_msg.in_collision.data = false;
+      planning_result_msg.total_time.data = ros::Time::now().toSec() - start_time;
+      planning_result_publisher.publish(planning_result_msg);
+      break;
+    }
+    if (collision_client.call(collision_srv))
+    {
+      if (collision_srv.response.collision_result.data)
+      {
+        ROS_WARN("Collision detected");
+        planning_result_msg.goal_reached.data = false;
+        planning_result_msg.in_collision.data = true;
+        planning_result_msg.total_time.data = ros::Time::now().toSec() - start_time;
+        planning_result_publisher.publish(planning_result_msg);
+        std_msgs::Empty reset_msg;
+        reset_publisher.publish(reset_msg);
+        break;
+      }
+    }
+    ros::Duration(0.1).sleep();
+  }
 
   std::string plan_file_name;
   n.getParam(ros::this_node::getName() + "/plan_file", plan_file_name);

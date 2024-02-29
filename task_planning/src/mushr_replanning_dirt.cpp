@@ -30,7 +30,7 @@ int main(int argc, char** argv)
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 
-  auto obstacles = prx::load_obstacles("environments/obstacle_0.yaml");
+  auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
   std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list = obstacles.second;
   std::vector<std::string> obstacle_names = obstacles.first;
 

@@ -46,7 +46,7 @@ int main(int argc, char** argv)
         n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
   }
 
-  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
+  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "observer_camera");
   if (publish_ground_truth_pose)
   { 
     mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);

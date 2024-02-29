@@ -5,10 +5,10 @@
     <arg name = "namespace" default = "mushr"/>
     <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
-    <arg name = "visualize" default = "false"/>
+    <arg name = "visualize" default = "true"/>
     <arg name = "params_file" default="examples/replanning/obstacle_0.yaml" />
     <group ns="$(arg namespace)">
-        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_open_loop_planning" output="screen">
+        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
             <param name="traj_file" value="$(arg traj_file)" />
             <param name="plan_file" value="$(arg plan_file)" />
             <param name="out_html"  value="$(arg out_html)" />
@@ -17,6 +17,19 @@
             <param name="visualize" value="$(arg visualize)" />
             <param name="params_file" value="$(arg params_file)" />
         </node>
-        <node pkg="rosbag" name="rosbag_record" type="record" args="-a -O $(find task_planning)/data/$(arg namespace).bag"/>
+        <node pkg="nodelet" type="nodelet" name="mushr_feedback_manager"  args="manager" output="screen"/>
+
+        <node pkg="nodelet" type="nodelet" name="feedback_nodelet_t"  
+            args="load task_planning/feedback_nodelet_t mushr_feedback_manager"  
+            output="screen">
+            <param name="subscriber_topic" value="/mushr/ml4kp_traj" />
+            <!-- <param name="goal_pose_publisher_topic" value="/mushr/feedback_goal_pose"/>
+            <param name="goal_rad_publisher_topic" value="/mushr/feedback_goal_radius"/> -->
+            <param name="goal_pose_publisher_topic" value="/mushr/goal_pose"/>
+            <param name="goal_rad_publisher_topic" value="/mushr/goal_radius"/>
+            <param name="pose_topic" value="/mushr/pose" />
+            <param name="frequency" value="10" />
+            <param name="trajectory_discretization" value="100" />
+        </node>
     </group>
 </launch>
