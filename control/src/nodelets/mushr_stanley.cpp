@@ -33,6 +33,7 @@ public:
     nh.getParam("reset_topic", reset_topic);
     nh.getParam("goal_pose_topic", goal_pose_topic);
     nh.getParam("goal_radius_topic", goal_radius_topic);
+    nh.getParam("k_path", k_path);
 
     _timer_duration = ros::Duration(1.0 / frequency);
     discretization = 1.0 / (0.01 * frequency);

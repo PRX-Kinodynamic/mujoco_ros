@@ -13,6 +13,7 @@
             <param name="goal_pose_topic" value="/$(arg namespace)/goal_pose" />
             <param name="goal_radius_topic" value="/$(arg namespace)/goal_radius" />
             <param name="frequency" value="10" />
+            <param name="k_path" value="1.0" />
         </node>
 
         <node if="$(eval controller=='openloop')" pkg="nodelet" type="nodelet" name="plan_stepper_t" 
