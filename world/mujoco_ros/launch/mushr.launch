@@ -1,6 +1,6 @@
 <launch>
     <arg name="visualize_sim" default="true"/>
-    <arg name="visualize_output" default="true"/>
+    <arg name="visualize_output" default="false"/>
     <arg name="publish_ground_truth_pose" default="false"/>
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
@@ -14,5 +14,6 @@
     <include file="$(find interface)/launch/mushr_interface.launch">
         <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" />
     </include>
+    <include file="$(find interface)/launch/mushr_control.launch" />
 </launch>
 

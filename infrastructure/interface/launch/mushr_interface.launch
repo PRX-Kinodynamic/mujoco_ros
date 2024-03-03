@@ -8,15 +8,6 @@
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="mushr_interface_manager"  args="manager" output="screen"/>
 
-         <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
-            args="load ml4kp_bridge/plan_stepper_t mushr_interface_manager" 
-            output="screen">
-            <param name="subscriber_topic" value="$(arg plan_translate_topic)" />
-            <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
-            <param name="reset_topic" value="$(arg reset_topic)"/>
-            <param name="frequency" value="100" />
-        </node>    
-
         <node if="$(arg simulation)" pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet" 
             args="load interface/MushrFromSpacePointNodelet mushr_interface_manager" 
             output="screen">

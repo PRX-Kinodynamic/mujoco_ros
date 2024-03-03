@@ -1,0 +1,27 @@
+<launch>
+    <arg name = "namespace" default = "mushr"/>
+    <arg name = "controller" default="openloop"/>
+    <group ns="$(arg namespace)">
+        <node pkg="nodelet" type="nodelet" name="control_nodelet"  args="manager" output="screen"/>
+        
+        <node if="$(eval controller=='stanley')" pkg="nodelet" type="nodelet" name="mushr_control_nodelet"  
+            args="load control/mushr_stanley_t control_nodelet" output="screen">
+            <param name="trajectory_topic" value="/$(arg namespace)/ml4kp_traj" />
+            <param name="pose_topic" value="/$(arg namespace)/pose" />
+            <param name="control_topic" value="/$(arg namespace)/plan_stepper/control" />
+            <param name="reset_topic" value="/$(arg namespace)/reset" />
+            <param name="goal_pose_topic" value="/$(arg namespace)/goal_pose" />
+            <param name="goal_radius_topic" value="/$(arg namespace)/goal_radius" />
+            <param name="frequency" value="10" />
+        </node>
+
+        <node if="$(eval controller=='openloop')" pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+            args="load ml4kp_bridge/plan_stepper_t control_nodelet" 
+            output="screen">
+            <param name="subscriber_topic" value="/$(arg namespace)/ml4kp_plan" />
+            <param name="publisher_topic" value="/$(arg namespace)/plan_stepper/control"/>
+            <param name="reset_topic" value="/$(arg namespace)/reset"/>
+            <param name="frequency" value="100" />
+        </node>    
+    </group>
+</launch>

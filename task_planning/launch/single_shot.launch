@@ -17,6 +17,5 @@
             <param name="visualize" value="$(arg visualize)" />
             <param name="params_file" value="$(arg params_file)" />
         </node>
-        <node pkg="nodelet" type="nodelet" name="mushr_feedback_manager"  args="manager" output="screen"/>
     </group>
 </launch>
