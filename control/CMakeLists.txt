@@ -1,29 +1,23 @@
-cmake_minimum_required(VERSION 3.5)
-project(task_planning)
+cmake_minimum_required(VERSION 3.0.2)
+project(control)
 set(CMAKE_CXX_STANDARD 17)
-add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 
-set(BUILD_WITH_ROGUE ON CACHE BOOL "Build with RoGuE planner")
-if (BUILD_WITH_ROGUE)
-  add_definitions(-DBUILD_WITH_ROGUE)
-endif()
+## Compile as C++11, supported in ROS Kinetic and newer
+# add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs
-  message_generation
+  prx_models
+  ml4kp_bridge
   nodelet
-  roslib
-  motion_planning
-  utils
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -57,13 +51,15 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 # add_message_files(
 #   FILES
-#   PlannerGoal.msg
+#   Message1.msg
+#   Message2.msg
 # )
 
-# Generate services in the 'srv' folder
+## Generate services in the 'srv' folder
 # add_service_files(
 #   FILES
-#   MushrPlanner.srv
+#   Service1.srv
+#   Service2.srv
 # )
 
 ## Generate actions in the 'action' folder
@@ -76,8 +72,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   std_msgs
-#   prx_models
+#   std_msgs  # Or other packages containing msgs
 # )
 
 ################################################
@@ -110,9 +105,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp std_msgs message_runtime motion_planning
+ INCLUDE_DIRS include
+#  LIBRARIES control
+ CATKIN_DEPENDS ml4kp_bridge roscpp
 #  DEPENDS system_lib
 )
 
@@ -127,13 +122,19 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-
-### Executable files
-
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mujoco.cpp
+#   src/${PROJECT_NAME}/control.cpp
 # )
+
+add_library(${PROJECT_NAME} INTERFACE)
+
+set(NODELET_LIB ${PROJECT_NAME}_nodelets)
+file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+add_library(${NODELET_LIB} ${NODELET_FILES})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -143,7 +144,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/control_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -151,9 +152,7 @@ include_directories(
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
-
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
-    # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
 
 foreach(f ${EXECUTABLE_FILES})
     MESSAGE("file: ${f}")
@@ -168,6 +167,15 @@ foreach(f ${EXECUTABLE_FILES})
                         )
 endforeach()
 
+## Add cmake target dependencies of the executable
+## same as for the library above
+# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+## Specify libraries to link a library or executable target against
+# target_link_libraries(${PROJECT_NAME}_node
+#   ${catkin_LIBRARIES}
+# )
+
 #############
 ## Install ##
 #############
@@ -178,7 +186,7 @@ endforeach()
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 # catkin_install_python(PROGRAMS
-#   scripts/mushr_open_loop_publisher.py
+#   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
@@ -215,17 +223,10 @@ endforeach()
 #############
 
 ## Add gtest based cpp test target and link libraries
-file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
-
-message(STATUS "TEST HERE")
-foreach(f_test ${TESTS_FILES})
-  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
-  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
-  if(TARGET ${PROJECT_NAME}-test)
-    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
-  endif()
-endforeach()
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_control.cpp)
+# if(TARGET ${PROJECT_NAME}-test)
+#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+# endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)

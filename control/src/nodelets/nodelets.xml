@@ -1,0 +1,10 @@
+<library path="lib/libcontrol_nodelets">
+  <class 
+      name="control/mushr_stanley_t" 
+      type="control::feedback_nodelet_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Stanley controller for the MUSHR platform
+    </description>
+  </class>
+</library>

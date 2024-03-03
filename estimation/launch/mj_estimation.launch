@@ -24,7 +24,7 @@
 		<rosparam command="load" file="$(arg cam_file)" />
 		<param name="pose_topic" value="/$(arg current_ns)/aruco_cTw/robot_pose" />
 		<param name="image_topic" value="/$(arg current_ns)/camera/rgb"/>
-		<param name="goal_pose_topic" value="/$(arg current_ns)/goal_pos"/>
+		<param name="goal_pose_topic" value="/$(arg current_ns)/goal_pose"/>
 				<param name="goal_rad_topic" value="/$(arg current_ns)/goal_radius"/>
 				<param name="trajectory_topic" value="/$(arg current_ns)/ml4kp_traj"/>
 				<param name="camera_frame" value="camera"/>

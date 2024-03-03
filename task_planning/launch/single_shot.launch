@@ -18,18 +18,5 @@
             <param name="params_file" value="$(arg params_file)" />
         </node>
         <node pkg="nodelet" type="nodelet" name="mushr_feedback_manager"  args="manager" output="screen"/>
-
-        <node pkg="nodelet" type="nodelet" name="feedback_nodelet_t"  
-            args="load task_planning/feedback_nodelet_t mushr_feedback_manager"  
-            output="screen">
-            <param name="subscriber_topic" value="/mushr/ml4kp_traj" />
-            <!-- <param name="goal_pose_publisher_topic" value="/mushr/feedback_goal_pose"/>
-            <param name="goal_rad_publisher_topic" value="/mushr/feedback_goal_radius"/> -->
-            <param name="goal_pose_publisher_topic" value="/mushr/goal_pose"/>
-            <param name="goal_rad_publisher_topic" value="/mushr/goal_radius"/>
-            <param name="pose_topic" value="/mushr/pose" />
-            <param name="frequency" value="10" />
-            <param name="trajectory_discretization" value="100" />
-        </node>
     </group>
 </launch>
