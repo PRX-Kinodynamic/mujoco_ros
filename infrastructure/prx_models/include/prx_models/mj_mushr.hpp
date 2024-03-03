@@ -85,7 +85,10 @@ inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg
   // Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
   Eigen::Vector3d euler = prx::quaternion_to_euler(quat);
   state->at(2) = euler[2];
-  state->at(3) = msg.float_extra[0].data;
+  if (msg.float_extra.size() > 0)
+    state->at(3) = msg.float_extra[0].data;
+  else
+    state->at(3) = 0.0;
   // ROS_WARN("Setting current velocity to 0.0");
   // ROS_WARN("Copying observation: %f, %f, %f", state->at(0), state->at(1), state->at(2));
 }

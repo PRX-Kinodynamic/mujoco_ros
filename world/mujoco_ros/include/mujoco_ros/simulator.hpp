@@ -23,7 +23,6 @@ using VisualizerPtr = std::shared_ptr<simulator_visualizer_t>;
 class simulator_t : public std::enable_shared_from_this<simulator_t>
 {
 private:
-  bool save_trajectory;
   bool visualize;
   std::vector<std::vector<double>> trajectory;
   std::vector<double> current_state;
@@ -38,10 +37,8 @@ private:
   simulator_t(const std::string node_name, ros::NodeHandle& nh)
   {
     std::string model_path;
-    bool _save_trajectory;
 
     utils::get_param_and_check(nh, node_name + "/model_path", model_path);
-    utils::get_param_and_check(nh, node_name + "/save_trajectory", _save_trajectory);
 
     ROS_INFO("Loading model from %s", model_path.c_str());
     std::string error;
@@ -65,11 +62,6 @@ private:
       std::cout << d->qpos[i] << " ";
     }
     std::cout << std::endl;
-    save_trajectory = _save_trajectory;
-    if (save_trajectory)
-    {
-      add_current_state_to_trajectory();
-    }
   }
 
 protected:
@@ -136,10 +128,6 @@ public:
     _mj_reset_mutex.lock();
     mj_step(m, d);
     _mj_reset_mutex.unlock();
-    if (save_trajectory)
-    {
-      add_current_state_to_trajectory();
-    }
   }
 
   bool in_collision(mujoco_ros::Collision::Request& req, mujoco_ros::Collision::Response& res)
@@ -204,11 +192,6 @@ public:
   void reset_simulation()
   {
     mj_resetData(m, d);
-    if (save_trajectory)
-    {
-      trajectory.clear();
-      add_current_state_to_trajectory();
-    }
   }
 };
 

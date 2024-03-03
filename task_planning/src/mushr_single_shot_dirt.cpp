@@ -94,7 +94,7 @@ int main(int argc, char** argv)
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, visualize_trajectory, cs->get_dimension());
 
-  ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
+  ros::Publisher goal_pose_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pose", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
   ros::Publisher planning_result_publisher =
       n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
   spinner.start();
   if (visualize_trajectory)
   {
-    goal_pos_publisher.publish(goal_configuration);
+    goal_pose_publisher.publish(goal_configuration);
     goal_radius_publisher.publish(goal_radius);
   }
 

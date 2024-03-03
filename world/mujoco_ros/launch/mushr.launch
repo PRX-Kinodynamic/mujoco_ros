@@ -1,12 +1,12 @@
 <launch>
-    <arg name="save_trajectory" default="false"/>
-    <arg name="visualize" default="true"/>
+    <arg name="visualize_sim" default="true"/>
+    <arg name="visualize_output" default="true"/>
     <arg name="publish_ground_truth_pose" default="false"/>
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
-            <param name="visualize" value="$(arg visualize)" />
-            <param name="save_trajectory" value="$(arg save_trajectory)" />
+            <param name="visualize_sim" value="$(arg visualize_sim)" />
+            <param name="visualize_output" value="$(arg visualize_output)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
         </node>
     </group>
