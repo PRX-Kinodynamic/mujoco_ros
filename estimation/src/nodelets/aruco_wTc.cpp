@@ -144,7 +144,10 @@ private:
       _cv_trajs[traj_idx].emplace_back(state.point[0].data, state.point[1].data, 0.2295);
       _msgs_received[PointIdx::trajectory] = true;
     }
-    cv::projectPoints(_cv_trajs[traj_idx], _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_trajs[traj_idx]);
+    if (_cv_trajs[traj_idx].size() > 0)
+    {
+      cv::projectPoints(_cv_trajs[traj_idx], _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_trajs[traj_idx]);
+    }
   }
 
   void get_goal_rad(const std_msgs::Float64ConstPtr message)
