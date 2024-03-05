@@ -1,0 +1,18 @@
+<library path="lib/libcontrol_nodelets">
+  <class 
+      name="control/ackermann_feedback_pose_control_t" 
+      type="control::ackermann_feedback_pose_control_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to drive an ackermann system to a pose
+    </description>
+  </class>
+  <class 
+      name="control/determine_carrot_t" 
+      type="control::determine_carrot_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to determine the carrot for pose controller
+    </description>
+  </class>
+</library>

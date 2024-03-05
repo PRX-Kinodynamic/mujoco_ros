@@ -1,9 +1,10 @@
 #pragma once
-#include "eigen3/Eigen/Dense"
-#include "geometry_msgs/Pose2D.h"
+// #include "eigen3/Eigen/Dense"
+#include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/TransformStamped.h>
 
 #include <ml4kp_bridge/defs.h>
-#include "prx_models/mj_copy.hpp"
+#include <prx_models/mj_copy.hpp>
 
 #include <interface/SensorDataStamped.h>
 #include <prx_models/MushrControl.h>
@@ -14,7 +15,6 @@
 
 namespace prx_models
 {
-
 namespace mushr_t
 {
 static constexpr std::size_t u_dim{ 2 };
@@ -49,6 +49,20 @@ inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
   msg.velocity.data = ctrl[mushr_t::control::velocity_idx];
 }
 
+template <typename State>
+inline void copy(State& state, const geometry_msgs::TransformStamped& tf)
+{
+  const double& qw{ tf.transform.rotation.w };
+  const double& qx{ tf.transform.rotation.x };
+  const double& qy{ tf.transform.rotation.y };
+  const double& qz{ tf.transform.rotation.z };
+
+  const Eigen::Quaterniond q{ qw, qx, qy, qz };
+  const Eigen::Vector3d vec{ prx::quaternion_to_euler(q) };
+  state[0] = tf.transform.translation.x;
+  state[1] = tf.transform.translation.y;
+  state[2] = vec[2];
+}
 template <typename SensorData>
 inline void get_observation(prx_models::MushrObservation& msg, const SensorData& sensordata)
 {
