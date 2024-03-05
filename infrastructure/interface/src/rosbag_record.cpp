@@ -29,8 +29,8 @@
 #include <tf2_msgs/TFMessage.h>
 
 #include <utils/rosparams_utils.hpp>
+#include <utils/execution_status.hpp>
 // #include <interface/defs.hpp>
-#include <interface/execution_status.hpp>
 #include <interface/rosbag_record.hpp>
 #include <interface/StampedMarkers.h>
 
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, stop_topic);
 
   std::vector<ros::Subscriber> subscribers;
-  utilities::execution_status_t execution_status(nh, stop_topic);
+  utils::execution_status_t execution_status(nh, stop_topic);
 
   // PRX_DEBUG_VARS(topics.toXml());
   // PRX_DEBUG_VARS(topics.size());

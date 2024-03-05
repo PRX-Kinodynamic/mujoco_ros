@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   utils
 )
+find_package(GTSAM REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -132,8 +133,8 @@ set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
-add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
+add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} gtsam)
 
 
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
@@ -147,6 +148,7 @@ foreach(f ${EXECUTABLE_FILES})
                      )
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
+                          gtsam
                         )
 endforeach()
 

@@ -1,6 +1,6 @@
+#include <prx/simulation/plants/mushr.hpp>
 #include <stdio.h>
-#include <Eigen/Dense>
-#include <Eigen/Core>
+#include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
 #include <pluginlib/class_list_macros.hpp>
@@ -21,9 +21,9 @@
 
 #include <cv_bridge/cv_bridge.h>
 #include <interface/StampedMarkers.h>
-#include <ml4kp_bridge/defs.h>
 #include <prx_models/MushrObservation.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {
@@ -85,7 +85,7 @@ private:
     _header.frame_id = "world";
 
     _plan_subscriber = private_nh.subscribe(plan_topic, 1, &plant_estimator_nodelet_t::get_plan, this);
-    // _trajectory_publisher = private_nh.advertise<ml4kp_bridge::TrajectoryStamped>(trajectory_topic, 1);
+    _trajectory_publisher = private_nh.advertise<ml4kp_bridge::TrajectoryStamped>(trajectory_topic, 1);
     _pose_timer = private_nh.createTimer(ros::Duration(0.1), &plant_estimator_nodelet_t::estimate_pose, this);
     _observation_publisher = private_nh.advertise<prx_models::MushrObservation>("/mushr/pose", 1);
   }
@@ -129,13 +129,15 @@ private:
     _plan->clear();
     ml4kp_bridge::copy(_plan, message);
 
+    DEBUG_VARS(_plan->duration());
+
     _system_group->propagate(_current_state, *_plan, *_estimated_traj);
 
     ml4kp_bridge::TrajectoryStamped traj_msg;
     _header.stamp = ros::Time::now();
     traj_msg.header = _header;
     ml4kp_bridge::copy(traj_msg.trajectory, _estimated_traj);
-    // _trajectory_publisher.publish(traj_msg);
+    _trajectory_publisher.publish(traj_msg);
   }
 
   std_msgs::Header _header;

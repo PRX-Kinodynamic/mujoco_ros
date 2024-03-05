@@ -143,7 +143,7 @@ include_directories(
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
-target_include_directories(${NODELET_LIB} PUBLIC include  ${catkin_INCLUDE_DIRS})
+target_include_directories(${NODELET_LIB} PUBLIC include Eigen3::Eigen ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
 
@@ -158,6 +158,7 @@ foreach(f ${EXECUTABLE_FILES})
                    ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                    ${catkin_EXPORTED_TARGETS}
                    )
+  target_include_directories(${fname} PUBLIC Eigen3::Eigen)
   ## Specify libraries to link a library or executable target against
   target_link_libraries(${fname}
                         ${catkin_LIBRARIES}

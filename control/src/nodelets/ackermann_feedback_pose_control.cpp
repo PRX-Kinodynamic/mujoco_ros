@@ -27,6 +27,7 @@ namespace control
 {
 class ackermann_feedback_pose_control_t : public nodelet::Nodelet
 {
+  using Control = Eigen::Vector<double, 2>;
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
 
@@ -112,7 +113,6 @@ private:
     const double beta{ prx::norm_angle_pi(angle_diff(-theta, -a) + desired_state[2]) };
     const double v{ _kp * p };
     const double omega{ (_ka * a + _kb * beta) };
-    DEBUG_VARS(a, curr_reverse, reverse, theta, beta, omega);
     // return Eigen::Vector2d(curr_reverse * omega, curr_reverse * v);
     _ctrl.point[steering_idx].data = omega;
     _ctrl.point[velocity_idx].data = reverse * v;

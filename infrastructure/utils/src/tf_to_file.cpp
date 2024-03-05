@@ -38,17 +38,7 @@ std::string get_transform(tf2_ros::Buffer& tf_buffer, const std::string root_fra
                           ros::Time& last)
 {
   std::string res{ "" };
-  // if (tf_listener.canTransform(child_frame, root_frame, ros::Time(0)))
-  // {
-  //   tf_listener.lookupTransform(root_frame, child_frame, ros::Time(0), tf);
-  //   if (last < tf.stamp_)
-  //   {
-  //     res = tf_to_str(tf);
-  //     last = tf.stamp_;
-  //   }
-  // }
 
-  // transformStamped;
   try
   {
     geometry_msgs::TransformStamped tf{ tf_buffer.lookupTransform(root_frame, child_frame, ros::Time(0)) };
@@ -60,9 +50,6 @@ std::string get_transform(tf2_ros::Buffer& tf_buffer, const std::string root_fra
   }
   catch (tf2::TransformException& ex)
   {
-    // ROS_WARN("%s", ex.what());
-    // ros::Duration(1.0).sleep();
-    // continue;
   }
 
   return res;

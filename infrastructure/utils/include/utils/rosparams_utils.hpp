@@ -28,17 +28,6 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
     var = default_value;                                                                                               \
   }
 
-template <typename T>
-void print_container(const std::string& name, const T& container)
-{
-  std::cout << name << ": ";
-  for (auto e : container)
-  {
-    std::cout << e << ", ";
-  }
-  std::cout << std::endl;
-}
-
 static std::string timestamp()
 {
   auto t = std::time(nullptr);

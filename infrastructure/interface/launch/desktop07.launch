@@ -22,8 +22,8 @@
     args="$(arg marker_world_translation) $(arg marker_world_quat) C0_marker_121 $(arg world_frame)" />
   <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
     <!-- args="0 0 0 $(arg marker_world_quat) C0_marker_121 C1_marker_121"/> -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
-    args="3.735 -0.45 -0.13 $(arg cameras_quat) C0 C1"/>
+  <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
+    <!-- args="3.735 -0.45 -0.13 $(arg cameras_quat) C0 C1"/> -->
      
   <group ns="$(arg curr_namespace)">
 
@@ -62,12 +62,13 @@
       <param name="image_topic" value="/$(arg curr_namespace)/camera/rgb"/>
       <param name="goal_pose_topic" value="/mushr/feedback_goal_pos"/>
       <param name="goal_rad_topic" value="/mushr/feedback_goal_rad"/>
-      <param name="trajectory_topic" value="$(arg trajectory_topic)"/>
+      <param name="trajectory_topics" type="yaml" value="[$(arg trajectory_topic),/mushr/traj/estimated]"/>
+      <!-- <param name="trajectory_topics" type="yaml" value="[$(arg trajectory_topic)]"/> -->
       <param name="camera_frame" value="$(arg camera_frame)"/>
       <param name="world_frame" value="$(arg world_frame)"/>
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="camera_id"           value="0"/>
-
+      <param name="reset_topic"           value="/mushr/aruco_wtc/reset"/>
     </node>  
 
     <node pkg="nodelet" type="nodelet" name="robot_estimation_simple_nodelet_t" output="screen"
@@ -80,8 +81,8 @@
     <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" output="screen"
       args="load estimation/plant_estimator_nodelet_t standalone_nodelet" >
       <param name="plan_topic" value="$(arg plan_topic)"/>
-      <param name="trajectory_topic" value="$(arg trajectory_topic)"/>
-      <param name="simulation_step" value="0.1"/>
+      <param name="trajectory_topic" value="/mushr/traj/estimated"/>
+      <param name="simulation_step" value="0.01"/>
       <param name="observation_dim" value="3"/>
       <param name="world_frame" value="world"/>
       <param name="robot_frame" value="robot_0"/>

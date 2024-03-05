@@ -30,7 +30,7 @@
 #include <opencv2/videoio.hpp>
 
 #include <utils/rosparams_utils.hpp>
-#include <interface/execution_status.hpp>
+#include <utils/execution_status.hpp>
 #include <interface/rosbag_record.hpp>
 #include <interface/StampedMarkers.h>
 
@@ -93,7 +93,7 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, height);
   ROS_PARAM_SETUP(nh, video_id);
   // ros::Subscriber _rgb_subscriber = nh.subscribe(image_topic, 1, &aruco_wTc_nodelet_t::get_image, this);
-  utilities::execution_status_t execution_status(nh, stop_topic);
+  utils::execution_status_t execution_status(nh, stop_topic);
 
   std::ostringstream video_name;
   video_name << video_directory << "/v_" << utils::timestamp() << "_" << video_id << ".avi";

@@ -3,7 +3,8 @@ project(estimation)
 set(CMAKE_CXX_STANDARD 17)
 
 # Mujoco-relates packages
-find_package(OpenCV REQUIRED )
+# find_package(Eigen3 REQUIRED)
+# find_package(OpenCV REQUIRED )
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -13,12 +14,13 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   roslib
-  prx_models
   nodelet
   tf
   tf_conversions
   utils
 )
+message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR} ")
+# set(EIGEN_WORLD_VERSION 3)
 
 ###################################
 ## catkin specific configuration ##

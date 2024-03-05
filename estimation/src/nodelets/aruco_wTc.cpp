@@ -122,6 +122,7 @@ private:
     _frame_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
     for (int i = 0; i < trajectory_topics.size(); ++i)
     {
+      DEBUG_VARS(i, trajectory_topics[i]);
       _cv_trajs.emplace_back();
       _image_trajs.emplace_back();
       _traj_colors.emplace_back(_color_rgb[i] + _color_rgb[2]);
@@ -160,7 +161,7 @@ private:
   {
     _cv_points[PointIdx::goal_pose].x = message->x;
     _cv_points[PointIdx::goal_pose].y = message->y;
-    _cv_points[PointIdx::goal_pose].z = 0.0;
+    _cv_points[PointIdx::goal_pose].z = 0.2295;
     _msgs_received[PointIdx::goal_pose] = true;
   }
 
@@ -242,10 +243,14 @@ private:
         for (int i = 0; i < _image_trajs.size(); ++i)
         {
           const std::vector<cv::Point2d>& img_traj{ _image_trajs[i] };
+          // DEBUG_VARS(i, img_traj.size());
           const cv::Scalar& color{ _traj_colors[i] };
-          for (int j = 0; j < img_traj.size() - 1; ++j)
+          if (img_traj.size() > 0)
           {
-            cv::line(frame->image, img_traj[j], img_traj[j + 1], color, 2);
+            for (int j = 0; j < img_traj.size() - 1; ++j)
+            {
+              cv::line(frame->image, img_traj[j], img_traj[j + 1], color, 2);
+            }
           }
         }
       }

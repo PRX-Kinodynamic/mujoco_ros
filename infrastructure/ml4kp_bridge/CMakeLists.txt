@@ -8,8 +8,8 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 ## is used, also find other catkin packages
 
 # Mujoco-relates packages
-find_package(Eigen3 REQUIRED)
 find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
+find_package(Eigen3 CONFIG REQUIRED)
 find_package(rostest REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -20,6 +20,9 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
 )
 
+message("GTSAM_EIGEN_VERSION_WORLD: ${GTSAM_EIGEN_VERSION_WORLD} ")
+message("EIGEN_WORLD_VERSION: ${EIGEN_WORLD_VERSION} ")
+message("EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR} ")
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -118,7 +121,7 @@ catkin_package(
  INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR}
  LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
- # DEPENDS ML4KP
+ DEPENDS Eigen3::Eigen
 )
 
 ###########
@@ -130,7 +133,7 @@ catkin_package(
 include_directories(
   include
   ${ML4KP_INCLUDE_DIR}
-  ${EIGEN3_INCLUDE_DIR}
+  Eigen3::Eigen
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -138,14 +141,15 @@ include_directories(
 # Consider all src to add to the library (no executables in this package)
 # file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
 add_library(${PROJECT_NAME} INTERFACE)
-add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
+add_dependencies(${PROJECT_NAME} ML4KP::ML4KP Eigen3::Eigen)
+target_include_directories(${PROJECT_NAME} INTERFACE Eigen3::Eigen)
 target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
-target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS} Eigen3::Eigen)
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 
@@ -163,6 +167,7 @@ foreach(f ${EXECUTABLE_FILES})
                      ${catkin_EXPORTED_TARGETS}
                      ${PROJECT_NAME}
                      )
+    target_include_directories(${fname} ${EIGEN3_INCLUDE_DIR})
     target_link_libraries(${fname}
                           ${PROJECT_NAME}
                           ${catkin_LIBRARIES}

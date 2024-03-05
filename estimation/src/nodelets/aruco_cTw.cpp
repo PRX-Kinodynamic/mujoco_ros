@@ -106,10 +106,8 @@ private:
                     { marker_size / 2.0, -marker_size / 2.0, 0.0 },
                     { -marker_size / 2.0, -marker_size / 2.0, 0.0 } };
 
-    DEBUG_PRINT
     _front = Eigen::Vector3d(0, _eg_corners[front_corner][1], 0);
 
-    DEBUG_PRINT
     _marker.resize(4);
     _viz_markers.header.frame_id = _camera_name;
     _viz_markers.type = visualization_msgs::Marker::LINE_LIST;
@@ -118,8 +116,6 @@ private:
     _viz_markers.color.b = 0;
     _viz_markers.color.a = 1;
     _viz_markers.scale.x = 0.01;
-    DEBUG_PRINT
-    // markers.resize(8);
   }
 
   static void copy(geometry_msgs::Quaternion& quat_msg, const Eigen::Quaterniond& quat)

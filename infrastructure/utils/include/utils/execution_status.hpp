@@ -1,8 +1,9 @@
+#pragma once
 #include <ros/ros.h>
 #include <std_srvs/Trigger.h>
 #include <std_msgs/Empty.h>
 
-namespace utilities
+namespace utils
 {
 class execution_status_t
 {
@@ -33,7 +34,7 @@ public:
   // Convinient method to do: `while(stop_execution.continue_running()){(...)}
   inline bool ok() const
   {
-    return ros::ok() && _status == utilities::execution_status_t::Status::running;
+    return ros::ok() && _status == utils::execution_status_t::Status::running;
   }
 
 private:
@@ -41,11 +42,11 @@ private:
   {
     // res.success = true;
     // res.message = _service_name;
-    _status = utilities::execution_status_t::Status::stop_execution;
+    _status = utils::execution_status_t::Status::stop_execution;
     // return true;
   }
   ros::Subscriber _subscriber;
   Status _status;
   const std::string _topic_name;
 };
-}  // namespace utilities
+}  // namespace utils
