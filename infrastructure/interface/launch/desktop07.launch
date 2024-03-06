@@ -10,7 +10,8 @@
   <arg name="robot_id" default="0"/>
   <arg name="marker_size" default="0.164"/>
   <arg name="markers_topic_name" default="/$(arg curr_namespace)/markers"/>
-  <arg name="rotation_offset" default="[0.0,0.0, -1.57079632679]"/>
+  <!-- <arg name="rotation_offset" default="[0.0,0.0, -1.57079632679]"/> -->
+  <arg name="rotation_offset" default="[0.0,0.0,0.0]"/>
   <arg name="front_corner" default="0"/>
   <arg name="camera_id" default="0"/>
 
