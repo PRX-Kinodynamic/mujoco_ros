@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   motion_planning
   utils
+  tf
 )
 
 ## System dependencies are found with CMake's conventions
