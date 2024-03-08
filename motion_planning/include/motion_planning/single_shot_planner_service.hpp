@@ -53,10 +53,7 @@ public:
     {
       ml4kp_bridge::add_zero_control(_query->solution_plan);
       ml4kp_bridge::copy(response.output_plan, _query->solution_plan);
-      if (request.return_trajectory.data)
-      {
-        ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
-      }
+      ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
     else

@@ -4,8 +4,7 @@
     <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
-    <arg name = "planning_cycle_duration" default = "1.0"/>
-    <arg name = "visualize" default = "true"/>
+    <arg name = "planning_cycle_duration" default = "0.5"/>
     <arg name = "params_file" default="examples/replanning/obstacle_0.yaml" />
     <group ns="$(arg namespace)">
         <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
@@ -14,7 +13,6 @@
             <param name="out_html"  value="$(arg out_html)" />
             <param name="goal_config" value="$(arg goal_config)" />
             <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
-            <param name="visualize" value="$(arg visualize)" />
             <param name="params_file" value="$(arg params_file)" />
         </node>
     </group>

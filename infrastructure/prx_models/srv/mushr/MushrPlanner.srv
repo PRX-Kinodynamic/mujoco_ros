@@ -1,7 +1,6 @@
 prx_models/MushrObservation current_observation
 geometry_msgs/Pose2D goal_configuration
 std_msgs/Duration planning_duration
-std_msgs/Bool return_trajectory
 ---
 ml4kp_bridge/PlanStamped output_plan
 ml4kp_bridge/TrajectoryStamped output_trajectory

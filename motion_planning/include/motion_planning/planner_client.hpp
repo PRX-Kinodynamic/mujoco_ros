@@ -13,15 +13,16 @@ private:
   ros::Publisher _plan_publisher, _traj_publisher;
   Service _service;
   Observation _most_recent_observation;
-  bool _obs_received{ false }, _publish_trajectory{ false };
+  bool _obs_received{ false };
   double _preprocess_start_time, _query_fulfill_end_time;
   int _control_dim;
-  
+
   Eigen::VectorXd _linear_velocity;
   std_msgs::Float64 _estimated_linear_velocity;
 
 public:
-  planner_client_t(ros::NodeHandle& nh, bool publish_trajectory, int control_dim) : _publish_trajectory(publish_trajectory), _control_dim(control_dim)
+  planner_client_t(ros::NodeHandle& nh, int control_dim)
+    :_control_dim(control_dim)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
@@ -48,8 +49,9 @@ public:
     {
       // Calculate linear velocity
       double dt = (message.header.stamp - _most_recent_observation.header.stamp).toSec();
-      _linear_velocity = Eigen::Vector3d((message.pose.position.x - _most_recent_observation.pose.position.x) / dt,
-                                         (message.pose.position.y - _most_recent_observation.pose.position.y) / dt, 0.0);
+      _linear_velocity =
+          Eigen::Vector3d((message.pose.position.x - _most_recent_observation.pose.position.x) / dt,
+                          (message.pose.position.y - _most_recent_observation.pose.position.y) / dt, 0.0);
     }
     _most_recent_observation = message;
     _obs_received = true;
@@ -66,7 +68,8 @@ public:
                       goal_configuration.y - _most_recent_observation.pose.position.y) < goal_radius.data;
   }
 
-  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius, double planning_duration = 1.0)
+  void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius,
+                    double planning_duration = 1.0)
   {
     while (!_obs_received)
     {
@@ -75,15 +78,16 @@ public:
     }
     _preprocess_start_time = ros::Time::now().toSec();
     _service.request.current_observation = _most_recent_observation;
-    _estimated_linear_velocity.data = std::sqrt(_linear_velocity[0] * _linear_velocity[0] + _linear_velocity[1] * _linear_velocity[1]);
+    _estimated_linear_velocity.data =
+        std::sqrt(_linear_velocity[0] * _linear_velocity[0] + _linear_velocity[1] * _linear_velocity[1]);
     _service.request.current_observation.float_extra.push_back(_estimated_linear_velocity);
     _service.request.planning_duration.data = ros::Duration(planning_duration);
     _service.request.goal_configuration = goal_configuration;
-    _service.request.return_trajectory.data = _publish_trajectory;
     if (_service_client.call(_service))
     {
       ROS_DEBUG("Service call successful");
-      ROS_DEBUG_STREAM("Current obs: " << _most_recent_observation.pose.position.x << ", " << _most_recent_observation.pose.position.y);
+      ROS_DEBUG_STREAM("Current obs: " << _most_recent_observation.pose.position.x << ", "
+                                       << _most_recent_observation.pose.position.y);
       if (is_goal_reached(goal_configuration, goal_radius))
       {
         ROS_INFO("Goal reached. Not publishing plan");
@@ -95,10 +99,7 @@ public:
       {
         ROS_DEBUG("Publishing plan");
         _plan_publisher.publish(_service.response.output_plan);
-        if (_publish_trajectory)
-        {
-          _traj_publisher.publish(_service.response.output_trajectory);
-        }
+        _traj_publisher.publish(_service.response.output_trajectory);
       }
       else
       {
