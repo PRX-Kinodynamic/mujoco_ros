@@ -7,4 +7,12 @@
       Stanley controller for the MUSHR platform
     </description>
   </class>
+  <class 
+      name="control/mushr_pure_pursuit_t" 
+      type="control::mushr_pure_pursuit_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Pure pursuit controller for the MUSHR platform
+    </description>
+  </class>
 </library>

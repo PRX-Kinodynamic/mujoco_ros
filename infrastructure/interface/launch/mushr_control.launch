@@ -1,6 +1,6 @@
 <launch>
     <arg name = "namespace" default = "mushr"/>
-    <arg name = "controller" default="openloop"/>
+    <arg name = "controller" default="stanley"/>
     <group ns="$(arg namespace)">
         <node pkg="nodelet" type="nodelet" name="control_nodelet"  args="manager" output="screen"/>
         
@@ -12,8 +12,25 @@
             <param name="reset_topic" value="/$(arg namespace)/reset" />
             <param name="goal_pose_topic" value="/$(arg namespace)/goal_pose" />
             <param name="goal_radius_topic" value="/$(arg namespace)/goal_radius" />
-            <param name="frequency" value="10" />
+            <param name="frequency" value="30" />
             <param name="k_path" value="1.0" />
+            <param name="k_throttle" value="1.25" />
+        </node>
+
+        <node if="$(eval controller=='pure_pursuit')" pkg="nodelet" type="nodelet" name="mushr_control_nodelet"  
+            args="load control/mushr_pure_pursuit_t control_nodelet" output="screen">
+            <param name="trajectory_topic" value="/$(arg namespace)/ml4kp_traj" />
+            <param name="pose_topic" value="/$(arg namespace)/pose" />
+            <param name="control_topic" value="/$(arg namespace)/plan_stepper/control" />
+            <param name="reset_topic" value="/$(arg namespace)/reset" />
+            <param name="goal_pose_topic" value="/$(arg namespace)/goal_pose" />
+            <param name="goal_radius_topic" value="/$(arg namespace)/goal_radius" />
+            <param name="frequency" value="30" />
+            <param name="k_p" value="0.5" />
+            <param name="k_a" value="1.5" />
+            <param name="k_b" value="-0.25" />
+            <param name="time_window" value="0.5" />
+            <param name="time_ahead" value="2.0" />
         </node>
 
         <node if="$(eval controller=='openloop')" pkg="nodelet" type="nodelet" name="plan_stepper_t" 

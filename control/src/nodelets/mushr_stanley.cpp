@@ -16,7 +16,12 @@ class mushr_stanley_t : public nodelet::Nodelet
 {
 public:
   mushr_stanley_t()
-    : _trajectory_received(false), _pose_received(false), wheelbase(0.2965), k_path(0.5), current_speed(0.0)
+    : _trajectory_received(false)
+    , _pose_received(false)
+    , wheelbase(0.2965)
+    , k_path(0.5)
+    , k_throttle(1.25)
+    , current_speed(0.0)
   {
   }
 
@@ -29,11 +34,12 @@ public:
     nh.getParam("trajectory_topic", trajectory_topic);
     nh.getParam("pose_topic", pose_topic);
     nh.getParam("control_topic", control_topic);
-    nh.getParam("frequency", frequency);
     nh.getParam("reset_topic", reset_topic);
     nh.getParam("goal_pose_topic", goal_pose_topic);
     nh.getParam("goal_radius_topic", goal_radius_topic);
+    nh.getParam("frequency", frequency);
     nh.getParam("k_path", k_path);
+    nh.getParam("k_throttle", k_throttle);
 
     _timer_duration = ros::Duration(1.0 / frequency);
     discretization = 1.0 / (0.01 * frequency);
@@ -82,21 +88,22 @@ public:
       std::vector<double> l2s, dots, ts, dists;
       for (size_t i = 1; i < discretized_trajectory.size(); ++i)
       {
-        diffs.push_back(discretized_trajectory[i] - discretized_trajectory[i - 1]);
+        diffs.push_back(discretized_trajectory[i].head(2) - discretized_trajectory[i - 1].head(2));
         l2s.push_back(diffs.back().norm());
       }
 
       for (size_t i = 0; i < discretized_trajectory.size() - 1; ++i)
       {
-        dots.push_back((front_axle_position - discretized_trajectory[i]).dot(diffs[i]) / l2s[i]);
+        dots.push_back((front_axle_position - discretized_trajectory[i].head(2)).dot(diffs[i]) / l2s[i]);
         if (dots[i] / l2s[i] < 0.0)
           ts.push_back(0.0);
         else if (dots[i] / l2s[i] > 1.0)
           ts.push_back(1.0);
         else
           ts.push_back(dots[i] / l2s[i]);
-        projections.push_back(discretized_trajectory[i] + (ts[i] * diffs[i]));
+        projections.push_back(discretized_trajectory[i].head(2) + (ts[i] * diffs[i]));
       }
+
       double min_dist = std::numeric_limits<double>::max();
       for (size_t i = 0; i < projections.size(); ++i)
       {
@@ -115,12 +122,12 @@ public:
           std::sin(current_state.point[2].data - prx::constants::pi / 2.0);
       double cross_track_error = vec_dist_nearest_point.dot(front_axle_vec_rotation);
 
-      double theta_line = discretized_orientations[_nearest_index];
+      double theta_line = discretized_trajectory[_nearest_index][2];
       double theta_e = prx::norm_angle_pi(theta_line - current_state.point[2].data);
       double theta_d = std::atan2(k_path * cross_track_error, current_state.point[3].data);
 
       _ctrl.point[0].data = std::max(-1.0, std::min(1.0, theta_e + theta_d));
-      _ctrl.point[1].data = discretized_velocities[_nearest_index];
+      _ctrl.point[1].data = std::max(-1.0, std::min(1.0, k_throttle * discretized_trajectory[_nearest_index][3]));
     }
     else
     {
@@ -145,25 +152,21 @@ public:
     discretized_trajectory.clear();
     for (int i = 0; i < _trajectory.trajectory.data.size(); i += discretization)
     {
-      Eigen::VectorXd point = Eigen::VectorXd::Zero(2);
-      point << _trajectory.trajectory.data[i].point[0].data, _trajectory.trajectory.data[i].point[1].data;
-      // for (int j = 0; j < _trajectory.trajectory.data[i].point.size(); ++j)
+      Eigen::VectorXd point = Eigen::VectorXd::Zero(4);
+      point << _trajectory.trajectory.data[i].point[0].data, _trajectory.trajectory.data[i].point[1].data,
+          _trajectory.trajectory.data[i].point[2].data, _trajectory.trajectory.data[i].point[3].data;
       discretized_trajectory.push_back(point);
-      discretized_orientations.push_back(_trajectory.trajectory.data[i].point[2].data);
-      discretized_velocities.push_back(_trajectory.trajectory.data[i].point[3].data);
     }
 
     if (_trajectory.trajectory.data.size() % discretization != 0)
     {
-      Eigen::VectorXd point = Eigen::VectorXd::Zero(2);
-      point << _trajectory.trajectory.data.back().point[0].data, _trajectory.trajectory.data.back().point[1].data;
-      // for (int j = 0; j < _trajectory.trajectory.data.back().point.size(); ++j)
+      Eigen::VectorXd point = Eigen::VectorXd::Zero(4);
+      point << _trajectory.trajectory.data.back().point[0].data, _trajectory.trajectory.data.back().point[1].data,
+          _trajectory.trajectory.data.back().point[2].data, _trajectory.trajectory.data.back().point[3].data;
       discretized_trajectory.push_back(point);
-      discretized_orientations.push_back(_trajectory.trajectory.data.back().point[2].data);
-      discretized_velocities.push_back(_trajectory.trajectory.data.back().point[3].data);
     }
 
-    ROS_INFO("Discretized trajectory size: %d", discretized_trajectory.size());
+    ROS_DEBUG("Discretized trajectory size: %d", discretized_trajectory.size());
   }
 
   void get_pose(const prx_models::MushrObservationConstPtr message)
@@ -197,7 +200,7 @@ public:
 private:
   bool _trajectory_received, _pose_received;
   int discretization;
-  double wheelbase, k_path, current_speed;
+  double wheelbase, k_path, k_throttle, current_speed;
   size_t _nearest_index;
 
   ros::Subscriber _trajectory_subscriber, _pose_subscriber, _reset_subscriber, _goal_pose_subscriber,
@@ -213,9 +216,7 @@ private:
   std_msgs::Float64 goal_radius;
 
   Eigen::VectorXd front_axle_position, nearest_point;
-  // TODO: Figure out nice Eigen way to do this
-  std::vector<Eigen::Vector2d> discretized_trajectory;
-  std::vector<double> discretized_orientations, discretized_velocities;
+  std::vector<Eigen::VectorXd> discretized_trajectory;
 
   ml4kp_bridge::SpacePoint _ctrl;
 };
