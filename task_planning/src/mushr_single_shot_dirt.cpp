@@ -54,12 +54,10 @@ int main(int argc, char** argv)
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
-
   dirt_spec->h = [&](const space_point_t& s, const space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.6;
   };
-
-  dirt_spec->min_control_steps = 0.1 * 1.0 / prx::simulation_step;
+  dirt_spec->min_control_steps = 0.5 * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = 2.0 * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = 25;
   dirt_spec->use_pruning = false;

@@ -50,10 +50,11 @@ int main(int argc, char** argv)
   ps->copy_from(param_values);
 
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
-
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
-  ROS_WARN("Using defaults for distance function and heuristic");
-  dirt_spec->min_control_steps = 0.1 * 1.0 / prx::simulation_step;
+  dirt_spec->h = [&](const space_point_t& s, const space_point_t& s2) {
+    return dirt_spec->distance_function(s, s2) / 0.6;
+  };
+  dirt_spec->min_control_steps = 0.5 * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = 2.0 * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = 25;
   dirt_spec->use_pruning = false;
@@ -87,12 +88,10 @@ int main(int argc, char** argv)
                                                    prx::dirt_query_t*, prx_models::MushrPlanner>;
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query);
 
-  bool visualize_trajectory;
-  n.getParam(ros::this_node::getName() + "/visualize", visualize_trajectory);
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
-  PlannerClient planner_client(n, visualize_trajectory, cs->get_dimension());
+  PlannerClient planner_client(n, cs->get_dimension());
 
-  ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pos", 10, true);
+  ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pose", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
   ros::Publisher planning_result_publisher =
       n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
@@ -112,11 +111,9 @@ int main(int argc, char** argv)
   planner_service.set_postprocess_timeout(postprocess_timeout);
 
   spinner.start();
-  if (visualize_trajectory)
-  {
-    goal_pos_publisher.publish(goal_configuration);
-    goal_radius_publisher.publish(goal_radius);
-  }
+  goal_pos_publisher.publish(goal_configuration);
+  goal_radius_publisher.publish(goal_radius);
+
   double prev_time = ros::Time::now().toSec();
   double start_time = ros::Time::now().toSec();
   double current_time = ros::Time::now().toSec();

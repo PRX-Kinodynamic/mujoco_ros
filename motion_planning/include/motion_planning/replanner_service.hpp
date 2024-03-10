@@ -61,10 +61,10 @@ public:
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     step_traj->clear();
-    ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state,4));
+    ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
     _spec->propagate(_query->start_state, *step_plan, *step_traj);
     _spec->state_space->copy(_query->start_state, step_traj->back());
-    ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state,4));
+    ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
     if (!_spec->valid_state(_query->start_state))
     {
       ROS_WARN("Invalid start state");
@@ -91,10 +91,7 @@ public:
       step_plan->clear();
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
       ml4kp_bridge::copy(response.output_plan, step_plan);
-      if (request.return_trajectory.data)
-      {
-        ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
-      }
+      ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
       response.planner_output = Service::Response::TYPE_SUCCESS;
     }
     else

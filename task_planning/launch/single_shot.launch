@@ -5,7 +5,7 @@
     <arg name = "namespace" default = "mushr"/>
     <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
     <arg name = "planning_cycle_duration" default = "0.5"/>
-    <arg name = "params_file" default="examples/replanning/obstacle_0.yaml" />
+    <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
     <group ns="$(arg namespace)">
         <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
             <param name="traj_file" value="$(arg traj_file)" />
