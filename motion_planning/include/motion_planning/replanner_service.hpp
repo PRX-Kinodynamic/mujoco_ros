@@ -15,13 +15,14 @@ private:
   Service _service;
   double _preprocess_end_time, _query_fulfill_start_time;
   double preprocess_timeout, postprocess_timeout;
+  bool _propagate_dynamics;
 
   prx::plan_t* step_plan;
   prx::trajectory_t* step_traj;
 
 public:
-  planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query)
-    : _planner(planner), _query(query), _spec(spec), preprocess_timeout(0.0), postprocess_timeout(0.0)
+  planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query, bool propagate_dynamics)
+    : _planner(planner), _query(query), _spec(spec), preprocess_timeout(0.0), postprocess_timeout(0.0), _propagate_dynamics(propagate_dynamics)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
@@ -61,10 +62,14 @@ public:
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     step_traj->clear();
-    ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
-    _spec->propagate(_query->start_state, *step_plan, *step_traj);
-    _spec->state_space->copy(_query->start_state, step_traj->back());
-    ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
+
+    if (_propagate_dynamics) {
+        ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
+        _spec->propagate(_query->start_state, *step_plan, *step_traj);
+        _spec->state_space->copy(_query->start_state, step_traj->back());
+        ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
+    }
+
     if (!_spec->valid_state(_query->start_state))
     {
       ROS_WARN("Invalid start state");

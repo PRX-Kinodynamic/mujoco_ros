@@ -2,6 +2,7 @@
     <arg name = "namespace" default = "mushr"/>
     <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
     <arg name = "planning_cycle_duration" default = "1.0"/>
+    <arg name = "propagate_dynamics" default = "true"/>
     <arg name = "max_cycles" default="30"/>
     <arg name = "preprocess_timeout" default = "0.05" />
     <arg name = "postprocess_timeout" default = "0.1" />
@@ -16,6 +17,7 @@
             <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
             <param name="max_cycles" value="$(arg max_cycles)" />
             <param name="params_file" value="$(arg params_file)" />
+            <param name = "propagate_dynamics" value="$(arg propagate_dynamics)"/>
         </node>
         <node if="$(arg use_rogue)" pkg="task_planning" name="replanner" type="$(arg namespace)_replanning_rogue" output="screen">
             <param name="goal_config" value="$(arg goal_config)" />

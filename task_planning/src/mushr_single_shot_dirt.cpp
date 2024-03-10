@@ -23,8 +23,9 @@ int main(int argc, char** argv)
   n.getParam(ros::this_node::getName() + "/params_file", params_fname);
   auto params = prx::param_loader(params_fname);
 
-  // TODO: Does this need to be set inside the client/service for better determinism?
-  prx::init_random(params["random_seed"].as<int>());
+  int seed;
+  n.getParam(ros::this_node::getName() + "/seed", seed);
+  prx::init_random(seed);
 
   prx::simulation_step = params["simulation_step"].as<double>();
   std::string plant_name = params["/plant/name"].as<std::string>();
@@ -54,10 +55,10 @@ int main(int argc, char** argv)
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
-  dirt_spec->h = [&](const space_point_t& s, const space_point_t& s2) {
+  dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.6;
   };
-  dirt_spec->min_control_steps = 0.5 * 1.0 / prx::simulation_step;
+  dirt_spec->min_control_steps = 0.1 * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = 2.0 * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = 25;
   dirt_spec->use_pruning = false;
