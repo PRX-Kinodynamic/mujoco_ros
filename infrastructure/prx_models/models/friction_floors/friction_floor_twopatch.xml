@@ -1,0 +1,49 @@
+<mujoco model="friction_floor_midpatch">
+    <compiler angle="radian"/>
+    <asset>
+        <texture name='a' builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox" width="100"/>
+        <texture name="texplane0" type="2d" builtin="checker" rgb1="0.0 0.0 0.36" rgb2="0.79 .94 .99" width="100"
+                 height="100" mark="cross" markrgb=".8 .8 .8"/>
+        <texture name="texplane1" type="2d" builtin="checker" rgb1=".52 .08 0" rgb2="1 .85 .84" width="100" height="100"
+                 mark="cross" markrgb=".8 .8 .8"/>
+        <texture name="texplane2" type="2d" builtin="checker" rgb1="0.0 0.0 0.36" rgb2="0.79 .94 .99" width="100"
+                 height="100" mark="cross" markrgb=".8 .8 .8"/>
+        <texture name="texplane3" type="2d" builtin="checker" rgb1="0 0 0" rgb2="0.8 0.0 0.8" width="100" height="100"
+                 mark="cross" markrgb=".8 .8 .8"/>
+        <texture name="texplane4" type="2d" builtin="flat" rgb1="0.1215686275 0.4470588235 0.6" width="100"
+                 height="100"/>
+        <texture name="texplane5" type="2d" builtin="checker" rgb1="1.0 1.0 1.0" rgb2="0.66 0.66 0.66" width="100"
+                 height="100"/>
+        <material name="matplane0" reflectance="0.2" texture="texplane0" texrepeat="1 1" texuniform="true"/>
+        <material name="matplane1" reflectance="0.2" texture="texplane1" texrepeat="1 1" texuniform="true"/>
+        <material name="matplane2" reflectance="0.2" texture="texplane2" texrepeat="1 1" texuniform="true"/>
+        <material name="matplane3" reflectance="0.2" texture="texplane3" texrepeat="1 1" texuniform="true"/>
+        <material name="matplane4" reflectance="0.2" texture="texplane4" texrepeat="1 1" texuniform="true"/>
+        <material name="matplane5" reflectance="0.2" texture="texplane5" texrepeat="1 1" texuniform="true"/>
+    </asset>
+    <visual>
+        <headlight ambient="0.6 0.6 0.6" diffuse="0.5 0.5 0.5" specular="0.2 0.2 0.2"/>
+        <map znear="0.001"/>
+    </visual>
+    <worldbody>
+        <!-- Floor XY -->
+        <geom contype="1" friction="1 0.0 0.001" name="floor07" pos="0 -5.75 -1" size="20 6 1" euler="0 0 0" type="box"
+              material="matplane0" condim="6"/>
+
+        <geom contype="1" friction="1 0.0 0.001" name="floor06" pos="-9 1 -1" size="10 .75 1" euler="0 0 0" type="box"
+              material="matplane0" condim="6"/>
+        <geom contype="1" friction="0.01 0.0 0.001" name="floor05" pos="11 1 -1" size="10 .75 1" euler="0 0 0" type="box"
+              material="matplane5" condim="6"/>
+
+        <geom contype="1" friction="1 0.0 0.001" name="floor04" pos="1 2.5 -1" size="20 .75 1" euler="0 0 0" type="box"
+              material="matplane0" condim="6"/>
+
+        <geom contype="1" friction="0.01 0.0 0.001" name="floor01" pos="-9 4 -1" size="10 .75 1" euler="0 0 0" type="box"
+              material="matplane5" condim="6"/>
+        <geom contype="1" friction="1 0.0 0.001" name="floor02" pos="11 4 -1" size="10 .75 1" euler="0 0 0" type="box"
+              material="matplane0" condim="6"/>
+
+        <geom contype="1" friction="1 0.0 0.001" name="floor03" pos="0 10.75 -1" size="20 6 1" euler="0 0 0" type="box"
+              material="matplane0" condim="6"/>
+    </worldbody>
+</mujoco>
