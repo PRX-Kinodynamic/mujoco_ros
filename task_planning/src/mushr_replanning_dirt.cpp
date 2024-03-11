@@ -49,14 +49,49 @@ int main(int argc, char** argv)
   std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double>>();
   ps->copy_from(param_values);
 
+  auto sg = planning_context.first;
+  auto cg = planning_context.second;
+
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.6;
   };
-  dirt_spec->min_control_steps = 1.0 * 1.0 / prx::simulation_step;
-  dirt_spec->max_control_steps = 2.0 * 1.0 / prx::simulation_step;
-  dirt_spec->blossom_number = 25;
+
+  bool propagate_dynamics, use_viability;
+  n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
+  n.getParam(ros::this_node::getName() + "/use_viability", use_viability);
+
+  plan_t plan(cs);
+  plan.append_onto_back(1.0);
+  space_point_t point = ss->make_point();
+
+  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 }, { 0.0, 1.0 }, { 1.0, 1.0 } };
+
+  dirt_spec->valid_check = [&](trajectory_t& traj) {
+    for (unsigned i = 0; i < traj.size(); i++)
+    {
+      ss->copy_from_point(traj.at(i));
+      if (cg->in_collision())
+        return false;
+      if (use_viability && i == traj.size() - 1)
+      {
+        for (auto& control : control_list)
+        {
+          cs->copy(plan.back().control, control);
+          sg->propagate(traj.at(i), plan, point);
+          ss->copy_from_point(point);
+          if (cg->in_collision())
+            return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->blossom_number = params["blossom_number"].as<int>();
   dirt_spec->use_pruning = false;
 
   std::string goal_config_str;
@@ -87,8 +122,6 @@ int main(int argc, char** argv)
   using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::dirt_t>, prx::dirt_specification_t*,
                                                    prx::dirt_query_t*, prx_models::MushrPlanner>;
 
-  bool propagate_dynamics;
-  n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics);
 
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;

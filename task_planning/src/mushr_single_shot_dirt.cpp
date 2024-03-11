@@ -58,9 +58,9 @@ int main(int argc, char** argv)
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.6;
   };
-  dirt_spec->min_control_steps = 0.1 * 1.0 / prx::simulation_step;
-  dirt_spec->max_control_steps = 2.0 * 1.0 / prx::simulation_step;
-  dirt_spec->blossom_number = 25;
+  dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->blossom_number = params["blossom_number"].as<int>();
   dirt_spec->use_pruning = false;
 
   std::string goal_config_str;
