@@ -66,6 +66,7 @@ private:
 
 protected:
   std::string collision_body1, collision_body2;
+  bool collision_in_history = false;
 
 public:
   std::mutex _mj_reset_mutex;
@@ -130,7 +131,7 @@ public:
     _mj_reset_mutex.unlock();
   }
 
-  bool in_collision(mujoco_ros::Collision::Request& req, mujoco_ros::Collision::Response& res)
+  void collision_updater(const ros::TimerEvent& event)
   {
     int ncon = d->ncon;
     if (ncon > 0)
@@ -141,12 +142,15 @@ public:
         collision_body2 = mj_id2name(m, mjOBJ_BODY, m->geom_bodyid[d->contact[i].geom2]);
         if (collision_body1.find("obs") != std::string::npos ^ collision_body2.find("obs") != std::string::npos)
         {
-          res.collision_result.data = true;
-          return true;
+          collision_in_history = true;
         }
       }
     }
-    res.collision_result.data = false;
+  }
+
+  bool in_collision(mujoco_ros::Collision::Request& req, mujoco_ros::Collision::Response& res)
+  {
+    res.collision_result.data = collision_in_history;
     return true;
   }
 
@@ -192,6 +196,7 @@ public:
   void reset_simulation()
   {
     mj_resetData(m, d);
+    collision_in_history = false;
   }
 };
 

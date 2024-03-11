@@ -33,6 +33,7 @@ int main(int argc, char** argv)
 
   ros::ServiceServer collision_service =
       n.advertiseService(root + "/collision", &mj_ros::simulator_t::in_collision, sim.get());
+  ros::Timer timer = n.createTimer(ros::Duration(0.1), &mj_ros::simulator_t::collision_updater, sim.get());
 
   std::vector<ros::Subscriber> sim_subscribers;
   mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, visualize_sim) };

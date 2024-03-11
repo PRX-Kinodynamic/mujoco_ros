@@ -22,7 +22,12 @@ private:
 
 public:
   planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query, bool propagate_dynamics)
-    : _planner(planner), _query(query), _spec(spec), preprocess_timeout(0.0), postprocess_timeout(0.0), _propagate_dynamics(propagate_dynamics)
+    : _planner(planner)
+    , _query(query)
+    , _spec(spec)
+    , preprocess_timeout(0.0)
+    , postprocess_timeout(0.0)
+    , _propagate_dynamics(propagate_dynamics)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
@@ -63,17 +68,18 @@ public:
 
     step_traj->clear();
 
-    if (_propagate_dynamics) {
-        ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
-        _spec->propagate(_query->start_state, *step_plan, *step_traj);
-        _spec->state_space->copy(_query->start_state, step_traj->back());
-        ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
-    }
-
-    if (!_spec->valid_state(_query->start_state))
+    if (_propagate_dynamics)
     {
-      ROS_WARN("Invalid start state");
-      prx_models::copy(_query->start_state, request.current_observation);
+      ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
+      _spec->propagate(_query->start_state, *step_plan, *step_traj);
+      _spec->state_space->copy(_query->start_state, step_traj->back());
+      ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
+
+      if (!_spec->valid_state(_query->start_state))
+      {
+        ROS_WARN("Invalid start state");
+        prx_models::copy(_query->start_state, request.current_observation);
+      }
     }
 
     _planner->link_and_setup_spec(_spec);
