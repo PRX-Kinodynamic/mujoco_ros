@@ -127,6 +127,8 @@ public:
       response.planner_output = Service::Response::TYPE_FAILURE;
     }
     _planner->reset();
+    if (!_retain_previous)
+      _query->clear_outputs();
     return true;
   }
 };
