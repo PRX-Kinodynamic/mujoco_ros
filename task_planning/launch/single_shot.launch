@@ -4,11 +4,21 @@
     <arg name = "out_html"  default = "ROS_output.html"/>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "goal_config" default = "3.0, 3.0, 0.0"/>
-    <arg name = "planning_cycle_duration" default = "0.5"/>
+    <arg name = "planning_cycle_duration" default = "1.0"/>
     <arg name = "seed" default = "0"/>
+    <arg name = "use_rogue" default="false"/>
     <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
     <group ns="$(arg namespace)">
-        <node pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
+        <node unless="$(arg use_rogue)" pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
+            <param name="traj_file" value="$(arg traj_file)" />
+            <param name="plan_file" value="$(arg plan_file)" />
+            <param name="out_html"  value="$(arg out_html)" />
+            <param name="goal_config" value="$(arg goal_config)" />
+            <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
+            <param name="seed" value="$(arg seed)" />
+            <param name="params_file" value="$(arg params_file)" />
+        </node>
+        <node if="$(arg use_rogue)" pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_rogue" output="screen">
             <param name="traj_file" value="$(arg traj_file)" />
             <param name="plan_file" value="$(arg plan_file)" />
             <param name="out_html"  value="$(arg out_html)" />
