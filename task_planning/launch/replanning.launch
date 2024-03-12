@@ -29,6 +29,7 @@
             <param name="max_cycles" value="$(arg max_cycles)" />
             <param name="params_file" value="$(arg params_file)" />
             <param name="propagate_dynamics" value="$(arg propagate_dynamics)"/>
+            <param name="use_viability" value="$(arg use_viability)"/>
         </node>
         <node if="$(arg record)" pkg="rosbag" name="rosbag_record" type="record" 
         args="-O $(find task_planning)/data/$(arg namespace).bag 

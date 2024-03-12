@@ -2,6 +2,13 @@
 #include <prx/simulation/plants/plants.hpp>
 #include <prx/planning/world_model.hpp>
 #include <prx/planning/planners/dirt.hpp>
+
+#ifdef BUILD_WITH_ROGUE
+#include "prx/planning/planners/rogue.hpp"
+#include "prx/simulation/controllers/learned_controller.hpp"
+#include "prx/utilities/data_structures/roadmap_with_gaps.hpp"
+#endif
+
 #include <prx/utilities/general/param_loader.hpp>
 #include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/visualization/three_js_group.hpp>
