@@ -58,9 +58,10 @@ int main(int argc, char** argv)
     return dirt_spec->distance_function(s, s2) / 0.6;
   };
 
-  bool propagate_dynamics, use_viability;
+  bool propagate_dynamics, use_viability, retain_previous;
   n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
   n.getParam(ros::this_node::getName() + "/use_viability", use_viability);
+  n.getParam(ros::this_node::getName() + "/retain_previous", retain_previous);
 
   plan_t plan(cs);
   plan.append_onto_back(1.0);
@@ -122,7 +123,7 @@ int main(int argc, char** argv)
   using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::dirt_t>, prx::dirt_specification_t*,
                                                    prx::dirt_query_t*, prx_models::MushrPlanner>;
 
-  PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics);
+  PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics, retain_previous);
 
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, cs->get_dimension());

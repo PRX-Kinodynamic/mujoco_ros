@@ -15,26 +15,31 @@ private:
   Service _service;
   double _preprocess_end_time, _query_fulfill_start_time;
   double preprocess_timeout, postprocess_timeout;
-  bool _propagate_dynamics;
+  bool _propagate_dynamics, _retain_previous;
 
   prx::plan_t* step_plan;
+  prx::plan_t* rest_of_plan;
   prx::trajectory_t* step_traj;
 
 public:
-  planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query, bool propagate_dynamics)
+  planner_service_t(ros::NodeHandle& nh, PlannerPtr planner, SpecPtr spec, QueryPtr query, bool propagate_dynamics,
+                    bool retain_previous)
     : _planner(planner)
     , _query(query)
     , _spec(spec)
     , preprocess_timeout(0.0)
     , postprocess_timeout(0.0)
     , _propagate_dynamics(propagate_dynamics)
+    , _retain_previous(retain_previous)
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
 
     step_plan = new prx::plan_t(_spec->control_space);
+    rest_of_plan = new prx::plan_t(_spec->control_space);
     ml4kp_bridge::add_zero_control(*step_plan);
+    ml4kp_bridge::add_zero_control(*rest_of_plan);
     step_traj = new prx::trajectory_t(_spec->state_space);
   }
 
@@ -100,7 +105,16 @@ public:
         ml4kp_bridge::add_zero_control(_query->solution_plan, execution_time - plan_duration + prx::simulation_step);
       }
       step_plan->clear();
+      rest_of_plan->clear();
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
+      _query->solution_plan.copy_to(execution_time, _query->solution_plan.duration(), *rest_of_plan);
+
+      if (_propagate_dynamics)
+      {
+        _query->solution_plan.clear();
+        rest_of_plan->copy_to(0, rest_of_plan->duration(), _query->solution_plan);
+      }
+
       ml4kp_bridge::copy(response.output_plan, step_plan);
       ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
       response.planner_output = Service::Response::TYPE_SUCCESS;

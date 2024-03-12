@@ -62,9 +62,10 @@ int main(int argc, char** argv)
   rogue_spec->blossom_number = 1;
   rogue_spec->use_pruning = false;
 
-  bool propagate_dynamics, use_viability;
+  bool propagate_dynamics, use_viability, retain_previous;
   n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
   n.getParam(ros::this_node::getName() + "/use_viability", use_viability);
+  n.getParam(ros::this_node::getName() + "/retain_previous", retain_previous);
 
   plan_t plan(cs);
   plan.append_onto_back(1.0);
@@ -216,7 +217,7 @@ int main(int argc, char** argv)
 
   using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::rogue_t>, prx::rogue_specification_t*,
                                                    prx::rogue_query_t*, prx_models::MushrPlanner>;
-  PlannerService planner_service(n, rogue, rogue_spec, rogue_query, propagate_dynamics);
+  PlannerService planner_service(n, rogue, rogue_spec, rogue_query, propagate_dynamics, retain_previous);
 
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, cs->get_dimension());
