@@ -29,14 +29,14 @@
             <param name="publisher_topic" value="/mushr/control" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
             <param name="frequency" value="10" />
-        </node>         
+        </node>       
 
         <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
             args="load interface/AckermannFromSpacePointNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
-            <param name="frequency" value="10" />
+            <param name="frequency" value="100" />
         </node>         
     </group>
   

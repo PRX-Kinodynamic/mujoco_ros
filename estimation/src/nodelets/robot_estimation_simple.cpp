@@ -55,7 +55,7 @@ private:
     _tf_out.header.frame_id = _world_frame;
 
     _tf_out.child_frame_id = "robot_0";
-    _timer = private_nh.createTimer(ros::Duration(0.05), &robot_estimation_simple_nodelet_t::estimate, this);
+    _timer = private_nh.createTimer(ros::Duration(0.01), &robot_estimation_simple_nodelet_t::estimate, this);
   }
 
   Eigen::Quaterniond to_quat(geometry_msgs::TransformStamped& tf)
