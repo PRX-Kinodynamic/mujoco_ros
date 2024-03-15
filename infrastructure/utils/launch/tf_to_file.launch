@@ -3,11 +3,18 @@
   <arg name="current_ns" default="utils"/>
   <!-- <param name="/use_sim_time" value="true"/> -->
   <group ns="$(arg current_ns)">
+    <!-- 
     <node pkg="utils" type="tf_to_file" name="tf_to_file" output="screen">
-      <!-- <rosparam command="load" file="$(find utils)/config/mj_tf_to_file.yaml" /> -->
     	<rosparam command="load" file="$(find utils)/config/tf_to_file.yaml" />
       <param name="filename" value="$(arg tf_filename)" />
     </node>
+     -->
+
+    <node pkg="utils" type="collection_window_trajs_ctrl" name="collection_window_trajs_ctrl" output="screen">
+      <rosparam command="load" file="$(find utils)/config/tf_to_file.yaml" />
+      <param name="filename" value="$(arg tf_filename)" />
+      <param name="window_duration" value="1.0" />
+    </node>
+
   </group>
-<!-- 1705620073.86 -->
 </launch>

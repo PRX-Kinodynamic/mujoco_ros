@@ -16,6 +16,10 @@
 
 std::stringstream strstr_plan;
 std::stringstream strstr_ctrl;
+std::ofstream ofs_poses, ofs_plan, ofs_control;
+
+ros::Time initial_time;
+
 std::string tf_to_str(geometry_msgs::TransformStamped& tf)
 {
   std::stringstream strstr;
@@ -59,24 +63,37 @@ void get_plan(const ml4kp_bridge::PlanStampedConstPtr message)
   const ros::Time now{ ros::Time::now() };
   for (auto step : message->plan.steps)
   {
-    strstr_plan << now << " ";
+    ofs_plan << now << " ";
     for (auto ctrl : step.control.point)
     {
-      strstr_plan << ctrl.data << " ";
+      ofs_plan << ctrl.data << " ";
     }
-    strstr_plan << step.duration.data << "\n";
+    ofs_plan << step.duration.data << "\n";
   }
 }
 
 void get_control(const ml4kp_bridge::SpacePointConstPtr control)
 {
   const ros::Time now{ ros::Time::now() };
-  strstr_ctrl << now << " ";
+  ofs_control << now << " ";
   for (auto e : control->point)
   {
-    strstr_ctrl << e.data << " ";
+    ofs_control << e.data << " ";
   }
-  strstr_ctrl << "\n";
+  ofs_control << "\n";
+}
+
+void set_ofs(std::ofstream& ofs, const std::string& fileprefix)
+{
+  if (ofs.is_open())
+  {
+    ofs.close();
+  }
+
+  const std::string filename{ fileprefix + "_" + utils::timestamp() + ".txt" };
+  DEBUG_VARS(filename);
+
+  ofs.open(filename.c_str(), std::ios::trunc);
 }
 
 int main(int argc, char** argv)
@@ -90,9 +107,9 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, filename);
   ROS_PARAM_SETUP(nh, transforms);
   utils::execution_status_t status(nh, root + "/TfToFile");
-  const std::string filename_poses{ filename + "_poses.txt" };
-  const std::string filename_plan{ filename + "_plan.txt" };
-  const std::string filename_ctrl{ filename + "_ctrl.txt" };
+  const std::string filename_poses{ filename + "_poses" };
+  const std::string filename_plan{ filename + "_plan" };
+  const std::string filename_ctrl{ filename + "_ctrl" };
 
   std::vector<std::pair<std::string, std::string>> frames{};
   for (int i = 0; i < transforms.size(); ++i)
@@ -103,17 +120,13 @@ int main(int argc, char** argv)
     DEBUG_VARS(frame_root, frame_child);
     frames.push_back(std::make_pair(frame_root, frame_child));
   }
-  DEBUG_VARS(filename_plan);
-  DEBUG_VARS(filename_poses);
+
   tf::TransformListener tf_listener;
   tf::StampedTransform tf;
 
-  std::ofstream ofs(filename_poses.c_str(), std::ofstream::trunc);
-
-  // const std::string plant_name{ "mushr" };
-  // const std::string plant_path{ "mushr" };
-  // auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
-  // prx_assert(plant != nullptr, "Failed to create plant");
+  set_ofs(ofs_poses, filename_poses);
+  set_ofs(ofs_plan, filename_plan);
+  set_ofs(ofs_control, filename_ctrl);
 
   ros::Subscriber plan_subscriber{ nh.subscribe("/mushr/ml4kp_plan", 1, &get_plan) };
   ros::Subscriber ctrl_subscriber{ nh.subscribe("/mushr/plan_stepper/control", 1, &get_control) };
@@ -122,8 +135,15 @@ int main(int argc, char** argv)
   tf2_ros::TransformListener tfListener(tf_buffer);
 
   ros::Time now{ ros::Time(0) };
+  initial_time = ros::Time(0);
   while (status.ok())
   {
+    if (status.reset_received())
+    {
+      set_ofs(ofs_poses, filename_poses);
+      set_ofs(ofs_plan, filename_plan);
+      set_ofs(ofs_control, filename_ctrl);
+    }
     for (auto fr : frames)
     {
       const std::string root{ fr.first };
@@ -131,19 +151,23 @@ int main(int argc, char** argv)
       const std::string tf_str{ get_transform(tf_buffer, root, child, now) };
       if (tf_str.size() > 0)
       {
-        ofs << root << " " << child << " " << tf_str << "\n";
+        ofs_poses << root << " " << child << " " << tf_str << "\n";
       }
     }
     ros::spinOnce();
   }
-  ofs.close();
-  std::ofstream ofs_plan(filename_plan.c_str(), std::ofstream::trunc);
-  ofs_plan << strstr_plan.str();
-  ofs_plan.close();
 
-  std::ofstream ofs_control(filename_ctrl.c_str(), std::ofstream::trunc);
-  ofs_control << strstr_ctrl.str();
+  ofs_poses.close();
+  ofs_plan.close();
   ofs_control.close();
+  // ofs.close();
+  // std::ofstream ofs_plan(filename_plan.c_str(), std::ofstream::trunc);
+  // ofs_plan << strstr_plan.str();
+  // ofs_plan.close();
+
+  // std::ofstream ofs_control(filename_ctrl.c_str(), std::ofstream::trunc);
+  // ofs_control << strstr_ctrl.str();
+  // ofs_control.close();
 
   return 0;
 }
