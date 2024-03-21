@@ -56,11 +56,15 @@ private:
     {
       _tf_listener.lookupTransform(_world_frame, _robot_frame, ros::Time(0), _tf_robot);
       tf::transformTFToEigen(_tf_robot, _robot_transform);
+      linear_speed.data = (_robot_transform.translation() - _previous_robot_transform.translation()).norm() / 0.0333;
+      _previous_robot_transform = _robot_transform;
     }
     copy(_observation, _robot_transform);
     _header.seq++;
     _header.stamp = ros::Time::now();
     _observation.header = _header;
+    _observation.float_extra.clear();
+    _observation.float_extra.push_back(linear_speed);
     _observation_publisher.publish(_observation);
   }
 
@@ -70,7 +74,8 @@ private:
   ros::Publisher _observation_publisher;
   Observation _observation;
 
-  Transform _robot_transform;
+  Transform _robot_transform, _previous_robot_transform;
+  std_msgs::Float64 linear_speed;
   tf::StampedTransform _tf_robot;
   tf::TransformListener _tf_listener;
 

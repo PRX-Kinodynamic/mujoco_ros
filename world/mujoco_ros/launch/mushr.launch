@@ -14,6 +14,6 @@
     <include file="$(find interface)/launch/mushr_interface.launch">
         <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" />
     </include>
-    <include file="$(find interface)/launch/mushr_control.launch" />
+    <include file="$(find control)/launch/mushr_control.launch" />
 </launch>
 
