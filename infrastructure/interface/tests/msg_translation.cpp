@@ -18,10 +18,10 @@ TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
   stamped_plan.plan.steps[0].control.point.resize(u_dim);
   stamped_plan.plan.steps[1].control.point.resize(u_dim);
 
-  stamped_plan.plan.steps[0].control.point[0].data = 1.0;
-  stamped_plan.plan.steps[0].control.point[1].data = 1.5;
-  stamped_plan.plan.steps[1].control.point[0].data = 2.0;
-  stamped_plan.plan.steps[1].control.point[1].data = 2.5;
+  stamped_plan.plan.steps[0].control.point[0] = 1.0;
+  stamped_plan.plan.steps[0].control.point[1] = 1.5;
+  stamped_plan.plan.steps[1].control.point[0] = 2.0;
+  stamped_plan.plan.steps[1].control.point[1] = 2.5;
 
   interface::translate_msg(mushr_plan, stamped_plan);
 

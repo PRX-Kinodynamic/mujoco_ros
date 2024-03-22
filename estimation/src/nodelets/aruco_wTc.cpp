@@ -130,7 +130,7 @@ private:
     for (auto& state : message->trajectory.data)
     {
       // x,y,z: setting z=0 for now
-      _cv_traj.emplace_back(state.point[0].data, state.point[1].data, 0.0);
+      _cv_traj.emplace_back(state.point[0], state.point[1], 0.0);
       _msgs_received[PointIdx::trajectory] = true;
     }
     cv::projectPoints(_cv_traj, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_traj);
