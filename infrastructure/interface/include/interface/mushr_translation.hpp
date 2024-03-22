@@ -1,7 +1,7 @@
 #pragma once
 
 #include <prx_models/mj_mushr.hpp>
-
+#include <interface/SensorDataStamped.h>
 namespace interface
 {
 
