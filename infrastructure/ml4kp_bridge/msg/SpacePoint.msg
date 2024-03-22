@@ -1,1 +1,1 @@
-std_msgs/Float64[] point
+float64[] point
