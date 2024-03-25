@@ -1,0 +1,9 @@
+camera_id: "0"
+camera: "/dev/video0"
+height: 1080 
+width: 1920
+frequency: 50
+display_video: true
+camera_matrix: [1.10856930e+03, 0.0, 9.49330984e+02, 0, 1.10897817e+03, 5.74566862e+02]
+dist_coeffs: [0.15528444, -0.34752647, -0.00119524, -0.00144563, 0.16229799]
+
