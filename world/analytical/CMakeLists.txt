@@ -1,10 +1,6 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(analytical)
 set(CMAKE_CXX_STANDARD 17)
-
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -13,6 +9,8 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   interface
   utils
+  ml4kp_bridge
+  nodelet
 )
 
 
@@ -24,26 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
-
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a exec_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a exec_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
 set(MSG_FILES "")
@@ -60,7 +38,6 @@ generate_messages(
   std_msgs
 )
 
-
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -73,7 +50,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS roscpp std_msgs message_runtime
+  CATKIN_DEPENDS roscpp std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -88,8 +65,13 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
+# file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+# add_library(${NODELET_LIB} ${NODELET_FILES})
+# target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+# add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
 
+file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 foreach(f ${EXECUTABLE_FILES})
   get_filename_component(fname ${f} NAME_WE )
   add_executable(${fname} ${f})
@@ -100,9 +82,7 @@ foreach(f ${EXECUTABLE_FILES})
                    ${catkin_EXPORTED_TARGETS}
                    )
   ## Specify libraries to link a library or executable target against
-  target_link_libraries(${fname}
-                        ${catkin_LIBRARIES}
-                      )
+  target_link_libraries(${fname} ${catkin_LIBRARIES} )
 endforeach()
 
 #############
@@ -112,6 +92,5 @@ endforeach()
 file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
 catkin_install_python(PROGRAMS
   ${SCRIPT_FILES}
-  # scripts/mushr_open_loop_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
