@@ -29,15 +29,19 @@
 #include <aruco/aruco_nano.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {
-class aruco_wTc_nodelet_t : public nodelet::Nodelet
+
+template <class Base>
+class aruco_wTc_t : public Base
 {
+  using Derived = aruco_wTc_t<Base>;
   using Transform = Eigen::Transform<double, 3, Eigen::TransformTraits::Isometry>;
 
 public:
-  aruco_wTc_nodelet_t()
+  aruco_wTc_t()
     : _camera_matrix(3, 3, CV_64FC1)
     , _Tvec(3, 1, CV_64FC1)
     , _Rvec(1, 3, CV_64FC1)
@@ -67,10 +71,9 @@ private:
 
   virtual void onInit()
   {
-    ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
+    ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
 
     _img_topic_name = ros::this_node::getNamespace() + _img_topic_name;
-
     std::vector<double> camera_matrix;
     std::vector<double> dist_coeffs;
 
@@ -83,16 +86,16 @@ private:
     std::string robot_frame;
     double robot_pose_offset;
 
-    NODELET_PARAM_SETUP(private_nh, dist_coeffs);
-    NODELET_PARAM_SETUP(private_nh, camera_matrix);
-    NODELET_PARAM_SETUP(private_nh, image_topic);
-    NODELET_PARAM_SETUP(private_nh, goal_pose_topic);
-    NODELET_PARAM_SETUP(private_nh, goal_rad_topic);
-    NODELET_PARAM_SETUP(private_nh, trajectory_topic);
-    NODELET_PARAM_SETUP(private_nh, camera_frame);
-    NODELET_PARAM_SETUP(private_nh, world_frame);
-    NODELET_PARAM_SETUP(private_nh, robot_frame);
-    NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0])
+    PARAM_SETUP(private_nh, dist_coeffs);
+    PARAM_SETUP(private_nh, camera_matrix);
+    PARAM_SETUP(private_nh, image_topic);
+    PARAM_SETUP(private_nh, goal_pose_topic);
+    PARAM_SETUP(private_nh, goal_rad_topic);
+    PARAM_SETUP(private_nh, trajectory_topic);
+    PARAM_SETUP(private_nh, camera_frame);
+    PARAM_SETUP(private_nh, world_frame);
+    PARAM_SETUP(private_nh, robot_frame);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0]);
 
     _robot_pose_offset[0] = robot_pose_offset;
     _camera_frame = camera_frame;
@@ -116,10 +119,10 @@ private:
     _cv_points[PointIdx::x_normal] = cv::Point3d(1, 0, 0);
     _cv_points[PointIdx::y_normal] = cv::Point3d(0, 1, 0);
     _cv_points[PointIdx::z_normal] = cv::Point3d(0, 0, 1);
-    _rgb_subscriber = private_nh.subscribe(image_topic, 1, &aruco_wTc_nodelet_t::get_image, this);
-    _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &aruco_wTc_nodelet_t::get_goal_pose, this);
-    _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &aruco_wTc_nodelet_t::get_goal_rad, this);
-    _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &aruco_wTc_nodelet_t::get_trajectory, this);
+    _rgb_subscriber = private_nh.subscribe(image_topic, 1, &Derived::get_image, this);
+    _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &Derived::get_goal_pose, this);
+    _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &Derived::get_goal_rad, this);
+    _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &Derived::get_trajectory, this);
 
     _frame_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
   }
@@ -261,6 +264,6 @@ private:
   cv::Mat _cv_world_rot;
   Eigen::Vector3d _robot_pose_offset;
 };
+using aruco_wTc_nodelet_t = aruco_wTc_t<nodelet::Nodelet>;
 }  // namespace estimation
-
 PLUGINLIB_EXPORT_CLASS(estimation::aruco_wTc_nodelet_t, nodelet::Nodelet);
