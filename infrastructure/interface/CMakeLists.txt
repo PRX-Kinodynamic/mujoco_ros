@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   ackermann_msgs
   nodelet
   utils
+  tf
 )
 find_package(OpenCV REQUIRED )
 

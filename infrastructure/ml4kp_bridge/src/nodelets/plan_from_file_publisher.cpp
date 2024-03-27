@@ -67,6 +67,7 @@ protected:
 
   bool service_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
   {
+    _plan_msg.header.stamp = ros::Time::now();
     _publisher.publish(_plan_msg);
 
     return true;

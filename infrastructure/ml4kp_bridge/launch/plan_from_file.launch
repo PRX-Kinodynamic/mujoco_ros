@@ -1,13 +1,15 @@
 <launch>
-  <arg name="plan_topic_name" default="/mushr/plan" />
+  <arg name="plan_topic_name" default="/mushr/ml4kp_plan" />
 
-  <node pkg="nodelet" type="nodelet" name="standalone_nodelet" 
+  <node pkg="nodelet" type="nodelet" name="ML4KP_nodelet" 
   			args="manager" output="screen"/>
   <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
-  		  args="load ml4kp_bridge/plan_from_file_t standalone_nodelet" 
+  		  args="load ml4kp_bridge/plan_from_file_t ML4KP_nodelet" 
   		  output="screen">
     <param name="publisher_topic" value="$(arg plan_topic_name)" />
     <param name="plan_file" value="$(env ML4KP_ROS)/plan0.txt" />
+    <param name="control_dimension" value="2" />
+    <param name="control_topology" value="EE" />
 
   </node>
   

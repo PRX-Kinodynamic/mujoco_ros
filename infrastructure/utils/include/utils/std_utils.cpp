@@ -31,4 +31,13 @@ void print_container(const std::string& name, const T& container)
   }
   std::cout << std::endl;
 }
+
+static std::string timestamp()
+{
+  auto t = std::time(nullptr);
+  std::tm tm = *std::localtime(&t);
+  std::stringstream strstr{};
+  strstr << std::put_time(&tm, "%y%m%d_%H%M%S");
+  return strstr.str();
+}
 }  // namespace utils
