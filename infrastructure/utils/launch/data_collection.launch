@@ -1,0 +1,13 @@
+<launch>
+  <arg name="fileprefix" default="$(env ML4KP_ROS)/data/tf/mj"/>
+  <arg name="current_ns" default="utils"/>
+  <group ns="$(arg current_ns)">
+
+    <node pkg="utils" type="trajs_and_ctrl_collection" name="trajs_and_ctrl_collection" output="screen">
+      <rosparam command="load" file="$(find utils)/config/frames.yaml" />
+      <param name="fileprefix" value="$(arg fileprefix)" />
+      <param name="window_duration" value="1.0" />
+    </node>
+
+  </group>
+</launch>
