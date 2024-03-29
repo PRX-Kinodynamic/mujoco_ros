@@ -36,4 +36,13 @@ inline void copy(prx::space_snapshot_t& state, const ml4kp_bridge::SpacePointSta
   copy(state, msg.space_point);
 }
 
+inline void copy(ml4kp_bridge::SpacePoint& msg, const Eigen::VectorXd& state)
+{
+  msg.point.resize(state.size());
+  for (std::size_t i = 0; i < msg.point.size(); ++i)
+  {
+    msg.point[i] = state[i];
+  }
+}
+
 }  // namespace ml4kp_bridge
