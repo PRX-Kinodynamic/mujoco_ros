@@ -342,13 +342,7 @@ public:
     const std::vector<ml4kp_bridge::SpacePoint>& points = msg.data;
     for (const auto& point : points)
     {
-      const std::vector<std_msgs::Float64>& values = point.point;
-      std::vector<double> point_to_add;
-      for (const auto& value : values)
-      {
-        point_to_add.push_back(value.data);
-      }
-      trajectory_to_visualize.push_back(point_to_add);
+      trajectory_to_visualize.emplace_back(point.point);
     }
   }
 

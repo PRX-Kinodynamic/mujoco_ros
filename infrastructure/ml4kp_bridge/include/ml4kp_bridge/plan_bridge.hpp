@@ -55,7 +55,7 @@ inline void add_zero_plan(ml4kp_bridge::PlanStamped& plan_stamped, double durati
   plan_stamped.plan.steps.back().control.point.resize(dim);
   for (int i = 0; i < dim; ++i)
   {
-    plan_stamped.plan.steps.back().control.point[i].data = 0.0;
+    plan_stamped.plan.steps.back().control.point[i] = 0.0;
   }
 }
 }  // namespace ml4kp_bridge
