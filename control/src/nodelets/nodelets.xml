@@ -1,0 +1,10 @@
+<library path="lib/libcontrol_nodelets">
+  <class 
+      name="control/mushr_feedback_controller_t" 
+      type="control::mushr_feedback_controller_t" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      A feedback controller class for the MuSHR platform
+    </description>
+  </class>
+</library>
