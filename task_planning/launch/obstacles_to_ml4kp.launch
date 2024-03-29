@@ -1,0 +1,11 @@
+<launch> 
+    <group ns="test">
+
+    <node pkg="task_planning" name="obstacles_to_ml4kp_world" type="obstacles_to_ml4kp_world" output="screen">
+        <param name="obstacle_frames" type="yaml" value="[C0_marker_200,C0_marker_201]" />
+        <param name="world_frame" value="world" />
+        <param name="robot_frame" value="robot_0" />
+    </node>
+    </group>
+</launch>
+
