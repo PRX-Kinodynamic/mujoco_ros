@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   prx_models
   ml4kp_bridge
   nodelet
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -56,11 +57,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,10 +73,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs  # Or other packages containing msgs
+  ml4kp_bridge
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -107,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES control
- CATKIN_DEPENDS ml4kp_bridge roscpp
+ CATKIN_DEPENDS ml4kp_bridge roscpp message_runtime
 #  DEPENDS system_lib
 )
 
