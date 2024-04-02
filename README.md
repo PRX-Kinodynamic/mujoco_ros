@@ -34,3 +34,4 @@ catkin_test_results       # Check for failures
 - [ ] Check for unnecessary copies
 - [ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
 - [ ] Replace the current `feedback_client` (or at least refactor it) so it spawns `mushr_simulation` and connects via topics.
+- [ ] Add service to change pose of robot
