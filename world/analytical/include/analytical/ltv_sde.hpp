@@ -5,7 +5,10 @@
 
 namespace prx
 {
-template <typename DynamicF>
+// LTV from CS-BRM: A Probabilistic RoadMap for Consistent Belief Space Planning With Reachability Guarantees
+// https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10404055
+// Eq. 50
+// Setting h = 0
 class ltv_sde_t : public plant_t
 {
   using State = Eigen::Vector<double, 4>;    // Maybe do this parametric
@@ -13,13 +16,19 @@ class ltv_sde_t : public plant_t
   using Noise = Eigen::Vector<double, 4>;    // Maybe do this parametric
 public:
   ltv_sde_t(const std::string& path)
-    : plant_t(path), _x(State::Zero()), _xdot(State::Zero()), _u(Control::Zero()), _w(Noise::Zero()), _f()
+    : plant_t(path), _x(State::Zero()), _xdot(State::Zero()), _u(Control::Zero()), _w(Noise::Zero())
   {
-    DEBUG_PRINT;
+    _A(0, 2) = prx::simulation_step;
+    _A(1, 3) = prx::simulation_step;
+    _B(0, 0) = prx::simulation_step * prx::simulation_step / 2;
+    _B(1, 1) = prx::simulation_step * prx::simulation_step / 2;
+    _B(2, 0) = prx::simulation_step;
+    _B(2, 1) = prx::simulation_step;
+    _G.diagonal() = Eigen::Vector4d(5, 8, 5, 5) * 0.01;
+
     state_memory = { &_x[0], &_x[1], &_x[2], &_x[3] };
     state_space = new space_t("EEEE", state_memory, "state_space");
 
-    DEBUG_PRINT;
     control_memory = { &_u[0], &_u[1] };
     input_control_space = new space_t("EE", control_memory, "control_space");
 
@@ -56,44 +65,18 @@ public:
 protected:
   virtual void compute_derivative() override final
   {
-    _xdot = _f(_x, _xdot, _u, _w);
+    _xdot = _A * _x + _B * _u + _G * _w;
   }
+  Eigen::Matrix<double, 4, 4> _A;
+  Eigen::Matrix<double, 4, 2> _B;
+  Eigen::Matrix<double, 4, 4> _G;
 
   State _x, _xdot;
   Control _u;
   Noise _w;
-  DynamicF _f;
 };
 
-// LTV from CS-BRM: A Probabilistic RoadMap for Consistent Belief Space Planning With Reachability Guarantees
-// https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10404055
-// Eq. 50
-// Setting h = 0
-struct ltv_cs_brm_t
-{
-  ltv_cs_brm_t() : A(Eigen::Matrix<double, 4, 4>::Identity())
-  {
-    A(0, 2) = prx::simulation_step;
-    A(1, 3) = prx::simulation_step;
-    B(0, 0) = prx::simulation_step * prx::simulation_step / 2;
-    B(1, 1) = prx::simulation_step * prx::simulation_step / 2;
-    B(2, 0) = prx::simulation_step;
-    B(2, 1) = prx::simulation_step;
-    G.diagonal() = Eigen::Vector4d(5, 8, 5, 5) * 0.01;
-  }
-  Eigen::Vector4d operator()(const Eigen::Vector4d& x, const Eigen::Vector4d& xdot, const Eigen::Vector2d& u,
-                             const Eigen::Vector4d& w)
-  {
-    return A * x + B * u + G * w;
-  }
-
-private:
-  Eigen::Matrix<double, 4, 4> A;
-  Eigen::Matrix<double, 4, 2> B;
-  Eigen::Matrix<double, 4, 4> G;
-};
-
-using LTV_CSBRM = ltv_sde_t<ltv_cs_brm_t>;
 }  // namespace prx
+using LTV_CSBRM = prx::ltv_sde_t;
 
 PRX_REGISTER_SYSTEM(LTV_CSBRM, LTV_CSBRM)
