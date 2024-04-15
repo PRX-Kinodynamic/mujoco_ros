@@ -5,6 +5,7 @@
 #include <prx/utilities/general/param_loader.hpp>
 #include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/visualization/three_js_group.hpp>
+#include <prx/simulation/controllers/controllers.hpp>
 
 #include <ml4kp_bridge/msgs_utils.hpp>
 #include <ml4kp_bridge/plan_step_bridge.hpp>
