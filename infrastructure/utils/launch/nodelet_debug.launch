@@ -1,0 +1,24 @@
+<launch>
+
+  <arg name="mujoco_cam_file" value="$(find estimation)/config/mujoco_cam.yaml"/>
+  <arg name="cam_file" value="$(arg mujoco_cam_file)" />
+
+  <arg name="current_ns" value="mushr"/>
+  
+  <group ns="$(arg current_ns)">
+    <node pkg="nodelet" type="nodelet" name="dbg_nodelet_manager"  args="manager" 
+      output="screen"/>
+    <node pkg="nodelet" type="nodelet" name="aruco_wTc_nodelet_t" args="load estimation/aruco_wTc_nodelet_t dbg_nodelet_manager" output="screen">
+      <rosparam command="load" file="$(arg cam_file)" />
+      <param name="pose_topic" value="/mushr/aruco_cTw/robot_pose" />
+      <param name="image_topic" value="/mushr/camera/rgb"/>
+      <param name="goal_pose_topic" value="/mushr/goal_pos"/>
+      <param name="goal_rad_topic" value="/mushr/goal_radius"/>
+      <param name="trajectory_topics" type="yaml" value="[/mushr/ml4kp_traj]" />
+      <param name="camera_frame" value="C0"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="C0_robot_0"/>
+      <param name="reset_topic" value="/mushr/aruco_wtc/reset"/>
+    </node>  
+  </group>
+</launch>
