@@ -7,6 +7,7 @@
 
 #include <prx/planning/world_model.hpp>
 #include <prx/planning/planners/dirt.hpp>
+#include "prx/planning/planners/planner.hpp"
 
 #include <prx/visualization/three_js_group.hpp>
 
