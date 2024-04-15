@@ -37,7 +37,12 @@ public:
       ROS_ERROR("Error in initializing GLFW.");
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+// Macos works better if Null as 4th arg, this seems to be OS dependent
+#ifdef __APPLE__
+    _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), NULL, NULL);
+#else
     _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), glfwGetPrimaryMonitor(), NULL);
+#endif
 
     if (!_glfw_window)
       ROS_ERROR("Error in creating GLFW window.");

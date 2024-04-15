@@ -3,7 +3,7 @@
 <mujoco model="mushr_nano">
   <compiler angle="radian" />
   <size njmax="500" nconmax="100"/>
-  <!-- <option timestep="0.002" integrator="Euler"/> -->
+  <option timestep="0.002" integrator="Euler"/>
   <!-- <option> -->
       <!-- <flag multiccd="enable"/> -->
   <!-- </option> -->

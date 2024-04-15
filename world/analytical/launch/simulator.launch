@@ -1,0 +1,16 @@
+<launch>
+    <arg name="ns" default="analytical_simulator"/>
+    <!-- <arg name="plant_file" default="$(find analytical)/config/LTV_CSBRM.yaml"/> -->
+    <arg name="plant_file" default="/Users/Gary/pracsys/catkin_ws/src/mujoco_ros/world/analytical/config/LTV_CSBRM.yaml"/>
+    <arg name="environment" default="environments/empty.yaml"/>
+
+    <group ns="$(arg ns)">
+        <node pkg="analytical" type="simulator" name="simulator" output="screen" >
+            <param name="plant_file" value="$(arg plant_file)"/>
+            <param name="environment" value="$(arg environment)"/>
+            <param name="state_topic" value="/$(arg ns)/state"/>
+            <param name="control_topic" value="/$(arg ns)/control"/>
+        </node>
+    </group>
+  
+</launch>
