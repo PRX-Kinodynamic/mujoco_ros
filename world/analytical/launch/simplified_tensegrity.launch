@@ -1,0 +1,14 @@
+<launch>
+    <arg name="ns" default="analytical_simulator"/>
+    <arg name="prx_config_file" default="$(find analytical)/config/fg_ltv_sde.yaml"/>
+    <arg name="environment" default="environments/empty.yaml"/>
+
+    <group ns="$(arg ns)">
+        <node pkg="analytical" type="simplified_tensegrity" name="simplified_tensegrity" output="screen" >
+            <param name="prx_config_file" value="$(arg prx_config_file)"/>
+            <!-- <param name="state_topic" value="/$(arg ns)/state"/> -->
+            <!-- <param name="control_topic" value="/$(arg ns)/control"/> -->
+        </node>
+    </group>
+  
+</launch>

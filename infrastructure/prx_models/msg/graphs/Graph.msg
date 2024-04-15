@@ -1,2 +1,2 @@
 prx_models/Node[] nodes
-prx_models/Edges[] edges
+prx_models/Edge[] edges
