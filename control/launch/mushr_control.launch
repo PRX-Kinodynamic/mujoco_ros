@@ -1,0 +1,26 @@
+<launch>
+    <arg name = "namespace" default = "mushr"/>
+    <arg name = "feedback" default="true"/>
+    <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
+    <param name = "ml4kp_params" value="$(arg params_file)"/>
+    <group ns="$(arg namespace)">
+        <node pkg="nodelet" type="nodelet" name="control_nodelet"  args="manager" output="screen"/>
+        
+        <node if="$(arg feedback)" pkg="nodelet" type="nodelet" name="mushr_control_nodelet"  
+            args="load control/mushr_feedback_controller_t control_nodelet" output="screen">
+            <param name="trajectory_topic" value="/$(arg namespace)/ml4kp_traj" />
+            <param name="pose_topic" value="/$(arg namespace)/pose" />
+            <param name="control_topic" value="/$(arg namespace)/plan_stepper/control" />
+            <param name="reset_topic" value="/$(arg namespace)/reset" />
+        </node>
+
+        <node unless="$(arg feedback)" pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+            args="load ml4kp_bridge/plan_stepper_t control_nodelet" 
+            output="screen">
+            <param name="subscriber_topic" value="/$(arg namespace)/ml4kp_plan" />
+            <param name="publisher_topic" value="/$(arg namespace)/plan_stepper/control"/>
+            <param name="reset_topic" value="/$(arg namespace)/reset"/>
+            <param name="frequency" value="100" />
+        </node>    
+    </group>
+</launch>

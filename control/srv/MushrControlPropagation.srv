@@ -1,0 +1,3 @@
+std_msgs/Duration duration
+---
+ml4kp_bridge/SpacePoint final_state
