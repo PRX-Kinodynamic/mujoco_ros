@@ -37,7 +37,7 @@ inline std::string to_string(const ml4kp_bridge::SpacePoint& msg)
   std::stringstream strstr{};
   for (auto e : msg.point)
   {
-    strstr << e.data << " ";
+    strstr << e << " ";
   }
   return strstr.str();
 }
