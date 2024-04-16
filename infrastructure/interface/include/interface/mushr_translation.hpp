@@ -15,6 +15,8 @@ inline void translate_msg(prx_models::MushrControl& ctrl_msg, const ml4kp_bridge
 
 inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge::PlanStamped& stamped_plan)
 {
+  using prx_models::mushr_t::control::steering_idx;
+  using prx_models::mushr_t::control::velocity_idx;
   const unsigned plan_size(stamped_plan.plan.steps.size());
   const std::size_t u_dim{ prx_models::mushr_t::u_dim };
   mushr_plan.controls.resize(plan_size);
@@ -23,8 +25,8 @@ inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge:
   {
     const ml4kp_bridge::PlanStep plan_step{ stamped_plan.plan.steps[i] };
     // copy(mushr_plan.controls[i], plan_step.control.state);
-    mushr_plan.controls[i].velocity.data = plan_step.control.point[0];
-    mushr_plan.controls[i].steering_angle.data = plan_step.control.point[1];
+    mushr_plan.controls[i].velocity.data = plan_step.control.point[velocity_idx];
+    mushr_plan.controls[i].steering_angle.data = plan_step.control.point[steering_idx];
     mushr_plan.durations[i] = stamped_plan.plan.steps[i].duration;
   }
 }

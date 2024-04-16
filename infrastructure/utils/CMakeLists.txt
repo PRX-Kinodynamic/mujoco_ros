@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   roslib
+  ml4kp_bridge
+  tf
   nodelet
 )
 

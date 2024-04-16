@@ -8,6 +8,9 @@
 
 TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
 {
+  using prx_models::mushr_t::control::steering_idx;
+  using prx_models::mushr_t::control::velocity_idx;
+
   prx_models::MushrPlan mushr_plan;
   ml4kp_bridge::PlanStamped stamped_plan;
 
@@ -18,10 +21,10 @@ TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
   stamped_plan.plan.steps[0].control.point.resize(u_dim);
   stamped_plan.plan.steps[1].control.point.resize(u_dim);
 
-  stamped_plan.plan.steps[0].control.point[0] = 1.0;
-  stamped_plan.plan.steps[0].control.point[1] = 1.5;
-  stamped_plan.plan.steps[1].control.point[0] = 2.0;
-  stamped_plan.plan.steps[1].control.point[1] = 2.5;
+  stamped_plan.plan.steps[0].control.point[velocity_idx].data = 1.0;
+  stamped_plan.plan.steps[0].control.point[steering_idx].data = 1.5;
+  stamped_plan.plan.steps[1].control.point[velocity_idx].data = 2.0;
+  stamped_plan.plan.steps[1].control.point[steering_idx].data = 2.5;
 
   interface::translate_msg(mushr_plan, stamped_plan);
 
@@ -33,7 +36,7 @@ TEST(TranslateMsg, test_mushr_plan_from_ml4kp_bridge_plan)
 
 int main(int argc, char** argv)
 {
-  ros::Time::init();
+  ros::init(argc, argv, "msg_translation");
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

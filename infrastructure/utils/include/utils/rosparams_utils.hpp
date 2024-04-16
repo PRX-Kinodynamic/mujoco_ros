@@ -4,7 +4,7 @@
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
-#define ROS_PARAM_SETUP(nh, var) (interface::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
+#define ROS_PARAM_SETUP(nh, var) (utils::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
 #define GLOBAL_PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, "/" #var, var)
 #define PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, GET_VARIABLE_NAME(var), var)
 #define NODELET_PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, GET_VARIABLE_NAME(var), var)
