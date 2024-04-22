@@ -1,0 +1,31 @@
+<launch> 
+	<arg name="visualize" value="true"/>
+
+  <group ns="MP">
+  	
+  	<node pkg="motion_planning" type="mp_nodelet_debugging" name="mp_nodelet_debugging_viz" output="screen">
+			<param name="node_name" value="MotionPlanningTreeVizPublisher"/>
+    </node>
+  	
+    <node pkg="motion_planning" type="mp_nodelet_debugging" name="mp_nodelet_debugging_tree" output="screen">
+			<param name="node_name" value="MotionPlanningTree"/>
+    </node>
+
+  	
+  	<!-- 
+   	<node pkg="nodelet" type="nodelet" name="mp_nodelet_manager"  args="manager" output="screen"/>
+
+   	<node if="$(arg visualize)" 
+   		pkg="nodelet" type="nodelet" name="tree_visualizer" 
+   		args="load motion_planning/MotionPlanningTreeVizPublisher mp_nodelet_manager" output="screen">
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="mp_tree" 
+    	args="load motion_planning/MotionPlanningTree mp_nodelet_manager" output="screen">
+    </node>
+  	 -->
+
+  </group>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+		args="0 0 0 0 0 0 1 map world" />
+</launch>

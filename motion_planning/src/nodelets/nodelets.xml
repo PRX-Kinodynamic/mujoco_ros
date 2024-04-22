@@ -1,0 +1,18 @@
+<library path="lib/libmotion_planning_nodelets">
+  <class 
+      name="motion_planning/MotionPlanningTree" 
+      type="motion_planning::MotionPlanningTree" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet managing a tree
+    </description>
+  </class>
+  <class 
+      name="motion_planning/MotionPlanningTreeVizPublisher" 
+      type="motion_planning::MotionPlanningTreeVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet managing a tree
+    </description>
+  </class>
+</library>
