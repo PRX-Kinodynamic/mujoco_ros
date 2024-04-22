@@ -8,10 +8,8 @@
 
 int main(int argc, char** argv)
 {
-  DEBUG_PRINT;
   ros::init(argc, argv, "simplified_tensegrity");
   ros::NodeHandle nh("~");
-  DEBUG_PRINT;
 
   std::string prx_config_file;
   PARAM_SETUP(nh, prx_config_file);
@@ -44,26 +42,38 @@ int main(int argc, char** argv)
 
   prx::space_t* ss{ sg->get_state_space() };
   prx::space_t* cs{ sg->get_control_space() };
+  prx::space_t* ps{ sg->get_parameter_space() };
 
   prx::space_point_t start_state{ ss->make_point() };
 
   ss->copy(start_state, params["/plant/start_state"].as<std::vector<double>>());
   ss->copy_from(start_state);
 
+  ps->copy_from(params["/plant/parameters"].as<std::vector<double>>());
+
   prx::plan_t plan(cs);
-  prx::trajectory_t solution_traj(ss);
+  std::vector<prx::trajectory_t> trajs;
 
-  plan.copy_onto_back(Eigen::Vector2d(0.0, 1.0), 10);
-
-  sg->propagate(start_state, plan, solution_traj);
+  std::vector<double> control{ params["/plant/control"].as<std::vector<double>>() };
+  plan.copy_onto_back(control, 10);
 
   prx::three_js_group_t* vis_group = new prx::three_js_group_t({ plant }, { obstacle_list });
 
   std::string body_name = params["/plant/name"].as<>() + "/" + params["/plant/vis_body"].as<>();
 
-  vis_group->add_detailed_vis_infos(prx::info_geometry_t::FULL_LINE, solution_traj, body_name, ss);
+  std::string filename{ params["/out/filename"].as<>() };
+  std::ofstream ofs_map(filename.c_str(), std::ofstream::trunc);
+  for (int i = 0; i < 10; ++i)
+  {
+    trajs.emplace_back(ss);
+    sg->propagate(start_state, plan, trajs.back());
+    vis_group->add_detailed_vis_infos(prx::info_geometry_t::FULL_LINE, trajs.back(), body_name, ss);
+    ofs_map << trajs.back().front() << " " << trajs.back().back() << std::endl;
+  }
+  ofs_map.close();
+  // vis_group->add_detailed_vis_infos(prx::info_geometry_t::FULL_LINE, trajs[1], body_name, ss);
 
-  vis_group->add_animation(solution_traj, ss, start_state);
+  // vis_group->add_animation(trajs[0], ss, start_state);
 
   vis_group->output_html("simplified_tensegrity.html");
 

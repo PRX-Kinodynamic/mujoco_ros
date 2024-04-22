@@ -4,10 +4,14 @@
     <arg name="environment" default="environments/empty.yaml"/>
 
     <group ns="$(arg ns)">
-        <node pkg="analytical" type="simplified_tensegrity" name="simplified_tensegrity" output="screen" >
+        <!-- 
+        <node pkg="analytical" type="simplified_tensegrity" name="simplified_tensegrity" output="screen" > 
             <param name="prx_config_file" value="$(arg prx_config_file)"/>
-            <!-- <param name="state_topic" value="/$(arg ns)/state"/> -->
-            <!-- <param name="control_topic" value="/$(arg ns)/control"/> -->
+        </node>
+
+         -->
+        <node pkg="analytical" type="tensegrity_fg" name="tensegrity_fg" output="screen">
+            <param name="prx_config_file" value="$(arg prx_config_file)"/>
         </node>
     </group>
   

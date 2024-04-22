@@ -1,3 +1,6 @@
+#include <ros/ros.h>
+#include <ml4kp_bridge/defs.h>
+
 namespace motion_planning
 {
 

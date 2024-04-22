@@ -1,6 +1,6 @@
 
 simulation_step: 0.01
-random_seed: 112392
+random_seed: 112394
 environment: "environments/empty.yaml"
 
 plant:
@@ -14,8 +14,17 @@ plant:
     upper_bound: [100, 100, 10, 10]
   
   control_space:
-    lower_bound: [-10,-10]
-    upper_bound: [ 10, 10]
+    lower_bound: [-10000,-10000]
+    upper_bound: [ 10000, 10000]
 
+  # parameters: [2.0, 0.01,.10,0.10 ,0.05, 0.08, 0.05, 0.05]
+  parameters: [1.0, 0.1, 1.0, 1.0 ,0.05, 0.08, 0.05, 0.05]
+
+  # control: [-1.0, 1.0]
+  control: [0.0, 0.5]
 
   vis_body: "body"
+out:
+  # filename: "${ML4KP_ROS}/data/tensegrity/ltv_sde/ctrl_0.txt"
+  # filename: "${ML4KP_ROS}/data/tensegrity/ltv_sde/ctrl_1.txt"
+  filename: "${ML4KP_ROS}/data/tensegrity/ltv_sde/ctrl_2.txt"

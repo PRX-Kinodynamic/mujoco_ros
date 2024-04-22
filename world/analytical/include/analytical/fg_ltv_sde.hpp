@@ -30,8 +30,8 @@ public:
   using Base = gtsam::NoiseModelFactor5<State, State, Control, Noise, Noise>;
 
   ltv_sde_factor_t(const gtsam::Key x1, const gtsam::Key x0, const gtsam::Key u, const gtsam::Key h, const gtsam::Key w,
-                   const double dt, const NoiseModelPtr& cost_model, const MatrixA A, const MatrixB B, const MatrixG G)
-    : Base(cost_model, x1, x0, u, h, w), _dt(dt), _A(A), _B(B), _G(G)
+                   const NoiseModelPtr& cost_model, const MatrixA A, const MatrixB B, const MatrixG G)
+    : Base(cost_model, x1, x0, u, h, w), _A(A), _B(B), _G(G)
   {
   }
 
@@ -43,10 +43,10 @@ public:
                        boost::optional<Eigen::MatrixXd&> Hw = boost::none)
   {
     // clang-format off
-    if(Hx) { *Hx =A; }; 
-    if(Hu) { *Hu =B; }; 
-    if(Hh) { *Hh =MatrixG::Identity(); }; 
-    if(Hw) { *Hw =G; };
+    if(Hx) { *Hx = A; }; 
+    if(Hu) { *Hu = B; }; 
+    if(Hh) { *Hh = MatrixG::Identity(); }; 
+    if(Hw) { *Hw = G; };
     // clang-format on
     return A * x + B * u + h + G * w;
   }
@@ -66,11 +66,36 @@ public:
   }
 
 private:
-  const double _dt;
-
   const MatrixA _A;
   const MatrixB _B;
   const MatrixG _G;
+};
+
+class ltv_sde_observation_factor_t : public gtsam::NoiseModelFactor1<Eigen::Vector<double, 4>>
+{
+public:
+  using NoiseModelPtr = gtsam::noiseModel::Base::shared_ptr;
+
+  using State = Eigen::Vector<double, 4>;
+  using Error = Eigen::VectorXd;
+
+  using Base = gtsam::NoiseModelFactor1<State>;
+
+  ltv_sde_observation_factor_t(const gtsam::Key x, const State& z, const NoiseModelPtr& cost_model)
+    : Base(cost_model, x), _z(z)
+  {
+  }
+
+  virtual Error evaluateError(const State& x, boost::optional<Eigen::MatrixXd&> H = boost::none) const override
+  {
+    // clang-format off
+    if(H) { *H = Eigen::Matrix4d::Identity(); };
+    // clang-format on
+    return x - _z;
+  }
+
+private:
+  const State _z;
 };
 
 }  // namespace fg
@@ -92,6 +117,7 @@ public:
           simulation_step * simulation_step / 2.0, simulation_step, 0, 0, simulation_step)
              .finished())
     , _G(Eigen::DiagonalMatrix<double, 4>(5, 8, 5, 5) * 0.01)
+    , _w_sigmas(Noise::Ones())
   {
     state_memory = { &_x[0], &_x[1], &_x[2], &_x[3] };
     state_space = new space_t("EEEE", state_memory, "state_space");
@@ -102,6 +128,9 @@ public:
     // Not using derivative memory since deriv is computed via ltv_sde_factor_t::predict
     // derivative_memory = { &_x[2], &_x[3], &_u[0], &_u[1] };
     // derivative_space = new space_t("EEEE", derivative_memory, "deriv_space");
+    parameter_memory = { &_w_sigmas[0], &_w_sigmas[1], &_w_sigmas[2], &_w_sigmas[3],
+                         &_G(0, 0),     &_G(1, 1),     &_G(2, 2),     &_G(3, 3) };
+    parameter_space = new space_t("EEEEEEEE", parameter_memory, "params");
 
     geometries["body"] = std::make_shared<geometry_t>(geometry_type_t::SPHERE);
     geometries["body"]->initialize_geometry({ 1 });
@@ -117,6 +146,10 @@ public:
 
   virtual void propagate(const double simulation_step) override final
   {
+    _w[0] = prx::gaussian_random(0.0, _w_sigmas[0]);
+    _w[1] = prx::gaussian_random(0.0, _w_sigmas[1]);
+    _w[2] = prx::gaussian_random(0.0, _w_sigmas[2]);
+    _w[3] = prx::gaussian_random(0.0, _w_sigmas[3]);
     _x = fg::ltv_sde_factor_t::predict(_x, _u, _h, _w, _A, _B, _G);
     // y = C(_x) *_x + D(_x) * _v; // observation
   }
@@ -135,6 +168,7 @@ protected:
   State _x;
   Control _u;
   Noise _w, _h;
+  Noise _w_sigmas;
   fg::ltv_sde_factor_t::MatrixA _A;
   fg::ltv_sde_factor_t::MatrixB _B;
   fg::ltv_sde_factor_t::MatrixG _G;
