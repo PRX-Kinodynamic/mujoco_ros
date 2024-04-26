@@ -36,4 +36,12 @@ inline void copy(In msg, const Out state)
   copy(*msg, *state);
 }
 
+template <typename Msg>
+void to_file(const Msg& msg, const std::string filename, const std::ios_base::openmode mode = std::ofstream::trunc)
+{
+  std::ofstream ofs;
+  ofs.open(filename.c_str(), mode);
+  to_file(msg, ofs);
+  ofs.close();
+}
 }  // namespace ml4kp_bridge

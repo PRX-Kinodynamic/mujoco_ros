@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roslib
   nodelet
+  tf
 )
 
 ## System dependencies are found with CMake's conventions

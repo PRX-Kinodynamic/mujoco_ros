@@ -3,10 +3,13 @@
 #include <ros/ros.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <nodelet/nodelet.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/TransformStamped.h>
 
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
+#include <analytical/fg_ltv_sde.hpp>
 namespace analytical
 {
 template <typename Base>
@@ -24,45 +27,54 @@ protected:
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
 
+    prx_assert(private_nh.ok(), "Simulator's node handle not initialized!");
+
     std::string plant_file{ "" };
     std::string state_topic{ "" };
     std::string control_topic{ "" };
     std::string environment{ "" };
+    std::string robot_frame{ "robot" };
     double& simulation_step{ prx::simulation_step };
+    std::vector<double> tf_noise_sigmas{ { 0, 0, 0 } };
 
-    PARAM_SETUP(private_nh, state_topic);
     PARAM_SETUP(private_nh, plant_file);
+    PARAM_SETUP(private_nh, state_topic);
     PARAM_SETUP(private_nh, control_topic);
     PARAM_SETUP(private_nh, environment);
     PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, robot_frame, robot_frame);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, tf_noise_sigmas, tf_noise_sigmas);
 
+    _tf_sigmas = tf_noise_sigmas;
     _params.set_input_path("/");
     _params.add_file(plant_file);
+    prx::param_loader plant_params{ _params["plant"] };
 
     auto obstacles = prx::load_obstacles(environment);
     _obstacle_list = obstacles.second;
     _obstacle_names = obstacles.first;
-    const std::string plant_name{ _params["name"].as<>() };
-    _plant = prx::system_factory_t::create_system(plant_name, plant_name);
+    _plant_name = plant_params["name"].as<>();
+    _plant = prx::system_factory_t::create_system(_plant_name, _plant_name);
     prx_assert(_plant != nullptr, "Plant is nullptr!");
 
-    DEBUG_VARS(plant_name, _obstacle_names.size())
+    DEBUG_VARS(_plant_name, _obstacle_names.size())
     _world_model.reset(new prx::world_model_t({ _plant }, { _obstacle_list }));
-    _world_model->create_context("sim_context", { plant_name }, { _obstacle_names });
+    _world_model->create_context("sim_context", { _plant_name }, { _obstacle_names });
     auto context = _world_model->get_context("sim_context");
     _system_group = context.first;
     _collision_group = context.second;
     _state_space.reset(_system_group->get_state_space());
     _control_space.reset(_system_group->get_control_space());
 
-    using DoubleVector = std::vector<double>;
-    const DoubleVector min_space_limits{ _params["state_space/lower_bound"].as<DoubleVector>() };
-    const DoubleVector max_space_limits{ _params["state_space/upper_bound"].as<DoubleVector>() };
-    _state_space->set_bounds(min_space_limits, max_space_limits);
+    _plant->init(plant_params);
+    // using DoubleVector = std::vector<double>;
+    // const DoubleVector min_space_limits{ plant_params["state_space/lower_bound"].as<DoubleVector>() };
+    // const DoubleVector max_space_limits{ plant_params["state_space/upper_bound"].as<DoubleVector>() };
+    // _state_space->set_bounds(min_space_limits, max_space_limits);
 
-    const DoubleVector min_control_limits{ _params["control_space/lower_bound"].as<DoubleVector>() };
-    const DoubleVector max_control_limits{ _params["control_space/upper_bound"].as<DoubleVector>() };
-    _control_space->set_bounds(min_control_limits, max_control_limits);
+    // const DoubleVector min_control_limits{ plant_params["control_space/lower_bound"].as<DoubleVector>() };
+    // const DoubleVector max_control_limits{ plant_params["control_space/upper_bound"].as<DoubleVector>() };
+    // _control_space->set_bounds(min_control_limits, max_control_limits);
 
     _state_msg.header.seq = 0;
     _state_msg.header.stamp = ros::Time::now();
@@ -70,7 +82,13 @@ protected:
 
     _state_msg.space_point.point.resize(_state_space->size());
 
-    // TODO: handle non existance of params
+    _tf_gt.header.frame_id = "world";
+    _tf_noise.header.frame_id = "world";
+
+    _tf_gt.child_frame_id = robot_frame + "_gt";
+    _tf_noise.child_frame_id = robot_frame;
+
+    // TODO: handle non existence of params
     _stepper_timer = private_nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step, this);
     _state_timer = private_nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::publish_state, this);
     _control_subscriber = private_nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
@@ -82,17 +100,47 @@ protected:
     _control_space->copy_from(message->point);
   }
 
+  void add_tf_noise(geometry_msgs::Transform& tf) const
+  {
+    // Only adding translation noise for now
+    tf.translation.x += prx::gaussian_random(0.0, _tf_sigmas[0]);
+    tf.translation.y += prx::gaussian_random(0.0, _tf_sigmas[1]);
+    tf.translation.z += prx::gaussian_random(0.0, _tf_sigmas[2]);
+  }
+
   void publish_state(const ros::TimerEvent& event)
   {
     _state_msg.header.stamp = ros::Time::now();
     _state_space->copy_to(_state_msg.space_point.point);
     _state_publisher.publish(_state_msg);
+
+    if (_plant_name == "fg_ltv_sde")
+    {
+      // _plant_name
+      _tf_gt.header.stamp = ros::Time::now();
+      _tf_noise.header.stamp = ros::Time::now();
+      _tf_gt.header.seq++;
+      _tf_noise.header.seq++;
+      prx::fg::ltv_sde_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
+      prx::fg::ltv_sde_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
+      add_tf_noise(_tf_noise.transform);
+
+      _tf_broadcaster.sendTransform(_tf_gt);
+      _tf_broadcaster.sendTransform(_tf_noise);
+    }
   }
 
   void step(const ros::TimerEvent& event)
   {
     _system_group->propagate_once();
+    DEBUG_VARS(_state_space->print_memory(4));
   }
+
+  // tf
+  tf2_ros::TransformBroadcaster _tf_broadcaster;
+  geometry_msgs::TransformStamped _tf_gt;
+  geometry_msgs::TransformStamped _tf_noise;
+  std::vector<double> _tf_sigmas;
 
   ros::Timer _state_timer;
   ros::Timer _stepper_timer;
@@ -104,6 +152,7 @@ protected:
   ml4kp_bridge::SpacePointStamped _state_msg;
 
   // PRX vars
+  std::string _plant_name;
   prx::param_loader _params;
   std::shared_ptr<prx::system_t> _plant;
   std::shared_ptr<prx::system_group_t> _system_group;

@@ -16,6 +16,12 @@
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
 
 using SF = prx::fg::symbol_factory_t;
+using State = prx::fg::ltv_sde_utils_t::State;
+using StateDot = prx::fg::ltv_sde_utils_t::StateDot;
+using Control = prx::fg::ltv_sde_utils_t::Control;
+using Noise = prx::fg::ltv_sde_utils_t::Noise;
+using EulerFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
+using DynamicsFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
 
 auto keyX = [](const std::size_t& xi, const std::size_t& ti) {
   return SF::create_hashed_symbol("x^{", ti, "}_{", xi, "}");
@@ -71,15 +77,11 @@ int main(int argc, char** argv)
   std::vector<double> params_in{ params["/plant/parameters"].as<std::vector<double>>() };
 
   const double traj_duration{ 10.0 };
-  prx::fg::ltv_sde_factor_t::MatrixA A{};
-  prx::fg::ltv_sde_factor_t::MatrixB B{};
-  prx::fg::ltv_sde_factor_t::MatrixG G{};
-  A << 1, 0, traj_duration, 0, 0, 1, 0, traj_duration, 0, 0, 1, 0, 0, 0, 0, 1;
+  prx::fg::ltv_sde_utils_t::MatrixG Gx{};
+  prx::fg::ltv_sde_utils_t::MatrixG Gxdot{};
 
-  B << traj_duration * traj_duration / 2.0, 0, 0, traj_duration * traj_duration / 2.0, traj_duration, 0, 0,
-      traj_duration;
-
-  G = Eigen::DiagonalMatrix<double, 4>(params_in[4], params_in[5], params_in[6], params_in[7]);
+  Gx = Eigen::DiagonalMatrix<double, 2>(params_in[4], params_in[5]);
+  Gxdot = Eigen::DiagonalMatrix<double, 2>(params_in[6], params_in[7]);
 
   const Eigen::Vector4d zero4d{ Eigen::Vector4d::Zero() };
   const Eigen::Vector4d w_sigmas{ Eigen::Vector4d(params_in[0], params_in[1], params_in[2], params_in[3]) };
@@ -92,10 +94,13 @@ int main(int argc, char** argv)
   auto xend_nm = gtsam::noiseModel::Diagonal::Sigmas(w_sigmas);
   auto wprior_nm = gtsam::noiseModel::Diagonal::Sigmas(w_sigmas);
 
-  Eigen::Vector4d x_predicted{ Eigen::Vector4d::Zero() };
+  State x_predicted{ State::Zero() };
 
   std::size_t ti{ 0 };
-  x_predicted = prx::fg::ltv_sde_factor_t::predict(x_predicted, control, zero4d, zero4d, A, B, G);
+  StateDot xdot{ DynamicsFactor::predict(x_predicted, control, prx::simulation_step) };
+
+  x_predicted = EulerFactor::integrate(x_predicted, xdot, prx::simulation_step);
+  // x_predicted = prx::fg::ltv_sde_utils_t::predict(x_predicted, control, zero4d, zero4d, A, B, G);
   DEBUG_VARS(x_predicted);
   while (reader.has_next_line())
   {
@@ -104,7 +109,8 @@ int main(int argc, char** argv)
       continue;
 
     const Eigen::Vector4d start_state(line[0], line[1], line[2], line[3]);
-    const Eigen::Vector4d end_state(line[4], line[5], line[6], line[7]);
+    // const Eigen::Vector4d end_state(line[4], line[5], line[6], line[7]);
+    const Eigen::Vector2d end_state(line[4], line[5]);
 
     // PRX_DEBUG_VAR_1(keyX(1, ti));
     // graph.addPrior(keyW(0, 0), zero4d, wprior_nm);
@@ -116,8 +122,9 @@ int main(int argc, char** argv)
     // graph.addPrior(keyX(1, ti), end_state, xend_nm);
     ti++;
   }
-  graph.emplace_shared<prx::fg::ltv_sde_factor_t>(keyX(1, 0), keyX(0, 0), keyU(0, 0), keyH(0, 0), keyW(0, 0), xprop_nm,
-                                                  A, B, G);
+  // graph.emplace_shared<prx::fg::ltv_sde_factor_t>(keyX(1, 0), keyX(0, 0), keyU(0, 0), keyH(0, 0), keyW(0, 0),
+  // xprop_nm,
+  //                                                 A, B, G);
   initial_values.insert(keyX(1, 0), x_predicted);
 
   graph.addPrior(keyX(0, 0), zero4d, xzero_nm);

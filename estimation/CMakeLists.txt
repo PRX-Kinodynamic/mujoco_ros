@@ -17,8 +17,23 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf_conversions
   utils
+  analytical
 )
 
+## Generate services in the 'srv' folder
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  ml4kp_bridge
+)
 ###################################
 ## catkin specific configuration ##
 ###################################

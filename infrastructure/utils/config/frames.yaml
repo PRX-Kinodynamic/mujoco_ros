@@ -1,0 +1,5 @@
+transforms:
+  - root: "world"
+    child: "robot"
+  - root: "world"
+    child: "robot_gt"

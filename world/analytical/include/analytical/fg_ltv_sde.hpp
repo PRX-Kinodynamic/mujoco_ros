@@ -1,7 +1,16 @@
 #pragma once
 
+// Ros
+#include <geometry_msgs/TransformStamped.h>
+
+// mj-ros
 #include <utils/dbg_utils.hpp>
+
+// ML4KP
 #include <prx/simulation/plant.hpp>
+#include <prx/factor_graphs/factors/euler_integration_factor.hpp>
+
+// Gtsam
 #include <gtsam/nonlinear/NonlinearFactor.h>
 
 namespace prx
@@ -12,76 +21,79 @@ namespace fg
 // https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10404055
 // Eq. 50
 // Setting h = 0
-class ltv_sde_factor_t
-  : public gtsam::NoiseModelFactor5<Eigen::Vector<double, 4>, Eigen::Vector<double, 4>, Eigen::Vector<double, 2>,
-                                    Eigen::Vector<double, 4>, Eigen::Vector<double, 4>>
+class ltv_sde_utils_t
 {
 public:
-  using NoiseModelPtr = gtsam::noiseModel::Base::shared_ptr;
-  using MatrixA = Eigen::Matrix<double, 4, 4>;  // Dims could be parametric
-  using MatrixB = Eigen::Matrix<double, 4, 2>;  // Dims could be parametric
-  using MatrixG = Eigen::Matrix<double, 4, 4>;  // Dims could be parametric
+  using MatrixG = Eigen::Matrix<double, 2, 2>;  // Dims could be parametric
 
-  using State = Eigen::Vector<double, 4>;
+  using State = Eigen::Vector<double, 2>;
+  using StateDot = Eigen::Vector<double, 2>;
   using Control = Eigen::Vector<double, 2>;
-  using Noise = Eigen::Vector<double, 4>;
-  using Error = Eigen::VectorXd;
+  using Noise = Eigen::Vector<double, 2>;
+  using Observation = Eigen::Vector<double, 2>;
 
-  using Base = gtsam::NoiseModelFactor5<State, State, Control, Noise, Noise>;
-
-  ltv_sde_factor_t(const gtsam::Key x1, const gtsam::Key x0, const gtsam::Key u, const gtsam::Key h, const gtsam::Key w,
-                   const NoiseModelPtr& cost_model, const MatrixA A, const MatrixB B, const MatrixG G)
-    : Base(cost_model, x1, x0, u, h, w), _A(A), _B(B), _G(G)
+  static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
   {
+    u[0] = msg->point[0];
+    u[1] = msg->point[1];
   }
 
-  static State predict(const State& x, const Control& u, const Noise& h, const Noise w,  // no-lint
-                       const MatrixA& A, const MatrixB& B, const MatrixG& G,
-                       boost::optional<Eigen::MatrixXd&> Hx = boost::none,
-                       boost::optional<Eigen::MatrixXd&> Hu = boost::none,
-                       boost::optional<Eigen::MatrixXd&> Hh = boost::none,
-                       boost::optional<Eigen::MatrixXd&> Hw = boost::none)
+  static void copy(Observation& z, const geometry_msgs::TransformStamped& tf)
   {
-    // clang-format off
-    if(Hx) { *Hx = A; }; 
-    if(Hu) { *Hu = B; }; 
-    if(Hh) { *Hh = MatrixG::Identity(); }; 
-    if(Hw) { *Hw = G; };
-    // clang-format on
-    return A * x + B * u + h + G * w;
+    z[0] = tf.transform.translation.x;
+    z[1] = tf.transform.translation.y;
   }
 
-  virtual Error evaluateError(const State& x1, const State& x0, const Control& u, const Noise& h,
-                              const Noise& w,  // no-lint
-                              boost::optional<Eigen::MatrixXd&> Hx1 = boost::none,
-                              boost::optional<Eigen::MatrixXd&> Hx0 = boost::none,
-                              boost::optional<Eigen::MatrixXd&> Hu = boost::none,
-                              boost::optional<Eigen::MatrixXd&> Hh = boost::none,
-                              boost::optional<Eigen::MatrixXd&> Hw = boost::none) const override
+  template <typename StateIn>
+  static void copy(geometry_msgs::Transform& tf, const StateIn& x)
   {
-    // clang-format off
-    if(Hx1) { *Hx1 = -1 * MatrixA::Identity(); };
-    // clang-format on
-    return predict(x0, u, h, w, _A, _B, _G, Hx0, Hu, Hh, Hw) - x1;
+    tf.translation.x = x[0];
+    tf.translation.y = x[1];
+    tf.translation.z = 0.0;
+    tf.rotation.x = 0.0;
+    tf.rotation.y = 0.0;
+    tf.rotation.z = 0.0;
+    tf.rotation.w = 1.0;
+  }
+  static void copy(ml4kp_bridge::SpacePoint& pt, const State& x, const StateDot& xdot)
+  {
+    pt.point.resize(4);
+    pt.point[0] = x[0];
+    pt.point[1] = x[1];
+    pt.point[2] = xdot[0];
+    pt.point[3] = xdot[1];
+  }
+
+  /**
+   * @brief compute the noise for the state from the matrix and a vector of sigmas
+   * @details Compute the noise at state k given sigmas. The input sigmas is vector that is used as: w\sim N(0,\sigma_i)
+   *
+   * @param G Matrix that maps vector w\sim N(0,\sigma s) to the state. Likely a diagonal matrix
+   * @param sigmas The variance per dimension.
+   *
+   * @return Computes $G * w$ where $w \sim N(0,\sigma)$
+   */
+  static Noise noise(const MatrixG& G, const Noise sigmas)
+  {
+    const Noise w{ prx::gaussian_random(0.0, sigmas[0]), prx::gaussian_random(0.0, sigmas[1]) };
+    return G * w;
   }
 
 private:
-  const MatrixA _A;
-  const MatrixB _B;
-  const MatrixG _G;
 };
 
-class ltv_sde_observation_factor_t : public gtsam::NoiseModelFactor1<Eigen::Vector<double, 4>>
+class ltv_sde_observation_factor_t : public gtsam::NoiseModelFactor1<Eigen::Vector<double, 2>>
 {
 public:
   using NoiseModelPtr = gtsam::noiseModel::Base::shared_ptr;
 
-  using State = Eigen::Vector<double, 4>;
+  using State = fg::ltv_sde_utils_t::State;
+  using Observation = fg::ltv_sde_utils_t::Observation;
   using Error = Eigen::VectorXd;
 
   using Base = gtsam::NoiseModelFactor1<State>;
 
-  ltv_sde_observation_factor_t(const gtsam::Key x, const State& z, const NoiseModelPtr& cost_model)
+  ltv_sde_observation_factor_t(const gtsam::Key x, const Observation& z, const NoiseModelPtr& cost_model)
     : Base(cost_model, x), _z(z)
   {
   }
@@ -89,47 +101,44 @@ public:
   virtual Error evaluateError(const State& x, boost::optional<Eigen::MatrixXd&> H = boost::none) const override
   {
     // clang-format off
-    if(H) { *H = Eigen::Matrix4d::Identity(); };
+    if(H) { *H = Eigen::Matrix<double,2,2>::Identity(); };
     // clang-format on
-    return x - _z;
+    return x.head(2) - _z;
   }
 
 private:
-  const State _z;
+  const Observation _z;
 };
 
-}  // namespace fg
 class fg_ltv_sde_t : public plant_t
 {
-  using State = Eigen::Vector<double, 4>;    // Maybe do this parametric
-  using Control = Eigen::Vector<double, 2>;  // Maybe do this parametric
-  using Noise = Eigen::Vector<double, 4>;    // Maybe do this parametric
+  using State = fg::ltv_sde_utils_t::State;
+  using StateDot = fg::ltv_sde_utils_t::StateDot;
+  using Control = fg::ltv_sde_utils_t::Control;
+  using Noise = fg::ltv_sde_utils_t::Noise;
+
+  using EulerFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
+
 public:
   fg_ltv_sde_t(const std::string& path)
     : plant_t(path)
     , _x(State::Zero())
     , _u(Control::Zero())
-    , _h(Noise::Zero())
-    , _w(Noise::Zero())
-    , _A((fg::ltv_sde_factor_t::MatrixA() << 1, 0, simulation_step, 0, 0, 1, 0, simulation_step, 0, 0, 1, 0, 0, 0, 0, 1)
-             .finished())
-    , _B((fg::ltv_sde_factor_t::MatrixB() << simulation_step * simulation_step / 2.0, 0, 0,
-          simulation_step * simulation_step / 2.0, simulation_step, 0, 0, simulation_step)
-             .finished())
-    , _G(Eigen::DiagonalMatrix<double, 4>(5, 8, 5, 5) * 0.01)
-    , _w_sigmas(Noise::Ones())
+    , _Gx(Eigen::DiagonalMatrix<double, 2>(5, 8) * 0.01)
+    , _Gxdot(Eigen::DiagonalMatrix<double, 2>(5, 5) * 0.01)
+    , _wx_sigmas(Noise::Ones())
+    , _wxdot_sigmas(Noise::Ones())
   {
-    state_memory = { &_x[0], &_x[1], &_x[2], &_x[3] };
+    state_memory = { &_x[0], &_x[1], &_xdot[0], &_xdot[1] };
     state_space = new space_t("EEEE", state_memory, "state_space");
 
     control_memory = { &_u[0], &_u[1] };
     input_control_space = new space_t("EE", control_memory, "control_space");
 
-    // Not using derivative memory since deriv is computed via ltv_sde_factor_t::predict
-    // derivative_memory = { &_x[2], &_x[3], &_u[0], &_u[1] };
-    // derivative_space = new space_t("EEEE", derivative_memory, "deriv_space");
-    parameter_memory = { &_w_sigmas[0], &_w_sigmas[1], &_w_sigmas[2], &_w_sigmas[3],
-                         &_G(0, 0),     &_G(1, 1),     &_G(2, 2),     &_G(3, 3) };
+    derivative_memory = { &_xdot[0], &_xdot[1], &_u[0], &_u[1] };
+    derivative_space = new space_t("EEEE", derivative_memory, "deriv_space");
+    parameter_memory = { &_wx_sigmas[0], &_wx_sigmas[1], &_wxdot_sigmas[0], &_wxdot_sigmas[1],
+                         &_Gx(0, 0),     &_Gx(1, 1),     &_Gxdot(0, 0),     &_Gxdot(1, 1) };
     parameter_space = new space_t("EEEEEEEE", parameter_memory, "params");
 
     geometries["body"] = std::make_shared<geometry_t>(geometry_type_t::SPHERE);
@@ -146,12 +155,8 @@ public:
 
   virtual void propagate(const double simulation_step) override final
   {
-    _w[0] = prx::gaussian_random(0.0, _w_sigmas[0]);
-    _w[1] = prx::gaussian_random(0.0, _w_sigmas[1]);
-    _w[2] = prx::gaussian_random(0.0, _w_sigmas[2]);
-    _w[3] = prx::gaussian_random(0.0, _w_sigmas[3]);
-    _x = fg::ltv_sde_factor_t::predict(_x, _u, _h, _w, _A, _B, _G);
-    // y = C(_x) *_x + D(_x) * _v; // observation
+    compute_derivative();
+    _x = EulerFactor::integrate(_x, _xdot, prx::simulation_step) + fg::ltv_sde_utils_t::noise(_Gx, _wx_sigmas);
   }
 
   virtual void update_configuration() override
@@ -164,16 +169,19 @@ public:
 protected:
   virtual void compute_derivative() override final
   {
+    _xdot = EulerFactor::integrate(_xdot, _u, prx::simulation_step) + fg::ltv_sde_utils_t::noise(_Gxdot, _wxdot_sigmas);
   }
+
   State _x;
+  StateDot _xdot;
   Control _u;
-  Noise _w, _h;
-  Noise _w_sigmas;
-  fg::ltv_sde_factor_t::MatrixA _A;
-  fg::ltv_sde_factor_t::MatrixB _B;
-  fg::ltv_sde_factor_t::MatrixG _G;
+  Noise _wx_sigmas;
+  Noise _wxdot_sigmas;
+  fg::ltv_sde_utils_t::MatrixG _Gx;
+  fg::ltv_sde_utils_t::MatrixG _Gxdot;
 };
 
+}  // namespace fg
 }  // namespace prx
 
-PRX_REGISTER_SYSTEM(fg_ltv_sde_t, fg_ltv_sde)
+PRX_REGISTER_SYSTEM(fg::fg_ltv_sde_t, fg_ltv_sde)

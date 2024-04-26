@@ -1,0 +1,33 @@
+<launch>
+
+  <arg name="start_state"  value="[0,0]"/>
+  <arg name="start_statedot"  value="[0,0]"/>
+  <arg name="control_topic" value="/analytical_simulator/control"/>
+  <arg name="sigmas_dynamics" value="[0.01,0.01]"/>
+  <arg name="sigmas_integration" value="[0.01,0.01]"/>
+  <arg name="sigmas_observation" value="[0.01,0.01]"/>
+
+  <arg name="current_ns" value="estimation"/>
+
+  <arg name="debug_prefix" default=""/> 
+
+  <group ns="$(arg current_ns)">
+
+    <node pkg="estimation" type="trajectory_estimation_from_tf" name="trajectory_estimation_from_tf" output="screen" launch-prefix="$(arg debug_prefix)">
+      <param name="start_state" type="yaml" value="$(arg start_state)"/>
+      <param name="start_statedot" type="yaml" value="$(arg start_statedot)"/>
+      <param name="control_topic" value="/$(arg control_topic)"/>
+      <param name="sigmas_dynamics" type="yaml" value="$(arg sigmas_dynamics)"/>
+      <param name="sigmas_integration" type="yaml" value="$(arg sigmas_integration)"/>
+      <param name="sigmas_observation" type="yaml" value="$(arg sigmas_observation)"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="robot"/>
+    </node>
+
+    <node pkg="utils" type="tf_to_file" name="tf_to_file" output="screen">
+    	<param name="fileprefix" value="$(env ML4KP_ROS)/data/tf/SBMP-FG/ltv-sde/"/>
+    	<rosparam command="load" file="$(find utils)/config/frames.yaml" />
+    </node> 
+
+  </group>
+</launch>

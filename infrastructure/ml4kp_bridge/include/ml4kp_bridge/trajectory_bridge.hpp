@@ -41,4 +41,14 @@ inline void copy(prx::trajectory_t& trajectory, const ml4kp_bridge::TrajectorySt
 {
   copy(trajectory, msg.trajectory);
 }
+
+inline void to_file(const ml4kp_bridge::Trajectory& msg, std::ofstream& ofs)
+{
+  for (auto state : msg.data)
+  {
+    to_file(state, ofs);
+  }
+  ofs << "\n";
+}
+
 }  // namespace ml4kp_bridge

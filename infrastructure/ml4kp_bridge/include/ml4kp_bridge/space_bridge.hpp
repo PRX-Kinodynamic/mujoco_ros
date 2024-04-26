@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include <ros/assert.h>
 #include <prx/utilities/spaces/space.hpp>
 #include <ml4kp_bridge/SpacePointStamped.h>
@@ -34,6 +36,15 @@ inline void copy(prx::space_snapshot_t& state, const ml4kp_bridge::SpacePoint& m
 inline void copy(prx::space_snapshot_t& state, const ml4kp_bridge::SpacePointStamped& msg)
 {
   copy(state, msg.space_point);
+}
+
+inline void to_file(const ml4kp_bridge::SpacePoint& msg, std::ofstream& ofs)
+{
+  for (auto value : msg.point)
+  {
+    ofs << value << " ";
+  }
+  ofs << "\n";
 }
 
 }  // namespace ml4kp_bridge

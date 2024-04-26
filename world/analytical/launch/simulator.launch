@@ -1,16 +1,43 @@
 <launch>
     <arg name="ns" default="analytical_simulator"/>
-    <!-- <arg name="plant_file" default="$(find analytical)/config/LTV_CSBRM.yaml"/> -->
-    <arg name="plant_file" default="/Users/Gary/pracsys/catkin_ws/src/mujoco_ros/world/analytical/config/LTV_CSBRM.yaml"/>
+    <arg name="plant_file" default="$(find analytical)/config/fg_ltv_sde.yaml"/>
+    <!-- <arg name="plant_file" default="/Users/Gary/pracsys/catkin_ws/src/mujoco_ros/world/analytical/config/LTV_CSBRM.yaml"/> -->
     <arg name="environment" default="environments/empty.yaml"/>
+    <arg name="debug_prefix" default=""/> 
+    <arg name="plan_file" default="$(env ML4KP_ROS)/plan0.txt" />
+    
+    <arg name="control_topic" default="/$(arg ns)/control"/> 
+    <arg name="plan_topic" default="/$(arg ns)/plan"/> 
 
+    <param name="/use_sim_time" value="true" />
     <group ns="$(arg ns)">
-        <node pkg="analytical" type="simulator" name="simulator" output="screen" >
+        <node pkg="analytical" type="simulator" name="simulator" output="screen" launch-prefix="$(arg debug_prefix)">
             <param name="plant_file" value="$(arg plant_file)"/>
-            <param name="environment" value="$(arg environment)"/>
             <param name="state_topic" value="/$(arg ns)/state"/>
-            <param name="control_topic" value="/$(arg ns)/control"/>
+            <param name="control_topic" value="$(arg control_topic)"/>
+            <param name="environment" value="$(arg environment)"/>
+            <param name="tf_noise_sigmas" type="yaml" value="[0.01, 0.01, 0]"/>
         </node>
+
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
+            args="load ml4kp_bridge/plan_from_file_t plan_from_file_nodelet_manager" 
+            output="screen">
+            <param name="plan_file" value="$(arg plan_file)" />
+            <param name="control_dimension" value="2" />
+            <param name="control_topology" value="EE" />
+            <param name="publisher_topic" value="$(arg plan_topic)" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+            args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
+            output="screen">
+            <param name="subscriber_topic" value="$(arg plan_topic)"/>
+            <param name="publisher_topic" value="$(arg control_topic)"/>
+            <param name="frequency" value="10" />
+        </node>    
+
     </group>
-  
+    
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+        args="0 0 0 0 0 0 1 world map" />
 </launch>

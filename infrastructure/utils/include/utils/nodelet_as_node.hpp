@@ -12,7 +12,7 @@ namespace utils
 class nodelet_as_node_t
 {
 public:
-  nodelet_as_node_t()  //: _priv_nh("~")
+  nodelet_as_node_t() : _priv_nh("~")
   {
   }
 
@@ -21,13 +21,6 @@ public:
   void init()
   {
     onInit();
-    // while (ros::ok())
-    // {
-    //   // DEBUG_VARS(dynamic_cast<ros::CallbackQueue*>(_priv_nh.getCallbackQueue())->isEmpty());
-    //   ros::spinOnce();
-    //   rate.sleep();
-    // }
-    // _spinner.start();
   }
 
   ros::NodeHandle& getPrivateNodeHandle()
