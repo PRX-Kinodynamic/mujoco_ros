@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <ros/init.h>
-
 #include <ml4kp_bridge/msgs_utils.hpp>
 #include <ml4kp_bridge/plan_step_bridge.hpp>
 #include <ml4kp_bridge/plan_bridge.hpp>

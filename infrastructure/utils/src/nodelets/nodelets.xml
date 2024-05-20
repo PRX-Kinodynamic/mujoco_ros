@@ -1,0 +1,66 @@
+<library path="lib/libutils_nodelets">
+  <class 
+      name="utils/EnvironmentPublisher" 
+      type="utils::EnvironmentPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish an ML4KP environment from a file to rviz
+    </description>
+  </class>
+  <class 
+      name="utils/TrajectoryVizPublisher" 
+      type="utils::TrajectoryVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish an ML4KP trajectory to rviz
+    </description>
+  </class>
+  <class 
+      name="utils/PlanToTrajectoryPublisher" 
+      type="utils::PlanToTrajectoryPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to "convert" a plan to trajectory (through fwd prop)
+    </description>
+  </class>
+  <class 
+      name="utils/TrajectoryToFile" 
+      type="utils::TrajectoryToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Trajectory topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/PlanStampedToFile" 
+      type="utils::PlanStampedToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Plan stamped topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/PlanToFile" 
+      type="utils::PlanToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Plan topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/StateToFile" 
+      type="utils::StateToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      State topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/StateStampedToFile" 
+      type="utils::StateStampedToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      State Stamped topic to a file
+    </description>
+  </class>
+</library>

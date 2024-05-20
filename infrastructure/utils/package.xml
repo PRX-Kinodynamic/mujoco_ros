@@ -33,4 +33,8 @@
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>nodelet</exec_depend>
 
+  <export>
+    <nodelet plugin="${prefix}/src/nodelets/nodelets.xml"/>
+  </export>
+
 </package>

@@ -5,6 +5,8 @@
 
 #include <motion_planning/motion_planning_tree.hpp>
 #include <motion_planning/tree_viz_publisher.hpp>
+#include <motion_planning/sbmp_publisher.hpp>
+#include <motion_planning/tree_to_trajectories.hpp>
 
 void test_sub(const std_msgs::String::ConstPtr& msg)
 {
@@ -30,6 +32,20 @@ int main(int argc, char** argv)
   else if (node_name == "MotionPlanningTree")
   {
     node = std::make_unique<motion_planning::mp_tree_t<utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "DirtPublisher")
+  {
+    node = std::make_unique<motion_planning::sbmp_publisher_t<prx::dirt_t, prx::dirt_specification_t, prx::dirt_query_t,
+                                                              utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "AORRTPublisher")
+  {
+    node = std::make_unique<motion_planning::sbmp_publisher_t<prx::aorrt_t, prx::aorrt_specification_t,
+                                                              prx::aorrt_query_t, utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "TreeToTrajectories")
+  {
+    node = std::make_unique<motion_planning::tree_to_trajectories_t<utils::nodelet_as_node_t>>();
   }
 
   ROS_ASSERT_MSG(node != nullptr, "Node not initialized. Node name %s not valid.", node_name.c_str());

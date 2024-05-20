@@ -12,7 +12,7 @@
 
 std::stringstream strstr_plan;
 std::stringstream strstr_ctrl;
-std::ofstream ofs_poses, ofs_plan, ofs_control;
+std::ofstream ofs_poses;
 
 ros::Time initial_time;
 
@@ -62,17 +62,19 @@ std::string get_transform(tf2_ros::Buffer& tf_buffer, const std::string root_fra
   return res;
 }
 
-void set_ofs(std::ofstream& ofs, const std::string& fileprefix)
+void set_ofs(std::ofstream& ofs, const std::filesystem::path& path)
 {
   if (ofs.is_open())
   {
     ofs.close();
   }
 
-  const std::string filename{ fileprefix + "_" + utils::timestamp() + ".txt" };
+  std::filesystem::path filename{ path };
+  filename += "_" + utils::timestamp() + ".txt";
+  // const std::filesystem::path filename{ fileprefix + "_" + utils::timestamp() + ".txt" };
   DEBUG_VARS(filename);
 
-  ofs.open(filename.c_str(), std::ios::trunc);
+  ofs.open(filename, std::ios::trunc);
 }
 
 int main(int argc, char** argv)
@@ -81,16 +83,25 @@ int main(int argc, char** argv)
   ros::NodeHandle nh("~");
   const std::string root{ ros::this_node::getNamespace() };
 
+  std::string directory;
   std::string fileprefix;
+  std::string reset_topic;
   XmlRpc::XmlRpcValue transforms;
   double window_duration{ 0.0 };
 
+  // DEBUG_VARS();
+
+  ROS_PARAM_SETUP(nh, directory);
   ROS_PARAM_SETUP(nh, fileprefix);
   ROS_PARAM_SETUP(nh, transforms);
+  ROS_PARAM_SETUP(nh, reset_topic);
   PARAM_SETUP_WITH_DEFAULT(nh, window_duration, window_duration);
 
-  utils::execution_status_t status(nh, root + "/TfToFile");
-  const std::string filename_poses{ fileprefix + "_poses" };
+  utils::execution_status_t::FunctionOnReset reset_function = [&]() { ofs_poses << "\n"; };
+  utils::execution_status_t status(nh, root + "/TfToFile", reset_topic, reset_function);
+  std::filesystem::path path{ directory };
+  path /= fileprefix + "_poses";
+  // const std::string filename_poses{ fileprefix + "_poses" };
 
   std::vector<std::pair<std::string, std::string>> frames{};
   for (int i = 0; i < transforms.size(); ++i)
@@ -102,7 +113,7 @@ int main(int argc, char** argv)
     frames.push_back(std::make_pair(frame_root, frame_child));
   }
 
-  set_ofs(ofs_poses, filename_poses);
+  set_ofs(ofs_poses, path);
 
   tf2_ros::Buffer tf_buffer;
   tf2_ros::TransformListener tfListener(tf_buffer);
@@ -115,7 +126,7 @@ int main(int argc, char** argv)
   {
     if (window_duration > 0 and window < ros::Time::now())
     {
-      set_ofs(ofs_poses, filename_poses);
+      set_ofs(ofs_poses, path);
       window = ros::Time::now() + window_size;
     }
     for (auto fr : frames)

@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(motion_planning)
 set(CMAKE_CXX_STANDARD 17)
-
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -15,7 +14,24 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   nodelet
   utils
+  analytical
 )
+
+add_definitions("-g")
+include(GNUInstallDirs)
+# set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
+# set(CMAKE_VISIBILITY_INLINES_HIDDEN "YES")
+ # add_extra_compiler_option(-fvisibility-inlines-hidden)
+ # set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+# find_package(iceoryx_platform REQUIRED)
+find_package(iceoryx_posh CONFIG REQUIRED)
+find_package(iceoryx_hoofs CONFIG REQUIRED)
+
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
+# add_definitions("cxxflags=-fvisibility=hidden")
+# set(cxxflags =-fvisibility=hidden)
+# option(BUILD_SHARED_LIBS "Link libraries dynamically" OFF)
+# get_target_property(ICEORYX_CXX_STANDARD iceoryx_posh::iceoryx_posh CXX_STANDARD)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -120,8 +136,11 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  
 )
-
+include(IceoryxPackageHelper)
+include(IceoryxPlatform)
+include(IceoryxPlatformSettings)
 ## Declare a C++ library
 add_library(${PROJECT_NAME} INTERFACE)
 
@@ -148,6 +167,8 @@ foreach(f ${EXECUTABLE_FILES})
                      )
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
+                          iceoryx_posh::iceoryx_posh
+                          iceoryx_hoofs::iceoryx_hoofs
                         )
 endforeach()
 
@@ -206,7 +227,10 @@ foreach(f_test ${TESTS_FILES})
   MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
   if(TARGET ${PROJECT_NAME}-test)
     MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
+    target_link_libraries(${PROJECT_NAME}-test 
+      ${catkin_LIBRARIES} 
+      iceoryx_posh::iceoryx_posh
+      iceoryx_hoofs::iceoryx_hoofs)
   endif()
 endforeach()
 

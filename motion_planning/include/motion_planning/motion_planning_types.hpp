@@ -1,6 +1,7 @@
 #pragma once
 #include <prx_models/Graph.h>
 #include <prx_models/NodeEdge.h>
+#include <prx_models/Tree.h>
 
 namespace motion_planning
 {
@@ -14,5 +15,6 @@ enum NodeEdgeStatus
   MODIFIED = 2,
   REMOVED = 3
 };
+
 }  // namespace Types
 }  // namespace motion_planning

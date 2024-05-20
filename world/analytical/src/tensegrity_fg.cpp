@@ -116,7 +116,7 @@ int main(int argc, char** argv)
     // graph.addPrior(keyW(0, 0), zero4d, wprior_nm);
     // for (double i = 0; i < traj_duration; i += prx::simulation_step)
     // {
-    graph.emplace_shared<prx::fg::ltv_sde_observation_factor_t>(keyX(1, 0), end_state, xend_nm);
+    // graph.emplace_shared<prx::fg::ltv_sde_observation_factor_t>(keyX(1, 0), end_state, xend_nm);
     // graph.addPrior(keyX(1, 0), end_state);
     break;
     // graph.addPrior(keyX(1, ti), end_state, xend_nm);

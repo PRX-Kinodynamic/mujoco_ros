@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   nodelet
   tf
+  ml4kp_bridge
 )
 
 ## System dependencies are found with CMake's conventions

@@ -69,6 +69,7 @@ add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 ## Executables

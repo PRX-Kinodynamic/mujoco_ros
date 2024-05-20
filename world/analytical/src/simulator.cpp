@@ -11,14 +11,10 @@ int main(int argc, char** argv)
 
   std::unique_ptr<utils::nodelet_as_node_t> node;
 
-  PRX_DEBUG_PRINT;
   node = std::make_unique<analytical::simulator_t<utils::nodelet_as_node_t>>();
-  PRX_DEBUG_PRINT;
 
   ROS_ASSERT_MSG(node != nullptr, "Node not initialized.");
-  PRX_DEBUG_PRINT;
   node->init();
-  PRX_DEBUG_PRINT;
   ros::spin();
 
   return 0;

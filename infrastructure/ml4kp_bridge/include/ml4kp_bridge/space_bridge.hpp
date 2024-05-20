@@ -47,4 +47,18 @@ inline void to_file(const ml4kp_bridge::SpacePoint& msg, std::ofstream& ofs)
   ofs << "\n";
 }
 
+inline void to_file(const ml4kp_bridge::SpacePointStamped& msg, std::ofstream& ofs)
+{
+  to_file(msg.header, ofs);
+  to_file(msg.space_point, ofs);
+}
+
+inline void copy(ml4kp_bridge::SpacePoint& state_out, const ml4kp_bridge::SpacePoint& state_in)
+{
+  state_out.point.resize(state_in.point.size());
+  for (std::size_t i = 0; i < state_in.point.size(); ++i)
+  {
+    state_out.point[i] = state_in.point[i];
+  }
+}
 }  // namespace ml4kp_bridge

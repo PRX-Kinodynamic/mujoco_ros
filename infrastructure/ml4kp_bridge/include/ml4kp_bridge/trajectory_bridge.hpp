@@ -51,4 +51,14 @@ inline void to_file(const ml4kp_bridge::Trajectory& msg, std::ofstream& ofs)
   ofs << "\n";
 }
 
+inline void copy(ml4kp_bridge::Trajectory& traj_to, const ml4kp_bridge::Trajectory& traj_from)
+{
+  traj_to.data.clear();
+  for (auto state : traj_from.data)
+  {
+    traj_to.data.emplace_back();
+    copy(traj_to.data.back(), state);
+  }
+}
+
 }  // namespace ml4kp_bridge

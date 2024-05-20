@@ -1,0 +1,14 @@
+random_seed: 231192
+simulation_step: 0.1
+
+environment: "environments/simple_obstacle.yaml"
+
+blossom: 5
+pruning: false
+bnb: false
+
+visualize: true
+
+checker_type: time
+checker_value: 10
+

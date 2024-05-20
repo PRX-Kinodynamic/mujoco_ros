@@ -7,6 +7,7 @@
       Nodelet managing a tree
     </description>
   </class>
+
   <class 
       name="motion_planning/MotionPlanningTreeVizPublisher" 
       type="motion_planning::MotionPlanningTreeVizPublisher" 
@@ -15,4 +16,41 @@
       Nodelet managing a tree
     </description>
   </class>
+
+  <class 
+      name="motion_planning/DirtPublisher" 
+      type="motion_planning::DirtPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Dirt motion planner tree
+    </description>
+  </class>
+
+  <class 
+      name="motion_planning/RRTPublisher" 
+      type="motion_planning::RRTPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      RRT motion planner tree
+    </description>
+  </class>
+
+  <class 
+      name="motion_planning/AORRTPublisher" 
+      type="motion_planning::AORRTPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      AORRT motion planner tree
+    </description>
+  </class>
+  
+  <class 
+      name="motion_planning/TreeToTrajectories" 
+      type="motion_planning::TreeToTrajectories" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Get the trajectories from a tree
+    </description>
+  </class>
+  
 </library>

@@ -21,3 +21,6 @@
 #include <ml4kp_bridge/PlanStepStamped.h>
 #include <ml4kp_bridge/SpacePointStamped.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
+
+#include <ml4kp_bridge/fg_ltv_sde.hpp>
+#include <ml4kp_bridge/param_loader_bridge.hpp>

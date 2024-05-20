@@ -1,0 +1,181 @@
+<launch> 
+  <arg name="visualize" default="true"/>
+	<arg name="planner" default="None"/>
+  <arg name="plant_file" default="$(find motion_planning)/config/ltv_sde.yaml"/>
+  <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
+  <arg name="debug_prefix" default=""/> 
+  <arg name="rosbag_file" default=""/>
+  <arg name="environment" default="environments/simple_obstacle.yaml"/>
+  <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/"/>
+  <arg name="reset_topic" default="/stela/reset"/>
+  <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
+  <arg name="plan_topic" value="/stela/sbmp/plan"/> 
+  <arg name="control_topic" default="/stela/sbmp/control"/> 
+  <arg name="simulation_step" default="0.002"/>
+  <arg name="collect_data" default="true"/>
+
+  <group ns="stela">
+
+  	<node if="$(eval arg('planner') == 'Dirt-dbg')" 
+      pkg="motion_planning" type="mp_nodelet_debugging" 
+      name="mp_nodelet_debugging_viz" output="screen" 
+      launch-prefix="lldb --">
+      <param name="node_name" value="DirtPublisher"/>
+      <param name="planner_ml4kp_params" value="$(find motion_planning)/config/dirt.yaml"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+      <param name="stela_params" value="$(arg stela_file)"/>
+      <param name="environment" value="$(arg environment)"/>
+    </node>
+
+    <node if="$(eval arg('planner') == 'AORRT-dbg')" 
+      pkg="motion_planning" type="mp_nodelet_debugging" name="mp_nodelet_debugging_viz" output="screen" 
+      launch-prefix="lldb --">
+      <param name="node_name" value="AORRTPublisher"/>
+      <param name="planner_ml4kp_params" value="$(find motion_planning)/config/aorrt.yaml"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+      <param name="stela_params" value="$(arg stela_file)"/>
+      <param name="environment" value="$(arg environment)"/>
+    </node>
+
+   	<node pkg="nodelet" type="nodelet" name="stela_nodelet_manager"  args="manager" output="screen"/>
+
+    <node if="$(eval arg('planner') == 'RRT')" 
+      pkg="nodelet" type="nodelet" name="RRTPublisher" 
+      args="load motion_planning/RRTPublisher stela_nodelet_manager" output="screen">
+      <param name="planner_ml4kp_params" value="$(find motion_planning)/config/rrt.yaml"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+      <param name="stela_params" value="$(arg stela_file)"/>
+      <param name="environment" value="$(arg environment)"/>
+    </node>
+
+    <node if="$(eval arg('planner') == 'Dirt')" 
+      pkg="nodelet" type="nodelet" name="DirtPublisher" 
+    	args="load motion_planning/DirtPublisher stela_nodelet_manager" output="screen">
+      <param name="planner_ml4kp_params" value="$(find motion_planning)/config/dirt.yaml"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+      <param name="stela_params" value="$(arg stela_file)"/>
+      <param name="environment" value="$(arg environment)"/>
+    </node>
+
+    <node if="$(eval arg('planner') == 'AORRT')" 
+      pkg="nodelet" type="nodelet" name="AORRTPublisher" 
+      args="load motion_planning/AORRTPublisher stela_nodelet_manager" output="screen">
+      <param name="planner_ml4kp_params" value="$(find motion_planning)/config/aorrt.yaml"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+      <param name="stela_params" value="$(arg stela_file)"/>
+      <param name="environment" value="$(arg environment)"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="TreeToTrajectories" 
+      args="load motion_planning/TreeToTrajectories stela_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+    </node>
+
+  </group>
+
+  <include file="$(find analytical)/launch/simulator.launch" >
+    <arg name="ns" value="stela"/>
+    <arg name="plant_file" value="$(arg plant_file)"/>
+    <arg name="environment" value="$(arg environment)"/>
+    <arg name="plan_topic" value="$(arg plan_topic)"/> 
+    <arg name="control_topic" default="$(arg control_topic)"/> 
+    <arg name="simulation_step" value="$(arg simulation_step)"/>
+  </include>
+
+  <group ns="utils">
+
+    <node pkg="utils" type="SimClock" name="SimClock" output="screen">
+      <param name="SimStep" value="$(arg simulation_step)"/>
+      <param name="fileprefix" value="desired_trajectories"/>
+      <param name="topic_name" value="$(arg trajectory_topic)"/>
+      <param name="realtime_factor" value="1.0"/>
+    </node>
+
+    <node if="$(arg collect_data)" 
+      pkg="utils" type="tf_to_file" name="tf_to_file" output="screen">
+      <param name="directory" value="$(arg data_dir)"/>
+      <param name="fileprefix" value="tf"/>
+      <rosparam command="load" file="$(find utils)/config/frames.yaml" />
+      <!-- <param name="transforms" value="$(find utils)/config/frames.yaml"/> -->
+      <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="window_duration" value="0"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen"/>
+
+    <node if="$(arg collect_data)" 
+      pkg="nodelet" type="nodelet" name="TrajectoryToFile" output="screen"
+      args="load utils/TrajectoryToFile to_file_nodelet_manager" >
+      <param name="directory" value="$(arg data_dir)"/>
+      <param name="fileprefix" value="desired_trajectories"/>
+      <param name="topic_name" value="$(arg trajectory_topic)"/>
+      <param name="reset_topic" value="$(arg reset_topic)"/>
+    </node>
+
+    <node if="$(arg collect_data)" 
+      pkg="nodelet" type="nodelet" name="PlanStampedToFile" output="screen"
+      args="load utils/PlanStampedToFile to_file_nodelet_manager" >
+      <param name="directory" value="$(arg data_dir)"/>
+      <param name="fileprefix" value="desired_plan"/>
+      <param name="topic_name" value="$(arg plan_topic)"/>
+      <param name="reset_topic" value="$(arg reset_topic)"/>
+    </node>
+
+    <node if="$(arg collect_data)" 
+      pkg="nodelet" type="nodelet" name="ControlToFile" output="screen"
+      args="load utils/StateStampedToFile to_file_nodelet_manager" >
+      <param name="directory" value="$(arg data_dir)"/>
+      <param name="fileprefix" value="executed_control"/>
+      <param name="topic_name" value="$(arg control_topic)_stamped"/>
+      <param name="reset_topic" value="$(arg reset_topic)"/>
+    </node>
+
+  </group>
+
+  <group ns="viz">
+    <node pkg="nodelet" type="nodelet" name="viz_nodelet_manager"  args="manager" output="screen"/>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/tree"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="SlnMotionPlanningTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+      <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 0.0]"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
+      args="load utils/EnvironmentPublisher viz_nodelet_manager" output="screen">
+      <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
+      <param name="environment_file" type="yaml" value="environments/simple_obstacle.yaml"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="TrajectoryVizPublisher" 
+      args="load utils/TrajectoryVizPublisher viz_nodelet_manager" output="screen">
+      <param name="traj_topic_name" value="$(arg trajectory_topic)"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 0.0]"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="PlanToTrajectoryPublisher" 
+      args="load utils/PlanToTrajectoryPublisher viz_nodelet_manager" output="screen">
+      <param name="plan_topic_name" value="/stela/sbmp/plan"/>
+      <param name="traj_topic_name" value="/stela/sbmp/traj_gt"/>
+      <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="TrajectoryVizPublisherGT" 
+      args="load utils/TrajectoryVizPublisher viz_nodelet_manager" output="screen">
+      <param name="traj_topic_name" value="/stela/sbmp/traj_gt"/>
+      <param name="color" type="yaml" value="[1.0, 0.0, 0.0, 1.0]"/>
+    </node>
+  </group>
+</launch>
