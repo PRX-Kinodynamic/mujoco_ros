@@ -37,6 +37,7 @@
             <param name="world_frame" value="world"/>
             <param name="robot_frame" value="robot_0"/>
             <param name="observation_topic" value="/mushr/pose" />
+            <param name="control_topic" value="/mushr/control" />
 		</node>   
     </group>
   

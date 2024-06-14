@@ -19,7 +19,7 @@ using AckermannFromSpacePointNodelet =
 using GroundTruthPoseNodelet = 
     interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped>;
 using MushrObservationFromArucoNodelet = 
-    interface::plant_estimator_t<prx_models::MushrObservation>;
+    interface::plant_estimator_t<prx_models::MushrObservation, prx_models::MushrControl>;
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::AckermannFromSpacePointNodelet, nodelet::Nodelet);

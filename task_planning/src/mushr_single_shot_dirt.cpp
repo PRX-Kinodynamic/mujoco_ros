@@ -56,24 +56,21 @@ int main(int argc, char** argv)
 
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-    return dirt_spec->distance_function(s, s2) / 0.6;
+    return dirt_spec->distance_function(s, s2) / 0.625;
   };
   dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = params["blossom_number"].as<int>();
   dirt_spec->use_pruning = false;
-
-  std::string goal_config_str;
-  n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
-
+  
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];
   goal_configuration.y = goal_config[1];
   goal_configuration.theta = goal_config[2];
 
   std_msgs::Float64 goal_radius;
-  goal_radius.data = 0.25;
+  goal_radius.data = params["goal_region_radius"].as<double>();
 
   prx::dirt_query_t* dirt_query = new prx::dirt_query_t(ss, cs);
   dirt_query->start_state = ss->make_point();
@@ -81,6 +78,35 @@ int main(int argc, char** argv)
   dirt_query->goal_region_radius = goal_radius.data;
   dirt_query->get_visualization = true;
   ROS_WARN("Using default goal check");
+
+  // /*
+  auto sg = planning_context.first;
+  auto cg = planning_context.second;
+  prx::plan_t plan(cs);
+  plan.append_onto_back(1.0);
+  prx::trajectory_t traj(ss);
+
+  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 },  { 0.0, 1.0 },  { 1.0, 1.0 },
+                                                    { -1.0, -1.0 }, { 0.0, -1.0 }, { 1.0, -1.0 } };
+  dirt_spec->expand = [&](prx::space_point_t& s, std::vector<prx::plan_t*>& plans,
+                          std::vector<prx::trajectory_t*>& trajs, int bn, bool blossom_expand) {
+    if (blossom_expand)
+    {
+      for (unsigned i = 0; i < control_list.size(); i++)
+      {
+        traj.clear();
+        cs->copy(plan.back().control, control_list[i]);
+        sg->propagate(s, plan, traj);
+        plans.push_back(new prx::plan_t(plan));
+        trajs.push_back(new prx::trajectory_t(traj));
+      }
+    }
+    else
+    {
+      prx::default_expand(s, plans, trajs, 1, sg, dirt_spec->sample_plan, dirt_spec->propagate);
+    }
+  };
+  // */
 
   dirt->link_and_setup_spec(dirt_spec);
   dirt->preprocess();
@@ -105,9 +131,11 @@ int main(int argc, char** argv)
   ros::ServiceClient collision_client = n.serviceClient<mujoco_ros::Collision>(root + "/collision");
   mujoco_ros::Collision collision_srv;
 
-  double planning_cycle_duration;
+  double planning_cycle_duration, timeout;
   n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
+  n.getParam(ros::this_node::getName() + "/timeout", timeout);
   ROS_INFO("Planning duration: %f", planning_cycle_duration);
+  ROS_INFO("Timeout: %f", timeout);
 
   spinner.start();
   goal_pose_publisher.publish(goal_configuration);
@@ -120,7 +148,7 @@ int main(int argc, char** argv)
   ROS_INFO("Query fulfill time: %f",
            planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
 
-  while (ros::ok())
+  while (ros::ok() && ros::Time::now().toSec() - start_time < timeout)
   {
     if (planner_client.is_goal_reached(goal_configuration, goal_radius))
     {

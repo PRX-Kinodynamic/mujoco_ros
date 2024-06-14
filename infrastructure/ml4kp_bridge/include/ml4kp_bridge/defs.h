@@ -3,6 +3,7 @@
 #include <prx/simulation/controllers/controllers.hpp>
 #include <prx/planning/world_model.hpp>
 #include <prx/planning/planners/dirt.hpp>
+#include <prx/planning/planners/dirt_replanning.hpp>
 
 #ifdef BUILD_WITH_ROGUE
 #include "prx/planning/planners/rogue.hpp"

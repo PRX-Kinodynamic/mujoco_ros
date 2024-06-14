@@ -4,15 +4,20 @@
 
 namespace mj_ros
 {
-template <typename PlannerPtr, typename SpecPtr, typename QueryPtr, typename Service>
+template <typename PlannerPtr, typename SpecPtr, typename QueryPtr, typename PlannerService, typename Observation>
 class planner_service_t
 {
 private:
   ros::ServiceServer _service_server;
+  ros::ServiceClient _controller_client;
+
+  ros::Subscriber _obs_subscriber;
+  Observation _most_recent_observation;
+
   PlannerPtr _planner;
   QueryPtr _query;
   SpecPtr _spec;
-  Service _service;
+  PlannerService _service;
   double _preprocess_end_time, _query_fulfill_start_time;
   double preprocess_timeout, postprocess_timeout;
   bool _propagate_dynamics, _retain_previous;
@@ -35,12 +40,18 @@ public:
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
+    _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_service_t::observation_callback, this);
 
     step_plan = new prx::plan_t(_spec->control_space);
     rest_of_plan = new prx::plan_t(_spec->control_space);
     ml4kp_bridge::add_zero_control(*step_plan);
     ml4kp_bridge::add_zero_control(*rest_of_plan);
     step_traj = new prx::trajectory_t(_spec->state_space);
+  }
+
+  void observation_callback(const Observation& message)
+  {
+    _most_recent_observation = message;
   }
 
   void set_preprocess_timeout(double timeout)
@@ -63,7 +74,7 @@ public:
     return _query_fulfill_start_time;
   }
 
-  bool service_callback(typename Service::Request& request, typename Service::Response& response)
+  bool service_callback(typename PlannerService::Request& request, typename PlannerService::Response& response)
   {
     prx::condition_check_t checker("time",
                                    request.planning_duration.data.toSec() - preprocess_timeout - postprocess_timeout);
@@ -75,10 +86,10 @@ public:
 
     if (_propagate_dynamics)
     {
-      ROS_DEBUG_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
+      ROS_INFO_STREAM("Before f: " << _spec->state_space->print_point(_query->start_state, 4));
       _spec->propagate(_query->start_state, *step_plan, *step_traj);
       _spec->state_space->copy(_query->start_state, step_traj->back());
-      ROS_DEBUG_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
+      ROS_INFO_STREAM("After f: " << _spec->state_space->print_point(_query->start_state, 4));
 
       if (!_spec->valid_state(_query->start_state))
       {
@@ -96,6 +107,7 @@ public:
     _query->clear_outputs();
     _planner->fulfill_query();
 
+    prx::space_point_t current_state = _spec->state_space->make_point();
     double execution_time = request.planning_duration.data.toSec();
     if (_query->solution_traj.size() > 0)
     {
@@ -109,22 +121,44 @@ public:
       _query->solution_plan.copy_to(0, execution_time, *step_plan);
       _query->solution_plan.copy_to(execution_time, _query->solution_plan.duration(), *rest_of_plan);
 
-      if (_propagate_dynamics)
+      if (_retain_previous)
       {
         _query->solution_plan.clear();
         rest_of_plan->copy_to(0, rest_of_plan->duration(), _query->solution_plan);
       }
 
-      ml4kp_bridge::copy(response.output_plan, step_plan);
-      ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
-      response.planner_output = Service::Response::TYPE_SUCCESS;
+      bool valid = true;
+      if (_spec->use_contingency)
+      {
+        prx_models::copy(current_state, _most_recent_observation);
+        step_traj->clear();
+        _spec->propagate(current_state, *step_plan, *step_traj);
+        valid = _spec->valid_check(*step_traj);
+        // valid = _spec->contingency_check(*step_traj);
+      }
+
+      if (valid)
+      {
+        ml4kp_bridge::copy(response.output_plan, step_plan);
+        ml4kp_bridge::copy(response.output_trajectory, _query->solution_traj);
+        response.planner_output = PlannerService::Response::TYPE_SUCCESS;
+      }
+      else
+      {
+        ROS_WARN("Contingency check failed");
+        step_plan->clear();
+        ml4kp_bridge::add_zero_control(*step_plan, execution_time);
+        ml4kp_bridge::copy(response.output_plan, step_plan);
+        response.planner_output = PlannerService::Response::TYPE_FAILURE;
+      }
     }
     else
     {
       ROS_WARN("No solution found");
       step_plan->clear();
       ml4kp_bridge::add_zero_control(*step_plan, execution_time);
-      response.planner_output = Service::Response::TYPE_FAILURE;
+      ml4kp_bridge::copy(response.output_plan, step_plan);
+      response.planner_output = PlannerService::Response::TYPE_FAILURE;
     }
     _planner->reset();
     if (!_retain_previous)

@@ -3,7 +3,7 @@ project(task_planning)
 set(CMAKE_CXX_STANDARD 17)
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 
-set(BUILD_WITH_ROGUE ON CACHE BOOL "Build with RoGuE planner")
+set(BUILD_WITH_ROGUE OFF CACHE BOOL "Build with RoGuE planner")
 if (BUILD_WITH_ROGUE)
   add_definitions(-DBUILD_WITH_ROGUE)
 endif()

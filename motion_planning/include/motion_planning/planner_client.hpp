@@ -4,18 +4,21 @@
 
 namespace mj_ros
 {
-template <typename Service, typename Observation>
+template <typename PlannerService, typename Observation>
 class planner_client_t
 {
 private:
   ros::ServiceClient _service_client;
   ros::Subscriber _obs_subscriber;
   ros::Publisher _plan_publisher, _traj_publisher;
-  Service _service;
+  PlannerService _service;
   Observation _most_recent_observation;
   bool _obs_received{ false };
   double _preprocess_start_time, _query_fulfill_end_time;
   int _control_dim;
+
+  std::vector<ml4kp_bridge::SpacePoint> planning_cycle_start_states, planning_cycle_end_states;
+  std::vector<Observation> execution_cycle_start_observations;
 
 public:
   planner_client_t(ros::NodeHandle& nh, int control_dim)
@@ -23,10 +26,15 @@ public:
   {
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
-    _service_client = nh.serviceClient<Service>(service_name);
+    _service_client = nh.serviceClient<PlannerService>(service_name);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_client_t::observation_callback, this);
     _plan_publisher = nh.advertise<ml4kp_bridge::PlanStamped>(root + "/ml4kp_plan", 1000, true);
     _traj_publisher = nh.advertise<ml4kp_bridge::TrajectoryStamped>(root + "/ml4kp_traj", 1000, true);
+  }
+
+  std::tuple<std::vector<ml4kp_bridge::SpacePoint>, std::vector<ml4kp_bridge::SpacePoint>, std::vector<Observation>> get_error_data()
+  {
+    return std::make_tuple(planning_cycle_start_states, planning_cycle_end_states, execution_cycle_start_observations);
   }
 
   double get_preprocess_time() const
@@ -80,15 +88,20 @@ public:
         ml4kp_bridge::add_zero_plan(_service.response.output_plan, planning_duration, _control_dim);
         _plan_publisher.publish(_service.response.output_plan);
       }
-      else if (_service.response.planner_output == Service::Response::TYPE_SUCCESS)
+      else if (_service.response.planner_output == PlannerService::Response::TYPE_SUCCESS)
       {
-        ROS_DEBUG("Publishing plan");
+        ROS_DEBUG("Publishing trajectory");
+        planning_cycle_start_states.push_back(_service.response.output_trajectory.trajectory.data[0]);
+        planning_cycle_end_states.push_back(_service.response.output_trajectory.trajectory.data[planning_duration*prx::simulation_step + 1]);
+        execution_cycle_start_observations.push_back(_most_recent_observation);
         _plan_publisher.publish(_service.response.output_plan);
         _traj_publisher.publish(_service.response.output_trajectory);
       }
       else
       {
+        ROS_INFO_STREAM("Planner failure, output traj size: " << _service.response.output_trajectory.trajectory.data.size());
         _plan_publisher.publish(_service.response.output_plan);
+        _traj_publisher.publish(_service.response.output_trajectory);
       }
     }
     else

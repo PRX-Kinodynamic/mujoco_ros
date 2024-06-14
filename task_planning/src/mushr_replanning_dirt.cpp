@@ -1,6 +1,7 @@
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
+#include "control/MushrControlPropagation.h"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
 #include "motion_planning/PlanningResult.h"
@@ -52,62 +53,81 @@ int main(int argc, char** argv)
   auto sg = planning_context.first;
   auto cg = planning_context.second;
 
-  std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
-  prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
+  std::shared_ptr<prx::dirt_replan_t> dirt = std::make_shared<prx::dirt_replan_t>("dirt");
+  prx::dirt_replan_specification_t* dirt_spec =
+      new prx::dirt_replan_specification_t(planning_context.first, planning_context.second);
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-    return dirt_spec->distance_function(s, s2) / 0.6;
+    return dirt_spec->distance_function(s, s2) / 0.62;
   };
 
-  bool propagate_dynamics, use_viability, retain_previous;
-  n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
-  n.getParam(ros::this_node::getName() + "/use_viability", use_viability);
-  n.getParam(ros::this_node::getName() + "/retain_previous", retain_previous);
-
-  plan_t plan(cs);
+  /*
+  prx::plan_t plan(cs);
   plan.append_onto_back(1.0);
-  space_point_t point = ss->make_point();
+  prx::trajectory_t traj(ss);
 
-  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 }, { 0.0, 1.0 }, { 1.0, 1.0 } };
-
-  dirt_spec->valid_check = [&](trajectory_t& traj) {
-    for (unsigned i = 0; i < traj.size(); i++)
+  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 },  { 0.0, 1.0 },  { 1.0, 1.0 },
+                                                    { -1.0, -1.0 }, { 0.0, -1.0 }, { 1.0, -1.0 } };
+  dirt_spec->expand = [&](prx::space_point_t& s, std::vector<prx::plan_t*>& plans,
+                          std::vector<prx::trajectory_t*>& trajs, int bn, bool blossom_expand) {
+    if (blossom_expand)
     {
-      ss->copy_from_point(traj.at(i));
-      if (cg->in_collision())
-        return false;
-      if (use_viability && i == traj.size() - 1)
+      for (unsigned i = 0; i < control_list.size(); i++)
       {
-        for (auto& control : control_list)
-        {
-          cs->copy(plan.back().control, control);
-          sg->propagate(traj.at(i), plan, point);
-          ss->copy_from_point(point);
-          if (cg->in_collision())
-            return false;
-        }
+        traj.clear();
+        cs->copy(plan.back().control, control_list[i]);
+        sg->propagate(s, plan, traj);
+        plans.push_back(new prx::plan_t(plan));
+        trajs.push_back(new prx::trajectory_t(traj));
       }
     }
-    return true;
+    else
+    {
+      prx::default_expand(s, plans, trajs, 1, sg, dirt_spec->sample_plan, dirt_spec->propagate);
+    }
   };
+  */
+
+  bool propagate_dynamics, retain_previous, use_contingency;
+  n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
+  n.getParam(ros::this_node::getName() + "/retain_previous", retain_previous);
+  n.getParam(ros::this_node::getName() + "/use_contingency", use_contingency);
 
   dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = params["blossom_number"].as<int>();
   dirt_spec->use_pruning = false;
+  dirt_spec->use_contingency = use_contingency;
 
-  std::string goal_config_str;
-  n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
+  dirt_spec->contingency_check = [&](prx::trajectory_t& traj) {
+    for (auto&& s : traj)
+    {
+      auto pqp_distance = prx::default_obstacle_distance_function(s, ss, cg);
+      double min_distance = std::numeric_limits<double>::max();
+      for (auto&& d : pqp_distance.distances)
+      {
+        if (d < min_distance)
+        {
+          min_distance = d;
+        }
+      }
+      if (min_distance < params["safe_distance"].as<double>())
+      {
+        return false;
+      }
+    }
+    return true;
+  };
 
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];
   goal_configuration.y = goal_config[1];
   goal_configuration.theta = goal_config[2];
 
   std_msgs::Float64 goal_radius;
-  goal_radius.data = 0.25;
+  goal_radius.data = params["goal_region_radius"].as<double>();
 
-  prx::dirt_query_t* dirt_query = new prx::dirt_query_t(ss, cs);
+  prx::dirt_replan_query_t* dirt_query = new prx::dirt_replan_query_t(ss, cs);
   dirt_query->start_state = ss->make_point();
   dirt_query->goal_state = ss->make_point();
   dirt_query->goal_region_radius = goal_radius.data;
@@ -120,8 +140,9 @@ int main(int argc, char** argv)
 
   ros::AsyncSpinner spinner(2);
 
-  using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::dirt_t>, prx::dirt_specification_t*,
-                                                   prx::dirt_query_t*, prx_models::MushrPlanner>;
+  using PlannerService =
+      mj_ros::planner_service_t<std::shared_ptr<prx::dirt_replan_t>, prx::dirt_replan_specification_t*,
+                                prx::dirt_replan_query_t*, prx_models::MushrPlanner, prx_models::MushrObservation>;
 
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics, retain_previous);
 
@@ -146,6 +167,7 @@ int main(int argc, char** argv)
   n.getParam(ros::this_node::getName() + "/max_cycles", max_cycles);
   planner_service.set_preprocess_timeout(preprocess_timeout);
   planner_service.set_postprocess_timeout(postprocess_timeout);
+  dirt_spec->planning_cycle_duration = planning_cycle_duration;
 
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
@@ -166,8 +188,8 @@ int main(int argc, char** argv)
         planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
         prev_time = current_time;
         current_cycle++;
-        ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
-        ROS_INFO("Query fulfill time: %f",
+        ROS_DEBUG("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
+        ROS_DEBUG("Query fulfill time: %f",
                  planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
       }
     }
@@ -203,6 +225,24 @@ int main(int argc, char** argv)
     planning_result_msg.goal_reached.data = false;
     planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
     planning_result_publisher.publish(planning_result_msg);
+  }
+
+  int id;
+  n.getParam(ros::this_node::getName() + "/id", id);
+
+  auto error_data = planner_client.get_error_data();
+  prx::space_point_t print_state = ss->make_point();
+
+  std::ofstream error_file;
+  error_file.open("/home/aravind/error_data_" + std::to_string(id) + ".txt");
+  for (unsigned i = 0; i < std::get<0>(error_data).size(); i++)
+  {
+    ml4kp_bridge::copy(print_state, std::get<0>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    ml4kp_bridge::copy(print_state, std::get<1>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    prx_models::copy(print_state, std::get<2>(error_data)[i]);
+    error_file << ss->print_point(print_state) << std::endl;
   }
 
   spinner.stop();

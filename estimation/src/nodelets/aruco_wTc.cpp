@@ -127,6 +127,10 @@ private:
   void get_trajectory(const ml4kp_bridge::TrajectoryStampedConstPtr message)
   {
     _cv_traj.clear();
+    if (message->trajectory.data.empty())
+    {
+      return;
+    }
     for (auto& state : message->trajectory.data)
     {
       // x,y,z: setting z=0 for now
@@ -221,6 +225,7 @@ private:
         {
           cv::line(frame->image, _image_traj[i], _image_traj[i + 1], _color_rgb[0] + _color_rgb[2], 2);
         }
+        cv::circle(frame->image, _image_traj.front(), 1.0, _color_rgb[0], 3, cv::LineTypes::LINE_AA);
       }
 
       _frame_publisher.publish(frame);
