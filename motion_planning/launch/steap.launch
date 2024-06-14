@@ -1,0 +1,58 @@
+<launch> 
+	<arg name="visualize" value="true"/>
+  <arg name="dbg" value="lldb --"/>
+  <group ns="STEAP">
+  	
+    <!-- rosrun motion_planning mp_nodelet_debugging _node_name:=Steap _control_topic:=/stela/sbmp/control _control_frequency:=10 _world_frame:="world" _robot_frame:="robot" 
+    _naive_guess:=true
+    _total_states:=100
+    _start:="0.0,0.0,0.0,0.0"
+    _goal:="[20,20,0,0]" 
+    _init_ctrl:="[0.5,0.5]"
+    _init_duration:=1 -->
+    <node  
+      pkg="motion_planning" type="mp_nodelet_debugging" 
+      name="mp_nodelet_debugging_viz" output="screen" 
+      launch-prefix="$(arg dbg)"
+      >
+      <param name="node_name" value="Steap"/>
+      <param name="control_topic" value="/stela/sbmp/control"/> 
+      <param name="control_frequency" value="30"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="robot"/>
+      <param name="graph_topic_name" value="/stela/manual/graph"/>
+      <param name="graph_topic_name" value="/stela/manual/graph"/>
+      <param name="naive_guess"     value="true"/>
+      <param name="total_states"    value="100"/>
+      <param name="start" type="yaml" value="[0,0,0,0]"/>
+      <param name="goal"  type="yaml" value="[15,20,0,0]"/>
+      <param name="init_ctrl"  type="yaml" value="[0.5,0.5]"/>
+      <param name="init_duration"   value="0.1"/>
+      <param name="obstacle_distance_tolerance" value="5"/>
+      <param name="lm_iters"   value="100"/>
+      <param name="obstacle_sigma"   value="0.1"/>
+      <param name="environment" value="environments/simple_obstacle.yaml"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="steap_viz_nodelet_manager"  args="manager" output="screen"/>
+  	<node 
+      pkg="nodelet" type="nodelet" name="SteapLocalTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher steap_viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/STEAP/steap/tree"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
+    </node>
+  	<!-- 
+   	<node pkg="nodelet" type="nodelet" name="mp_nodelet_manager"  args="manager" output="screen"/>
+
+   	<node if="$(arg visualize)" 
+   		pkg="nodelet" type="nodelet" name="tree_visualizer" 
+   		args="load motion_planning/MotionPlanningTreeVizPublisher mp_nodelet_manager" output="screen">
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="mp_tree" 
+    	args="load motion_planning/MotionPlanningTree mp_nodelet_manager" output="screen">
+    </node>
+  	 -->
+
+  </group>
+</launch>

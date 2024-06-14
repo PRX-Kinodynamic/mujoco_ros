@@ -8,5 +8,5 @@ bnb: false
 visualize: true
 
 checker_type: time
-checker_value: 100
+checker_value: 3600
 

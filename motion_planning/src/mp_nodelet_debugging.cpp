@@ -7,6 +7,11 @@
 #include <motion_planning/tree_viz_publisher.hpp>
 #include <motion_planning/sbmp_publisher.hpp>
 #include <motion_planning/tree_to_trajectories.hpp>
+#include <motion_planning/stela.hpp>
+#include <motion_planning/steap.hpp>
+#include <motion_planning/stela_stepper.hpp>
+
+#include <ml4kp_bridge/fg_ltv_sde.hpp>
 
 void test_sub(const std_msgs::String::ConstPtr& msg)
 {
@@ -47,10 +52,22 @@ int main(int argc, char** argv)
   {
     node = std::make_unique<motion_planning::tree_to_trajectories_t<utils::nodelet_as_node_t>>();
   }
-
+  else if (node_name == "Stela")
+  {
+    node = std::make_unique<motion_planning::stela_t<prx::fg::ltv_sde_utils_t, utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "StelaStepper")
+  {
+    node = std::make_unique<motion_planning::stela_stepper_t<prx::fg::ltv_sde_utils_t, utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "Steap")
+  {
+    node = std::make_unique<motion_planning::steap_t<prx::fg::ltv_sde_utils_t, utils::nodelet_as_node_t>>();
+  }
   ROS_ASSERT_MSG(node != nullptr, "Node not initialized. Node name %s not valid.", node_name.c_str());
   // ros::AsyncSpinner spinner(4);  // Use 4 threads
   // spinner.start();
+  DEBUG_VARS("Successful node");
   node->init();
   DEBUG_VARS("Spinning");
   ros::spin();

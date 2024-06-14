@@ -61,4 +61,24 @@ inline void copy(ml4kp_bridge::SpacePoint& state_out, const ml4kp_bridge::SpaceP
     state_out.point[i] = state_in.point[i];
   }
 }
+
+template <typename Type, int Dim>
+inline void copy(ml4kp_bridge::SpacePoint& msg, const Eigen::Vector<Type, Dim>& state)
+{
+  msg.point.resize(state.size());
+  for (std::size_t i = 0; i < state.size(); ++i)
+  {
+    msg.point[i] = state[i];
+  }
+}
+
+// Need another for Dim = variable
+template <typename Type, int Dim>
+inline void copy(Eigen::Vector<Type, Dim>& state, const ml4kp_bridge::SpacePoint& msg)
+{
+  for (std::size_t i = 0; i < msg.point.size(); ++i)
+  {
+    state[i] = msg.point[i];
+  }
+}
 }  // namespace ml4kp_bridge

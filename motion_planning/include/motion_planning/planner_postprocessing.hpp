@@ -29,7 +29,6 @@ std::shared_ptr<prx::tree_t> build_solution_tree(const std::vector<prx::proximit
                                                  const prx::tree_t& tree, prx::space_t* state_space,
                                                  std::shared_ptr<Node> root)
 {
-  DEBUG_PRINT;
   std::stack<Node*> solution_nodes;
   std::unordered_set<prx::node_index_t> visited;
   std::queue<prx::proximity_node_t*> to_visit{};
@@ -40,7 +39,6 @@ std::shared_ptr<prx::tree_t> build_solution_tree(const std::vector<prx::proximit
   }
 
   visited.insert(root->get_index());
-  DEBUG_PRINT;
   while (to_visit.size() > 0)
   {
     Node* curr_node{ dynamic_cast<Node*>(to_visit.front()) };
@@ -55,7 +53,6 @@ std::shared_ptr<prx::tree_t> build_solution_tree(const std::vector<prx::proximit
     to_visit.pop();
   }
   // solution_nodes.push(root);
-  DEBUG_PRINT;
 
   std::shared_ptr<prx::tree_t> sln_tree{ std::make_shared<prx::tree_t>() };
 
@@ -68,8 +65,6 @@ std::shared_ptr<prx::tree_t> build_solution_tree(const std::vector<prx::proximit
   state_space->copy(new_root_node->point, root->point);
 
   new_index_map[root->get_index()] = start_vertex;
-  // for (auto node : solution_nodes)
-  DEBUG_PRINT;
   while (not solution_nodes.empty())
   {
     Node* node{ solution_nodes.top() };
@@ -94,7 +89,6 @@ std::shared_ptr<prx::tree_t> build_solution_tree(const std::vector<prx::proximit
 
     solution_nodes.pop();
   }
-  DEBUG_PRINT;
   return sln_tree;
 }
 

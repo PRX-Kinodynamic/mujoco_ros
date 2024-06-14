@@ -15,6 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   utils
   analytical
+  actionlib
+  actionlib_msgs
+  tf
 )
 
 add_definitions("-g")
@@ -77,6 +80,13 @@ find_package(iceoryx_hoofs CONFIG REQUIRED)
 #   MushrPlanner.srv
 # )
 
+set(ACTION_FILES "")
+file(GLOB_RECURSE SRV_DIRS "action/*.action")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_action_files(DIRECTORY "action" FILES "${S_NAME}.action")
+endforeach()
 ## Generate actions in the 'action' folder
 # add_action_files(
 #   FILES
@@ -85,11 +95,13 @@ find_package(iceoryx_hoofs CONFIG REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-#   prx_models
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  prx_models
+  ml4kp_bridge
+  actionlib_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##

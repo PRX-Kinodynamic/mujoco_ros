@@ -9,12 +9,18 @@
     <arg name="control_topic" default="/$(arg ns)/control"/> 
     <arg name="plan_topic" default="/$(arg ns)/plan"/> 
     <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/> 
+    <!-- <arg name="open_loop" default="false"/> -->
+    <arg name="planner" default="None"/>
+    <arg name="sim_clock" default="true"/>
 
-    <param name="/use_sim_time" value="true" />
+    <param name="/use_sim_time" value="$(arg sim_clock)" />
 
     <group ns="$(arg ns)">
         <node pkg="analytical" type="simulator" name="simulator" output="screen" launch-prefix="$(arg debug_prefix)">
             <param name="parameter_space/values" value="[0,0,0,0,0,0,0,0]"/>
+            <!-- <param name="parameter_space/values" value="[0.01,0.01,0.01,0.01,0,0,0,0]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.01,0.01,0,0,1,1]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.025,0.025,0,0,1,1]"/> -->
             <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
             <param name="state_topic" value="/$(arg ns)/state"/>
             <param name="control_topic" value="$(arg control_topic)"/>
@@ -33,7 +39,8 @@
             <param name="publisher_topic" value="$(arg plan_topic)" />
         </node>
 
-        <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+        <node if="$(eval arg('planner') == 'OpenLoop')" 
+            pkg="nodelet" type="nodelet" name="plan_stepper_t" 
             args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_topic)"/>

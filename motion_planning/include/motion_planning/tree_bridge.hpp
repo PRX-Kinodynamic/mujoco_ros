@@ -24,6 +24,7 @@ void copy(prx_models::Node& ros_node, const Node& mlkp_node)
   ros_node.parent = mlkp_node.get_parent();
   ros_node.parent_edge = mlkp_node.get_parent_edge();
   ros_node.status = Types::NodeEdgeStatus::ADDED;
+  ros_node.cost = mlkp_node.cost();
   const std::list<prx::node_index_t>& children{ mlkp_node.get_children() };
   ros_node.children.resize(children.size());
   std::copy(children.begin(), children.end(), ros_node.children.begin());
@@ -76,4 +77,76 @@ void copy(prx_models::Tree& ros_tree, const prx::tree_t& mlkp_tree)
     copy(ros_tree.edges[index], *edge);
   }
 }
+
+class tree_manager_t
+{
+  using EdgeNodePair = std::pair<prx_models::Edge, prx_models::Node>;
+
+public:
+  tree_manager_t() : _next_edge_index(0)
+  {
+    _nodes.resize(100);
+    _edges.resize(100);
+  }
+
+  prx_models::Edge create_edge(prx_models::Node& from, prx_models::Node& to)
+  {
+    if (_edges.size() <= 1)
+    {
+      _edges.resize(100);
+    }
+    prx_models::Edge edge{ std::move(_edges.front()) };
+    _edges.pop_front();
+
+    const std::uint64_t from_id{ from.index };
+    const std::uint64_t to_id{ to.index };
+
+    from.children.push_back(to_id);
+    to.parent = from_id;
+
+    edge.index = _next_edge_index;
+    edge.source = from_id;
+    edge.target = to_id;
+
+    to.parent_edge = edge.index;
+
+    _next_edge_index++;
+    return edge;
+  }
+
+  prx_models::Node create_node()
+  {
+    if (_nodes.size() <= 1)
+    {
+      _nodes.resize(100);
+    }
+    prx_models::Node node{ std::move(_nodes.front()) };
+    _nodes.pop_front();
+
+    node.index = _next_node_index;
+    node.parent = _next_node_index;
+    _next_node_index++;
+    return node;
+  }
+
+  // Given a node N0, create edge and node child: N0 -- E0 -- N1
+  EdgeNodePair create_edge_node(prx_models::Node& n0)
+  {
+    prx_models::Node n1{ std::move(create_node()) };
+    prx_models::Edge e0{ std::move(create_edge(n0, n1)) };
+    return { e0, n1 };
+  }
+
+  void reset()
+  {
+    _next_node_index = 0;
+    _next_edge_index = 0;
+  }
+
+private:
+  std::list<prx_models::Node> _nodes;
+  std::list<prx_models::Edge> _edges;
+  std::uint64_t _next_node_index;
+  std::uint64_t _next_edge_index;
+};
 }  // namespace motion_planning

@@ -26,7 +26,7 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
 #define PARAM_NAME_SETUP(nh, name, var)                                                                                \
   if (!nh.getParam(name, var))                                                                                         \
   {                                                                                                                    \
-    ROS_DEBUG_STREAM_NAMED(ros::this_node::getName(), "Parameter " << GET_VARIABLE_NAME(var) << " is needed.");        \
+    ROS_ERROR_STREAM_NAMED(ros::this_node::getName(), "Parameter " << GET_VARIABLE_NAME(var) << " is needed.");        \
     exit(-1);                                                                                                          \
   }
 

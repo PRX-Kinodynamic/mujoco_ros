@@ -26,7 +26,7 @@ void check_for_ros_params(prx::param_loader& param, ros::NodeHandle& nh)
       // PRX_DEBUG_VAR_2(parameter_name, param.exists(parameter_name));
       if (param.exists(parameter_name))
       {
-        // PRX_DEBUG_VAR_2(parameter_name, param[parameter_name].as<std::string>());
+        // PRX_DEBUG_VAR_1(parameter_name);
         nh.getParam(parameter_name, parameter);
         // PRX_DEBUG_VAR_1(parameter);
         param[parameter_name] = YAML::Load(parameter);

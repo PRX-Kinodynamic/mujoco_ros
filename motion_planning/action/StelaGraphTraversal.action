@@ -1,0 +1,17 @@
+#goal definition
+# Assume x0 is the current node, x1 is the child of x0 and x2 the child of x1  
+std_msgs/Header header
+uint64[] selected_branch 
+float64[] durations
+bool stop
+---
+#result definition
+ml4kp_bridge/SpacePoint xfinal #  
+---
+#feedback
+uint64 current_root
+ml4kp_bridge/SpacePoint xhat #  
+prx_models/Tree lookahead #  
+float64[] lookahead_costs 
+#float64 duration_so_far
+

@@ -16,6 +16,7 @@
 #include <prx/visualization/three_js_group.hpp>
 #include <prx/utilities/general/param_loader.hpp>
 #include <prx/simulation/loaders/obstacle_loader.hpp>
+#include <prx/planning/planner_functions/tree_fix_time_discretization.hpp>
 
 namespace motion_planning
 {
@@ -134,6 +135,7 @@ protected:
   {
     DEBUG_VARS(_planner->tree().size());
 
+    prx::planning::discretize_tree(_planner->tree(), *_planner, _params["/planner/max_edge_duration"].as<double>());
     copy<typename Planner::Node, typename Planner::Edge>(_tree, _planner->tree());
     _tree_publisher.publish(_tree);
 

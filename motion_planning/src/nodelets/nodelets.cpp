@@ -6,6 +6,8 @@
 #include <motion_planning/tree_viz_publisher.hpp>
 #include <motion_planning/sbmp_publisher.hpp>
 #include <motion_planning/tree_to_trajectories.hpp>
+#include <motion_planning/stela.hpp>
+#include <motion_planning/stela_stepper.hpp>
 
 #include <prx/planning/planners/planner.hpp>
 #include <prx/planning/planners/rrt.hpp>
@@ -21,6 +23,8 @@ using TreeToTrajectories = tree_to_trajectories_t<nodelet::Nodelet>;
 using DirtPublisher = sbmp_publisher_t<prx::dirt_t, prx::dirt_specification_t, prx::dirt_query_t, nodelet::Nodelet>;
 using RRTPublisher = sbmp_publisher_t<prx::rrt_t, prx::rrt_specification_t, prx::rrt_query_t, nodelet::Nodelet>;
 using AORRTPublisher = sbmp_publisher_t<prx::aorrt_t, prx::aorrt_specification_t, prx::aorrt_query_t, nodelet::Nodelet>;
+using StelaLtvSde = stela_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
+using StelaStepper = stela_stepper_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -29,3 +33,5 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::MotionPlanningTreeVizPublisher, nodelet:
 PLUGINLIB_EXPORT_CLASS(motion_planning::DirtPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::RRTPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::AORRTPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::StelaLtvSde, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::StelaStepper, nodelet::Nodelet);

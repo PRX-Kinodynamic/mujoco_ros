@@ -1,4 +1,5 @@
-random_seed: 231192
+# random_seed: 231192
+random_seed: 854623
 simulation_step: 0.1
 
 environment: "environments/simple_obstacle.yaml"
@@ -8,5 +9,8 @@ bnb: false
 visualize: true
 
 checker_type: time
-checker_value: 600
+# checker_value: 3600
+checker_value: 10
+cost_multiplier: 2.5
 
+max_edge_duration: 1.0

@@ -6,15 +6,31 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <arg name="environment" default="environments/simple_obstacle.yaml"/>
+  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
+  <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/"/>
   <arg name="reset_topic" default="/stela/reset"/>
   <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
   <arg name="plan_topic" value="/stela/sbmp/plan"/> 
   <arg name="control_topic" default="/stela/sbmp/control"/> 
-  <arg name="simulation_step" default="0.002"/>
+  <arg name="simulation_step" default="0.1"/>
   <arg name="collect_data" default="true"/>
+  <arg name="sim_clock" default="true"/>
 
   <group ns="stela">
+
+    <node if="$(eval arg('planner') == 'Stela-dbg')" 
+      pkg="motion_planning" type="mp_nodelet_debugging" 
+      name="mp_nodelet_debugging_viz" output="screen" 
+      launch-prefix="lldb --">
+      <param name="node_name" value="Stela"/>
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+      <param name="control_topic" value="$(arg control_topic)"/> 
+      <param name="control_frequency" value="30"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="robot"/>
+      <param name="graph_topic_name" value="/stela/manual/graph"/>
+    </node>
 
   	<node if="$(eval arg('planner') == 'Dirt-dbg')" 
       pkg="motion_planning" type="mp_nodelet_debugging" 
@@ -71,6 +87,33 @@
       <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
     </node>
 
+    <node if="$(eval arg('planner') == 'Stela')" 
+      pkg="nodelet" type="nodelet" name="StelaLtvSde" 
+      args="load motion_planning/StelaLtvSde stela_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+      <param name="control_topic" value="$(arg control_topic)"/> 
+      <param name="control_frequency" value="10"/>
+      <param name="world_frame" value="world"/>
+      <param name="robot_frame" value="robot"/>
+      <param name="graph_topic_name" value="/stela/manual/graph"/>
+      <param name="output_dir" value="/Users/Gary/pracsys/catkin_ws/data/stela/test"/>
+    </node>
+
+    <!-- <node if="$(eval arg('planner') == 'Stela')"  -->
+      <!-- pkg="motion_planning" type="mp_nodelet_debugging"  -->
+      <!-- name="mp_nodelet_debugging_viz" output="screen"  -->
+      <!-- launch-prefix="lldb - -"> -->
+    <node if="$(eval arg('planner') == 'Stela')" 
+      pkg="nodelet" type="nodelet" name="StelaStepper" 
+      args="load motion_planning/StelaStepper stela_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+      <param name="action_topic" value="/stela/StelaLtvSde/action"/> 
+      <param name="lookahead_duration" value="15"/> 
+      <param name="cost_threashold" value="10000"/> 
+      <param name="node_name" value="StelaStepper"/> 
+      <param name="branch_selection" value="random"/> 
+      <param name="random_seed" value="5165"/>
+    </node>
   </group>
 
   <include file="$(find analytical)/launch/simulator.launch" >
@@ -80,11 +123,15 @@
     <arg name="plan_topic" value="$(arg plan_topic)"/> 
     <arg name="control_topic" default="$(arg control_topic)"/> 
     <arg name="simulation_step" value="$(arg simulation_step)"/>
+    <arg name="sim_clock" default="$(arg sim_clock)"/>
+    <arg name="planner" value="$(arg planner)"/>
+    <!-- <arg name="open_loop" default="$("/> -->
   </include>
 
   <group ns="utils">
 
-    <node pkg="utils" type="SimClock" name="SimClock" output="screen">
+    <node if="$(arg sim_clock)" 
+      pkg="utils" type="SimClock" name="SimClock" output="screen">
       <param name="SimStep" value="$(arg simulation_step)"/>
       <param name="fileprefix" value="desired_trajectories"/>
       <param name="topic_name" value="$(arg trajectory_topic)"/>
@@ -153,7 +200,8 @@
       pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
       args="load utils/EnvironmentPublisher viz_nodelet_manager" output="screen">
       <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
-      <param name="environment_file" type="yaml" value="environments/simple_obstacle.yaml"/>
+      <!-- <param name="environment_file" type="yaml" value="environments/simple_obstacle.yaml"/> -->
+      <param name="environment_file" value="$(arg environment)"/>
     </node>
 
     <node if="$(arg visualize)" 
@@ -177,5 +225,27 @@
       <param name="traj_topic_name" value="/stela/sbmp/traj_gt"/>
       <param name="color" type="yaml" value="[1.0, 0.0, 0.0, 1.0]"/>
     </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="GraphVizPublisher" 
+      args="load utils/GraphVizPublisher viz_nodelet_manager" output="screen">
+      <param name="graph_topic_name" value="/stela/manual/graph"/>
+      <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 0.0]"/>
+    </node>
+
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="StelaLocalTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/lookahead"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
+    </node>
+
+<!--     <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="StelaLocalTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/lookahead"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
+    </node> -->
+
   </group>
 </launch>

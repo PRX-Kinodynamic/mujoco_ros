@@ -52,5 +52,21 @@
       Get the trajectories from a tree
     </description>
   </class>
+  <class 
+      name="motion_planning/StelaLtvSde" 
+      type="motion_planning::StelaLtvSde" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Get the trajectories from a tree
+    </description>
+  </class>
+  <class 
+      name="motion_planning/StelaStepper" 
+      type="motion_planning::StelaStepper" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Get the trajectories from a tree
+    </description>
+  </class>
   
 </library>

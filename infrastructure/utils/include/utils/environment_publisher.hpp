@@ -4,10 +4,13 @@
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/SendString.h>
+#include <std_srvs/Empty.h>
 
 #include <prx/planning/world_model.hpp>
 #include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/utilities/geometry/basic_geoms/box.hpp>
+#include <prx/utilities/geometry/basic_geoms/cylinder.hpp>
+#include <prx/utilities/geometry/basic_geoms/sphere.hpp>
 
 namespace utils
 {
@@ -18,7 +21,7 @@ class environment_publisher_t : public Base
   using Derived = environment_publisher_t<Base>;
 
 public:
-  environment_publisher_t() : _viz_env_name("/environment_marker_array")
+  environment_publisher_t() : _viz_env_name("/environment_marker_array"), _reload_service_name("/environment/reload")
   {
   }
 
@@ -27,11 +30,12 @@ public:
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
     // ros::NodeHandle private_nh("~");
 
-    std::string environment_file{};
+    std::string& environment_file{ _environment_file };
     std::vector<double> color{};
 
     // _tree_topic_name = ros::this_node::getNamespace() + _tree_topic_name;
     _viz_env_name = ros::this_node::getNamespace() + _viz_env_name;
+    _reload_service_name = ros::this_node::getNamespace() + _reload_service_name;
 
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, 1.0, 0.0 }));
     PARAM_SETUP_WITH_DEFAULT(private_nh, environment_file, "");
@@ -39,11 +43,19 @@ public:
     // publishers
     _environment_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(_viz_env_name, 1, true);
 
+    _reload_service = private_nh.advertiseService(_reload_service_name, &Derived::reload_environment_callback, this);
+
     if (environment_file != "")
     {
-      DEBUG_VARS(environment_file);
-      read_and_publish_environment(environment_file);
+      DEBUG_VARS(_environment_file);
+      read_and_publish_environment(_environment_file);
     }
+  }
+
+  bool reload_environment_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+  {
+    read_and_publish_environment(_environment_file);
+    return true;
   }
 
 protected:
@@ -71,10 +83,16 @@ protected:
       marker.action = visualization_msgs::Marker::ADD;
 
       const std::shared_ptr<prx::box_t> box{ std::dynamic_pointer_cast<prx::box_t>(obstacle_list[i]) };
-      if (box)
+      const std::shared_ptr<prx::cylinder_t> cylinder{ std::dynamic_pointer_cast<prx::cylinder_t>(obstacle_list[i]) };
+      const std::shared_ptr<prx::sphere_t> sphere{ std::dynamic_pointer_cast<prx::sphere_t>(obstacle_list[i]) };
+      // DEBUG_VARS((sphere ? "sphere" : "nullptr"));
+      if (box or cylinder or sphere)
       {
-        prx::movable_object_t::Geometries geometries{ box->get_geometries() };
-        prx::movable_object_t::Configurations configs{ box->get_configurations() };
+        prx::movable_object_t::Geometries geometries{ obstacle_list[i]->get_geometries() };
+        prx::movable_object_t::Configurations configs{ obstacle_list[i]->get_configurations() };
+        // geometries =
+        // configs =
+
         for (int j = 0; j < configs.size(); ++j)
         {
           const std::shared_ptr<prx::geometry_t> gi{ geometries[j].second.lock() };
@@ -87,7 +105,6 @@ protected:
           const Eigen::Quaterniond q{ Rt->rotation() };
           const std::vector<double> geom_params{ gi->get_geometry_params() };
 
-          marker.type = visualization_msgs::Marker::CUBE;
           marker.pose.position.x = t[0];
           marker.pose.position.y = t[1];
           marker.pose.position.z = t[2];
@@ -95,16 +112,37 @@ protected:
           marker.pose.orientation.y = q.y();
           marker.pose.orientation.z = q.z();
           marker.pose.orientation.w = q.w();
-          marker.scale.x = geom_params[0];
-          marker.scale.y = geom_params[1];
-          marker.scale.z = geom_params[2];
           marker.color.a = color[0];  // Don't forget to set the alpha!
           marker.color.r = color[1];
           marker.color.g = color[2];
           marker.color.b = color[3];
+
+          if (box)
+          {
+            marker.type = visualization_msgs::Marker::CUBE;
+            marker.scale.x = geom_params[0];
+            marker.scale.y = geom_params[1];
+            marker.scale.z = geom_params[2];
+          }
+          else if (cylinder)
+          {
+            marker.type = visualization_msgs::Marker::CYLINDER;
+            marker.scale.x = geom_params[0] * 2.0;  // Ros needs diameter, prx in rad
+            marker.scale.y = geom_params[0] * 2.0;  // Ros needs diameter, prx in rad
+            marker.scale.z = geom_params[1];
+          }
+          else if (sphere)
+          {
+            marker.type = visualization_msgs::Marker::SPHERE;
+            marker.scale.x = geom_params[0] * 2.0;  // Ros needs diameter, prx in rad
+            marker.scale.y = geom_params[0] * 2.0;  // Ros needs diameter, prx in rad
+            marker.scale.z = geom_params[0] * 2.0;
+          }
           msg.markers.push_back(marker);
         }
       }
+
+      // msg.markers.push_back(marker);
     }
     _environment_publisher.publish(msg);
   }
@@ -129,13 +167,18 @@ protected:
     return Color{ alpha, red, blue, green };
   }
 
+  std::string _environment_file;
+
   // Topic names
   std::string _viz_env_name;
+  std::string _reload_service_name;
 
   // Subscribers
   ros::Subscriber _tree_subscriber;
 
   // Publishers
   ros::Publisher _environment_publisher;
+
+  ros::ServiceServer _reload_service;
 };
 }  // namespace utils
