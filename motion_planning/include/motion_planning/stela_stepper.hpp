@@ -244,8 +244,8 @@ public:
       ROS_INFO("Saving alternative:");
       _current_selected_branch.clear();
       // DEBUG_VARS(_goal.selected_branch);
-      std::copy(_goal.selected_branch.begin(), _goal.selected_branch.end(),
-                std::back_inserter(_current_selected_branch));
+      // std::copy(_goal.selected_branch.begin(), _goal.selected_branch.end(),
+      //           std::back_inserter(_current_selected_branch));
       // _current_selected_branch = _goal.selected_branch;
       // DEBUG_VARS(_current_selected_branch);
     }
@@ -409,7 +409,7 @@ private:
                                StelaActionClient::SimpleDoneCallback(),  // no-lint
                                StelaActionClient::SimpleActiveCallback(),
                                boost::bind(&Derived::action_feedback_callback, this, _1));
-      // DEBUG_VARS(_goal.selected_branch.front(), _next_goal_check);
+      DEBUG_VARS(_goal.selected_branch.front(), _next_goal_check);
     }
     _stela_tree_publisher.publish(feedback->lookahead);
   }
