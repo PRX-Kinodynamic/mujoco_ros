@@ -139,17 +139,17 @@ protected:
     copy<typename Planner::Node, typename Planner::Edge>(_tree, _planner->tree());
     _tree_publisher.publish(_tree);
 
-    viz_tree();
     if (_params.exists("stela"))
     {
       const prx::param_loader params_stela{ _params["stela"] };
       auto sln_tree = fulfill_stela_query(params_stela, _planner, _query);
-      sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
+      // sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
 
       prx_models::Tree sln_ros_tree;
       copy<typename Planner::Node, typename Planner::Edge>(sln_ros_tree, *sln_tree);
       _sln_tree_publisher.publish(sln_ros_tree);
     }
+    viz_tree();
   }
 
   void viz_tree()

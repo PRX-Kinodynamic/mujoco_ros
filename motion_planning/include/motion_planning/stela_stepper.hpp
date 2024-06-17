@@ -324,6 +324,7 @@ public:
       valid_branch = compute_goal(feedback, edge_id, 0.0, 0.0);
       if (valid_branch)
       {
+        ROS_INFO("Valid branch found!");
         _goal.selected_branch.push_back(_current_root);
         break;
       }
@@ -335,7 +336,7 @@ public:
                 std::back_inserter(_goal.selected_branch));
     }
     std::reverse(_goal.selected_branch.begin(), _goal.selected_branch.end());
-    // DEBUG_VARS(_goal.selected_branch);
+    DEBUG_VARS(_goal.selected_branch);
     _goal.header.seq++;
     _goal.header.stamp = ros::Time::now();
   }
@@ -380,6 +381,7 @@ public:
                              StelaActionClient::SimpleDoneCallback(),  // no-lint
                              StelaActionClient::SimpleActiveCallback(),
                              boost::bind(&Derived::action_feedback_callback, this, _1));
+    ROS_INFO("Goal sent");
   }
 
 private:
@@ -390,6 +392,7 @@ private:
 
     if (now >= _next_goal_check)
     {
+      ROS_INFO("Action callback");
       _current_root = feedback->current_root;
       // DEBUG_VARS(_current_root, feedback->lookahead_costs.size());
       // _current_root = _goal.selected_branch[0];

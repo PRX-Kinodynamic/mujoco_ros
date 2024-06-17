@@ -88,8 +88,6 @@ public:
     // _ol_timer = private_nh.createTimer(control_timer, &Derived::control_timer_callback, this);
 
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::tree_callback, this);
-    if (graph_topic_name != "")
-      _graph_subscriber = private_nh.subscribe(graph_topic_name, 1, &Derived::graph_callback, this);
 
     _control_publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1, true);
     _stamped_control_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
@@ -137,37 +135,31 @@ public:
   {
     if (_tree_recevied)
     {
-      // ROS_INFO("Action server is active!");
+      ROS_INFO_ONCE("Action server is active!");
       if (_stela_action_server->isNewGoalAvailable())  // and
       {
         auto new_goal = _stela_action_server->acceptNewGoal();
         if (new_goal->header.seq > _goal.header.seq)
         {
-          // ROS_INFO("Goal received");
+          ROS_INFO_ONCE("Goal received");
           _goal = *new_goal;
 
-          // _local_goal_id = 0;
-          // DEBUG_VARS(_local_goal_id, _selected_nodes.size());
-          // DEBUG_VARS(_goal.selected_branch);
           for (int i = 0; i < _selected_nodes.size(); ++i)
           {
             // DEBUG_VARS(_goal.selected_branch[0], _selected_nodes[i]);
             if (_goal.selected_branch[0] == _selected_nodes[i])
             {
               _selected_nodes.erase(_selected_nodes.begin() + i + 1, _selected_nodes.end());
-              _edge_durations.erase(_edge_durations.begin() + i + 1, _edge_durations.end());
               _selected_nodes.insert(_selected_nodes.end(), _goal.selected_branch.begin() + 1,
                                      _goal.selected_branch.end());
-              _edge_durations.insert(_edge_durations.end(), _goal.durations.begin() + 1, _goal.durations.end());
             }
           }
           if (_selected_nodes.size() == 0)
           {
             _selected_nodes.insert(_selected_nodes.end(), _goal.selected_branch.begin(), _goal.selected_branch.end());
-            _edge_durations.insert(_edge_durations.end(), _goal.durations.begin(), _goal.durations.end());
             _x_next = _selected_nodes[0];
           }
-          // DEBUG_VARS(_selected_nodes);
+          DEBUG_VARS(_selected_nodes);
 
           _stela_action_server->setPreempted();
           build_feedback_lookahead_tree();
@@ -175,6 +167,7 @@ public:
       }
       if (_goal.stop or _tree.nodes[_x_next].children.size() == 0)
       {
+        ROS_WARN("Finished! Creating file");
         to_file();
         ros::shutdown();
       }
@@ -183,7 +176,7 @@ public:
         ROS_WARN("selected_branch is too short, finished?");
         return;
       }
-      // ROS_INFO("Updating next goal");
+      ROS_INFO("Updating next goal");
       update_next_goal();
       add_observations();
       publish_control();
@@ -217,11 +210,6 @@ public:
     const State x_sbmp{ _values.at<State>(x_key) };
     const StateDot xdot_sbmp{ _values.at<StateDot>(xdot_key) };
 
-    // using SF = prx::fg::symbol_factory_t;
-    // DEBUG_VARS(SF::formatter(x_key), x_key);
-    // DEBUG_VARS(x.transpose(), x_sbmp.transpose());
-    // DEBUG_VARS(SF::formatter(xdot_key), xdot_key);
-    // _isam[x_key]->print(" ", SF::formatter);
     const Eigen::MatrixXd cov{ _isam.marginalCovariance(x_key) };
     const Eigen::MatrixXd S{ cov.inverse() };
     const State diff{ x - x_sbmp };
@@ -305,69 +293,6 @@ public:
     std::unordered_map<std::uint64_t, std::uint64_t> nodes_ids_map;
 
     traverse_lookahead_tree(_goal.selected_branch.front(), nodes_ids_map, true, total_lookahead_nodes);
-  }
-
-  void stela_action(const motion_planning::StelaGraphTraversalGoalConstPtr& goal)
-  {
-    // DEBUG_VARS(goal->x0, goal->x1, goal->x2, goal->edge_duration_01, goal->edge_duration_12);
-    if (_goal.header.seq != goal->header.seq)
-    {
-      ros::Rate rate(10);
-      _prev_header.stamp = ros::Time::now();
-
-      // const State x_current{ _isam.calculateEstimate<State>(_x_current) };
-      // const StateDot xdot_current{ _isam.calculateEstimate<StateDot>(_xdot_current) };
-      // const gtsam::Key x1_key{ SystemInterface::keyX(1, goal->x1) };
-      // const gtsam::Key xdot1_key{ SystemInterface::keyXdot(1, goal->x1) };
-
-      // const gtsam::Key x2_key{ SystemInterface::keyX(1, goal->x1) };
-      // const gtsam::Key xdot2_key{ SystemInterface::keyXdot(1, goal->x1) };
-
-      // const State x1{ _isam.calculateEstimate<State>(x1_key) };
-      // const StateDot xdot1{ _isam.calculateEstimate<StateDot>(xdot1_key) };
-
-      // const State x2{ _isam.calculateEstimate<State>(x2_key) };
-      // const StateDot xdot2{ _isam.calculateEstimate<StateDot>(xdot2_key) };
-
-      // SystemInterface::copy(_feedback.x1, x1, xdot1);
-      // SystemInterface::copy(_feedback.x2, x2, xdot2);
-      // _key_u01 = SystemInterface::keyU(goal->x0, goal->x1);
-
-      _goal = *goal;
-      // _feedback.duration_so_far = 0;
-      // _time_remaining = goal->edge_duration_01;
-      while (ros::ok())
-      {
-        // DEBUG_VARS(_stela_action_server->isNewGoalAvailable());
-        if (_stela_action_server->isNewGoalAvailable())
-        {
-          auto new_goal = _stela_action_server->acceptNewGoal();
-          _goal = *new_goal;
-          // if (_used_x2)
-          // {
-          //   _feedback.duration_so_far = _feedback.duration_so_far - _local_goal.edge_duration_01;
-          // }
-          // else
-          // {
-          //   _feedback.duration_so_far = 0;
-          //   _time_remaining = new_goal->edge_duration_01;
-          // }
-          // DEBUG_VARS(_feedback.duration_so_far, _time_remaining);
-          // DEBUG_VARS(_local_goal);
-        }
-        add_observations();
-        rate.sleep();
-      }
-    }
-    // if(success)
-    // {
-    // result_.sequence = feedback_.sequence;
-    // ROS_INFO("%s: Succeeded", action_name_.c_str());
-    // set the action state to succeeded
-    // assuming the state can be obtained from x, xdot exclusively
-    // SystemInterface::copy(_result.xfinal, x1, xdot1);
-    // _stela_action_server->setSucceeded(_result);
-    // }
   }
 
   bool query_tf()
@@ -473,9 +398,11 @@ public:
 
     const GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
                                                                      edge.plan) };
-    _factor_graph += graph_values.first;
+    // prx::fg::symbol_factory_t::symbols_to_file();
+    // _factor_graph += graph_values.first;
     _values.insert(graph_values.second);
 
+    // DEBUG_VARS(node_current.index, _values.size());
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
     // DEBUG_VARS(_isam2_result.getErrorBefore(), _isam2_result.getErrorAfter());
 
@@ -495,39 +422,36 @@ public:
 
   void tree_callback(const prx_models::TreeConstPtr msg)
   {
+    ROS_INFO_STREAM("[STELA] Tree received: " << msg->nodes.size());
     _isam.clear();
     _values = gtsam::Values();
-    _factor_graph = gtsam::NonlinearFactorGraph();
+    // _factor_graph = gtsam::NonlinearFactorGraph();
     const prx_models::Node& node{ msg->nodes[msg->root] };
 
+    DEBUG_VARS(msg->root);
+    const GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, node.point) };
+    _values.insert(root_graph_values.second);
+    _isam2_result = _isam.update(root_graph_values.first, root_graph_values.second);
     for (auto child_id : node.children)
     {
       if (child_id == msg->root)  // The root node is its own parent :/
         continue;
       const prx_models::Node& node_child{ msg->nodes[child_id] };
 
-      const GraphValues graph_values{ SystemInterface::root_to_fg(msg->root, node.point) };
+      // prx::fg::symbol_factory_t::symbols_to_file();
+      // DEBUG_VARS(child_id);
 
-      _factor_graph += graph_values.first;
-      _values.insert(graph_values.second);
-      _isam2_result = _isam.update(graph_values.first, graph_values.second);
-
-      // _key_last_esimated_state = SystemInterface::keyX(1, msg->root);
-      // DEBUG_VARS(_isam2_result.getErrorBefore(), _isam2_result.getErrorAfter());
+      // _factor_graph += graph_values.first;
 
       branch_to_traj(msg, node_child.parent_edge);
+      // DEBUG_PRINT;
     }
-    // const Values values{ _isam.calculateBestEstimate() };
-    // const FactorGraph& factor_graph{ _isam.getFactorsUnsafe() };
-    // const NonlinearFactorGraph& getFactorsUnsafe() const {
-    // SystemInterface::to_file("/Users/Gary/pracsys/catkin_ws/fg_isam.txt", factor_graph, values,
-    // std::ofstream::trunc); SystemInterface::to_file("/Users/Gary/pracsys/catkin_ws/fg_raw.txt", _factor_graph,
-    // _values, std::ofstream::trunc);
+    // DEBUG_PRINT;
 
     _id_x_hat = msg->root;
     const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
-
+    // DEBUG_PRINT;
     _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
     _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
 
@@ -547,62 +471,9 @@ public:
     ROS_INFO("Action server started");
   }
 
-  void graph_callback(const prx_models::GraphConstPtr msg)
-  {
-    _isam.clear();
-    _values = gtsam::Values();
-    _factor_graph = gtsam::NonlinearFactorGraph();
-
-    for (auto edge : msg->edges)
-    {
-      const GraphValues graph_values{ SystemInterface::graph_edge_to_factor_graph(edge.source, edge.target,
-                                                                                  edge.plan) };
-      _factor_graph += graph_values.first;
-      _values.insert(graph_values.second);
-    }
-
-    for (auto node : msg->nodes)
-    {
-      const GraphValues graph_values{ SystemInterface::graph_node_to_factor_graph(node.index, node.point) };
-      _factor_graph += graph_values.first;
-      _values.insert(graph_values.second);
-    }
-
-    prx::fg::symbol_factory_t::symbols_to_file("/Users/Gary/pracsys/catkin_ws/symbols.txt");
-
-    // SystemInterface::to_file("/Users/Gary/pracsys/catkin_ws/fg_isam.txt", factor_graph, values,
-    // std::ofstream::trunc);
-    SystemInterface::to_file("/Users/Gary/pracsys/catkin_ws/fg_raw.txt", _factor_graph, _values, std::ofstream::trunc);
-    _isam2_result = _isam.update(_factor_graph, _values);
-    const double ErrorBefore{ _isam2_result.getErrorBefore() };
-    const double ErrorAfter{ _isam2_result.getErrorAfter() };
-    // DEBUG_VARS(ErrorBefore, ErrorAfter);
-    // while (not query_tf())
-    // {
-    //   _id_x_hat = 0;
-    // }
-
-    // const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
-    // _isam2_result = _isam.update(graph_values.first, graph_values.second);
-
-    // _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
-    // _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
-
-    // _x_hat = _isam.calculateEstimate<State>(_key_x_hat);
-    // _xdot_hat = _isam.calculateEstimate<StateDot>(_key_xdot_hat);
-
-    // // _isam.print("isam", prx::fg::symbol_factory_t::formatter);
-    // // get_current_control();
-    // // std::ofstream ofs("/Users/Gary/pracsys/catkin_ws/bayes_tree.dot");
-    // // _isam.dot(ofs, prx::fg::symbol_factory_t::formatter);
-    // //
-    // _stela_action_server->start();
-    ROS_INFO("Action server started");
-  }
-
 private:
   Values _values;
-  FactorGraph _factor_graph;
+  // FactorGraph _factor_graph;
 
   // gtsam
   gtsam::ISAM2Params _isam_params;
@@ -618,7 +489,6 @@ private:
   prx_models::Tree _tree;
 
   ros::Subscriber _tree_subscriber;
-  ros::Subscriber _graph_subscriber;
 
   ros::Publisher _control_publisher;
   ros::Publisher _stamped_control_publisher;
