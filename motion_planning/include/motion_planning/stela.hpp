@@ -9,6 +9,8 @@
 #include <actionlib/server/simple_action_server.h>
 #include <motion_planning/StelaGraphTraversalAction.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <std_msgs/Bool.h>
+
 namespace motion_planning
 {
 
@@ -82,6 +84,7 @@ public:
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
     const std::string pose_with_cov_topic{ ros::this_node::getNamespace() + "/pose_with_cov" };
+    const std::string finish_topic{ ros::this_node::getNamespace() + "/finished" };
 
     const ros::Duration control_timer(1.0 / control_frequency);
     _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);
@@ -89,6 +92,7 @@ public:
 
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::tree_callback, this);
 
+    _finish_publisher = private_nh.advertise<std_msgs::Bool>(finish_topic, 1, true);
     _control_publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1, true);
     _stamped_control_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
     _pose_with_cov_publisher =
@@ -115,7 +119,13 @@ public:
     using SF = prx::fg::symbol_factory_t;
     gtsam::Values estimate{ _isam.calculateEstimate() };
     const std::string filename{ _output_dir + "/stela_" + utils::timestamp() + ".txt" };
+    const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + utils::timestamp() + ".txt" };
+
+    DEBUG_VARS(filename);
+    DEBUG_VARS(filename_branch_gt);
     std::ofstream ofs(filename);
+    std::ofstream ofs_branch(filename_branch_gt);
+
     ofs << "# id key_x x[...] key_xdot xdot[...]\n";
     for (int i = 0; i < _id_x_hat; ++i)
     {
@@ -128,7 +138,16 @@ public:
       ofs << cov.diagonal().transpose() << " ";
       ofs << "\n";
     }
+    ofs_branch << "# id point[...]\n";
+    for (auto node_id : _selected_nodes)
+    {
+      // const ml4kp_bridge::SpacePoint& {};
+      ofs_branch << node_id << " ";
+      ml4kp_bridge::to_file(_tree.nodes[node_id].point, ofs_branch);
+    }
+
     ofs.close();
+    ofs_branch.close();
   }
 
   void action_function(const ros::TimerEvent& event)
@@ -169,7 +188,11 @@ public:
       {
         ROS_WARN("Finished! Creating file");
         to_file();
-        ros::shutdown();
+        std_msgs::Bool msg;
+        msg.data = true;
+        _finish_publisher.publish(msg);
+        _tree_recevied = false;
+        // ros::shutdown();
       }
       if (_goal.selected_branch.size() < 1)
       {
@@ -493,6 +516,7 @@ private:
   ros::Publisher _control_publisher;
   ros::Publisher _stamped_control_publisher;
   ros::Publisher _pose_with_cov_publisher;
+  ros::Publisher _finish_publisher;
   geometry_msgs::PoseWithCovarianceStamped _pose_with_cov;
 
   ros::Timer _control_timer;
