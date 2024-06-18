@@ -194,7 +194,7 @@ public:
         ROS_WARN("selected_branch is too short, finished?");
         return;
       }
-      ROS_INFO("Updating next goal");
+      // ROS_INFO("Updating next goal");
       update_next_goal();
       add_observations();
       publish_control();

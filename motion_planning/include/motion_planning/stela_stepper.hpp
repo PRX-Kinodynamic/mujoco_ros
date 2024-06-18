@@ -297,14 +297,14 @@ public:
       valid_branch = compute_goal(feedback, edge_id, 0.0, 0.0);
       if (valid_branch)
       {
-        ROS_INFO("Valid branch found!");
+        // ROS_INFO("Valid branch found!");
         _goal.selected_branch.push_back(_current_root);
         break;
       }
     }
     if (not valid_branch)
     {
-      ROS_INFO("Using backup traj");
+      // ROS_INFO("Using backup traj");
       std::copy(_current_selected_branch.begin(), _current_selected_branch.end(),
                 std::back_inserter(_goal.selected_branch));
     }
