@@ -1,21 +1,21 @@
 <launch> 
-  <arg name="visualize" default="true"/>
-	<arg name="planner" default="None"/>
+  <arg name="visualize" default="false"/>
+	<arg name="planner" default="Stela"/>
   <arg name="plant_file" default="$(find motion_planning)/config/ltv_sde.yaml"/>
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <!-- <arg name="environment" default="environments/forest.yaml"/> -->
-  <arg name="environment" default="environments/warehouse.yaml"/>
-  <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/"/>
+  <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
+  <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/single_obstacle/no-noise/"/>
   <arg name="reset_topic" default="/stela/reset"/>
   <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
   <arg name="plan_topic" value="/stela/sbmp/plan"/> 
   <arg name="control_topic" default="/stela/sbmp/control"/> 
   <arg name="simulation_step" default="0.1"/>
   <arg name="collect_data" default="true"/>
-  <arg name="sim_clock" default="true"/>
+  <arg name="sim_clock" default="false"/>
 
   <group ns="stela">
 
@@ -96,8 +96,8 @@
       <param name="world_frame" value="world"/>
       <param name="robot_frame" value="robot"/>
       <param name="graph_topic_name" value="/stela/manual/graph"/>
-      <param name="output_dir" value="/Users/Gary/pracsys/catkin_ws/data/stela/test"/>
-    </node>
+      <param name="output_dir" value="$(arg data_dir)"/>
+    </node> 
 
     <!-- <node if="$(eval arg('planner') == 'Stela')"  -->
       <!-- pkg="motion_planning" type="mp_nodelet_debugging"  -->
@@ -114,6 +114,7 @@
       <param name="branch_selection" value="random"/> 
       <param name="random_seed" value="5165"/>
     </node>
+      
   </group>
 
   <include file="$(find analytical)/launch/simulator.launch" >
@@ -188,13 +189,13 @@
       <param name="tree_topic_name" value="/stela/sbmp/tree"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
     </node>
-
+ 
     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="SlnMotionPlanningTreeVizPublisher" 
       args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
       <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
       <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 0.0]"/>
-    </node>
+    </node> 
 
     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
@@ -204,7 +205,7 @@
       <param name="environment_file" value="$(arg environment)"/>
     </node>
 
-    <node if="$(arg visualize)" 
+     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="TrajectoryVizPublisher" 
       args="load utils/TrajectoryVizPublisher viz_nodelet_manager" output="screen">
       <param name="traj_topic_name" value="$(arg trajectory_topic)"/>
@@ -233,19 +234,20 @@
       <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 0.0]"/>
     </node>
 
-    <node if="$(arg visualize)" 
+   <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="StelaLocalTreeVizPublisher" 
       args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
       <param name="tree_topic_name" value="/stela/lookahead"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
-    </node>
+    </node>  
+
 
 <!--     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="StelaLocalTreeVizPublisher" 
       args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
       <param name="tree_topic_name" value="/stela/lookahead"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
-    </node> -->
+    </node>  -->
 
   </group>
 </launch>
