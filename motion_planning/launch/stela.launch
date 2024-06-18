@@ -5,9 +5,9 @@
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
-  <arg name="environment" default="environments/simple_obstacle.yaml"/>
+  <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <!-- <arg name="environment" default="environments/forest.yaml"/> -->
-  <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
+  <arg name="environment" default="environments/warehouse.yaml"/>
   <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/"/>
   <arg name="reset_topic" default="/stela/reset"/>
   <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>

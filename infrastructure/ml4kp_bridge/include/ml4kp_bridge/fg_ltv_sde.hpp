@@ -2,6 +2,7 @@
 
 // Ros
 #include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 // mj-ros
 #include <utils/dbg_utils.hpp>
@@ -43,6 +44,12 @@ public:
   using Noise = Eigen::Vector<double, 2>;
   using Observation = Eigen::Vector<double, 2>;
 
+  using StateKeys = std::array<gtsam::Key, 2>;
+  using ControlKeys = std::array<gtsam::Key, 1>;
+
+  using StateEstimates = std::tuple<State, StateDot>;
+  using ControlEstimates = std::tuple<Control>;
+
   static constexpr std::string_view plant_name = "fg_ltv_sde";
 
   using EulerFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
@@ -65,6 +72,16 @@ public:
   static gtsam::Key keyXdot(const int& level, const int& step)
   {
     return SF::create_hashed_symbol("\\dot{X}^{", level, "}_{", step, "}");
+  }
+
+  static StateKeys keyState(const int& level, const int& step)
+  {
+    return { keyX(level, step), keyX(level, step) };
+  }
+
+  static StateKeys keyControl(const int& level, const int& step)
+  {
+    return { keyU(level, step) };
   }
 
   static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
@@ -90,6 +107,18 @@ public:
     tf.rotation.z = 0.0;
     tf.rotation.w = 1.0;
   }
+  static void copy(ml4kp_bridge::SpacePoint& pt, const StateEstimates& estimates)
+  {
+    const State& x{ std::get<0>(estimates) };
+    const StateDot& xdot{ std::get<1>(estimates) };
+
+    pt.point.resize(4);
+    pt.point[0] = x[0];
+    pt.point[1] = x[1];
+    pt.point[2] = xdot[0];
+    pt.point[3] = xdot[1];
+  }
+
   static void copy(ml4kp_bridge::SpacePoint& pt, const State& x, const StateDot& xdot)
   {
     pt.point.resize(4);
@@ -97,6 +126,34 @@ public:
     pt.point[1] = x[1];
     pt.point[2] = xdot[0];
     pt.point[3] = xdot[1];
+  }
+
+  static void copy(geometry_msgs::PoseWithCovariance& pose_cov, const StateEstimates& estimates,
+                   std::vector<Eigen::MatrixXd>& covs)
+  {
+    const State& x{ std::get<0>(estimates) };
+
+    pose_cov.pose.position.x = x[0];
+    pose_cov.pose.position.y = x[1];
+    pose_cov.pose.position.z = 0.0;
+    pose_cov.pose.orientation.w = 1.0;
+    pose_cov.pose.orientation.x = 0.0;
+    pose_cov.pose.orientation.y = 0.0;
+    pose_cov.pose.orientation.z = 0.0;
+
+    for (int i = 0; i < 36; ++i)
+    {
+      pose_cov.covariance[i] = i;
+    }
+
+    const Eigen::Matrix2d cov{ covs[0] };
+    for (int i = 0; i < 2; ++i)
+    {
+      for (int j = 0; j < 2; ++j)
+      {
+        pose_cov.covariance[6 * i + j] = cov(i, j);
+      }
+    }
   }
 
   struct configuration_from_state
@@ -282,14 +339,16 @@ public:
     return graph_values;
   }
 
-  static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id, const State& x0_value,
-                                            const StateDot& xdot0_value, const Control u_prev, const Observation& z,
+  static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id,
+                                            const StateEstimates& estimates, const Control u_prev, const Observation& z,
                                             const double dt, const double z_noise)
   {
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
     using ObservationFactor = gtsam::PriorFactor<State>;
 
+    const State& x0_value{ std::get<0>(estimates) };
+    const StateDot& xdot0_value{ std::get<1>(estimates) };
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(-1, prev_id) };

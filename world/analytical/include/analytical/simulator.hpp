@@ -76,6 +76,7 @@ protected:
 
     _start_state = _state_space->make_point();
     _state_space->copy(_start_state, _params["/plant/start_state"].as<std::vector<double>>());
+    _state_space->copy_from(_start_state);
 
     DEBUG_VARS(*_start_state);
 
@@ -170,12 +171,6 @@ protected:
       return;
     _system_group->propagate_once();
     _step_prev_time = ros::Time::now();
-
-    // const double t(event.current_real.toSec());
-    // DEBUG_VARS(t);
-    // DEBUG_VARS(*_state_space);
-    // DEBUG_VARS(*_control_space);
-    // DEBUG_VARS(_state_space->print_memory(4));
   }
 
   ros::Time _prev_time;

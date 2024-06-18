@@ -35,9 +35,15 @@ class stela_t : public Base
   using StelaActionServer = actionlib::SimpleActionServer<motion_planning::StelaGraphTraversalAction>;
 
   using Control = typename SystemInterface::Control;
-  using State = typename SystemInterface::State;
-  using StateDot = typename SystemInterface::StateDot;
+  // using State = typename SystemInterface::State;
+  // using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
+
+  using StateKeys = typename SystemInterface::StateKeys;
+  using ControlKeys = typename SystemInterface::ControlKeys;
+
+  using StateEstimates = typename SystemInterface::StateEstimates;
+  using ControlEstimates = typename SystemInterface::ControlEstimates;
 
 public:
   using Values = gtsam::Values;
@@ -58,6 +64,7 @@ public:
     }
     _pose_with_cov.header.frame_id = "world";
   };
+
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
@@ -102,12 +109,7 @@ public:
     _control_stamped.header.stamp = ros::Time::now();
     _control_stamped.header.frame_id = "StelaControl";
 
-    // _x_key_query_service = private_nh.advertiseService("/stela/x_key_query", &Derived::service_callback, this);
-    // _xdot_key_query_service =
-    //     private_nh.advertiseService("/stela/xdot_key_query", &Derived::xdot_service_callback, this);
-
     _stela_action_server = std::make_unique<StelaActionServer>(private_nh, "action", false);
-    // std::make_unique<StelaActionServer>(private_nh, "action", boost::bind(&Derived::stela_action, this, _1), false);
 
     _prev_header.stamp = ros::Time::now();
     _local_goal_id = 0;
@@ -116,7 +118,6 @@ public:
 
   void to_file()
   {
-    using SF = prx::fg::symbol_factory_t;
     gtsam::Values estimate{ _isam.calculateEstimate() };
     const std::string filename{ _output_dir + "/stela_" + utils::timestamp() + ".txt" };
     const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + utils::timestamp() + ".txt" };
@@ -126,17 +127,12 @@ public:
     std::ofstream ofs(filename);
     std::ofstream ofs_branch(filename_branch_gt);
 
-    ofs << "# id key_x x[...] key_xdot xdot[...]\n";
+    ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     for (int i = 0; i < _id_x_hat; ++i)
     {
-      const gtsam::Key key_x{ SystemInterface::keyX(-1, i) };
-      const State x{ estimate.at<State>(key_x) };
-      const Eigen::MatrixXd cov{ _isam.marginalCovariance(key_x) };
-
       ofs << i << " ";
-      ofs << SF::formatter(key_x) << " " << x.transpose() << " ";
-      ofs << cov.diagonal().transpose() << " ";
-      ofs << "\n";
+      const StateKeys keys{ SystemInterface::keyState(-1, i) };
+      estimates_to_file<0>(ofs, estimate, keys);
     }
     ofs_branch << "# id point[...]\n";
     for (auto node_id : _selected_nodes)
@@ -178,7 +174,7 @@ public:
             _selected_nodes.insert(_selected_nodes.end(), _goal.selected_branch.begin(), _goal.selected_branch.end());
             _x_next = _selected_nodes[0];
           }
-          DEBUG_VARS(_selected_nodes);
+          // DEBUG_VARS(_selected_nodes);
 
           _stela_action_server->setPreempted();
           build_feedback_lookahead_tree();
@@ -192,7 +188,6 @@ public:
         msg.data = true;
         _finish_publisher.publish(msg);
         _tree_recevied = false;
-        // ros::shutdown();
       }
       if (_goal.selected_branch.size() < 1)
       {
@@ -217,28 +212,33 @@ public:
     {
       return;
     }
-    const gtsam::Key x_key{ SystemInterface::keyX(1, node_id) };
-    const gtsam::Key xdot_key{ SystemInterface::keyXdot(1, node_id) };
 
-    const State x{ _isam.calculateEstimate<State>(x_key) };
-    const StateDot xdot{ _isam.calculateEstimate<StateDot>(xdot_key) };
+    const StateKeys node_keys{ SystemInterface::keyState(1, node_id) };
+    update_estimates<0>(_node_estimates, node_keys);
+
+    // const gtsam::Key x_key{ SystemInterface::keyX(1, node_id) };
+    // const gtsam::Key xdot_key{ SystemInterface::keyXdot(1, node_id) };
+
+    // const State x{ _isam.calculateEstimate<State>(x_key) };
+    // const StateDot xdot{ _isam.calculateEstimate<StateDot>(xdot_key) };
 
     prx_models::Node new_node{ std::move(_tree_manager.create_node()) };
-    SystemInterface::copy(new_node.point, x, xdot);
-    // gtsam::VectorValues vector_vals;
-    // vector_vals.insert(x_key, x);
-    // vector_vals.insert(xdot_key, xdot);
+    SystemInterface::copy(new_node.point, _node_estimates);
 
     // _factor_graph
-    const State x_sbmp{ _values.at<State>(x_key) };
-    const StateDot xdot_sbmp{ _values.at<StateDot>(xdot_key) };
+    const double updated_cost{ compute_error<0>(node_keys) };
+    // for (std::size_t i = 0; i < node_keys.size(); ++i)
+    // {
+    //   using StateType = std::tuple_element<i, StateEstimates>::type;
+    //   const gtsam::Key& key{ node_keys[i] };
+    //   const StateType x{ std::get<i>(_node_estimates) };
+    //   const StateType x_sbmp{ _values.at<StateType>(key) };
 
-    const Eigen::MatrixXd cov{ _isam.marginalCovariance(x_key) };
-    const Eigen::MatrixXd S{ cov.inverse() };
-    const State diff{ x - x_sbmp };
-    const double updated_cost{ diff.transpose() * S * diff };
-    // new_node.cost = updated_cost;
-    // DEBUG_VARS(new_node.index, new_node.cost);
+    //   const const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    //   const Eigen::MatrixXd S{ cov.inverse() };
+    //   const State diff{ x - x_sbmp };
+    //   updated_cost = diff.transpose() * S * diff;
+    // }
 
     nodes_ids_map[node_id] = new_node.index;
 
@@ -246,25 +246,10 @@ public:
     {
       const std::uint64_t original_parent_id{ _tree.nodes[node_id].parent };
       prx_models::Node parent_node{ _feedback.lookahead.nodes[nodes_ids_map[original_parent_id]] };
-      // _feedback.lookahead_costs.push_back(parent_node);
       prx_models::Edge edge{ _tree_manager.create_edge(parent_node, new_node) };
       _feedback.lookahead.edges.push_back(std::move(edge));
     }
-    else
-    {
-      for (int i = 0; i < 2; ++i)
-      {
-        for (int j = 0; j < 2; ++j)
-        {
-          _pose_with_cov.pose.pose.position.x = x[0];
-          _pose_with_cov.pose.pose.position.y = x[1];
-          _pose_with_cov.pose.covariance[6 * i + j] = cov(i, j);
-        }
-      }
-      _pose_with_cov_publisher.publish(_pose_with_cov);
-    }
 
-    // DEBUG_VARS(_feedback.lookahead.nodes.size(), new_node.index);
     if (_feedback.lookahead.nodes.size() <= new_node.index)
     {
       _feedback.lookahead.nodes.resize(new_node.index * 2);
@@ -281,29 +266,22 @@ public:
     {
       traverse_lookahead_tree(child_id, nodes_ids_map, false, remaining_nodes - 1);
     }
-    // visited.insert(node_id);
-
-    // traverse_lookahead_tree(const std::uint64_t node_id, nodes_ids_map, remaining_nodes - 1);
   }
 
   void build_feedback_lookahead_tree()
   {
-    // _local_goal_id = 0;
-    // update_next_goal(10000);  // A big number to force updates
     _tree_manager.reset();
 
     std::queue<std::uint64_t> nodes_to_visit;
     std::queue<std::uint64_t> other_branches;
 
     const std::size_t total_lookahead_nodes{ _goal.selected_branch.size() };
-    // DEBUG_VARS(total_lookahead_nodes);
 
     _feedback.lookahead.nodes.clear();
     _feedback.lookahead.edges.clear();
     _feedback.lookahead.root = 0;
     _feedback.lookahead.nodes.resize(total_lookahead_nodes * 2);
     _feedback.lookahead_costs.resize(total_lookahead_nodes * 2);
-    // SystemInterface::copy(_feedback.xhat, _x_hat, _xdot_hat);
 
     std::uint64_t node_id;
     for (auto node_to_visit : _goal.selected_branch)
@@ -312,7 +290,6 @@ public:
     }
 
     std::unordered_set<std::uint64_t> visited;
-    // nodes_ids_map[old_id] = new_id
     std::unordered_map<std::uint64_t, std::uint64_t> nodes_ids_map;
 
     traverse_lookahead_tree(_goal.selected_branch.front(), nodes_ids_map, true, total_lookahead_nodes);
@@ -341,8 +318,6 @@ public:
       {
         _local_goal_id++;
 
-        // const double next_duration{ _edge_durations[_local_goal_id] };
-
         _feedback.current_root = _x_next;
         _x_next = _selected_nodes[_local_goal_id];
         _last_local_goal = false;
@@ -351,8 +326,6 @@ public:
         const ml4kp_bridge::Plan& plan{ _tree.edges[parent_edge].plan };
         const double next_duration{ ml4kp_bridge::duration(plan).toSec() };
         _next_node_time = now + ros::Duration(next_duration);
-
-        // DEBUG_VARS(_x_next, next_duration, now);
       }
       else  // last available goal
       {
@@ -371,12 +344,9 @@ public:
       _time_remaining = (_next_node_time - ros::Time::now()).toSec();
 
       const GraphValues graph_values_z{ SystemInterface::add_observation_factor(_id_x_hat,
-                                                                                _id_x_hat + 1,            // no-lint
-                                                                                _x_hat, _xdot_hat, _u01,  // no-lint
+                                                                                _id_x_hat + 1,           // no-lint
+                                                                                _state_estimates, _u01,  // no-lint
                                                                                 _z_new, dt, 0.01) };
-      // prx::fg::symbol_factory_t::symbols_to_file();
-
-      // if (_last_local_goal)
 
       const GraphValues graph_values_1{ SystemInterface::local_adaptation(_id_x_hat + 1, _x_next, _u01,
                                                                           _time_remaining) };
@@ -385,17 +355,12 @@ public:
 
       _id_x_hat++;
 
-      _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
-      _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
       _key_u01 = SystemInterface::keyU(-1 * _id_x_hat, _x_next);
-      // DEBUG_VARS(_key_x_hat, prx::fg::symbol_factory_t::formatter(_key_x_hat))
-      // DEBUG_VARS(_key_xdot_hat, prx::fg::symbol_factory_t::formatter(_key_xdot_hat))
-      // DEBUG_VARS(_key_u01, prx::fg::symbol_factory_t::formatter(_key_u01))
 
-      _x_hat = _isam.calculateEstimate<State>(_key_x_hat);
-      _xdot_hat = _isam.calculateEstimate<StateDot>(_key_xdot_hat);
+      const StateKeys state_keys{ SystemInterface::keyState(-1, _id_x_hat) };
+      update_estimates<0>(_state_estimates, state_keys);
 
-      SystemInterface::copy(_feedback.xhat, _x_hat, _xdot_hat);
+      SystemInterface::copy(_feedback.xhat, _state_estimates);
 
       _prev_header = _tf.header;
     }
@@ -461,31 +426,20 @@ public:
         continue;
       const prx_models::Node& node_child{ msg->nodes[child_id] };
 
-      // prx::fg::symbol_factory_t::symbols_to_file();
-      // DEBUG_VARS(child_id);
-
-      // _factor_graph += graph_values.first;
-
       branch_to_traj(msg, node_child.parent_edge);
-      // DEBUG_PRINT;
     }
-    // DEBUG_PRINT;
 
     _id_x_hat = msg->root;
     const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
-    // DEBUG_PRINT;
-    _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
-    _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
+    // _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
+    // _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
+    const StateKeys state_keys{ SystemInterface::keyState(-1, _id_x_hat) };
+    update_estimates<0>(_state_estimates, state_keys);
 
-    _x_hat = _isam.calculateEstimate<State>(_key_x_hat);
-    _xdot_hat = _isam.calculateEstimate<StateDot>(_key_xdot_hat);
+    // _x_hat = _isam.calculateEstimate<State>(_key_x_hat);
+    // _xdot_hat = _isam.calculateEstimate<StateDot>(_key_xdot_hat);
 
-    // _isam.print("isam", prx::fg::symbol_factory_t::formatter);
-    // get_current_control();
-    // std::ofstream ofs("/Users/Gary/pracsys/catkin_ws/bayes_tree.dot");
-    // _isam.dot(ofs, prx::fg::symbol_factory_t::formatter);
-    //
     _tree.root = msg->root;
     _tree.nodes = msg->nodes;
     _tree.edges = msg->edges;
@@ -495,6 +449,70 @@ public:
   }
 
 private:
+  // template <std::size_t I = 0, typename FuncT, typename... Tp>
+  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
+  {
+    using EstimateType = typename std::tuple_element<I, StateEstimates>::type;
+    std::get<I>(state_estimates) = _isam.calculateEstimate<EstimateType>(keys[I]);
+    update_estimates<I + 1>(state_estimates, keys);
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>
+  inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
+  {
+  }
+
+  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  double compute_error(const StateKeys& keys)
+  {
+    using StateType = typename std::tuple_element<I, StateEstimates>::type;
+    const gtsam::Key& key{ keys[I] };
+    const StateType& x{ std::get<I>(_node_estimates) };
+    const StateType x_sbmp{ _values.at<StateType>(key) };
+
+    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    const Eigen::MatrixXd S{ cov.inverse() };
+    const StateType diff{ x - x_sbmp };
+    return diff.transpose() * S * diff + compute_error<I + 1>(keys);
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  double compute_error(const StateKeys& keys)
+  {
+    return 0;
+  }
+
+  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    using SF = prx::fg::symbol_factory_t;
+    using StateType = typename std::tuple_element<I, StateEstimates>::type;
+    const gtsam::Key key{ keys[I] };
+    const StateType state{ estimate.at<StateType>(key) };
+    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    const StateType diagonal{ cov.diagonal() };
+
+    // ofs << i << " ";
+    ofs << SF::formatter(key) << " ";
+    for (int i = 0; i < state.size(); ++i)
+    {
+      ofs << state[i] << " ";
+    }
+    for (int i = 0; i < state.size(); ++i)
+    {
+      ofs << diagonal[i] << " ";
+    }
+    estimates_to_file<I + 1>(ofs, estimate, keys);
+    // ofs << "\n";
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    ofs << "\n";
+  }
+
   Values _values;
   // FactorGraph _factor_graph;
 
@@ -503,9 +521,12 @@ private:
   gtsam::ISAM2 _isam;
   gtsam::ISAM2Result _isam2_result;
 
+  StateKeys _state_keys;
+  StateEstimates _state_estimates;
+  StateEstimates _node_estimates;
+  StateEstimates _sbmp_nodes;
+
   gtsam::Key _key_last_esimated_state;
-  gtsam::Key _key_x_hat;
-  gtsam::Key _key_xdot_hat;
   gtsam::Key _key_u01;
 
   ml4kp_bridge::SpacePointStamped _control_stamped;
@@ -521,8 +542,6 @@ private:
 
   ros::Timer _control_timer;
 
-  ros::ServiceServer _x_key_query_service;
-  ros::ServiceServer _xdot_key_query_service;
   std::unique_ptr<StelaActionServer> _stela_action_server;
 
   motion_planning::StelaGraphTraversalFeedback _feedback;
@@ -536,11 +555,8 @@ private:
   std_msgs::Header _prev_header;
 
   std::size_t _id_x_hat;
-  std::size_t _id_x1;
-  State _x_hat;
-  StateDot _xdot_hat;
+
   Control _u01;
-  Observation _z01;
   Observation _z_new;
   double _time_remaining;
 
@@ -551,7 +567,6 @@ private:
   std::size_t _local_goal_id;
 
   std::vector<std::uint64_t> _selected_nodes;
-  std::vector<double> _edge_durations;
 
   bool _tree_recevied;
   motion_planning::tree_manager_t _tree_manager;

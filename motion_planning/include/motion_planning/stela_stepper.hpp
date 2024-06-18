@@ -158,7 +158,6 @@ public:
     const double estimated_cost{ feedback == nullptr ? 0.0 : std::fabs(feedback->lookahead_costs[node_current.index]) };
 
     const double accum_cost{ cost + estimated_cost };
-    // DEBUG_VARS(estimated_cost, accum_cost);
 
     std::vector<std::pair<double, std::uint64_t>> children_costs;
     // if (accum_cost <= _cost_threashold)
@@ -198,18 +197,8 @@ public:
           node_current.children.push_back(cost_id_pair.second);
         }
         _random_selection[node_current.index] = 1;
-        DEBUG_VARS(node_current.index, node_current.children);
+        // DEBUG_VARS(node_current.index, node_current.children);
       }
-      // {
-      //   const int rand_index{ prx::uniform_int_random(0, children_costs.size() - 1) };
-      //   _random_selection[node_current.index] = rand_index;
-      //   DEBUG_VARS(node_current.index, _random_selection[node_current.index], rand_index);
-      //   // std::swap(node_current.children[0], node_current.children[rand_index]);
-      //   DEBUG_VARS(node_current.index, node_current.children);
-      // }
-
-      // std::swap(children_costs[0], children_costs[_random_selection[node_current.index]]);
-      // DEBUG_VARS(node_current.index, children_costs[0].second, _random_selection[node_current.index]);
     }
 
     const ml4kp_bridge::Plan& plan{ edge.plan };
@@ -220,28 +209,21 @@ public:
     {
       const std::uint64_t child_id{ child_cost_id_pair.second };
       const prx_models::Node& node_child{ _tree.nodes[child_id] };
-      // DEBUG_VARS(child_id);
 
       const bool valid_branch{ compute_goal(feedback, node_child.parent_edge, accum_cost, accum_duration) };
       if (valid_branch)
       {
         _goal.selected_branch.push_back(node_current.index);
-        // _current_selected_branch.push_back(node_current.index);
         return true;
       }
       else
       {
         _goal.selected_branch.pop_back();
       }
-      // DEBUG_VARS("Alternative branch!");
     }
-    // {
-    // }
-    // else
-    // {
     if (accum_cost > _cost_threashold)
     {
-      ROS_INFO("Saving alternative:");
+      // ROS_INFO("Saving alternative:");
       _current_selected_branch.clear();
       // DEBUG_VARS(_goal.selected_branch);
       // std::copy(_goal.selected_branch.begin(), _goal.selected_branch.end(),
@@ -249,9 +231,6 @@ public:
       // _current_selected_branch = _goal.selected_branch;
       // DEBUG_VARS(_current_selected_branch);
     }
-    // }
-
-    // DEBUG_VARS(node_current.index, estimated_cost, accum_cost, _cost_threashold, total_duration);
 
     return false;
   }
@@ -302,19 +281,13 @@ public:
     _cost_to_go[_current_root] = min_cost;
 
     std::sort(_node_trajectories.begin(), _node_trajectories.end(), _trajectory_cmp);
-    // for (auto cost_pair : _cost_to_go)
-    // {
-    //   const std::uint64_t node_id{ cost_pair.first };
-    //   const double node_cost{ cost_pair.second };
-    //   DEBUG_VARS(node_id, node_cost);
-    // }
   }
 
   template <typename FeedbackPtr>
   void compute_goal(FeedbackPtr feedback)
   {
     bool valid_branch{ false };
-    DEBUG_VARS(_current_root, _tree.nodes[_current_root].children);
+    // DEBUG_VARS(_current_root, _tree.nodes[_current_root].children);
     for (auto child_id : _tree.nodes[_current_root].children)
     {
       if (child_id == _current_root)
@@ -336,7 +309,7 @@ public:
                 std::back_inserter(_goal.selected_branch));
     }
     std::reverse(_goal.selected_branch.begin(), _goal.selected_branch.end());
-    DEBUG_VARS(_goal.selected_branch);
+    // DEBUG_VARS(_goal.selected_branch);
     _goal.header.seq++;
     _goal.header.stamp = ros::Time::now();
   }
@@ -351,26 +324,10 @@ public:
     _current_root = msg->root;
     select_branch();
 
-    // for (auto child_id : node.children)
-    // {
-    //   if (child_id == msg->root)  // The root node is its own parent :/
-    //     continue;
-    //   const prx_models::Node& node_child{ msg->nodes[child_id] };
-    //   _node_trajectories.emplace_back();
-    //   _node_trajectories.back().second.push_back(msg->root);
-
-    //   select_branch(msg, node_child.parent_edge, _node_trajectories.size() - 1, node.cost);
-    // }
-
-    // std::sort(_node_trajectories.begin(), _node_trajectories.end(), _trajectory_cmp);
-
-    // DEBUG_VARS(_node_trajectories[0].first);
     _current_traj = 0;
     _current_state_id = 0;
     // populate_goal();
     compute_goal(nullptr);
-
-    // compute_goal(nullptr, const std::uint64_t edge_id, const double cost, const double total_duration)
 
     _action_client->waitForServer();
     ROS_INFO("Action client connected to server");
@@ -394,25 +351,19 @@ private:
     {
       ROS_INFO("Action callback");
       _current_root = feedback->current_root;
-      // DEBUG_VARS(_current_root, feedback->lookahead_costs.size());
-      // _current_root = _goal.selected_branch[0];
 
       _goal.selected_branch.clear();
       _goal.durations.clear();
-      // goal_from_feedback(feedback, 0.0, _current_state_id, 0.0);
-      // populate_goal();
+
       compute_goal(feedback);
-      DEBUG_VARS(_goal.selected_branch);
-      // const double node_id, const double total_duration)
-      // _goal.stop = SystemInterface::goal_check(feedback->xhat, _tree.nodes[_goal.selected_branch.back()].point);
-      // _goal.stop = _tree.nodes[_current_root]
+
       _next_goal_check = now + ros::Duration(0.2);
-      // _goal.selected_branch.erase(_goal.selected_branch.begin());
+
       _action_client->sendGoal(_goal,                                    // no-lint
                                StelaActionClient::SimpleDoneCallback(),  // no-lint
                                StelaActionClient::SimpleActiveCallback(),
                                boost::bind(&Derived::action_feedback_callback, this, _1));
-      DEBUG_VARS(_goal.selected_branch.front(), _next_goal_check);
+      // DEBUG_VARS(_goal.selected_branch.front(), _next_goal_check);
     }
     _stela_tree_publisher.publish(feedback->lookahead);
   }
