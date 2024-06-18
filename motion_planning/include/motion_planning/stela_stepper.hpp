@@ -349,7 +349,7 @@ private:
 
     if (now >= _next_goal_check)
     {
-      ROS_INFO("Action callback");
+      // ROS_INFO("Action callback");
       _current_root = feedback->current_root;
 
       _goal.selected_branch.clear();
