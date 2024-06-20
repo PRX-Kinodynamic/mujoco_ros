@@ -15,6 +15,7 @@
             <param name="control_topology" value="EE" />
             <param name="publisher_topic" value="$(arg plan_from_file_topic)" />
         </node>
+         
          <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
             args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
             output="screen">
