@@ -56,6 +56,34 @@ int main(int argc, char** argv)
   std::shared_ptr<prx::dirt_replan_t> dirt = std::make_shared<prx::dirt_replan_t>("dirt");
   prx::dirt_replan_specification_t* dirt_spec =
       new prx::dirt_replan_specification_t(planning_context.first, planning_context.second);
+  
+  auto heuristic_plant = prx::system_factory_t::create_system("2D_Point", "2D_Point");
+  prx_assert(heuristic_plant != nullptr, "Failed to create plant");
+  prx::world_model_t heuristic_model({ heuristic_plant }, { obstacle_list });
+  heuristic_model.create_context("heuristic_context", { "2D_Point" }, { obstacle_names });
+  auto heuristic_context = heuristic_model.get_context("heuristic_context");
+
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
+  prx::space_point_t goal = ss->make_point();
+  goal->at(0) = goal_config[0];
+  goal->at(1) = goal_config[1];
+  std::cout << "Goal: " << ss->print_point(goal) << std::endl;
+  auto dirt_spec_ptr = std::shared_ptr<prx::dirt_replan_specification_t>(dirt_spec);
+  prx::heuristic_map_t heuristic_map(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, heuristic_context);
+  heuristic_map.set_obstacle_grid();
+  heuristic_map.set_heuristic_grid(goal);
+  heuristic_map.set_u_rep_coeff(params["u_rep"].as<double>());
+
+  std::ofstream file;
+  file.open("/home/aravind/heuristic_map.txt");
+  file << heuristic_map;
+  file.close();
+
+  dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+    return heuristic_map.get_cost(s);
+  };
+
+  
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.62;
   };
@@ -110,7 +138,9 @@ int main(int argc, char** argv)
           min_distance = d;
         }
       }
-      if (min_distance < params["safe_distance"].as<double>())
+      double safe_distance = params["safe_min"].as<double>() + params["safe_mul"].as<double>() * std::fabs(s->at(3));
+      // if (min_distance < params["safe_distance"].as<double>())
+      if (min_distance < safe_distance)
       {
         return false;
       }
@@ -118,7 +148,6 @@ int main(int argc, char** argv)
     return true;
   };
 
-  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];
   goal_configuration.y = goal_config[1];
@@ -230,6 +259,7 @@ int main(int argc, char** argv)
   int id;
   n.getParam(ros::this_node::getName() + "/id", id);
 
+  /*
   auto error_data = planner_client.get_error_data();
   prx::space_point_t print_state = ss->make_point();
 
@@ -244,6 +274,7 @@ int main(int argc, char** argv)
     prx_models::copy(print_state, std::get<2>(error_data)[i]);
     error_file << ss->print_point(print_state) << std::endl;
   }
+  */
 
   spinner.stop();
 

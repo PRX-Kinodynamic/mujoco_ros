@@ -2,14 +2,16 @@
   <compiler angle="radian" />
   <size njmax="500" nconmax="100"/>
   <include file="buddy.xml"/>
-  <option timestep="0.01" />
+  <!-- <option timestep="0.01" /> -->
   <!-- <include file="../friction_floors/friction_floor_twopatch.xml"/> -->
   <!-- <include file="../friction_floors/friction_floor_uniform.xml"/> -->
-  <!-- <include file="../friction_floors/bump.xml"/> -->
+  <include file="../friction_floors/bump.xml"/>
   <!-- <include file="../friction_floors/friction_floor_slip.xml"/> -->
   <!-- <include file="../friction_floors/friction_incline.xml"/> -->
   <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00000.xml"/>
-  <include file="../obstacles/movable.xml"/>
+  <!-- <include file="../obstacles/movable.xml"/> -->
+  <!-- <include file="../obstacles/obstacle_0.xml"/> -->
+  <!-- <include file="../obstacles/obstacle_1.xml"/> -->
   <!-- <include file="../obstacles/walls.xml"/> -->
   <include file="lab_markers.xml"/>
   <!-- <include file="../aruco_mip_36h12/tags/aruco_inclined.xml"/> -->
@@ -23,5 +25,6 @@
   </visual>
   <worldbody>
         <camera name="observer_camera" pos="1 3.0 5.0" euler="0 0 1.5708" fovy="50"/>
+      <!-- <site name="green_sphere" pos="1.0 5.25 0" size="0.25" rgba="0 1 0 0.5" /> -->
   </worldbody>
 </mujoco>
