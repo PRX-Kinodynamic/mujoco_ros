@@ -1,0 +1,65 @@
+<mujoco model="scene">
+    <compiler angle="radian" />
+    <asset>
+        <texture name="a" builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox"
+            width="100" />
+        <texture name="texplane0" type="2d" builtin="checker" rgb1="0.0 0.0 0.36"
+            rgb2="0.79 .94 .99" width="100" height="100" mark="cross" markrgb=".8 .8 .8" />
+        <texture name="texplane1" type="2d" builtin="checker" rgb1=".52 .08 0" rgb2="1 .85 .84"
+            width="100" height="100" mark="cross" markrgb=".8 .8 .8" />
+        <texture name="texplane2" type="2d" builtin="checker" rgb1="0.0 0.0 0.36"
+            rgb2="0.79 .94 .99" width="100" height="100" mark="cross" markrgb=".8 .8 .8" />
+        <texture name="texplane3" type="2d" builtin="checker" rgb1="0 0 0" rgb2="0.8 0.0 0.8"
+            width="100" height="100" mark="cross" markrgb=".8 .8 .8" />
+        <texture name="texplane4" type="2d" builtin="flat" rgb1="0.1215686275 0.4470588235 0.6"
+            width="100" height="100" />
+        <texture name="texplane5" type="2d" builtin="checker" rgb1="1.0 1.0 1.0"
+            rgb2="0.66 0.66 0.66" width="100" height="100" />
+        <material name="matplane0" reflectance="0.2" texture="texplane0" texrepeat="1 1"
+            texuniform="true" />
+        <material name="matplane1" reflectance="0.2" texture="texplane1" texrepeat="1 1"
+            texuniform="true" />
+        <material name="matplane2" reflectance="0.2" texture="texplane2" texrepeat="1 1"
+            texuniform="true" />
+        <material name="matplane3" reflectance="0.2" texture="texplane3" texrepeat="1 1"
+            texuniform="true" />
+        <material name="matplane4" reflectance="0.2" texture="texplane4" texrepeat="1 1"
+            texuniform="true" />
+        <material name="matplane5" reflectance="0.2" texture="texplane5" texrepeat="1 1"
+            texuniform="true" />
+    </asset>
+    <visual>
+        <headlight ambient="0.6 0.6 0.6" diffuse="0.5 0.5 0.5" specular="0.2 0.2 0.2" />
+        <map znear="0.001" />
+    </visual>
+    <worldbody>
+        <body name="obstacle_wall_down">
+            <geom name="obstacle_wall_down" type="box" pos="1 -1 0.1" euler="0.0 0.0 0.0"
+                size="1.25 0.05 0.1" rgba="1.0 0.0 0.0 1" />
+        </body>
+        <body name="obstacle_wall_up">
+            <geom name="obstacle_wall_up" type="box" pos="1 6 0.1" euler="0.0 0.0 0.0"
+                size="1.25 0.05 0.1" rgba="1.0 0.0 0.0 1" />
+        </body>
+        <body name="obstacle_wall_left">
+            <geom name="obstacle_wall_left" type="box" pos="-.25 2.5 0.1" euler="0.0 0.0 0.0"
+                size="0.05 3.5 0.1" rgba="1.0 0.0 0.0 1" />
+        </body>
+        <body name="obstacle_wall_right">
+            <geom name="obstacle_wall_right" type="box" pos="2.25 2.5 0.1" euler="0.0 0.0 0.0"
+                size="0.05 3.5 0.1" rgba="1.0 0.0 0.0 1" />
+        </body>
+        <geom friction="1 0.0 0.01" pos="1.0 2.5  -1" size="2 4 1" name="floor0" contype="1"
+            condim="6" euler="0 0 0" type="box" material="matplane0" />
+        <geom friction="0.08 0.0 0.001" pos="1.0 1.2  -0.999" size="2 0.8 1" name="floor1"
+            contype="1" condim="6" euler="0 0 0" type="box" material="matplane5" />
+        <!-- <geom friction="1 0.0 0.01" pos="1.0 4.0  -0.999" size="2 0.8 1" name="floor2" contype="1"
+            condim="6" euler="0 0 0" type="box" material="matplane5" /> -->
+        <body name="obstacle_0">
+            <geom type="box" size="0.5 0.5 0.1" rgba="1 0 0 1" pos="1.6 4.0  0.1" name="obstacle_0" />
+        </body>
+        <body name="obstacle_1">
+            <geom type="box" size="0.5 0.5 0.1" rgba="1 0 0 1" pos="0.4 1.2  0.1" name="obstacle_1" />
+        </body>
+    </worldbody>
+</mujoco>
