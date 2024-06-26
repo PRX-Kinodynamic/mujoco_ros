@@ -1,14 +1,16 @@
 <launch>
     <arg name = "namespace" default = "mushr"/>
     <arg name = "feedback" default="true"/>
+    <!-- <arg name = "feedback" default="false"/> -->
     <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
+    <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
     <param name = "ml4kp_params" value="$(arg params_file)"/>
     <group ns="$(arg namespace)">
         <node pkg="nodelet" type="nodelet" name="control_nodelet"  args="manager" output="screen"/>
         
         <node if="$(arg feedback)" pkg="nodelet" type="nodelet" name="mushr_control_nodelet"  
             args="load control/mushr_feedback_controller_t control_nodelet" output="screen">
-            <param name="trajectory_topic" value="/$(arg namespace)/ml4kp_traj" />
+            <param name="trajectory_topic" value="/$(arg namespace)/feedback_traj" />
             <param name="pose_topic" value="/$(arg namespace)/pose" />
             <param name="control_topic" value="/$(arg namespace)/plan_stepper/control" />
             <param name="reset_topic" value="/$(arg namespace)/reset" />

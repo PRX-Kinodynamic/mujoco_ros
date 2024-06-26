@@ -36,8 +36,8 @@ public:
     plant->get_parameter_space()->copy_from(param_values);
 
     // Control space limits of the real MuSHR
-    std::vector<double> min_control_limits = { -1., -1. };
-    std::vector<double> max_control_limits = { 1., 1. };
+    std::vector<double> min_control_limits = ml4kp_params["/plant/control_space/lower_bound"].as<std::vector<double>>();
+    std::vector<double> max_control_limits = ml4kp_params["/plant/control_space/upper_bound"].as<std::vector<double>>();
     plant->get_control_space()->set_bounds(min_control_limits, max_control_limits);
 
     // prx::world_model_t control_model({ plant }, {});

@@ -12,7 +12,9 @@ private:
   ros::ServiceClient _controller_client;
 
   ros::Subscriber _obs_subscriber;
+  ros::Publisher _feedback_traj_publisher;
   Observation _most_recent_observation;
+  ml4kp_bridge::TrajectoryStamped _feedback_traj;
 
   PlannerPtr _planner;
   QueryPtr _query;
@@ -41,6 +43,7 @@ public:
     const std::string service_name{ root + "/planner_service" };
     _service_server = nh.advertiseService(service_name, &planner_service_t::service_callback, this);
     _obs_subscriber = nh.subscribe(root + "/pose", 1000, &planner_service_t::observation_callback, this);
+    _feedback_traj_publisher = nh.advertise<ml4kp_bridge::TrajectoryStamped>(root + "/feedback_traj", 1, true);
 
     step_plan = new prx::plan_t(_spec->control_space);
     rest_of_plan = new prx::plan_t(_spec->control_space);
@@ -134,7 +137,6 @@ public:
         step_traj->clear();
         _spec->propagate(current_state, *step_plan, *step_traj);
         valid = _spec->valid_check(*step_traj);
-        // valid = _spec->contingency_check(*step_traj);
       }
 
       if (valid)
@@ -146,6 +148,7 @@ public:
       else
       {
         ROS_WARN("Contingency check failed");
+        _feedback_traj_publisher.publish(_feedback_traj);
         step_plan->clear();
         ml4kp_bridge::add_zero_control(*step_plan, execution_time);
         ml4kp_bridge::copy(response.output_plan, step_plan);
