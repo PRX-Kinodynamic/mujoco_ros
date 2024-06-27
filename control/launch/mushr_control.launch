@@ -2,8 +2,8 @@
     <arg name = "namespace" default = "mushr"/>
     <arg name = "feedback" default="true"/>
     <!-- <arg name = "feedback" default="false"/> -->
-    <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
-    <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
+    <!-- <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" /> -->
+    <arg name = "params_file" default="examples/replanning/planning_real.yaml" />
     <param name = "ml4kp_params" value="$(arg params_file)"/>
     <group ns="$(arg namespace)">
         <node pkg="nodelet" type="nodelet" name="control_nodelet"  args="manager" output="screen"/>

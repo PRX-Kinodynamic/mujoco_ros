@@ -8,11 +8,11 @@
     <arg name = "use_rogue" default="false"/>
     <arg name = "max_cycles" default="90"/>
     <arg name = "preprocess_timeout" default = "0.05" />
-    <arg name = "postprocess_timeout" default = "0.05" />
+    <arg name = "postprocess_timeout" default = "0.15" />
     <arg name = "record" default = "false"/>
     <arg name = "id" default = "0"/>
-    <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
-    <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
+    <!-- <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" /> -->
+    <arg name = "params_file" default="examples/replanning/planning_real.yaml" />
     <group ns="$(arg namespace)">
         <node unless="$(arg use_rogue)" pkg="task_planning" name="replanner" type="$(arg namespace)_replanning_dirt" output="screen">
             <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)" />
