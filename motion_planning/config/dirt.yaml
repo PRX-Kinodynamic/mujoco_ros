@@ -12,3 +12,4 @@ visualize: true
 checker_type: time
 checker_value: 10
 
+max_edge_duration: 0.5

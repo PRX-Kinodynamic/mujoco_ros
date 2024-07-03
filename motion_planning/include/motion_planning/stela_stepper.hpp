@@ -89,6 +89,7 @@ public:
 
     DEBUG_VARS(action_topic);
     DEBUG_VARS(tree_topic_name);
+    DEBUG_VARS(random_seed);
 
     _goal.header.seq = 0;
     prx::init_random(random_seed);
@@ -299,6 +300,7 @@ public:
       {
         // ROS_INFO("Valid branch found!");
         _goal.selected_branch.push_back(_current_root);
+
         break;
       }
     }
@@ -323,11 +325,13 @@ public:
     _tree.edges = msg->edges;
     _current_root = msg->root;
     select_branch();
+    ROS_INFO("Branch selected");
 
     _current_traj = 0;
     _current_state_id = 0;
     // populate_goal();
     compute_goal(nullptr);
+    ROS_INFO("Goal computed");
 
     _action_client->waitForServer();
     ROS_INFO("Action client connected to server");
@@ -359,11 +363,16 @@ private:
 
       _next_goal_check = now + ros::Duration(0.2);
 
+      // if (_goal.selected_branch.size() == 1)
+      // {
+      //   _goal.stop = true;
+      // }
+
       _action_client->sendGoal(_goal,                                    // no-lint
                                StelaActionClient::SimpleDoneCallback(),  // no-lint
                                StelaActionClient::SimpleActiveCallback(),
                                boost::bind(&Derived::action_feedback_callback, this, _1));
-      // DEBUG_VARS(_goal.selected_branch.front(), _next_goal_check);
+      // DEBUG_VARS(_goal.selected_branch.size());
     }
     _stela_tree_publisher.publish(feedback->lookahead);
   }

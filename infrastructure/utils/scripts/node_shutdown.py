@@ -6,10 +6,11 @@ import time
 from std_msgs.msg import Bool
 from prx_models.msg import Tree
 import subprocess
-
+import random
 import rosbag
 
-bag_dir="/home/gary/motion_planning/catkin_ws/bags/stela/"
+ros_dir="/Users/Gary/pracsys/catkin_ws/"
+bag_dir=ros_dir+"bags/"
 bag_file="simple_obstacle_aorrt_003.bag"
 # bag_file="test_cost_aorrt_v2.bag"
 
@@ -36,8 +37,17 @@ class launcher:
 
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
         roslaunch.configure_logging(uuid)
-        launch_file="/home/gary/motion_planning/catkin_ws/src/mujoco_ros/motion_planning/launch/stela.launch"
-        self.launch = roslaunch.parent.ROSLaunchParent(uuid, [launch_file])
+        launch_file=ros_dir+"/src/mujoco_ros/motion_planning/launch/stela.launch"
+        # self.launch = roslaunch.parent.ROSLaunchParent(uuid, [launch_file])
+
+        # args="planner:=AORRT Stepper:=None sim_clock:=false visualize:=true"
+        seed_arg = 'random_seed:=' + str(random.randrange(1,9999999))
+        print(seed_arg)
+        cli_args = [launch_file,seed_arg,args]
+        roslaunch_args = cli_args[1:]
+        roslaunch_file = [(roslaunch.rlutil.resolve_launch_arguments(cli_args)[0], roslaunch_args)]
+
+        self.launch = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
         self.launch.start()
 
         rospy.Subscriber('/stela/finished', Bool, self.callback)

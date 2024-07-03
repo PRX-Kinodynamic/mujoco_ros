@@ -68,5 +68,13 @@
       Get the trajectories from a tree
     </description>
   </class>
+  <class 
+      name="motion_planning/RandomBranch" 
+      type="motion_planning::RandomBranch" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Get the trajectories from a tree
+    </description>
+  </class>
   
 </library>

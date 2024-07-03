@@ -36,7 +36,8 @@ public:
     _plant = prx::system_factory_t::create_system(plant_name, plant_name);
     prx_assert(_plant != nullptr, "Plant is nullptr!");
     _plant->init(_plant_params);
-    prx::simulation_step = 0.1;
+    // DEBUG_VARS("Plan to traj", _plant)
+    prx::simulation_step = 0.001;
     _world_model.reset(new prx::world_model_t({ _plant }, {}));
     _world_model->create_context("sim_context", { plant_name }, {});
     auto context = _world_model->get_context("sim_context");
@@ -60,6 +61,7 @@ protected:
   {
     _plan->clear();
     ml4kp_bridge::copy(_plan, msg);
+    DEBUG_VARS(_plan);
     _system_group->propagate(_start_state, *_plan, *_trajectory);
     _traj_msg.data.clear();
     ml4kp_bridge::copy(_traj_msg, _trajectory);

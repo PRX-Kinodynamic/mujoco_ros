@@ -25,7 +25,7 @@ class steap_t : public Base
   using State = typename SystemInterface::State;
   using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
-  using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::configuration_from_state>;
+  using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
 
 public:
   using Values = gtsam::Values;

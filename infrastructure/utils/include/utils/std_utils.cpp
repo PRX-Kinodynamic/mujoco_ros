@@ -40,4 +40,12 @@ static std::string timestamp()
   strstr << std::put_time(&tm, "%y%m%d_%H%M%S");
   return strstr.str();
 }
+
+template <typename TopicConstPtr>
+void shutdown_callback(const TopicConstPtr& msg)
+{
+  // std::cout << "Shut"
+  ros::shutdown();
+}
+
 }  // namespace utils

@@ -9,9 +9,15 @@
     <arg name="control_topic" default="/$(arg ns)/control"/> 
     <arg name="plan_topic" default="/$(arg ns)/plan"/> 
     <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/> 
+    <!-- <arg name="tf_noise_sigmas" default="[0.005, 0.005, 0.0]"/>  -->
+    <!-- <arg name="tf_noise_sigmas" default="[0.01, 0.01, 0.0]"/>  -->
+    <!-- <arg name="tf_noise_sigmas" default="[0.1, 0.1, 0.0]"/>  -->
     <!-- <arg name="open_loop" default="false"/> -->
     <arg name="planner" default="None"/>
     <arg name="sim_clock" default="true"/>
+    <arg name="collision_topic" default="/simulator/collision"/>
+    <arg name="observation_frequency" default="30"/>
+    <arg name="state_topic" default="/$(arg ns)/state"/>
 
     <param name="/use_sim_time" value="$(arg sim_clock)" />
 
@@ -20,13 +26,16 @@
             <param name="parameter_space/values" value="[0,0,0,0,0,0,0,0]"/>
             <!-- <param name="parameter_space/values" value="[0.01,0.01,0.01,0.01,0,0,0,0]"/> -->
             <!-- <param name="parameter_space/values" value="[0.0,0.0,0.01,0.01,0,0,1,1]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.1,0.1,0,0,1,1]"/> -->
             <!-- <param name="parameter_space/values" value="[0.0,0.0,0.025,0.025,0,0,1,1]"/> -->
             <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
-            <param name="state_topic" value="/$(arg ns)/state"/>
+            <param name="state_topic" value="$(arg state_topic)"/>
             <param name="control_topic" value="$(arg control_topic)"/>
             <param name="environment" value="$(arg environment)"/>
             <param name="simulation_step" value="$(arg simulation_step)"/>
             <param name="tf_noise_sigmas" type="yaml" value="$(arg tf_noise_sigmas)"/>
+            <param name="collision_topic" value="$(arg collision_topic)"/>
+            <param name="observation_frequency" value="$(arg observation_frequency)"/>
         </node>
 
         <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>
@@ -45,7 +54,7 @@
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_topic)"/>
             <param name="publisher_topic" value="$(arg control_topic)"/>
-            <param name="frequency" value="300" />
+            <param name="frequency" value="30" />
             <param name="use_stamped_control" value="true"/>
         </node>    
 

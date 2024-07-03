@@ -64,8 +64,11 @@ protected:
     _params["planner/environment"] = environment;
 
     prx::simulation_step = _params["/planner/simulation_step"].as<double>();
-    DEBUG_VARS(prx::simulation_step);
-    prx::init_random(_params["/planner/random_seed"].as<int>());
+
+    int random_seed{ _params["/planner/random_seed"].as<int>() };
+    PARAM_SETUP_WITH_DEFAULT(private_nh, random_seed, random_seed);
+    DEBUG_VARS(random_seed);
+    prx::init_random(random_seed);
 
     _tree_topic_name = ros::this_node::getNamespace() + _planner_name + _tree_topic_name;
     _sln_tree_topic_name = ros::this_node::getNamespace() + _planner_name + _sln_tree_topic_name;
@@ -73,8 +76,8 @@ protected:
     _goal_marker_topic_name = ros::this_node::getNamespace() + _planner_name + _goal_marker_topic_name;
 
     // publishers
-    _tree_publisher = private_nh.advertise<prx_models::Tree>(_tree_topic_name, 1);
-    _sln_tree_publisher = private_nh.advertise<prx_models::Tree>(_sln_tree_topic_name, 1);
+    _tree_publisher = private_nh.advertise<prx_models::Tree>(_tree_topic_name, 1, true);
+    _sln_tree_publisher = private_nh.advertise<prx_models::Tree>(_sln_tree_topic_name, 1, true);
 
     _service_filename = private_nh.advertiseService(_tree_service_name, &Derived::tree_service_callback, this);
     _goal_marker_publisher = private_nh.advertise<visualization_msgs::Marker>(_goal_marker_topic_name, 1, true);
@@ -86,9 +89,38 @@ protected:
     _spec = std::make_shared<PlannerSpecification>(_system_group, _collision_group);
     _query = std::make_shared<PlannerQuery>(_system_group->get_state_space(), _system_group->get_control_space());
     _planner = std::make_shared<Planner>("Planner");
+
     setup_spec(_params, _spec);
-    DEBUG_VARS(*_spec);
     setup_query(_params, _query, _checker);
+
+    if (_params.exists("planner/medial_axis"))
+    {
+      prx::param_loader ma_params{ _params["planner/medial_axis"] };
+      if (ma_params["use"].as<bool>())
+      {
+        ma_params["environment"] = _params["planner/environment"].as<>();
+        _medial_axis = setup_medial_axis_sampler(ma_params, _query->start_state, _query->goal_state);
+        std::shuffle(_medial_axis.begin(), _medial_axis.end(), prx::global_generator);
+        // std::ofstream ofs("/Users/Gary/pracsys/catkin_ws/data/medial_axis_out.txt");
+        _ma_rate = ma_params["rate"].as<double>();
+
+        _spec->sample_state = [this](prx::space_point_t& s)  // no-lint
+        {
+          const double rand{ prx::uniform_random(0, 1.0) };
+          default_sample_state(s, _system_group->get_state_space());
+          if (rand > _ma_rate)
+          {
+            const int idx{ prx::uniform_int_random(0, _medial_axis.size()) };
+
+            const Eigen::Vector2d pt{ _medial_axis[idx] };
+            s->at(0) = pt[0];
+            s->at(1) = pt[1];
+          }
+        };
+      }
+    }
+
+    DEBUG_VARS(*_spec);
     visualization_msgs::Marker goal_marker{ create_goal_marker() };
 
     _goal_marker_publisher.publish(goal_marker);
@@ -133,16 +165,18 @@ protected:
 
   void publish_tree()
   {
-    DEBUG_VARS(_planner->tree().size());
+    // DEBUG_VARS(_planner->tree().size(), _planner->tree().num_edges());
 
     prx::planning::discretize_tree(_planner->tree(), *_planner, _params["/planner/max_edge_duration"].as<double>());
     copy<typename Planner::Node, typename Planner::Edge>(_tree, _planner->tree());
     _tree_publisher.publish(_tree);
 
+    // DEBUG_VARS(_planner->tree().size(), _planner->tree().num_edges());
     if (_params.exists("stela"))
     {
       const prx::param_loader params_stela{ _params["stela"] };
       auto sln_tree = fulfill_stela_query(params_stela, _planner, _query);
+      // DEBUG_VARS(sln_tree->size(), sln_tree->num_edges());
       // sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
 
       prx_models::Tree sln_ros_tree;
@@ -203,5 +237,8 @@ protected:
   std::shared_ptr<prx::condition_check_t> _checker;
 
   std::unique_ptr<prx::three_js_group_t> _vis_group;  // = new three_js_group_t({ plant }, { obstacle_list });
+
+  std::vector<Eigen::Vector2d> _medial_axis;
+  double _ma_rate;
 };
 }  // namespace motion_planning

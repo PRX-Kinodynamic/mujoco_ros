@@ -1,31 +1,20 @@
 #include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <std_msgs/Bool.h>
+
 #include <utils/std_utils.cpp>
 
 #include <gtsam/nonlinear/ISAM2.h>
 #include <actionlib/server/simple_action_server.h>
 #include <motion_planning/StelaGraphTraversalAction.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <std_msgs/Bool.h>
 
 namespace motion_planning
 {
-
-namespace stela_types
-{
-// Function pointers: define the signature of the function to be taken as template parameter
-using RootToFGFn = std::pair<gtsam::NonlinearFactorGraph, gtsam::Values> (*)(const std::size_t,
-                                                                             const ml4kp_bridge::SpacePoint&);
-using NodeEdgeToFGFn = std::pair<gtsam::NonlinearFactorGraph, gtsam::Values> (*)(const std::size_t, const std::size_t,
-                                                                                 const ml4kp_bridge::SpacePoint&,
-                                                                                 const ml4kp_bridge::Plan&);
-using ToFileFn = void (*)(const std::string, const gtsam::NonlinearFactorGraph&, const gtsam::Values&,
-                          const std::ios_base::openmode);
-
-}  // namespace stela_types
 
 // Assuming the system can be (roughly) divided into X, Xdot, Xddot...
 template <typename SystemInterface, typename Base>
@@ -34,8 +23,10 @@ class stela_t : public Base
   using Derived = stela_t<SystemInterface, Base>;
   using StelaActionServer = actionlib::SimpleActionServer<motion_planning::StelaGraphTraversalAction>;
 
+  using SF = prx::fg::symbol_factory_t;
+
   using Control = typename SystemInterface::Control;
-  // using State = typename SystemInterface::State;
+  using State = typename SystemInterface::State;
   // using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
 
@@ -44,6 +35,8 @@ class stela_t : public Base
 
   using StateEstimates = typename SystemInterface::StateEstimates;
   using ControlEstimates = typename SystemInterface::ControlEstimates;
+
+  using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
 
 public:
   using Values = gtsam::Values;
@@ -57,6 +50,7 @@ public:
     , _isam(_isam_params)
     , _tree_recevied(false)
     , _last_local_goal(true)
+    , _goal_received(false)
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -70,13 +64,18 @@ public:
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
 
     std::string tree_topic_name;
-    std::string graph_topic_name{ "" };
     std::string control_topic;
+    std::string collision_topic;
+    std::string environment;
+    double obstacle_sigma{ 0.1 };
     double control_frequency;
+    double& obstacle_distance_tolerance{ _obstacle_distance_tolerance };
 
     std::string& world_frame{ _world_frame };
     std::string& robot_frame{ _robot_frame };
     std::string& output_dir{ _output_dir };
+    std::string& obstacle_mode{ _obstacle_mode };
+
     // ROS_PARAM_SETUP(private_nh, random_seed);
     // ROS_PARAM_SETUP(private_nh, plant_config_file);
     // ROS_PARAM_SETUP(private_nh, planner_config_file);
@@ -86,24 +85,32 @@ public:
     PARAM_SETUP(private_nh, world_frame);
     PARAM_SETUP(private_nh, robot_frame);
     PARAM_SETUP(private_nh, output_dir)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, graph_topic_name, graph_topic_name);
+    PARAM_SETUP(private_nh, collision_topic)
+    PARAM_SETUP(private_nh, environment)
+    PARAM_SETUP(private_nh, obstacle_mode)
+    PARAM_SETUP(private_nh, obstacle_distance_tolerance)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
 
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
     const std::string pose_with_cov_topic{ ros::this_node::getNamespace() + "/pose_with_cov" };
     const std::string finish_topic{ ros::this_node::getNamespace() + "/finished" };
+    const std::string obstacle_viz_topic{ ros::this_node::getNamespace() + "/obstacle_edges" };
 
     const ros::Duration control_timer(1.0 / control_frequency);
     _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);
     // _ol_timer = private_nh.createTimer(control_timer, &Derived::control_timer_callback, this);
 
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::tree_callback, this);
+    _collision_subscriber = private_nh.subscribe(collision_topic, 1, &Derived::collision_callback, this);
 
     _finish_publisher = private_nh.advertise<std_msgs::Bool>(finish_topic, 1, true);
     _control_publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1, true);
     _stamped_control_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
     _pose_with_cov_publisher =
         private_nh.advertise<geometry_msgs::PoseWithCovarianceStamped>(pose_with_cov_topic, 1, true);
+
+    _viz_obstacles_publisher = private_nh.advertise<visualization_msgs::Marker>(obstacle_viz_topic, 1, false);
 
     _control_stamped.header.seq = 0;
     _control_stamped.header.stamp = ros::Time::now();
@@ -114,18 +121,61 @@ public:
     _prev_header.stamp = ros::Time::now();
     _local_goal_id = 0;
     _next_node_time = ros::Time::now();
+
+    auto obstacles = prx::load_obstacles(environment);
+    // _obstacle_list = obstacles.second;
+    _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
+
+    _robot_collision_ptr = SystemInterface::collision_geometry();
+    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(2, obstacle_sigma);
+
+    _obstacles_marker.header.frame_id = "world";
+    _obstacles_marker.header.stamp = ros::Time();
+    _obstacles_marker.ns = "nodes";
+    _obstacles_marker.id = 0;
+    _obstacles_marker.type = visualization_msgs::Marker::LINE_LIST;
+    _obstacles_marker.action = visualization_msgs::Marker::ADD;
+    _obstacles_marker.pose.position.x = 0;
+    _obstacles_marker.pose.position.y = 0;
+    _obstacles_marker.pose.position.z = 0;
+    _obstacles_marker.pose.orientation.x = 0.0;
+    _obstacles_marker.pose.orientation.y = 0.0;
+    _obstacles_marker.pose.orientation.z = 0.0;
+    _obstacles_marker.pose.orientation.w = 1.0;
+    _obstacles_marker.scale.x = 0.1;
+    _obstacles_marker.scale.y = 0.1;
+    _obstacles_marker.scale.z = 0.1;
+
+    _obstacles_marker.color.a = 1.0;  // Don't forget to set the alpha!
+    _obstacles_marker.color.r = 0.98;
+    _obstacles_marker.color.g = 0.55;
+    _obstacles_marker.color.b = 0.02;
   }
 
-  void to_file()
+  void collision_callback(const std_msgs::BoolConstPtr& msg)
+  {
+    if (msg->data)
+    {
+      to_file(true);
+    }
+  }
+
+  void to_file(const bool collision = false)
   {
     gtsam::Values estimate{ _isam.calculateEstimate() };
     const std::string filename{ _output_dir + "/stela_" + utils::timestamp() + ".txt" };
     const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + utils::timestamp() + ".txt" };
+    const std::string filename_data{ _output_dir + "/stela_data_" + utils::timestamp() + ".txt" };
 
     DEBUG_VARS(filename);
     DEBUG_VARS(filename_branch_gt);
+    DEBUG_VARS(filename_data);
     std::ofstream ofs(filename);
     std::ofstream ofs_branch(filename_branch_gt);
+    std::ofstream ofs_data(filename_data);
+    const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
+    ofs_data << "Elapsed time: " << elapsed_time << "\n";
+    ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
 
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     for (int i = 0; i < _id_x_hat; ++i)
@@ -144,6 +194,14 @@ public:
 
     ofs.close();
     ofs_branch.close();
+    ofs_data.close();
+
+    std_msgs::Bool msg;
+    msg.data = true;
+    _finish_publisher.publish(msg);
+    _tree_recevied = false;
+
+    ros::shutdown();
   }
 
   void action_function(const ros::TimerEvent& event)
@@ -157,6 +215,7 @@ public:
         if (new_goal->header.seq > _goal.header.seq)
         {
           ROS_INFO_ONCE("Goal received");
+          _goal_received = true;
           _goal = *new_goal;
 
           for (int i = 0; i < _selected_nodes.size(); ++i)
@@ -180,14 +239,12 @@ public:
           build_feedback_lookahead_tree();
         }
       }
+      if (not _goal_received)
+        return;
       if (_goal.stop or _tree.nodes[_x_next].children.size() == 0)
       {
         ROS_WARN("Finished! Creating file");
         to_file();
-        std_msgs::Bool msg;
-        msg.data = true;
-        _finish_publisher.publish(msg);
-        _tree_recevied = false;
       }
       if (_goal.selected_branch.size() < 1)
       {
@@ -376,24 +433,76 @@ public:
     _stamped_control_publisher.publish(_control_stamped);
   }
 
+  void obstacle_factors(const ml4kp_bridge::SpacePoint& point, int x_id)
+  {
+    if (_obstacle_mode == "distance")
+    {
+      Eigen::Vector3d p1, p2;
+      const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+      // DEBUG_VARS(SF::formatter(keyX));
+      SystemInterface::state(_state, point);
+      for (auto obstacle_info : _obstacle_collision_infos)
+      {
+        if (ObstacleFactor::close_enough(_state, _obstacle_distance_tolerance, obstacle_info, _robot_collision_ptr,
+                                         _config_from_state, _obstacle_tolerance_result))
+        // {
+        // if (ObstacleFactor::distances(_state, p1, p2, obstacle_info, _robot_collision_ptr, _config_from_state,
+        //                               _obstacle_distance_result) < _obstacle_distance_tolerance)
+        {
+          _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
+                                                         _obstacle_distance_tolerance, 0.1, _obstacle_noise);
+          _obstacles_marker.points.emplace_back();
+          _obstacles_marker.points.back().x = _state[0];
+          _obstacles_marker.points.back().y = _state[1];
+          _obstacles_marker.points.back().z = 0;
+          _obstacles_marker.points.emplace_back();
+          _obstacles_marker.points.back().x = p1[0];
+          _obstacles_marker.points.back().y = p1[1];
+          _obstacles_marker.points.back().z = 0;
+          // DEBUG_VARS(x_id, _state.transpose());
+        }
+        // gtsam::NonlinearFactorGraph obstacle_graph{ ObstacleFactor::collision_factors(
+        // keyX, obstacle, _robot_collision_ptr, _obstacle_distance_tolerance, _obstacle_noise) };
+        // for (auto factor : obstacle_graph)
+        // {
+        //   auto obstacle_factor = boost::dynamic_pointer_cast<ObstacleFactor>(factor);
+        //   const bool valid_factor(obstacle_factor != nullptr);
+        //   prx_assert(valid_factor, "Obstacle factor is not valid!");
+        //   if (obstacle_factor->close_enough(_state, _obstacle_distance_tolerance))
+        //   {
+        //     // graph_values.first.add(obstacle_factor);
+        //     DEBUG_VARS(x_id, _state.transpose());
+        //   }
+        // }
+      }
+    }
+  }
+
   void branch_to_traj(const prx_models::TreeConstPtr msg, const std::uint64_t edge_id)
   {
     const prx_models::Edge& edge{ msg->edges[edge_id] };
     const prx_models::Node& node_parent{ msg->nodes[edge.source] };
     const prx_models::Node& node_current{ msg->nodes[edge.target] };
 
-    // const ml4kp_bridge::SpacePoint& node_state{};
+    GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
+                                                               edge.plan) };
+    obstacle_factors(node_current.point, edge.target);
 
-    const GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
-                                                                     edge.plan) };
-    // prx::fg::symbol_factory_t::symbols_to_file();
-    // _factor_graph += graph_values.first;
     _values.insert(graph_values.second);
 
-    // DEBUG_VARS(node_current.index, _values.size());
-    _isam2_result = _isam.update(graph_values.first, graph_values.second);
-    // DEBUG_VARS(_isam2_result.getErrorBefore(), _isam2_result.getErrorAfter());
+    // ROS_DEBUG_STREAM_NAMED("STELA", "N0: " << edge.source << " E01: " << edge_id << " N1: " << edge.target);
 
+    // if (edge.source == 928 or edge.source == 5017)
+    // {
+    //   // void printErrors(const Values& values, const std::string& str = "NonlinearFactorGraph: ",
+    //   // const KeyFormatter& keyFormatter = DefaultKeyFormatter);
+    //   graph_values.first.print("Graph: ", SF::formatter);
+    //   // void print(const std::string& str = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const;
+    //   graph_values.second.print("Values: ", SF::formatter);
+    //   graph_values.first.printErrors(_values, "Graph: ", SF::formatter);
+    // }
+    _isam2_result = _isam.update(graph_values.first, graph_values.second);
+    // ROS_DEBUG_STREAM_NAMED("STELA", "cliques: " << _isam2_result.cliques);
     const std::size_t total_children{ node_current.children.size() };
 
     if (total_children >= 1)  // This is not a leaf
@@ -404,19 +513,17 @@ public:
 
         branch_to_traj(msg, node_child.parent_edge);
       }
-      // branch_to_traj(msg, node.children[0], traj_id);
     }
   }
 
   void tree_callback(const prx_models::TreeConstPtr msg)
   {
-    ROS_INFO_STREAM("[STELA] Tree received: " << msg->nodes.size());
+    const ros::Time start{ ros::Time::now() };
+    ROS_DEBUG_STREAM_NAMED("STELA", "Tree received: " << msg->nodes.size());
     _isam.clear();
     _values = gtsam::Values();
-    // _factor_graph = gtsam::NonlinearFactorGraph();
     const prx_models::Node& node{ msg->nodes[msg->root] };
 
-    DEBUG_VARS(msg->root);
     const GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, node.point) };
     _values.insert(root_graph_values.second);
     _isam2_result = _isam.update(root_graph_values.first, root_graph_values.second);
@@ -429,23 +536,32 @@ public:
       branch_to_traj(msg, node_child.parent_edge);
     }
 
+    ROS_DEBUG_STREAM_NAMED("STELA", "Finished traversing tree ");
     _id_x_hat = msg->root;
     const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
-    // _key_x_hat = SystemInterface::keyX(-1, _id_x_hat);
-    // _key_xdot_hat = SystemInterface::keyXdot(-1, _id_x_hat);
+
+    ROS_DEBUG_STREAM_NAMED("STELA", "Adding obstacle graph: " << _obstacle_graph.size());
+    if (_obstacle_graph.size() > 0)
+    {
+      _viz_obstacles_publisher.publish(_obstacles_marker);
+      _isam2_result = _isam.update(_obstacle_graph, gtsam::Values());
+    }
+
     const StateKeys state_keys{ SystemInterface::keyState(-1, _id_x_hat) };
     update_estimates<0>(_state_estimates, state_keys);
-
-    // _x_hat = _isam.calculateEstimate<State>(_key_x_hat);
-    // _xdot_hat = _isam.calculateEstimate<StateDot>(_key_xdot_hat);
 
     _tree.root = msg->root;
     _tree.nodes = msg->nodes;
     _tree.edges = msg->edges;
+    ROS_DEBUG_STREAM_NAMED("STELA", "Starting action server");
     _stela_action_server->start();
     _tree_recevied = true;
-    ROS_INFO("Action server started");
+    ROS_DEBUG_STREAM_NAMED("STELA", "Action server started");
+    const double elapsed_time{ (ros::Time::now() - start).toSec() };
+    std::cout << "Elapsed time: " << elapsed_time << std::endl;
+
+    _start_time = ros::Time::now();
   }
 
 private:
@@ -486,7 +602,6 @@ private:
   template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
   void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
   {
-    using SF = prx::fg::symbol_factory_t;
     using StateType = typename std::tuple_element<I, StateEstimates>::type;
     const gtsam::Key key{ keys[I] };
     const StateType state{ estimate.at<StateType>(key) };
@@ -533,11 +648,14 @@ private:
   prx_models::Tree _tree;
 
   ros::Subscriber _tree_subscriber;
+  ros::Subscriber _collision_subscriber;
 
   ros::Publisher _control_publisher;
   ros::Publisher _stamped_control_publisher;
   ros::Publisher _pose_with_cov_publisher;
   ros::Publisher _finish_publisher;
+  ros::Publisher _viz_obstacles_publisher;
+
   geometry_msgs::PoseWithCovarianceStamped _pose_with_cov;
 
   ros::Timer _control_timer;
@@ -556,23 +674,40 @@ private:
 
   std::size_t _id_x_hat;
 
+  State _state;
   Control _u01;
   Observation _z_new;
+
   double _time_remaining;
 
-  bool _used_x2;
+  bool _goal_received;
   motion_planning::StelaGraphTraversalGoal _goal;
 
   std::uint64_t _x_next;
   std::size_t _local_goal_id;
 
   std::vector<std::uint64_t> _selected_nodes;
+  // std::vector<std::shared_ptr<prx::movable_object_t>> _obstacle_list;
 
   bool _tree_recevied;
   motion_planning::tree_manager_t _tree_manager;
   ros::Time _next_node_time;
+  ros::Time _start_time;
   bool _last_local_goal;
 
+  // File/output
   std::string _output_dir;
+
+  // Obstacle-relates stuff
+  std::string _obstacle_mode;
+  gtsam::NonlinearFactorGraph _obstacle_graph;
+  double _obstacle_distance_tolerance;
+  typename SystemInterface::ConfigFromState _config_from_state;
+  std::shared_ptr<prx::fg::collision_info_t> _robot_collision_ptr;
+  typename ObstacleFactor::ToleranceResult _obstacle_tolerance_result;
+  typename ObstacleFactor::DistanceResult _obstacle_distance_result;
+  gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
+  std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
+  visualization_msgs::Marker _obstacles_marker;
 };
 }  // namespace motion_planning

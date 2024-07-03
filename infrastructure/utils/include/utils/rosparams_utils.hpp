@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ros/node_handle.h>
+#include <prx/utilities/general/param_loader.hpp>
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 

@@ -6,12 +6,17 @@
 
 // mj-ros
 #include <utils/dbg_utils.hpp>
+#include <ml4kp_bridge/defs.h>
 
 // ML4KP
 #include <prx/simulation/plant.hpp>
+#include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/factor_graphs/factors/euler_integration_factor.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <prx/factor_graphs/factors/quadratic_cost_factor.hpp>
+#include <prx/factor_graphs/factors/obstacle_factor.hpp>
+#include <prx/factor_graphs/utilities/symbols_factory.hpp>
+#include <prx/simulation/system_factory.hpp>
 
 // Gtsam
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -76,12 +81,18 @@ public:
 
   static StateKeys keyState(const int& level, const int& step)
   {
-    return { keyX(level, step), keyX(level, step) };
+    return { keyX(level, step), keyXdot(level, step) };
   }
 
   static StateKeys keyControl(const int& level, const int& step)
   {
     return { keyU(level, step) };
+  }
+
+  static void state(State& x, const ml4kp_bridge::SpacePoint& pt)
+  {
+    x[0] = pt.point[0];
+    x[1] = pt.point[1];
   }
 
   static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
@@ -156,7 +167,41 @@ public:
     }
   }
 
-  struct configuration_from_state
+  static void control_vizualization(geometry_msgs::Point& endpoint, const ml4kp_bridge::SpacePoint& msg)
+  {
+    Control u(msg.point[0], msg.point[1]);
+    u.normalize();
+
+    endpoint.x = u[0];
+    endpoint.y = u[1];
+    endpoint.z = 0.0;
+  }
+
+  static std::shared_ptr<prx::fg::collision_info_t> collision_geometry()
+  {
+    const std::string name{ plant_name };
+
+    std::shared_ptr<prx::plant_t> plant{ prx::system_factory_t::create_system_as<prx::plant_t>(name, name) };
+    prx_assert(plant != nullptr, "Plant " << plant_name << " couldn't be constructed!");
+
+    prx::movable_object_t::Geometries geometries{ plant->get_geometries() };
+    prx::movable_object_t::Configurations configurations{ plant->get_configurations() };
+
+    const std::size_t total_geoms{ geometries.size() };
+    // prx_assert(total_geoms == 1, "More than 1 geometry not supported");
+    std::shared_ptr<prx::geometry_t> g{ geometries[0].second };
+    std::shared_ptr<prx::transform_t> tf{ configurations[0].second };
+
+    const prx::geometry_type_t g_type{ g->get_geometry_type() };
+    const std::vector<double> g_params{ g->get_geometry_params() };
+
+    const Eigen::Matrix3d rot{ tf->rotation() };
+    const Eigen::Vector3d t{ tf->translation() };
+
+    return std::make_shared<prx::fg::collision_info_t>(g_type, g_params, rot, t);
+  }
+
+  struct ConfigFromState
   {
     void operator()(Eigen::Matrix3d& rotation, Eigen::Vector3d& translation, const State& state)
     {

@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <std_msgs/Bool.h>
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.hpp>
 
@@ -12,6 +13,11 @@
 
 namespace utils
 {
+inline void collision_to_file(const std_msgs::Bool& msg, std::ofstream& ofs)
+{
+  const std::string str{ msg.data ? "true" : "false" };
+  ofs << "Collision: " << str << "\n";
+}
 
 using EnvironmentPublisher = environment_publisher_t<nodelet::Nodelet>;
 using TrajectoryVizPublisher = trajectory_viz_publisher_t<nodelet::Nodelet>;
@@ -21,6 +27,7 @@ using PlanStampedToFile = topic_to_file_t<ml4kp_bridge::PlanStamped, ml4kp_bridg
 using PlanToFile = topic_to_file_t<ml4kp_bridge::Plan, ml4kp_bridge::to_file, nodelet::Nodelet>;
 using StateToFile = topic_to_file_t<ml4kp_bridge::SpacePoint, ml4kp_bridge::to_file, nodelet::Nodelet>;
 using StateStampedToFile = topic_to_file_t<ml4kp_bridge::SpacePointStamped, ml4kp_bridge::to_file, nodelet::Nodelet>;
+using CollisionToFile = topic_to_file_t<std_msgs::Bool, collision_to_file, nodelet::Nodelet>;
 using GraphVizPublisher = graph_viz_publisher_t<nodelet::Nodelet>;
 
 }  // namespace utils
@@ -33,3 +40,4 @@ PLUGINLIB_EXPORT_CLASS(utils::PlanToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::StateToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::StateStampedToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::GraphVizPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::CollisionToFile, nodelet::Nodelet);

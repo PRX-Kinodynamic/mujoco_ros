@@ -162,6 +162,12 @@ endforeach()
 #############
 ## Install ##
 #############
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  # scripts/mushr_open_loop_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html

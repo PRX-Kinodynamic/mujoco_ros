@@ -29,6 +29,7 @@ protected:
     std::string fileprefix;
     std::string topic_name;
     std::string reset_topic;
+    std::string shutdown_topic{ "" };
 
     std::string& on_reset_value{ _on_reset_value };  // To avoid the _ in parameter
 
@@ -37,6 +38,7 @@ protected:
     PARAM_SETUP(private_nh, topic_name);
     PARAM_SETUP(private_nh, reset_topic);
     PARAM_SETUP_WITH_DEFAULT(private_nh, on_reset_value, on_reset_value);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, shutdown_topic, shutdown_topic);
 
     std::filesystem::path path{ directory };
     path /= fileprefix;
@@ -49,6 +51,9 @@ protected:
     // subscriber
     _topic_subscriber = private_nh.subscribe(topic_name, 10, &Derived::topic_to_file_callback, this);
     _reset_subscriber = private_nh.subscribe(reset_topic, 1, &Derived::reset_callback, this);
+
+    if (shutdown_topic != "")
+      _shutdown_subscriber = private_nh.subscribe(shutdown_topic, 1, &utils::shutdown_callback<std_msgs::Bool>);
   }
 
   void reset_callback(const std_msgs::Empty& msg)
@@ -65,6 +70,7 @@ protected:
   // Subscribers
   ros::Subscriber _topic_subscriber;
   ros::Subscriber _reset_subscriber;
+  ros::Subscriber _shutdown_subscriber;
 
   std::ofstream _ofs_topic;
 };

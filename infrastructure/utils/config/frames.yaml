@@ -3,3 +3,5 @@ transforms:
     child: "robot"
   - root: "world"
     child: "robot_gt"
+  - root: "world"
+    child: "robot_0"

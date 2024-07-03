@@ -5,6 +5,7 @@
 #include <nodelet/nodelet.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <std_msgs/Bool.h>
 
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
@@ -35,13 +36,17 @@ protected:
     std::string control_topic{ "" };
     std::string environment{ "" };
     std::string robot_frame{ "robot" };
+    std::string collision_topic{ "" };
     double& simulation_step{ prx::simulation_step };
+    double observation_frequency;
     std::vector<double> tf_noise_sigmas{ { 0, 0, 0 } };
 
     PARAM_SETUP(private_nh, plant_ml4kp_params);
     PARAM_SETUP(private_nh, state_topic);
     PARAM_SETUP(private_nh, control_topic);
     PARAM_SETUP(private_nh, environment);
+    PARAM_SETUP(private_nh, collision_topic);
+    PARAM_SETUP(private_nh, observation_frequency);
     PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     PARAM_SETUP_WITH_DEFAULT(private_nh, robot_frame, robot_frame);
     PARAM_SETUP_WITH_DEFAULT(private_nh, tf_noise_sigmas, tf_noise_sigmas);
@@ -95,13 +100,16 @@ protected:
     const std::string stamped_control_topic{ control_topic + "_stamped" };
     // TODO: handle non existence of params
     _stepper_timer = private_nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step, this);
-    _state_timer = private_nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::publish_state, this);
+
+    const ros::Duration observation_period(1.0 / observation_frequency);
+    _state_timer = private_nh.createTimer(observation_period, &simulator_t::publish_state, this);
     _control_subscriber = private_nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
     _control_stamped_subscriber =
         private_nh.subscribe(stamped_control_topic, 1, &simulator_t::stamped_control_callback, this);
-    _state_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 10, true);
-
     _set_state_subscriber = private_nh.subscribe(_set_state_topic_name, 1, &simulator_t::set_state_callback, this);
+
+    _state_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 10, true);
+    _collision_publisher = private_nh.advertise<std_msgs::Bool>(collision_topic, 10, true);
 
     _prev_time = ros::Time::now();
     _step_prev_time = ros::Time::now();
@@ -171,6 +179,12 @@ protected:
       return;
     _system_group->propagate_once();
     _step_prev_time = ros::Time::now();
+    if (_collision_group->in_collision())
+    {
+      std_msgs::Bool msg;
+      msg.data = true;
+      _collision_publisher.publish(msg);
+    }
   }
 
   ros::Time _prev_time;
@@ -189,6 +203,7 @@ protected:
   ros::Subscriber _set_state_subscriber;
 
   ros::Publisher _state_publisher;
+  ros::Publisher _collision_publisher;
 
   ml4kp_bridge::SpacePointStamped _state_msg;
 

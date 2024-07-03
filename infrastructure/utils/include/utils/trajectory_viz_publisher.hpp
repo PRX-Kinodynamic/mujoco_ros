@@ -84,7 +84,8 @@ protected:
       _traj_marker.points.emplace_back();
       _traj_marker.points.back().x = space_point.point[x_idx];
       _traj_marker.points.back().y = space_point.point[y_idx];
-      _traj_marker.points.back().z = space_point.point[z_idx];
+      _traj_marker.points.back().z = 0.1;
+      // _traj_marker.points.back().z = space_point.point[z_idx];
     }
 
     _viz_traj_publisher.publish(_traj_marker);

@@ -23,4 +23,12 @@
       Nodelet to publish ground truth pose from sensordata
     </description>
   </class>
+  <class 
+      name="interface/ControlVisualizationNodelet" 
+      type="interface::ControlVisualizationNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish a control as an arrow at robot's position
+    </description>
+  </class>
 </library>

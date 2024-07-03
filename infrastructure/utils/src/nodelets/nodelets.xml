@@ -71,4 +71,12 @@
       Read a Graph from a topic and publish a marker for rviz 
     </description>
   </class>
+  <class 
+      name="utils/CollisionToFile" 
+      type="utils::CollisionToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Read a Graph from a topic and publish a marker for rviz 
+    </description>
+  </class>
 </library>
