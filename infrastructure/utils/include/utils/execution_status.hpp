@@ -1,4 +1,6 @@
+#pragma once
 #include <ros/ros.h>
+#include <std_msgs/Empty.h>
 #include <std_srvs/Trigger.h>
 
 namespace utils

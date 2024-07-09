@@ -1,0 +1,35 @@
+<launch>
+    <arg name="stop_topic" value="/tools"/>
+    <arg name="record_video" value="false"/>
+    <arg name="rosbag_directory" value="$(env ML4KP_ROS)/bags"/>
+
+    <group ns="tools">
+        <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen">
+            <rosparam command="load" file="$(find interface)/config/rosbag_record.yaml" />
+            <param name="stop_topic" value="$(arg stop_topic)"/>
+            <param name="rosbag_directory" value="$(arg rosbag_directory)"/>
+        </node>
+
+        <node if="$(arg record_video)" 
+         pkg="interface" type="topic_to_video" name="topic_to_video" output="screen">
+            <param name="stop_topic" value="$(arg stop_topic)"/>
+            <param name="video_directory" value="$(env ML4KP_ROS)/data/videos/"/>
+            <param name="stop_topic" value="$(arg stop_topic)"/>
+            <param name="width" value="1980"/>
+            <param name="height" value="1080"/>
+            <param name="image_topic" value="/desktop07/wTc/image"/>
+            <param name="video_id" value="desktop07"/>
+        </node>
+        <node if="$(arg record_video)" 
+         pkg="interface" type="topic_to_video" name="topic_to_video_robb" output="screen">
+            <param name="stop_topic" value="$(arg stop_topic)"/>
+            <param name="video_directory" value="$(env ML4KP_ROS)/data/videos/"/>
+            <param name="stop_topic" value="$(arg stop_topic)"/>
+            <param name="width" value="1980"/>
+            <param name="height" value="1080"/>
+            <param name="image_topic" value="/robb/wTc/image"/>
+            <param name="video_id" value="robb"/>
+        </node>
+    </group>
+  
+</launch>

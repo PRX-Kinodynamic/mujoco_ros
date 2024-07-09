@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   utils
   tf
+  rosbag
 )
 find_package(OpenCV REQUIRED )
 
