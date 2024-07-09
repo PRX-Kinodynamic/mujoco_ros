@@ -39,6 +39,7 @@
 
 std::atomic<bool> stop = false;
 std::string rosbag_directory = "";
+std::string bagname = "";
 
 std::unordered_map<std::string, std::shared_ptr<interface::queues_base_t>> all_queues;
 // interface::queues_t<std_msgs::String> string_queue;
@@ -112,7 +113,7 @@ std::size_t process_all_queues(rosbag::Bag& bag)
 void bag_writter()
 {
   rosbag::Bag bag;
-  interface::init_bag(&bag, rosbag_directory);
+  interface::init_bag(&bag, rosbag_directory, bagname);
 
   ros::Time msg_t;
 
@@ -145,6 +146,7 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, topics);
   ROS_PARAM_SETUP(nh, rosbag_directory);
   ROS_PARAM_SETUP(nh, stop_topic);
+  PARAM_SETUP_WITH_DEFAULT(nh, bagname, bagname)
 
   std::vector<ros::Subscriber> subscribers;
   utils::execution_status_t execution_status(nh, stop_topic);

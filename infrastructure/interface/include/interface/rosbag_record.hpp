@@ -6,10 +6,17 @@
 
 namespace interface
 {
-void init_bag(rosbag::Bag* bag, const std::string rosbag_directory)
+void init_bag(rosbag::Bag* bag, const std::string rosbag_directory, const std::string name = "")
 {
   std::ostringstream bag_name;
-  bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
+  if (name == "")
+  {
+    bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
+  }
+  else
+  {
+    bag_name << name;
+  }
   bag->open(bag_name.str(), rosbag::bagmode::Write);
   ROS_INFO_STREAM("Bag name: " << bag_name.str());
 }
