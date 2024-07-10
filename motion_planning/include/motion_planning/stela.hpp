@@ -51,6 +51,7 @@ public:
     , _tree_recevied(false)
     , _last_local_goal(true)
     , _goal_received(false)
+    , _mode("None")
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -177,7 +178,7 @@ public:
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
     ofs_data << "ObstacleDistanceTolerance" << _obstacle_distance_tolerance << "\n";
-    ofs_data << "ObstacleMode" << _obstacle_mode << "\n";
+    ofs_data << "ObstacleMode" << _mode << "\n";
 
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     for (int i = 0; i < _id_x_hat; ++i)
@@ -439,6 +440,7 @@ public:
   {
     if (_obstacle_mode == "distance")
     {
+      _mode = "distance";
       Eigen::Vector3d p1, p2;
       const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
       // DEBUG_VARS(SF::formatter(keyX));
@@ -701,7 +703,7 @@ private:
   std::string _output_dir;
 
   // Obstacle-relates stuff
-  std::string _obstacle_mode;
+  std::string _obstacle_mode, _mode;
   gtsam::NonlinearFactorGraph _obstacle_graph;
   double _obstacle_distance_tolerance;
   typename SystemInterface::ConfigFromState _config_from_state;
