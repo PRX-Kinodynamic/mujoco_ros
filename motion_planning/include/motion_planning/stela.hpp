@@ -177,8 +177,8 @@ public:
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
-    ofs_data << "ObstacleDistanceTolerance" << _obstacle_distance_tolerance << "\n";
-    ofs_data << "ObstacleMode" << _mode << "\n";
+    ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
+    ofs_data << "ObstacleMode: " << _mode << "\n";
 
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     for (int i = 0; i < _id_x_hat; ++i)
