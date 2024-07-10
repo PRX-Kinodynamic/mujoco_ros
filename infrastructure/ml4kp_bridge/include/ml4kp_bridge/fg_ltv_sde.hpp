@@ -693,6 +693,7 @@ public:
     compute_derivative();
     _x = EulerFactor::integrate(_x, _xdot, prx::simulation_step);
     _x += fg::ltv_sde_utils_t::noise(_Gx, _wx_sigmas);
+    state_space->enforce_bounds();
   }
 
   virtual void update_configuration() override
