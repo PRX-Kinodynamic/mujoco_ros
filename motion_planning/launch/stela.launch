@@ -197,6 +197,7 @@
       <!-- <param name="transforms" value="$(find utils)/config/frames.yaml"/> -->
       <param name="reset_topic" value="$(arg reset_topic)"/>
       <param name="window_duration" value="0"/>
+      <param name="stop_topic" value="$(arg collision_topic)"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen"/>
@@ -208,6 +209,7 @@
       <param name="fileprefix" value="desired_trajectories"/>
       <param name="topic_name" value="$(arg trajectory_topic)"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="shutdown_topic" value="$(arg collision_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
@@ -217,6 +219,7 @@
       <param name="fileprefix" value="desired_plan"/>
       <param name="topic_name" value="$(arg plan_topic)"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="shutdown_topic" value="$(arg collision_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
@@ -226,6 +229,7 @@
       <param name="fileprefix" value="executed_control"/>
       <param name="topic_name" value="$(arg control_topic)_stamped"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="shutdown_topic" value="$(arg collision_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 

@@ -1,6 +1,7 @@
 #pragma once
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Bool.h>
 #include <std_srvs/Trigger.h>
 
 namespace utils
@@ -16,17 +17,17 @@ public:
     stop_execution,
   };
 
-  execution_status_t(ros::NodeHandle& nh, const std::string service_name)
-    : execution_status_t(nh, service_name, "", FunctionOnReset())
+  execution_status_t(ros::NodeHandle& nh, const std::string stop_topic_name)
+    : execution_status_t(nh, stop_topic_name, "", FunctionOnReset())
   {
   }
 
   template <typename CallableOnReset>
-  execution_status_t(ros::NodeHandle& nh, const std::string service_name, const std::string reset_topic,
+  execution_status_t(ros::NodeHandle& nh, const std::string stop_topic_name, const std::string reset_topic,
                      const CallableOnReset cor)
-    : _status(Status::running), _service_name(service_name), _reset_function(cor)
+    : _status(Status::running), _stop_topic_name(stop_topic_name), _reset_function(cor)
   {
-    _service = nh.advertiseService(service_name + "/stop", &execution_status_t::callback, this);
+    _stop_topic = nh.subscribe(stop_topic_name, 1, &execution_status_t::callback, this);
 
     if (reset_topic != "")
       _reset_subscriber = nh.subscribe(reset_topic, 1, &execution_status_t::reset_callback, this);
@@ -54,17 +55,20 @@ public:
   }
 
 private:
-  bool callback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res)
+  void callback(const std_msgs::BoolConstPtr& msg)
   {
-    res.success = true;
-    res.message = _service_name;
-    _status = utils::execution_status_t::Status::stop_execution;
-    return true;
+    if (msg->data)
+    {
+      _status = utils::execution_status_t::Status::stop_execution;
+    }
+    // res.success = true;
+    // res.message = _stop_topic_name;
+    // return true;
   }
-  ros::ServiceServer _service;
+  ros::Subscriber _stop_topic;
   ros::Subscriber _reset_subscriber;
   Status _status;
-  const std::string _service_name;
+  const std::string _stop_topic_name;
   FunctionOnReset _reset_function;
 };
 }  // namespace utils

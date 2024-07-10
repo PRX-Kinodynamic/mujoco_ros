@@ -87,6 +87,7 @@ int main(int argc, char** argv)
   std::string directory;
   std::string fileprefix;
   std::string reset_topic;
+  std::string stop_topic;
   XmlRpc::XmlRpcValue transforms;
   double window_duration{ 0.0 };
 
@@ -96,10 +97,11 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, fileprefix);
   ROS_PARAM_SETUP(nh, transforms);
   ROS_PARAM_SETUP(nh, reset_topic);
+  ROS_PARAM_SETUP(nh, stop_topic);
   PARAM_SETUP_WITH_DEFAULT(nh, window_duration, window_duration);
 
   utils::execution_status_t::FunctionOnReset reset_function = [&]() { ofs_poses << "\n"; };
-  utils::execution_status_t status(nh, root + "/TfToFile", reset_topic, reset_function);
+  utils::execution_status_t status(nh, stop_topic, reset_topic, reset_function);
   std::filesystem::path path{ directory };
   path /= fileprefix + "_poses";
   // const std::string filename_poses{ fileprefix + "_poses" };
