@@ -204,5 +204,8 @@ int main(int argc, char** argv)
   ROS_INFO_STREAM("Joining bag writter thread");
   thread_b.join();
 
+ROS_INFO_STREAM("Shuting down");
+  ros::shutdown();
+
   return 0;
 }
