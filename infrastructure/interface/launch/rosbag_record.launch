@@ -2,12 +2,14 @@
     <arg name="stop_topic" value="/tools"/>
     <arg name="record_video" value="false"/>
     <arg name="rosbag_directory" value="$(env ML4KP_ROS)/bags"/>
+    <arg name="bagname" default=""/>
 
     <group ns="tools">
         <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen">
             <rosparam command="load" file="$(find interface)/config/rosbag_record.yaml" />
             <param name="stop_topic" value="$(arg stop_topic)"/>
             <param name="rosbag_directory" value="$(arg rosbag_directory)"/>
+            <param name="bagname" value="$(arg bagname)"/>
         </node>
 
         <node if="$(arg record_video)" 

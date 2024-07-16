@@ -14,7 +14,7 @@ find_package(catkin REQUIRED
   prx_models
   utils
   )
-find_package(OpenCV 4.6.0 REQUIRED)
+find_package(OpenCV 4.5.0 REQUIRED)
 
 ###################################
 ## catkin specific configuration ##

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ros/ros.h>
 #include <prx/utilities/general/param_loader.hpp>
 
 namespace ml4kp_bridge

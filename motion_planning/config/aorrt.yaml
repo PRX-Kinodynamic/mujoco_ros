@@ -24,8 +24,8 @@ medial_axis:
   use: false
   rate: 0.1
   # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
-  # filename: "${ML4KP_ROS}/data/medial_axis/forest.txt"
-  filename: "${ML4KP_ROS}/data/medial_axis/warehouse.txt"
+  filename: "${ML4KP_ROS}/data/medial_axis/forest.txt"
+  #  filename: "${ML4KP_ROS}/data/medial_axis/warehouse.txt"
   resolution: 0.1
   geometry:
     parameters: [0.5]

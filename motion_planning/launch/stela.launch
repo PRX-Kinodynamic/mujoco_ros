@@ -29,17 +29,13 @@
   <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
   <arg name="control_topic" default="/stela/sbmp/control"/> 
   <arg name="state_topic" default="/stela/sbmp/state"/>
-<<<<<<< HEAD
   <arg name="collision_topic" default="/simulator/collision"/>
   <arg name="stop_topic" default="/stela/stop"/>          <!-- Signal to stop -->
   <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
   <arg name="mujoco" default="false" />
-  <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
-=======
-  <arg name="shutdown_topic" default="/stela/shutdown"/>
   <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/>
   <arg name="parameter_values" default="[0,0,0,0,0,0,0,0]"/>
->>>>>>> 2423be0 (experiments changes)
+  <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
 
   <group ns="stela">
 
@@ -185,25 +181,22 @@ launch-prefix="gdb --args">
 
   </group>
 
-<<<<<<< HEAD
   <group ns="simulator">
-=======
-  <include file="$(find analytical)/launch/simulator.launch" >
-    <arg name="ns" value="stela"/>
-    <arg name="plant_file" value="$(arg plant_file)"/>
-    <arg name="environment" value="$(arg environment)"/>
-    <arg name="plan_topic" value="$(arg plan_topic)"/> 
-    <arg name="control_topic" default="$(arg control_topic)"/> 
-    <arg name="simulation_step" value="$(arg simulation_step)"/>
-    <arg name="sim_clock" default="$(arg sim_clock)"/>
-    <arg name="planner" value="$(arg planner)"/>
-    <arg name="collision_topic" value="$(arg collision_topic)"/>
-    <arg name="state_topic" value="$(arg state_topic)"/>
-    <arg name="tf_noise_sigmas" value="$(arg tf_noise_sigmas)"/>  
-    <arg name="parameter_values" value="$(arg parameter_values)"/>  
-  <!-- <arg name="open_loop" default="$("/> -->
-  </include>
->>>>>>> 2423be0 (experiments changes)
+    <include file="$(find analytical)/launch/simulator.launch" >
+      <arg name="ns" value="stela"/>
+      <arg name="plant_file" value="$(arg plant_file)"/>
+      <arg name="environment" value="$(arg environment)"/>
+      <arg name="plan_topic" value="$(arg plan_topic)"/> 
+      <arg name="control_topic" default="$(arg control_topic)"/> 
+      <arg name="simulation_step" value="$(arg simulation_step)"/>
+      <arg name="sim_clock" default="$(arg sim_clock)"/>
+      <arg name="planner" value="$(arg planner)"/>
+      <arg name="collision_topic" value="$(arg collision_topic)"/>
+      <arg name="state_topic" value="$(arg state_topic)"/>
+      <arg name="tf_noise_sigmas" value="$(arg tf_noise_sigmas)"/>  
+      <arg name="parameter_values" value="$(arg parameter_values)"/>  
+    <!-- <arg name="open_loop" default="$("/> -->
+    </include>
 
     <include if="$(eval arg('Plant') == 'ltv_sde')" 
              file="$(find analytical)/launch/simulator.launch" >

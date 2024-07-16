@@ -9,6 +9,7 @@
     <arg name="control_topic" default="/$(arg ns)/control"/> 
     <arg name="plan_topic" default="/$(arg ns)/plan"/> 
     <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/> 
+    <arg name="parameter_values" default="[0,0,0,0,0,0,0,0]"/> 
     <!-- <arg name="tf_noise_sigmas" default="[0.005, 0.005, 0.0]"/>  -->
     <!-- <arg name="tf_noise_sigmas" default="[0.01, 0.01, 0.0]"/>  -->
     <!-- <arg name="tf_noise_sigmas" default="[0.1, 0.1, 0.0]"/>  -->

@@ -177,12 +177,13 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
 
     const Eigen::Vector2d p0{ ma_nodes[id0] };
     const Eigen::Vector2d p1{ ma_nodes[id1] };
-
+ 	
     std::vector<State> edge;
     bool edge_in_collision = false;
     for (double ti = 0.0; ti <= 1.0; ti += resolution)
     {
       const State pt{ (1.0 - ti) * p0 + ti * p1 };
+      const double norm(pt.norm());
       edge.push_back(pt);
       for (auto obstacle_info : obstacle_collision_infos)
       {
