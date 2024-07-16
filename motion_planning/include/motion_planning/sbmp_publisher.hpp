@@ -2,6 +2,8 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Empty.h>
 
+#include <prx_models/defs.hpp>
+
 #include <motion_planning/motion_planning_types.hpp>
 #include <motion_planning/tree_bridge.hpp>
 #include <motion_planning/planner_setup.hpp>

@@ -79,4 +79,12 @@
       Read a Graph from a topic and publish a marker for rviz 
     </description>
   </class>
+  <class 
+      name="utils/BoolSinker" 
+      type="utils::BoolSinker" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Subscribe to multiple std_msgs::Bool topics and publish into a single topic
+    </description>
+  </class>
 </library>

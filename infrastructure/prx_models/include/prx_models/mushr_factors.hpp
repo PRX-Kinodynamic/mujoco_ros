@@ -11,7 +11,10 @@
 #include <prx/simulation/plant.hpp>
 #include <prx/utilities/math/first_order_derivative.hpp>
 #include <prx/factor_graphs/factors/noise_model_factors.hpp>
+#include <prx/factor_graphs/lie_groups/se2.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
+#include <prx/factor_graphs/lie_groups/lie_integrator.hpp>
+
 // #include <prx/factor_graphs/factors/mushr_types.hpp>
 // #include "prx/factor_graphs/factors/noise_model_factor.hpp"
 // #include "prx/factor_graphs/utilities/perception/camera.hpp"
@@ -29,7 +32,8 @@ constexpr double L{ 0.2965 };
 }
 namespace State
 {
-using type = Eigen::Vector<double, 3>;
+using type = prx::fg::SE2_t;
+// using type = Eigen::Vector<double, 3>;
 constexpr std::size_t x{ 0 };
 constexpr std::size_t y{ 1 };
 constexpr std::size_t theta{ 2 };
@@ -68,73 +72,78 @@ constexpr std::size_t steering{ 1 };
 
 }  // namespace mushr_types
 
+using mushr_x_xdot_t = prx::fg::lie_integration_factor_t<mushr_types::State::type, mushr_types::StateDot::type>;
+// template <typename X, typename Xdot>
+// class lie_integration_factor_t
 // X_j = X_i + \dpt{x}_i * dt
-class mushr_x_xdot_t : public prx::fg::noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type,
-                                                             mushr_types::State::type>
-{
-  using Base = noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type, mushr_types::State::type>;
+// class mushr_x_xdot_t : public prx::fg::noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type,
+//                                                              mushr_types::State::type>
+// {
+//   using Base = noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type,
+//   mushr_types::State::type>;
 
-public:
-  using X = mushr_types::State::type;
-  using Xdot = mushr_types::StateDot::type;
+// public:
+//   using X = mushr_types::State::type;
+//   using Xdot = mushr_types::StateDot::type;
 
-  mushr_x_xdot_t(gtsam::Key xi, gtsam::Key xdot, gtsam::Key xj, const double dt,
-                 const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(xi, xdot, xj, cost_model, 0.01), _dt(dt)
-  {
-  }
+//   mushr_x_xdot_t(gtsam::Key xi, gtsam::Key xdot, gtsam::Key xj, const double dt,
+//                  const gtsam::noiseModel::Base::shared_ptr& cost_model)
+//     : Base(xi, xdot, xj, cost_model, 0.01), _dt(dt)
+//   {
+//   }
 
-  static X dynamics(const X& x, const Xdot& xdot, const double dt)
-  {
-    // const gtsam::Pose2 res{ gtsam::Pose2(x[0], x[1], x[2]) * gtsam::Pose2::Expmap(xdot * dt) };
-    // return X{ res.x(), res.y(), res.theta() };
-    return x + xdot * dt;
-  }
+//   static X dynamics(const X& x, const Xdot& xdot, const double dt)
+//   {
+//     // const gtsam::Pose2 res{ gtsam::Pose2(x[0], x[1], x[2]) * gtsam::Pose2::Expmap(xdot * dt) };
+//     // return X{ res.x(), res.y(), res.theta() };
+//     return x + xdot * dt;
+//   }
 
-  virtual X predict(const X& x, const Xdot& xdot) const override
-  {
-    return dynamics(x, xdot, _dt);
-  }
+//   virtual X predict(const X& x, const Xdot& xdot) const override
+//   {
+//     return dynamics(x, xdot, _dt);
+//   }
 
-  virtual X compute_error(const X& xi, const Xdot& xdot, const X& xj) const override
-  {
-    const X prediction{ predict(xi, xdot) };
-    X error{ prediction - xj };
-    error[2] = prx::angle_diff(prediction[2], xj[2]);
-    return error;
-  }
+//   virtual X compute_error(const X& xi, const Xdot& xdot, const X& xj) const override
+//   {
+//     const X prediction{ predict(xi, xdot) };
+//     X error{ prediction - xj };
+//     error[2] = prx::angle_diff(prediction[2], xj[2]);
+//     return error;
+//   }
 
-  void eval_to_stream(gtsam::Values& values, std::ostream& os)
-  {
-    const X xi{ values.at<X>(key<1>()) };
-    const Xdot xdot{ values.at<Xdot>(key<2>()) };
-    const X xj{ values.at<X>(key<3>()) };
+//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
+//   {
+//     const X xi{ values.at<X>(key<1>()) };
+//     const Xdot xdot{ values.at<Xdot>(key<2>()) };
+//     const X xj{ values.at<X>(key<3>()) };
 
-    os << prx::fg::symbol_factory_t::formatter(key<1>()) << " " << xi.transpose() << " ";    // 1, 2, 3
-    os << prx::fg::symbol_factory_t::formatter(key<2>()) << " " << xdot.transpose() << " ";  // 4, 5, 6
-    os << prx::fg::symbol_factory_t::formatter(key<3>()) << " " << xj.transpose() << " ";    // 7, 8, 9
-    os << "dt " << _dt << " ";                                                               // 10
-    os << "Error " << compute_error(xi, xdot, xj).transpose() << " ";                        // 4, 5, 6
-    os << "\n";
-  }
+//     os << prx::fg::symbol_factory_t::formatter(key<1>()) << " " << xi.transpose() << " ";    // 1, 2, 3
+//     os << prx::fg::symbol_factory_t::formatter(key<2>()) << " " << xdot.transpose() << " ";  // 4, 5, 6
+//     os << prx::fg::symbol_factory_t::formatter(key<3>()) << " " << xj.transpose() << " ";    // 7, 8, 9
+//     os << "dt " << _dt << " ";                                                               // 10
+//     os << "Error " << compute_error(xi, xdot, xj).transpose() << " ";                        // 4, 5, 6
+//     os << "\n";
+//   }
 
-private:
-  const double _dt;
-};
+// private:
+//   const double _dt;
+// };
 
-class mushr_x_xdot_ub_t : public prx::fg::noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type,
+class mushr_x_xdot_ub_t : public prx::fg::noise_model_3factor_t<mushr_types::StateDot::type, mushr_types::State::type,
                                                                 mushr_types::Ubar::type>
 {
-  using Base = noise_model_3factor_t<mushr_types::State::type, mushr_types::StateDot::type, mushr_types::Ubar::type>;
+  using Base = noise_model_3factor_t<mushr_types::StateDot::type, mushr_types::State::type, mushr_types::Ubar::type>;
+  using Error = Base::Error;
 
 public:
   using X = mushr_types::State::type;
   using Xdot = mushr_types::StateDot::type;
   using Ubar = mushr_types::Ubar::type;
 
-  mushr_x_xdot_ub_t(gtsam::Key x, gtsam::Key xdot, gtsam::Key ubar,
+  mushr_x_xdot_ub_t(gtsam::Key xdot, gtsam::Key x, gtsam::Key ubar,
                     const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(x, xdot, ubar, cost_model, 0.01)
+    : Base(xdot, x, ubar, cost_model, 0.01)
   {
   }
 
@@ -161,21 +170,22 @@ public:
     return dynamics(x, ubar);
   }
 
-  virtual Xdot compute_error(const X& xi, const Xdot& xdot, const Ubar& ub) const override
+  // virtual Error compute_error(const X0& x0, const X1& x1, const X2& x2) const
+  virtual Error compute_error(const Xdot& xdot, const X& xi, const Ubar& ub) const override
   {
     return predict(xi, ub) - xdot;
   }
 
   void eval_to_stream(gtsam::Values& values, std::ostream& os)
   {
-    const X xi{ values.at<X>(key<1>()) };
-    const Xdot xdot{ values.at<Xdot>(key<2>()) };
+    const Xdot xdot{ values.at<Xdot>(key<1>()) };
+    const X xi{ values.at<X>(key<2>()) };
     const Ubar ubar{ values.at<Ubar>(key<3>()) };
 
-    os << prx::fg::symbol_factory_t::formatter(key<1>()) << " " << xi.transpose() << " ";    // 1, 2, 3
-    os << prx::fg::symbol_factory_t::formatter(key<2>()) << " " << xdot.transpose() << " ";  // 4, 5, 6
+    os << prx::fg::symbol_factory_t::formatter(key<1>()) << " " << xdot.transpose() << " ";  // 4, 5, 6
+    os << prx::fg::symbol_factory_t::formatter(key<2>()) << " " << xi << " ";                // 1, 2, 3
     os << prx::fg::symbol_factory_t::formatter(key<3>()) << " " << ubar.transpose() << " ";  // 7, 8
-    os << "Error: " << compute_error(xi, xdot, ubar).transpose() << " ";                     // 9, 10, 11
+    os << "Error: " << compute_error(xdot, xi, ubar).transpose() << " ";                     // 9, 10, 11
     os << "\n";
   }
 
@@ -296,37 +306,37 @@ private:
   const U _u;
 };
 
-class mushr_x_observation_t : public prx::fg::noise_model_1factor_t<mushr_types::State::type>
-{
-  using Base = noise_model_1factor_t<mushr_types::State::type>;
+// class mushr_x_observation_t : public prx::fg::noise_model_1factor_t<mushr_types::State::type>
+// {
+//   using Base = noise_model_1factor_t<mushr_types::State::type>;
 
-public:
-  using X = mushr_types::State::type;
+// public:
+//   using X = mushr_types::State::type;
 
-  mushr_x_observation_t(const gtsam::Key x, const X z, const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(x, cost_model, 0.01), _z(z)
-  {
-  }
+//   mushr_x_observation_t(const gtsam::Key x, const X z, const gtsam::noiseModel::Base::shared_ptr& cost_model)
+//     : Base(x, cost_model, 0.01), _z(z)
+//   {
+//   }
 
-  virtual X compute_error(const X& x) const override
-  {
-    X error{ x - _z };
-    error[2] = prx::angle_diff(x[2], _z[2]);
-    return error;
-  }
+//   virtual X compute_error(const X& x) const override
+//   {
+//     X error{ x - _z };
+//     error[2] = prx::angle_diff(x[2], _z[2]);
+//     return error;
+//   }
 
-  void eval_to_stream(gtsam::Values& values, std::ostream& os)
-  {
-    const X x{ values.at<X>(key<1>()) };
+//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
+//   {
+//     const X x{ values.at<X>(key<1>()) };
 
-    os << x.transpose() << " ";                 // 1, 2, 3
-    os << _z.transpose() << " ";                // 4, 5, 6
-    os << compute_error(x).transpose() << " ";  // 4, 5, 6
-    os << "\n";
-  }
+//     os << x.transpose() << " ";                 // 1, 2, 3
+//     os << _z.transpose() << " ";                // 4, 5, 6
+//     os << compute_error(x).transpose() << " ";  // 4, 5, 6
+//     os << "\n";
+//   }
 
-protected:
-  const X _z;
-};
+// protected:
+//   const X _z;
+// };
 
 }  // namespace prx_models

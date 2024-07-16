@@ -3,22 +3,26 @@
     <arg name="save_trajectory" default="false"/>
     <arg name="visualize" default="true"/>
     <arg name="publish_ground_truth_pose" default="false"/>
+    <arg name="control_topic" default="/mushr/plan_stepper/control"/> 
+
+
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="MJ_standalone_nodelet"  args="manager" output="screen"/>
 
-        <node pkg="nodelet" type="nodelet" name="PlanStepperNodelet"  
+        <!-- <node 
+            pkg="nodelet" type="nodelet" name="PlanStepperNodelet"  
             args="load ml4kp_bridge/plan_stepper_t MJ_standalone_nodelet"  
             output="screen">
             <param name="subscriber_topic" value="/mushr/ml4kp_plan" />
             <param name="publisher_topic" value="/mushr/plan_stepper/control"/>
             <param name="frequency" value="10" />
-        </node>
+        </node> -->
 
         <node pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet"  
             args="load interface/MushrFromSpacePointNodelet MJ_standalone_nodelet"  
             output="screen">
             <param name="publisher_topic" value="/mushr/control" />
-            <param name="subscriber_topic" value="/mushr/plan_stepper/control" />
+            <param name="subscriber_topic" value="$(arg control_topic)" />
             <param name="frequency" value="10" />
         </node>
 
@@ -41,5 +45,6 @@
         </node>
     </group>
     <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" />
+
 </launch>
 

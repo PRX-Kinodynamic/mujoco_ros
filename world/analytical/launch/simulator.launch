@@ -48,18 +48,9 @@
             <param name="publisher_topic" value="$(arg plan_topic)" />
         </node>
 
-        <node if="$(eval arg('planner') == 'OpenLoop')" 
-            pkg="nodelet" type="nodelet" name="plan_stepper_t" 
-            args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
-            output="screen">
-            <param name="subscriber_topic" value="$(arg plan_topic)"/>
-            <param name="publisher_topic" value="$(arg control_topic)"/>
-            <param name="frequency" value="30" />
-            <param name="use_stamped_control" value="true"/>
-        </node>    
+           
 
     </group>
     
-    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
-        args="0 0 0 0 0 0 1 world map" />
+    
 </launch>

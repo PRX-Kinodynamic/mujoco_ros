@@ -42,8 +42,8 @@
     </node>   
  
    </group>
-	<node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
-		args="0 0 0 0 0 0 1  marker_50 world" />
+	<!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
+		<!-- args="0 0 0 0 0 0 1  marker_50 world" /> -->
 	<!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
 		<!-- args="0 0 0 0 0 0 1  marker_54 world" /> -->
 </launch>

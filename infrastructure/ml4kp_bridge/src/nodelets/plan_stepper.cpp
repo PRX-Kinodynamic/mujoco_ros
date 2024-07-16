@@ -2,6 +2,7 @@
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Bool.h>
 
 #include <ml4kp_bridge/plan_bridge.hpp>
 
@@ -25,6 +26,7 @@ protected:
     std::string publisher_topic{};
     std::string subscriber_topic{};
     std::string reset_topic{};
+    std::string finished_topic{ "" };
 
     double frequency;
 
@@ -34,12 +36,20 @@ protected:
     private_nh.getParam("reset_topic", reset_topic);
     private_nh.getParam("reset_topic", reset_topic);
     private_nh.getParam("use_stamped_control", _use_stamped_control);
+    // PARAM_SETUP_WITH_DEFAULT(private_nh, finished_topic, finished_topic);
+    if (!private_nh.getParam("finished_topic", finished_topic))
+    {
+      finished_topic = ros::this_node::getNamespace() + "/PlanStepper/finished";
+    }
 
     const std::string stamped_topic_name{ publisher_topic + "_stamped" };
     _timer_duration = ros::Duration(1.0 / frequency);
     _timer = private_nh.createTimer(_timer_duration, &plan_stepper_t::timer_callback, this);
+
     _publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(publisher_topic, 1, true);
     _stamped_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_topic_name, 1, true);
+    _finished_publisher = private_nh.advertise<std_msgs::Bool>(finished_topic, 1, true);
+
     _subscriber = private_nh.subscribe(subscriber_topic, 1, &plan_stepper_t::get_plan, this);
 
     _reset_subscriber = private_nh.subscribe(reset_topic, 1, &plan_stepper_t::reset_callback, this);
@@ -86,6 +96,10 @@ protected:
           _plan.steps.clear();
           _current_plan_step = 0;
           _plan_received = false;
+
+          std_msgs::Bool msg;
+          msg.data = true;
+          _finished_publisher.publish(msg);
         }
       }
       else
@@ -94,6 +108,9 @@ protected:
         _plan.steps.clear();
         _current_plan_step = 0;
         _plan_received = false;
+        std_msgs::Bool msg;
+        msg.data = true;
+        _finished_publisher.publish(msg);
       }
     }
     if (_plan_received)
@@ -121,6 +138,7 @@ protected:
   ros::Timer _timer;
   ros::Publisher _publisher;
   ros::Publisher _stamped_publisher;
+  ros::Publisher _finished_publisher;
   ros::Subscriber _subscriber;
   ros::Subscriber _reset_subscriber;
 

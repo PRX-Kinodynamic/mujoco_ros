@@ -1,35 +1,39 @@
 <launch> 
   <arg name="visualize" default="true"/>
   <arg name="planner" default="Stela"/>
-	<arg name="Stepper" default="Stela"/>
-  <arg name="plant_file" default="$(find motion_planning)/config/ltv_sde.yaml"/>
+  <arg name="Stepper" default="Stela"/>
+	<arg name="Plant" default="ltv_sde"/>
+  <arg name="plant_file" default="$(find motion_planning)/config/$(arg Plant).yaml"/>
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <arg name="environment" default="environments/forest.yaml"/>
+  <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
-  <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/stela_no_obstacle_factor/no-noise/"/>
-  <arg name="reset_topic" default="/stela/reset"/>
-  <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
-  <arg name="plan_topic" value="/stela/sbmp/plan"/> 
-  <arg name="control_topic" default="/stela/sbmp/control"/> 
+  <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
   <arg name="simulation_step" default="0.1"/>
   <arg name="collect_data" default="true"/>
   <arg name="sim_clock" default="false"/>
   <arg name="random_seed" default="390489"/>
   <arg name="experiment_name" default="test"/>
-  <arg name="collision_topic" default="/simulator/collision"/>
   <arg name="obstacle_mode" default="None"/>
   <arg name="obstacle_distance_tolerance" default="1.0"/>
   <arg name="obstacle_sigma" default="0.1"/>
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="robot"/>
+  <arg name="plan_topic" value="/stela/sbmp/plan"/> 
+  <arg name="reset_topic" default="/stela/reset"/>
+  <arg name="trajectory_topic" default="/stela/sbmp/trajectory"/>
+  <arg name="control_topic" default="/stela/sbmp/control"/> 
   <arg name="state_topic" default="/stela/sbmp/state"/>
-  <arg name="shutdown_topic" default="/stela/shutdown"/>
-
+  <arg name="collision_topic" default="/simulator/collision"/>
+  <arg name="stop_topic" default="/stela/stop"/>          <!-- Signal to stop -->
+  <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
+  <arg name="mujoco" default="false" />
+  <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
 
   <group ns="stela">
 
@@ -99,6 +103,16 @@
       <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
+    <node if="$(eval arg('planner') == 'OpenLoop')" 
+            pkg="nodelet" type="nodelet" name="plan_stepper_t" 
+            args="load ml4kp_bridge/plan_stepper_t stela_nodelet_manager" 
+            output="screen">
+      <param name="subscriber_topic" value="$(arg plan_topic)"/>
+      <param name="publisher_topic" value="$(arg control_topic)"/>
+      <param name="frequency" value="30" />
+      <param name="use_stamped_control" value="true"/>
+      <param name="finished_topic" value="$(arg stop_topic)"/>
+    </node> 
 
     <node if="$(eval arg('planner') == 'Stela')" 
       pkg="nodelet" type="nodelet" name="StelaLtvSde" 
@@ -165,21 +179,42 @@
 
   </group>
 
-  <include file="$(find analytical)/launch/simulator.launch" >
-    <arg name="ns" value="stela"/>
-    <arg name="plant_file" value="$(arg plant_file)"/>
-    <arg name="environment" value="$(arg environment)"/>
-    <arg name="plan_topic" value="$(arg plan_topic)"/> 
-    <arg name="control_topic" default="$(arg control_topic)"/> 
-    <arg name="simulation_step" value="$(arg simulation_step)"/>
-    <arg name="sim_clock" default="$(arg sim_clock)"/>
-    <arg name="planner" value="$(arg planner)"/>
-    <arg name="collision_topic" value="$(arg collision_topic)"/>
-    <arg name="state_topic" value="$(arg state_topic)"/>
-    <!-- <arg name="open_loop" default="$("/> -->
-  </include>
+  <group ns="simulator">
 
+    <include if="$(eval arg('Plant') == 'ltv_sde')" 
+             file="$(find analytical)/launch/simulator.launch" >
+      <arg name="ns" value="stela"/>
+      <arg name="plant_file" value="$(arg plant_file)"/>
+      <arg name="environment" value="$(arg environment)"/>
+      <arg name="plan_topic" value="$(arg plan_topic)"/> 
+      <arg name="control_topic" default="$(arg control_topic)"/> 
+      <arg name="simulation_step" value="$(arg simulation_step)"/>
+      <arg name="sim_clock" default="$(arg sim_clock)"/>
+      <arg name="planner" value="$(arg planner)"/>
+      <arg name="collision_topic" value="$(arg collision_topic)"/>
+      <arg name="state_topic" value="$(arg state_topic)"/>
+    </include>
+
+    <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 
+             file="$(find mujoco_ros)/launch/mushr.launch" 
+            >
+      <arg name="visualize" default="$(arg visualize)"/>
+      <arg name="control_topic" default="$(arg control_topic)"/> 
+    </include>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+        args="0 0 0 0 0 0 1 world map" />
+  </group>
+  
   <group ns="utils">
+    <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen"/>
+
+    <node if="$(arg collect_data)" 
+      pkg="nodelet" type="nodelet" name="BoolSinker" output="screen"
+      args="load utils/BoolSinker to_file_nodelet_manager" >
+      <param name="out_topic" value="$(arg shutdown_topic)"/>
+      <param name="in_topics" type="yaml" value="[$(arg collision_topic), $(arg stop_topic)]"/>
+    </node>
 
     <node if="$(arg sim_clock)" 
       pkg="utils" type="SimClock" name="SimClock" output="screen">
@@ -197,10 +232,9 @@
       <!-- <param name="transforms" value="$(find utils)/config/frames.yaml"/> -->
       <param name="reset_topic" value="$(arg reset_topic)"/>
       <param name="window_duration" value="0"/>
-      <param name="stop_topic" value="$(arg collision_topic)"/>
+      <param name="stop_topic" value="$(arg shutdown_topic)"/>
     </node>
 
-    <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen"/>
 
     <node if="$(arg collect_data)" 
       pkg="nodelet" type="nodelet" name="TrajectoryToFile" output="screen"
@@ -209,7 +243,7 @@
       <param name="fileprefix" value="desired_trajectories"/>
       <param name="topic_name" value="$(arg trajectory_topic)"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
-      <param name="shutdown_topic" value="$(arg collision_topic)"/>
+      <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
@@ -219,7 +253,7 @@
       <param name="fileprefix" value="desired_plan"/>
       <param name="topic_name" value="$(arg plan_topic)"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
-      <param name="shutdown_topic" value="$(arg collision_topic)"/>
+      <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
@@ -229,7 +263,7 @@
       <param name="fileprefix" value="executed_control"/>
       <param name="topic_name" value="$(arg control_topic)_stamped"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
-      <param name="shutdown_topic" value="$(arg collision_topic)"/>
+      <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
@@ -239,6 +273,7 @@
       <param name="fileprefix" value="collision"/>
       <param name="topic_name" value="$(arg collision_topic)"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
   </group>
@@ -274,13 +309,13 @@
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 0.0]"/>
     </node>
 
-    <node if="$(arg visualize)" 
+    <!-- <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="PlanToTrajectoryPublisher" 
       args="load utils/PlanToTrajectoryPublisher viz_nodelet_manager" output="screen">
       <param name="plan_topic_name" value="$(arg plan_topic)"/>
       <param name="traj_topic_name" value="/stela/sbmp/traj_gt"/>
       <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
-    </node>
+    </node> -->
 
     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="TrajectoryVizPublisherGT" 
@@ -310,7 +345,7 @@
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="control_topic_name" value="$(arg control_topic)"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
-    </node>  
+    </node>   
 
 
 <!--     <node if="$(arg visualize)" 

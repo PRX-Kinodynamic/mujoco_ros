@@ -90,6 +90,23 @@ public:
     // _ubar = mushr_ub_u_xdot_param_t::predict(_ctrl, _ubar, _params_ubar_u);
     pt.point[3] = xdot[1];
   }
+
+  struct ConfigFromState
+  {
+    void operator()(Eigen::Matrix3d& rotation, Eigen::Vector3d& translation, const State& state)
+    {
+      translation[0] = state[0];
+      translation[1] = state[1];
+      translation[2] = 0;
+      rotation = Eigen::AngleAxisd(state[2], Eigen::Vector3d::UnitZ());
+    }
+
+    void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
+    {
+      H = Eigen::Matrix2d::Identity();
+      H.diagonal() = translation.head(2);
+    }
+  };
 };
 
 class mushrFG_t : public prx::plant_t
@@ -99,11 +116,11 @@ public:
     : plant_t(path), _params_ubar_u(0.9898, 0.4203, 0.6228), _ubar(mushr_types::Ubar::type::Zero())
   {
     // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
-    state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0] };
+    state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[mushr_types::Ubar::velocity] };
     state_space = new prx::space_t("EERE", state_memory, "mushr_state");
     state_space->set_bounds({ -100, -100, -prx::constants::pi, -100 }, { 100, 100, prx::constants::pi, 100 });
 
-    control_memory = { &_ctrl[0], &_ctrl[1] };
+    control_memory = { &_ctrl[mushr_types::Control::vel_desired], &_ctrl[mushr_types::Control::steering] };
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
     input_control_space->set_bounds({ -prx::constants::pi / 2.0, -10 }, { prx::constants::pi / 2.0, 10 });
 
@@ -126,14 +143,17 @@ public:
   {
     _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u);
     _state_dot = mushr_x_xdot_ub_t::dynamics(_state, _ubar);
-    _state = mushr_x_xdot_t::dynamics(_state, _state_dot, simulation_step);
+    _state = mushr_x_xdot_t::predict(_state, _state_dot, simulation_step);
+    // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
+    state_space->enforce_bounds();
   }
 
   virtual void update_configuration() override
   {
     auto body = configurations["body"];
     body->linear() = Eigen::Matrix3d{ Eigen::AngleAxisd(_state[2], Eigen::Vector3d::UnitZ()) };
-    body->translation().head(2) = _state.head(2);
+    body->translation()[0] = _state[0];
+    body->translation()[1] = _state[1];
     body->translation()[2] = 0.0;
   }
   virtual void compute_derivative() override final
