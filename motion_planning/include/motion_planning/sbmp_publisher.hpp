@@ -109,12 +109,12 @@ protected:
         _ma_rate = ma_params["rate"].as<double>();
         _spec->sample_state = [this](prx::space_point_t& s)  // no-lint
         {
-          const double rand{ prx::uniform_random(0, 1.0) };
+          const double rand{ prx::uniform_random(0.0, 1.0) };
           default_sample_state(s, _system_group->get_state_space());
           
 	  if (rand > _ma_rate)
           {
-            const int idx{ prx::uniform_int_random(0, _medial_axis.size()) };
+            const int idx{ prx::uniform_int_random(0.0, _medial_axis.size()) };
             const Eigen::Vector2d pt{ _medial_axis[idx] };
             s->at(0) = pt[0];
             s->at(1) = pt[1];
