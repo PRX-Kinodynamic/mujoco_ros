@@ -32,9 +32,9 @@ public:
     DEBUG_VARS(in_topics);
     for (auto topic : in_topics)
     {
-      // _subscribers.push_back(private_nh.subscribe(topic, 1, &Derived::callback, this));
+      _subscribers.push_back(private_nh.subscribe(topic, 1, &Derived::callback, this));
     }
-    _subscribers.push_back(private_nh.subscribe(in_topics[0], 1, &Derived::callback, this));
+    // _subscribers.push_back(private_nh.subscribe(in_topics[0], 1, &Derived::callback, this));
     // _reset_subscriber = private_nh.subscribe(reset_topic, 1, &Derived::reset_callback, this);
   }
 
