@@ -194,7 +194,7 @@ launch-prefix="gdb --args">
   </group>
 
   <group ns="simulator">
-
+    
     <include if="$(eval arg('Plant') == 'ltv_sde')" 
              file="$(find analytical)/launch/simulator.launch" >
       <arg name="ns" value="stela"/>
