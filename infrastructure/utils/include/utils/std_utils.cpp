@@ -45,6 +45,8 @@ template <typename TopicConstPtr>
 void shutdown_callback(const TopicConstPtr& msg)
 {
   // std::cout << "Shut"
+  ros::Rate rate(2);
+  rate.sleep();
   ros::shutdown();
 }
 

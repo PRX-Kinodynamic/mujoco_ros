@@ -17,7 +17,8 @@ namespace utils
 inline void collision_to_file(const std_msgs::Bool& msg, std::ofstream& ofs)
 {
   const std::string str{ msg.data ? "true" : "false" };
-  ofs << "Collision: " << str << "\n";
+  // DEBUG_VARS("Collision!");
+  ofs << "Collision: " << str << std::endl;
 }
 
 using EnvironmentPublisher = environment_publisher_t<nodelet::Nodelet>;

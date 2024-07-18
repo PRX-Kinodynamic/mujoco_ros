@@ -49,7 +49,7 @@ void to_file(const Msg& msg, const std::string filename, const std::ios_base::op
 
 inline void to_file(const std_msgs::Header& msg, std::ofstream& ofs)
 {
-  ofs << msg.stamp.toSec() << " ";
+  ofs << msg.stamp << " ";
   ofs << msg.seq << " ";
   ofs << msg.frame_id << " ";
 }

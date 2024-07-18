@@ -52,6 +52,7 @@ public:
     , _last_local_goal(true)
     , _goal_received(false)
     , _mode("None")
+    , _experiment_id("test")
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -76,6 +77,7 @@ public:
     std::string& robot_frame{ _robot_frame };
     std::string& output_dir{ _output_dir };
     std::string& obstacle_mode{ _obstacle_mode };
+    std::string& experiment_id{ _experiment_id };
 
     // ROS_PARAM_SETUP(private_nh, random_seed);
     // ROS_PARAM_SETUP(private_nh, plant_config_file);
@@ -91,6 +93,7 @@ public:
     PARAM_SETUP(private_nh, obstacle_mode)
     PARAM_SETUP(private_nh, obstacle_distance_tolerance)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id)
 
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
@@ -164,9 +167,11 @@ public:
   void to_file(const bool collision = false)
   {
     gtsam::Values estimate{ _isam.calculateEstimate() };
-    const std::string filename{ _output_dir + "/stela_" + utils::timestamp() + ".txt" };
-    const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + utils::timestamp() + ".txt" };
-    const std::string filename_data{ _output_dir + "/stela_data_" + utils::timestamp() + ".txt" };
+    const std::string filename{ _output_dir + "/stela_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
+    const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + _experiment_id + "_" +
+                                          utils::timestamp() + ".txt" };
+    const std::string filename_data{ _output_dir + "/stela_data_" + _experiment_id + "_" + utils::timestamp() +
+                                     ".txt" };
 
     DEBUG_VARS(filename);
     DEBUG_VARS(filename_branch_gt);
@@ -204,6 +209,8 @@ public:
     _finish_publisher.publish(msg);
     _tree_recevied = false;
 
+    ros::Rate rate(1);
+    rate.sleep();
     ros::shutdown();
   }
 
@@ -701,6 +708,7 @@ private:
 
   // File/output
   std::string _output_dir;
+  std::string _experiment_id;
 
   // Obstacle-relates stuff
   std::string _obstacle_mode, _mode;

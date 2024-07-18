@@ -35,10 +35,14 @@ protected:
     std::string plan_topic_name;
     std::string traj_topic_name;
     std::string shutdown_topic{ "" };
+    std::string& output_dir{ _output_dir };
+    std::string& experiment_id{ _experiment_id };
 
     PARAM_SETUP(private_nh, plan_topic_name);
     PARAM_SETUP(private_nh, traj_topic_name);
     PARAM_SETUP(private_nh, tree_topic_name);
+    PARAM_SETUP(private_nh, output_dir);
+    PARAM_SETUP(private_nh, experiment_id);
     PARAM_SETUP_WITH_DEFAULT(private_nh, shutdown_topic, shutdown_topic);
     PARAM_SETUP_WITH_DEFAULT(private_nh, random_seed, random_seed);
     // PARAM_SETUP_WITH_DEFAULT(private_nh, stela_params, stela_params);
@@ -66,6 +70,10 @@ protected:
   {
     _traj_publisher.publish(_traj);
     _plan_publisher.publish(_plan);
+
+    std::ofstream ofs(_output_dir + "/tree_to_trajectory_" + _experiment_id + ".txt");
+    ml4kp_bridge::to_file(_traj, ofs);
+    ofs.close();
     return true;
   }
 
@@ -123,6 +131,8 @@ protected:
 
   // Topic names
   std::string _traj_plan_pub_service_name;
+  std::string _output_dir;
+  std::string _experiment_id;
 
   ml4kp_bridge::PlanStamped _plan;
   ml4kp_bridge::Trajectory _traj;
