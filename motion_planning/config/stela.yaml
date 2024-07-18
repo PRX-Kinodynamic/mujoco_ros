@@ -1,5 +1,5 @@
 goal:
   radius: 1.5
   # state: [43.5,20,0,0]
-  state: [20,20,0,0]
+  # state: [20,20,0,0]
   total_solutions: 100

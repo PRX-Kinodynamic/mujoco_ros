@@ -62,6 +62,7 @@ protected:
     if (stela_params != "")
     {
       _params["stela"] = prx::param_loader(stela_params, "");
+      _params["stela/state"] = _params["plant/goal/state"];
     }
     _params["planner/environment"] = environment;
 
@@ -102,17 +103,17 @@ protected:
       {
         ma_params["environment"] = _params["planner/environment"].as<>();
         _medial_axis = setup_medial_axis_sampler(ma_params, _query->start_state, _query->goal_state);
-        //std::ofstream ofs("/common/home/eg585/prx_ros_ws/data/medial_axis_out.txt");
-	//ofs.close();
-	
-	std::shuffle(_medial_axis.begin(), _medial_axis.end(), prx::global_generator);
+        // std::ofstream ofs("/common/home/eg585/prx_ros_ws/data/medial_axis_out.txt");
+        // ofs.close();
+
+        std::shuffle(_medial_axis.begin(), _medial_axis.end(), prx::global_generator);
         _ma_rate = ma_params["rate"].as<double>();
         _spec->sample_state = [this](prx::space_point_t& s)  // no-lint
         {
           const double rand{ prx::uniform_random(0.0, 1.0) };
           default_sample_state(s, _system_group->get_state_space());
-          
-	  if (rand > _ma_rate)
+
+          if (rand > _ma_rate)
           {
             const int idx{ prx::uniform_int_random(0.0, _medial_axis.size()) };
             const Eigen::Vector2d pt{ _medial_axis[idx] };
@@ -179,8 +180,8 @@ protected:
     {
       const prx::param_loader params_stela{ _params["stela"] };
       auto sln_tree = fulfill_stela_query(params_stela, _planner, _query);
-      // DEBUG_VARS(sln_tree->size(), sln_tree->num_edges());
-      // sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
+      DEBUG_VARS(sln_tree->size(), sln_tree->num_edges());
+      sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
 
       prx_models::Tree sln_ros_tree;
       copy<typename Planner::Node, typename Planner::Edge>(sln_ros_tree, *sln_tree);
