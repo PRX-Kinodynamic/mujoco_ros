@@ -7,6 +7,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 
+#include <utils/std_utils.cpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
@@ -40,6 +41,7 @@ protected:
     double& simulation_step{ prx::simulation_step };
     double observation_frequency;
     std::vector<double> tf_noise_sigmas{ { 0, 0, 0 } };
+    std::string shutdown_topic{ "" };
 
     PARAM_SETUP(private_nh, plant_ml4kp_params);
     PARAM_SETUP(private_nh, state_topic);
@@ -50,6 +52,7 @@ protected:
     PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     PARAM_SETUP_WITH_DEFAULT(private_nh, robot_frame, robot_frame);
     PARAM_SETUP_WITH_DEFAULT(private_nh, tf_noise_sigmas, tf_noise_sigmas);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, shutdown_topic, shutdown_topic);
 
     DEBUG_VARS(prx::simulation_step);
 
@@ -110,6 +113,9 @@ protected:
 
     _state_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 10, true);
     _collision_publisher = private_nh.advertise<std_msgs::Bool>(collision_topic, 10, true);
+
+    if (shutdown_topic != "")
+      _shutdown_subscriber = private_nh.subscribe(shutdown_topic, 1, &utils::shutdown_callback<std_msgs::Bool>);
 
     _prev_time = ros::Time::now();
     _step_prev_time = ros::Time::now();
@@ -221,6 +227,8 @@ protected:
   std::vector<std::string> _obstacle_names;
 
   prx::space_point_t _start_state;
+
+  ros::Subscriber _shutdown_subscriber;
 };
 using SimulatorNodelet = simulator_t<nodelet::Nodelet>;
 

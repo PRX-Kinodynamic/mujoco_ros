@@ -8,9 +8,9 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
-  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
+  <arg name="environment" default="environments/forest.yaml"/>
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
-  <arg name="environment" default="environments/warehouse.yaml"/>
+  <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
   <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
@@ -213,6 +213,7 @@ launch-prefix="gdb --args">
       <arg name="state_topic" value="$(arg state_topic)"/>
       <arg name="tf_noise_sigmas" value="$(arg tf_noise_sigmas)"/>  
       <arg name="parameter_values" value="$(arg parameter_values)"/>  
+      <arg name="shutdown_topic" default="$(arg shutdown_topic)"/>
     </include>
 
     <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 

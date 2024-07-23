@@ -19,6 +19,7 @@
     <arg name="collision_topic" default="/simulator/collision"/>
     <arg name="observation_frequency" default="30"/>
     <arg name="state_topic" default="/$(arg ns)/state"/>
+    <arg name="shutdown_topic" default="/$(arg ns)/shutdown"/>
 
     <param name="/use_sim_time" value="$(arg sim_clock)" />
 
@@ -37,6 +38,7 @@
             <param name="tf_noise_sigmas" type="yaml" value="$(arg tf_noise_sigmas)"/>
             <param name="collision_topic" value="$(arg collision_topic)"/>
             <param name="observation_frequency" value="$(arg observation_frequency)"/>
+            <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
         </node>
 
         <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>

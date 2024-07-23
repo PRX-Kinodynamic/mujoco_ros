@@ -40,8 +40,6 @@ public:
 
   void callback(const MsgConstPtr msg)
   {
-    // Msg new_msg{ *msg };
-    // DEBUG_VARS(msg);
     _publisher.publish(msg);
   }
 

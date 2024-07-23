@@ -1,4 +1,5 @@
 #pragma once
+#include <ml4kp_bridge/defs.h>
 
 namespace utils
 {
@@ -44,7 +45,7 @@ static std::string timestamp()
 template <typename TopicConstPtr>
 void shutdown_callback(const TopicConstPtr& msg)
 {
-  // std::cout << "Shut"
+  std::cout << PRX_COLOR_RED << "Shutdown Callback Received!" << PRX_COLOR_NORMAL << std::endl;
   ros::Rate rate(2);
   rate.sleep();
   ros::shutdown();
