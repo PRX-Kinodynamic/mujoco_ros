@@ -13,8 +13,8 @@ checker_type: time
 # checker_value: 3600
 # checker_value: 600
 # checker_value: 120
-checker_value: 60
-# checker_value: 1
+# checker_value: 60
+checker_value: 30
 # cost_multiplier: 2.5
 cost_multiplier: 5.0
 
@@ -22,10 +22,10 @@ max_edge_duration: 1.0
 
 medial_axis:
   use: true
-  rate: 0.1
-  # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
+  rate: 0.25
+  filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
   # filename: "${ML4KP_ROS}/data/medial_axis/forest.txt"
-   filename: "${ML4KP_ROS}/data/medial_axis/warehouse.txt"
-  resolution: 0.1
+  # filename: "${ML4KP_ROS}/data/medial_axis/warehouse.txt"
+  resolution: 0.01
   geometry:
     parameters: [0.5]

@@ -24,7 +24,7 @@
 
     <group ns="$(arg ns)">
         <node pkg="analytical" type="simulator" name="simulator" output="screen" launch-prefix="$(arg debug_prefix)">
-            <param name="parameter_space/values" value="[0,0,0,0,0,0,0,0]"/>
+            <param name="parameter_space/values" value="$(arg parameter_values)"/>
             <!-- <param name="parameter_space/values" value="[0.01,0.01,0.01,0.01,0,0,0,0]"/> -->
             <!-- <param name="parameter_space/values" value="[0.0,0.0,0.01,0.01,0,0,1,1]"/> -->
             <!-- <param name="parameter_space/values" value="[0.0,0.0,0.1,0.1,0,0,1,1]"/> -->
