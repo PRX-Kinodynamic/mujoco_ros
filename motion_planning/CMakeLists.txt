@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
-add_definitions("-g")
+# add_definitions("-g")
 include(GNUInstallDirs)
 # set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 # set(CMAKE_VISIBILITY_INLINES_HIDDEN "YES")

@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   analytical
 )
 
-add_definitions("-g")
+# add_definitions("-g")
 ## Generate services in the 'srv' folder
 set(SRV_FILES "")
 file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
