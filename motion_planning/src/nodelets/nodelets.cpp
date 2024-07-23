@@ -9,6 +9,7 @@
 #include <motion_planning/stela.hpp>
 #include <motion_planning/stela_stepper.hpp>
 #include <motion_planning/random_branch.hpp>
+#include <motion_planning/ltv_controller.hpp>
 
 #include <prx/planning/planners/planner.hpp>
 #include <prx/planning/planners/rrt.hpp>
@@ -27,6 +28,7 @@ using AORRTPublisher = sbmp_publisher_t<prx::aorrt_t, prx::aorrt_specification_t
 using StelaLtvSde = stela_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 using StelaStepper = stela_stepper_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 using RandomBranch = random_branch_t<nodelet::Nodelet>;
+using LtvPositionController = ltv_controller_t<nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -38,3 +40,4 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::AORRTPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::StelaLtvSde, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::StelaStepper, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::RandomBranch, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::LtvPositionController, nodelet::Nodelet);

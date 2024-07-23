@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   tf
   ml4kp_bridge
+  prx_models
 )
 
 ## System dependencies are found with CMake's conventions

@@ -76,5 +76,14 @@
       Get the trajectories from a tree
     </description>
   </class>
+    <class 
+      name="motion_planning/LtvPositionController" 
+      type="motion_planning::LtvPositionController" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Ltv Position Controller
+    </description>
+  </class>
+  
   
 </library>
