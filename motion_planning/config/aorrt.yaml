@@ -23,7 +23,8 @@ max_edge_duration: 1.0
 medial_axis:
   use: true
   rate: 0.25
-  filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
+  directory: "${ML4KP_ROS}/data/medial_axis/"
+  # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
   # filename: "${ML4KP_ROS}/data/medial_axis/forest.txt"
   # filename: "${ML4KP_ROS}/data/medial_axis/warehouse.txt"
   resolution: 0.01

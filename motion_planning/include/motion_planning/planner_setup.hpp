@@ -111,8 +111,9 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
 
   Config2dFromState config_from_state;
   ObstacleFactor::CollideResult collide_result;
-  const std::string filename{ params["filename"].as<>() };
-  const std::string environment{ params["environment"].as<>() };
+  const std::filesystem::path directory{ params["directory"].as<>() };
+  const std::filesystem::path environment{ params["environment"].as<>() };
+  const std::string ma_filename{ directory.string() + environment.stem().string() + ".txt" };
   const double resolution{ params["resolution"].as<double>() };
 
   const std::vector<double> robot_params{ params["geometry/parameters"].as<std::vector<double>>() };
@@ -121,7 +122,8 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
   std::shared_ptr<prx::fg::collision_info_t> robot_collision_ptr{ std::make_shared<prx::fg::collision_info_t>(
       prx::geometry_type_t::SPHERE, robot_params) };
 
-  csv_reader_t reader(filename);
+  DEBUG_VARS(ma_filename)
+  csv_reader_t reader(ma_filename);
   prx::constants::separating_value = ' ';
 
   std::vector<Eigen::Vector2d> ma;
@@ -177,7 +179,7 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
 
     const Eigen::Vector2d p0{ ma_nodes[id0] };
     const Eigen::Vector2d p1{ ma_nodes[id1] };
- 	
+
     std::vector<State> edge;
     bool edge_in_collision = false;
     for (double ti = 0.0; ti <= 1.0; ti += resolution)
