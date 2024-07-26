@@ -13,6 +13,11 @@ inline void translate_msg(prx_models::MushrControl& ctrl_msg, const ml4kp_bridge
   ctrl_msg.velocity.data = point_msg.point[velocity_idx];
 }
 
+inline void translate_msg(prx_models::MushrControl& ctrl_msg, const ml4kp_bridge::SpacePointStamped& point_msg)
+{
+  translate_msg(ctrl_msg, point_msg.space_point);
+}
+
 inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge::PlanStamped& stamped_plan)
 {
   const unsigned plan_size(stamped_plan.plan.steps.size());

@@ -617,17 +617,17 @@ private:
     const gtsam::Key key{ keys[I] };
     const StateType state{ estimate.at<StateType>(key) };
     const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    const StateType diagonal{ cov.diagonal() };
+    const Eigen::VectorXd diagonal{ cov.diagonal() };
 
     // ofs << i << " ";
     ofs << SF::formatter(key) << " ";
-    for (int i = 0; i < state.size(); ++i)
+    for (auto e : state)
     {
-      ofs << state[i] << " ";
+      ofs << e << " ";
     }
-    for (int i = 0; i < state.size(); ++i)
+    for (auto e : diagonal)
     {
-      ofs << diagonal[i] << " ";
+      ofs << e << " ";
     }
     estimates_to_file<I + 1>(ofs, estimate, keys);
     // ofs << "\n";

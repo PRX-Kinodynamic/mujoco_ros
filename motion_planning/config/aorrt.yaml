@@ -21,7 +21,7 @@ cost_multiplier: 5.0
 max_edge_duration: 1.0
 
 medial_axis:
-  use: true
+  use: false
   rate: 0.25
   directory: "${ML4KP_ROS}/data/medial_axis/"
   # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"

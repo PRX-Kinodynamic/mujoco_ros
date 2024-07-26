@@ -8,8 +8,8 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
-  <arg name="environment" default="environments/forest.yaml"/>
-  <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
+  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
+  <arg name="environment" default="environments/obstacle_0.yaml"/>
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
@@ -92,10 +92,6 @@ launch-prefix="gdb --args">
       <param name="random_seed" value="$(arg random_seed)"/>
     </node>
 
-    <!-- <node pkg="nodelet" type="nodelet" name="TreeToTrajectories" 
-      args="load motion_planning/TreeToTrajectories stela_nodelet_manager" output="screen">
-      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
-    </node> -->
     <node if="$(eval arg('planner') == 'OpenLoop' or arg('planner') == 'Feedback')" 
       pkg="nodelet" type="nodelet" name="RandomBranch" 
       args="load motion_planning/RandomBranch stela_nodelet_manager" output="screen">
@@ -118,6 +114,20 @@ launch-prefix="gdb --args">
       <param name="control_topic" value="$(arg control_topic)"/>
       <param name="lookahead" value="3"/>
       <param name="frequency" value="30"/>
+    </node> 
+
+    <node if="$(eval arg('planner') == 'OpenLoop' and  arg('Plant') == 'mushr')" 
+            pkg="nodelet" type="nodelet" name="mushr_traj_estimation" 
+            args="load motion_planning/MushrTrajectoryEstimation stela_nodelet_manager" 
+            output="screen">
+      <param name="control_topic" value="$(arg control_topic)"/>
+      <param name="world_frame" value="$(arg world_frame)"/>
+      <param name="robot_frame" value="$(arg robot_frame)"/>
+      <param name="output_dir" value="$(arg data_dir)"/>
+      <param name="collision_topic" value="$(arg collision_topic)"/>
+      <param name="environment" value="$(arg environment)"/>
+      <param name="z_frequency" value="30"/>
+      <param name="experiment_id" value="$(arg experiment_id)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'OpenLoop')" 

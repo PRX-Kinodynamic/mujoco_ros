@@ -68,8 +68,8 @@
     </body>
   </worldbody>
   <actuator>
-    <position class="buddy_steering" kp="25.0" name="buddy_steering_pos" joint="buddy_steering_wheel"/>
     <motor gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity" tendon="buddy_throttle"/>
+    <position class="buddy_steering" kp="25.0" name="buddy_steering_pos" joint="buddy_steering_wheel"/>
   </actuator>
   <equality>
     <!-- taylor expansion of delta_l = arctan(L/(L/tan(delta) - W/2)) with L,W in reference to kinematic car model -->

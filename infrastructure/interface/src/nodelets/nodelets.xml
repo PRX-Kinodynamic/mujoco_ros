@@ -8,6 +8,14 @@
     </description>
   </class>
   <class 
+      name="interface/MushrFromSpacePointStampedNodelet" 
+      type="interface::MushrFromSpacePointStampedNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to step over plan to mushr (mujoco) control
+    </description>
+  </class>
+  <class 
       name="interface/AckermannFromSpacePointNodelet" 
       type="interface::AckermannFromSpacePointNodelet" 
       base_class_type="nodelet::Nodelet">

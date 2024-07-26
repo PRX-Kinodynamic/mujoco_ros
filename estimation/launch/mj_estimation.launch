@@ -32,14 +32,14 @@
 			<param name="robot_frame" value="robot_0"/>
     </node>   
 
-    <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" args="load estimation/plant_estimator_nodelet_t standalone_nodelet" output="screen">
+    <!-- <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" args="load estimation/plant_estimator_nodelet_t standalone_nodelet" output="screen">
 			<param name="plan_topic" value="/$(arg current_ns)/ml4kp_plan"/>
 			<param name="trajectory_topic" value="/$(arg current_ns)/ml4kp_traj"/>
 			<param name="simulation_step" value="0.1"/>
 			<param name="observation_dim" value="3"/>
 			<param name="world_frame" value="world"/>
 			<param name="robot_frame" value="robot_0"/>
-    </node>   
+    </node>  -->  
  
    </group>
 	<!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->

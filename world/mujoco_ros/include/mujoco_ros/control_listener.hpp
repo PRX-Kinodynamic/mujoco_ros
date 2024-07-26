@@ -6,6 +6,7 @@
 
 #include <mujoco_ros/simulator.hpp>
 #include <prx_models/mj_mushr.hpp>
+#include <utils/rosparams_utils.hpp>
 
 template <typename CtrlMsg, typename PlanMsg>
 class controller_listener_t
@@ -14,9 +15,13 @@ public:
   controller_listener_t(ros::NodeHandle& nh, mjData* mj_data) : _mj_data(mj_data)
   {
     const std::string root{ ros::this_node::getNamespace() };
-    const std::string ctrl_topic{ root + "/control" };
+    std::string control_topic{ root + "/control" };
     const std::string plan_topic{ root + "/plan" };
-    _control_subscriber = nh.subscribe(ctrl_topic, 1000, &controller_listener_t::control_callback, this);
+    PARAM_SETUP_WITH_DEFAULT(nh, control_topic, control_topic);
+
+    // const std::string control_topic{ root + "/control" };
+    _control_subscriber = nh.subscribe(control_topic, 1000, &controller_listener_t::control_callback, this);
+    // _control_subscriber = nh.subscribe(control_topic_stamped, 1000, &controller_listener_t::control_callback, this);
     _plan_subscriber = nh.subscribe(plan_topic, 1000, &controller_listener_t::plan_callback, this);
   }
 

@@ -76,7 +76,7 @@
       Get the trajectories from a tree
     </description>
   </class>
-    <class 
+  <class 
       name="motion_planning/LtvPositionController" 
       type="motion_planning::LtvPositionController" 
       base_class_type="nodelet::Nodelet">
@@ -84,6 +84,13 @@
       Ltv Position Controller
     </description>
   </class>
-  
+  <class 
+      name="motion_planning/MushrTrajectoryEstimation" 
+      type="motion_planning::MushrTrajectoryEstimation" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Mushr trajectory estimation
+    </description>
+  </class>
   
 </library>

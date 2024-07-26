@@ -81,4 +81,10 @@ inline void copy(Eigen::Vector<Type, Dim>& state, const ml4kp_bridge::SpacePoint
     state[i] = msg.point[i];
   }
 }
+
+template <typename Type>
+inline void copy(Type& state, const ml4kp_bridge::SpacePointStamped& msg)
+{
+  copy(state, msg.space_point);
+}
 }  // namespace ml4kp_bridge

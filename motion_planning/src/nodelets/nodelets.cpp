@@ -10,11 +10,14 @@
 #include <motion_planning/stela_stepper.hpp>
 #include <motion_planning/random_branch.hpp>
 #include <motion_planning/ltv_controller.hpp>
+#include <motion_planning/trajectory_estimation.hpp>
 
 #include <prx/planning/planners/planner.hpp>
 #include <prx/planning/planners/rrt.hpp>
 #include <prx/planning/planners/dirt.hpp>
 #include <prx/planning/planners/aorrt.hpp>
+
+#include <prx_models/mushr.hpp>
 
 namespace motion_planning
 {
@@ -29,6 +32,7 @@ using StelaLtvSde = stela_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 using StelaStepper = stela_stepper_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 using RandomBranch = random_branch_t<nodelet::Nodelet>;
 using LtvPositionController = ltv_controller_t<nodelet::Nodelet>;
+using MushrTrajectoryEstimation = trajectory_estimation_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -41,3 +45,4 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::StelaLtvSde, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::StelaStepper, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::RandomBranch, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::LtvPositionController, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::MushrTrajectoryEstimation, nodelet::Nodelet);
