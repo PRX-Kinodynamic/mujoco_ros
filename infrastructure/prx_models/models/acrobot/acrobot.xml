@@ -1,0 +1,36 @@
+<!-- TODO -->
+<!-- (1) correct mass/inertial matricies (just weight for now) -->
+<mujoco model="mushr_nano">
+  <compiler angle="radian" />
+  <size njmax="500" nconmax="100"/>
+  <option timestep="0.002" integrator="Euler"/>
+  <option>
+      <flag multiccd="enable"/>
+  </option>
+  <include file="../friction_floors/friction_floor_uniform.xml"/>
+  <visual>
+    <headlight ambient="0.6 0.6 0.6" diffuse="0.5 0.5 0.5" specular="0.2 0.2 0.2"/>
+    <map znear="0.001" />
+  </visual>
+  <worldbody>
+    <body name="fix_box" pos="0.0 0.0 3" euler="0 0 0.0">
+        <geom  type="box"  name="fix_box" contype="1" conaffinity="1"  condim="6" 
+               size="0.1 0.1 0.1"  pos="0 0 0" euler="0 0 0"  rgba="0.5 0 0 1.0"/>
+        <body name="link0" pos="0.2 0.0 -0.5">
+            <joint name="joint0" type="hinge" axis="1 0 0" limited="false" pos="0.0 0.0 0.5"
+                   frictionloss="0.01" damping="0.1" armature="0.0002"  />
+            <geom name="link0" type="box" contype="1" conaffinity="1" mass="0.5" 
+                  size="0.1 0.1 0.5"  rgba="1 0 0 1.0"/>
+            <body name="link1" pos="0.2 0.0 -1.0">
+              <joint name="joint1" type="hinge" axis="1 0 0" limited="false" pos="0.0 0.0 0.5"
+                   frictionloss="0.01" damping="0.1" armature="0.0002"  />
+              <geom name="link1" type="box" contype="1" conaffinity="1" mass="0.5" 
+                  size="0.1 0.1 0.5"  rgba="0 1 0 1.0"/>
+            </body>
+        </body>
+    </body>
+  </worldbody>
+    <actuator>
+    <motor gear="1" forcelimited="true" forcerange="-100 100" name="joint1_motor" joint="joint1"/>
+  </actuator>
+</mujoco>

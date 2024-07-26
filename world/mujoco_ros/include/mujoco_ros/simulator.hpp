@@ -409,6 +409,16 @@ template <class... RunnableObjects, std::enable_if_t<sizeof...(RunnableObjects) 
 void run_thread(std::vector<std::thread>& threads, RunnableObjects&... runnable_objects)
 {
 }
+// template <class First, class... RunnableObjects>
+template <class First, class... RunnableObjects, std::enable_if_t<is_iterable<First>{}, bool> = true>
+inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
+{
+  for (auto obj : first)
+  {
+    threads.emplace_back(&decltype(obj)::run, &obj);
+  }
+  run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
+}
 
 template <class First, class... RunnableObjects>
 inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
@@ -416,6 +426,7 @@ inline void run_thread(std::vector<std::thread>& threads, First& first, Runnable
   threads.emplace_back(&First::run, &first);
   run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
 }
+
 // Run simulation with visualization and callbacks. Blocking function.
 template <class... RunnableObjects>
 void run_simulation(SimulatorPtr sim, VisualizerPtr visualizer, const std::size_t callback_threads = 1,

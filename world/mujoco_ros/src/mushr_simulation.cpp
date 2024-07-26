@@ -15,18 +15,18 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
   const std::string root{ ros::this_node::getNamespace() };
-  const std::string node_name_prefix { ros::this_node::getName() };
+  const std::string node_name_prefix{ ros::this_node::getName() };
 
   std::string model_path;
   bool visualize, save_trajectory, publish_ground_truth_pose;
 
-  utils::get_param_and_check(n,  "/model_path", model_path);
+  utils::get_param_and_check(n, "/model_path", model_path);
   utils::get_param_and_check(n, node_name_prefix + "/visualize", visualize);
   utils::get_param_and_check(n, node_name_prefix + "/save_trajectory", save_trajectory);
   utils::get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
 
   mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
-  controller_listener_t<CtrlMsg, PlanMsg> controller_listener(n, sim->d);
+  controller_listener_t<CtrlMsg> controller_listener(n, sim->d);
   mj_ros::sensordata_publisher_t sensordata_publisher(n, sim, 15);
 
   ros::Subscriber reset_subscriber_for_sim, reset_subscriber_for_viz;
@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 
   mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
   if (publish_ground_truth_pose)
-  { 
+  {
     mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);
   }
   else
