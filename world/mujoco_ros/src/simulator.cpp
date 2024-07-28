@@ -3,6 +3,7 @@
 #include "mujoco_ros/sensordata_publisher.hpp"
 #include <utils/rosparams_utils.hpp>
 #include <ml4kp_bridge/defs.h>
+#include <prx_models/mj_ml4kpspace.hpp>
 
 #include "mujoco_ros/camera_publisher.hpp"
 
@@ -10,7 +11,10 @@ int main(int argc, char** argv)
 {
   using Control = ml4kp_bridge::SpacePoint;
   using ControlStamped = ml4kp_bridge::SpacePointStamped;
-  ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
+
+  const std::string node_name{ "MjRosSimulator" };
+  ros::init(argc, argv, node_name);
+  ros::NodeHandle nh("~");
   const std::string root{ ros::this_node::getNamespace() };
 
   std::string model_path;
@@ -20,22 +24,22 @@ int main(int argc, char** argv)
   std::vector<std::string> cameras{};
   int sensor_frequency{ 10 };
 
-  PARAM_SETUP(private_nh, model_path);
-  PARAM_SETUP(private_nh, control_topic_name);
-  PARAM_SETUP_WITH_DEFAULT(private_nh, cameras, cameras);
-  PARAM_SETUP_WITH_DEFAULT(private_nh, visualize, visualize);
-  PARAM_SETUP_WITH_DEFAULT(private_nh, sensor_frequency, sensor_frequency);
-  PARAM_SETUP_WITH_DEFAULT(private_nh, reset_topic_name, reset_topic_name);
+  PARAM_SETUP(nh, model_path);
+  PARAM_SETUP(nh, control_topic_name);
+  PARAM_SETUP_WITH_DEFAULT(nh, cameras, cameras);
+  PARAM_SETUP_WITH_DEFAULT(nh, visualize, visualize);
+  PARAM_SETUP_WITH_DEFAULT(nh, sensor_frequency, sensor_frequency);
+  PARAM_SETUP_WITH_DEFAULT(nh, reset_topic_name, reset_topic_name);
 
-  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, save_trajectory) };
+  mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(model_path, false) };
 
   const std::string control_stamped_topic_name{ control_topic_name + "_stamped" };
 
-  controller_listener_t<Control> control_listener(n, sim->d, control_topic_name);
-  controller_listener_t<ControlStamped> control_stamped_listener(n, sim->d, control_stamped_topic_name);
+  mj_ros::controller_listener_t<Control> control_listener(nh, sim->d, control_topic_name);
+  mj_ros::controller_listener_t<ControlStamped> control_stamped_listener(nh, sim->d, control_stamped_topic_name);
 
   ros::Subscriber reset_subscriber_for_sim;
-  reset_subscriber_for_sim = n.subscribe(reset_topic_name, 10, &mj_ros::simulator_t::reset_simulation, sim.get());
+  reset_subscriber_for_sim = nh.subscribe(reset_topic_name, 10, &mj_ros::simulator_t::reset_simulation, sim.get());
 
   std::vector<ros::Subscriber> sim_subscribers;
 
@@ -47,19 +51,19 @@ int main(int argc, char** argv)
   if (visualize)
   {
     sim_subscribers.push_back(
-        n.subscribe(goal_pose_topic_name, 10, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get()));
+        nh.subscribe(goal_pose_topic_name, 10, &mj_ros::simulator_visualizer_t::set_goal_pos, visualizer.get()));
     sim_subscribers.push_back(
-        n.subscribe(goal_rad_topic_name, 10, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get()));
-    sim_subscribers.push_back(n.subscribe(
+        nh.subscribe(goal_rad_topic_name, 10, &mj_ros::simulator_visualizer_t::set_goal_radius, visualizer.get()));
+    sim_subscribers.push_back(nh.subscribe(
         trajectory_viz_topic_name, 10, &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get()));
     sim_subscribers.push_back(
-        n.subscribe(reset_topic_name, 10, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
+        nh.subscribe(reset_topic_name, 10, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
   }
 
   std::vector<mj_ros::camera_rgb_publisher_t> camera_publishers;  //(n, sim, "camera_0");
   for (auto cam : cameras)
   {
-    camera_publishers.emplace_back(n, sim, cam);
+    camera_publishers.emplace_back(nh, sim, cam);
   }
   mj_ros::run_simulation(sim, visualizer, 3, camera_publishers);
 

@@ -410,7 +410,7 @@ void run_thread(std::vector<std::thread>& threads, RunnableObjects&... runnable_
 {
 }
 // template <class First, class... RunnableObjects>
-template <class First, class... RunnableObjects, std::enable_if_t<is_iterable<First>{}, bool> = true>
+template <class First, class... RunnableObjects, std::enable_if_t<prx::utilities::is_iterable<First>{}, bool> = true>
 inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
 {
   for (auto obj : first)
@@ -420,7 +420,9 @@ inline void run_thread(std::vector<std::thread>& threads, First& first, Runnable
   run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
 }
 
-template <class First, class... RunnableObjects>
+// template <class First, class... RunnableObjects>
+template <class First, class... RunnableObjects,
+          std::enable_if_t<not prx::utilities::is_iterable<First>{}, bool> = true>
 inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
 {
   threads.emplace_back(&First::run, &first);

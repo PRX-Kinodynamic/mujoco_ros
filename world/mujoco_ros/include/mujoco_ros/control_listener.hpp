@@ -2,10 +2,14 @@
 
 #include <ros/ros.h>
 #include <ros/package.h>
-#include <std_msgs/Empty.h>
+// #include <std_msgs/Empty.h>
 
 #include <mujoco_ros/simulator.hpp>
 #include <prx_models/mj_mushr.hpp>
+#include <prx_models/mj_ml4kpspace.hpp>
+
+namespace mj_ros
+{
 
 template <typename CtrlMsg>
 class controller_listener_t
@@ -15,7 +19,7 @@ public:
     : _mj_data(mj_data)
   {
     std::string ctrl_topic{ control_topic_name };
-    if (topic_name == "")
+    if (ctrl_topic == "")
     {
       const std::string root{ ros::this_node::getNamespace() };
       ctrl_topic = root + "/control";
@@ -25,7 +29,7 @@ public:
 
   void control_callback(const boost::shared_ptr<CtrlMsg const>& msg)
   {
-    prx_models::copy(_mj_data->ctrl, msg);
+    prx_models::copy(_mj_data->ctrl, *msg);
   }
 
 private:
@@ -33,3 +37,4 @@ private:
   ros::Subscriber _control_subscriber;
   ros::Subscriber _plan_subscriber;
 };
+}  // namespace mj_ros

@@ -1,0 +1,24 @@
+<launch>
+    <arg name="ns"                  default="mj"/>
+    <!-- <arg name="model_path"          default="$(find prx_models)/models/pendulum/pendulum.xml"/> -->
+    <arg name="model_path"          default="$(find prx_models)/models/acrobot/acrobot.xml"/>
+    <arg name="control_topic_name"  default="/$(arg ns)/control"/>
+    <arg name="cameras"             default="[]"/>
+    <arg name="visualize"           default="true"/>
+    <arg name="sensor_frequency"    default="10"/>
+    <arg name="reset_topic_name"    default="/$(arg ns)/reset"/>
+
+    <group ns="$(arg ns)">
+        
+        <node pkg="mujoco_ros" name="mj_simulation" type="simulator" output="screen">
+            <param name="model_path" value="$(arg model_path)" />
+            <param name="control_topic_name" value="$(arg control_topic_name)" />
+            <param name="cameras" type="yaml" value="$(arg cameras)" />
+            <param name="visualize" value="$(arg visualize)" />
+            <param name="sensor_frequency" value="$(arg sensor_frequency)" />
+            <param name="reset_topic_name" value="$(arg reset_topic_name)" />
+        </node>
+
+    </group>
+</launch>
+
