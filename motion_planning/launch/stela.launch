@@ -39,7 +39,7 @@
   <arg name="parameter_values" default="[0,0,0,0,0,0,0,0]"/>
   <arg name="experiment_id" default="test"/>
   <arg name="num_workers" default="8"/>
-
+  <arg name="feedback_lookahead" default="3"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
 
@@ -119,7 +119,7 @@ launch-prefix="gdb --args">
       <param name="robot_frame" value="robot"/>
       <param name="traj_topic_name" value="$(arg trajectory_topic)"/>
       <param name="control_topic" value="$(arg control_topic)"/>
-      <param name="lookahead" value="3"/>
+      <param name="lookahead" value="$(arg feedback_lookahead)"/>
       <param name="frequency" value="30"/>
     </node> 
 
