@@ -20,6 +20,7 @@
     <arg name="observation_frequency" default="30"/>
     <arg name="state_topic" default="/$(arg ns)/state"/>
     <arg name="shutdown_topic" default="/$(arg ns)/shutdown"/>
+    <arg name="num_workers" default="4"/>
 
     <param name="/use_sim_time" value="$(arg sim_clock)" />
 
@@ -41,7 +42,10 @@
             <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
         </node>
 
-        <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen">
+            <param name="num_worker_threads" value="$(arg num_workers)" />
+        </node>
+
         <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
             args="load ml4kp_bridge/plan_from_file_t plan_from_file_nodelet_manager" 
             output="screen">

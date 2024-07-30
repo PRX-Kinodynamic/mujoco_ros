@@ -5,7 +5,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 // mj-ros
-//#include <utils/dbg_utils.hpp>
+// #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
 
 // ML4KP
@@ -95,10 +95,16 @@ public:
     x[1] = pt.point[1];
   }
 
-  static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
+  template <typename Out, typename InPtr>
+  static void copy(Out& u, const InPtr msg)
   {
-    u[0] = msg->point[0];
-    u[1] = msg->point[1];
+    copy(u, *msg);
+  }
+
+  static void copy(Control& u, const ml4kp_bridge::SpacePoint& msg)
+  {
+    u[0] = msg.point[0];
+    u[1] = msg.point[1];
   }
 
   static void copy(Observation& z, const geometry_msgs::TransformStamped& tf)
@@ -334,12 +340,14 @@ public:
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
     GraphValues graph_values;
 
-    int estimation{ update.estimate ? -1 : +1 };
+    const int estimation{ update.estimate ? -1 : +1 };
     const gtsam::Key x0{ keyX(estimation, update.parent) };
     const gtsam::Key xdot0{ keyXdot(estimation, update.parent) };
 
-    graph_values.first.addPrior(x0, update.x);
-    graph_values.first.addPrior(xdot0, update.xdot);
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e-5) };
+
+    graph_values.first.addPrior(x0, update.x, integration_noise);
+    graph_values.first.addPrior(xdot0, update.xdot, integration_noise);
 
     graph_values.second.insert(x0, update.x);
     graph_values.second.insert(xdot0, update.xdot);
@@ -357,6 +365,9 @@ public:
     const gtsam::Key xdot0{ keyXdot(1, update.parent) };
     const gtsam::Key xdot1{ keyXdot(1, update.child) };
     const gtsam::Key u01{ keyU(update.parent, update.child) };
+
+    NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
 
     graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, update.integration_noise, update.dt,
                                                                 "EulerX");
@@ -564,8 +575,8 @@ public:
 
     const gtsam::Key u01{ keyU(-1 * current, next) };
 
-    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
-    NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
+    NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
 
     graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, dt, "EulerX");
     graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, dt, "EulerXdot");

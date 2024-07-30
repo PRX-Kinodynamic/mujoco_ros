@@ -8,8 +8,8 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
-  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
-  <arg name="environment" default="environments/obstacle_0.yaml"/>
+  <arg name="environment" default="environments/forest.yaml"/>
+  <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
@@ -21,7 +21,8 @@
   <arg name="experiment_name" default="test"/>
   <arg name="obstacle_mode" default="None"/>
   <arg name="obstacle_distance_tolerance" default="1.0"/>
-  <arg name="obstacle_sigma" default="0.1"/>
+  <arg name="obstacle_factor_include_distance" default="1.0"/>
+  <arg name="obstacle_sigma" default="1.0"/>
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="robot"/>
   <arg name="plan_topic" value="/stela/sbmp/plan"/> 
@@ -36,6 +37,9 @@
   <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/>
   <arg name="parameter_values" default="[0,0,0,0,0,0,0,0]"/>
   <arg name="experiment_id" default="test"/>
+  <arg name="num_workers" default="8"/>
+
+
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
 
   <group ns="stela">
@@ -62,7 +66,9 @@ launch-prefix="gdb --args">
       <param name="random_seed" value="$(arg random_seed)"/>
     </node>
 
-   	<node pkg="nodelet" type="nodelet" name="stela_nodelet_manager"  args="manager" output="screen"/>
+   	<node pkg="nodelet" type="nodelet" name="stela_nodelet_manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="$(arg num_workers)" />
+    </node>
 
     <node if="$(eval arg('planner') == 'RRT')" 
       pkg="nodelet" type="nodelet" name="RRTPublisher" 
@@ -154,8 +160,11 @@ launch-prefix="gdb --args">
       <param name="environment" value="$(arg environment)"/>
       <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
       <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
+      <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="experiment_id" value="$(arg experiment_id)"/>
+
+
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaDbg')" 
@@ -224,6 +233,7 @@ launch-prefix="gdb --args">
       <arg name="tf_noise_sigmas" value="$(arg tf_noise_sigmas)"/>  
       <arg name="parameter_values" value="$(arg parameter_values)"/>  
       <arg name="shutdown_topic" default="$(arg shutdown_topic)"/>
+      <arg name="num_workers" default="$(arg num_workers)"/>
     </include>
 
     <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 
@@ -238,7 +248,9 @@ launch-prefix="gdb --args">
   </group>
   
   <group ns="utils">
-    <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen"/>
+    <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="$(arg num_workers)" />
+    </node>
 
     <node 
       pkg="nodelet" type="nodelet" name="BoolSinker" output="screen"
@@ -312,7 +324,9 @@ launch-prefix="gdb --args">
   </group>
 
   <group ns="viz">
-    <node pkg="nodelet" type="nodelet" name="viz_nodelet_manager"  args="manager" output="screen"/>
+    <node pkg="nodelet" type="nodelet" name="viz_nodelet_manager"  args="manager" output="screen">
+      <param name="num_worker_threads" value="$(arg num_workers)" />
+    </node>
 
     <node if="$(arg visualize)" 
       pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
@@ -377,7 +391,7 @@ launch-prefix="gdb --args">
       <param name="world_frame" value="$(arg world_frame)"/>
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="control_topic_name" value="$(arg control_topic)"/>
-      <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
+      <param name="color" type="yaml" value="[.50, 1.0, 1.0, 1.0]"/>
     </node>   
 
 
