@@ -90,8 +90,8 @@ protected:
 
     if (total_children >= 1)  // This is not a leaf
     {
-      const int idx{ prx::uniform_int_random(0, total_children - 1) };
-      const std::size_t child_id{ node.children[idx] };
+      // const int idx{ prx::uniform_int_random(0, total_children - 1) };
+      const std::size_t child_id{ node.children[0] };
 
       // _trajs.emplace_back();
       // _plans.emplace_back();
