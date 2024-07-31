@@ -519,7 +519,6 @@ public:
       // auto xt0 = std::get<0>(_state_estimates).transpose();
       // auto xt1 = _isam.calculateEstimate<State>(SystemInterface::keyX(1, _x_next)).transpose();
 
-      // // LOG_VARS(_feedback.current_root, _x_next);
       // LOG_VARS(_feedback.current_root, xt0);
       // LOG_VARS(_x_next, xt1);
 
@@ -531,7 +530,6 @@ public:
   {
     _u01 = _isam.calculateEstimate<Control>(_key_u01);
     _dt01 = _isam.calculateEstimate<double>(_key_dt);
-
     // LOG_VARS(_u01.transpose());
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
