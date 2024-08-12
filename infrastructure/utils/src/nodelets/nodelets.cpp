@@ -11,6 +11,7 @@
 #include <utils/topic_to_file.hpp>
 #include <utils/graph_viz_publisher.hpp>
 #include <utils/sink_topics.hpp>
+#include <utils/plan_to_tree_publisher.hpp>
 
 namespace utils
 {
@@ -32,6 +33,7 @@ using StateStampedToFile = topic_to_file_t<ml4kp_bridge::SpacePointStamped, ml4k
 using CollisionToFile = topic_to_file_t<std_msgs::Bool, collision_to_file, nodelet::Nodelet>;
 using GraphVizPublisher = graph_viz_publisher_t<nodelet::Nodelet>;
 using BoolSinker = sink_topics_t<std_msgs::Bool, nodelet::Nodelet>;
+using PlanToTreePublisher = plan_to_tree_publisher_t<nodelet::Nodelet>;
 
 }  // namespace utils
 PLUGINLIB_EXPORT_CLASS(utils::EnvironmentPublisher, nodelet::Nodelet);
@@ -45,3 +47,4 @@ PLUGINLIB_EXPORT_CLASS(utils::StateStampedToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::GraphVizPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::CollisionToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::BoolSinker, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::PlanToTreePublisher, nodelet::Nodelet);

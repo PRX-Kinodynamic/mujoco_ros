@@ -29,7 +29,7 @@ include(GNUInstallDirs)
 # find_package(iceoryx_platform REQUIRED)
 find_package(iceoryx_posh CONFIG REQUIRED)
 find_package(iceoryx_hoofs CONFIG REQUIRED)
-
+find_package(TBB REQUIRED)
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
 # add_definitions("cxxflags=-fvisibility=hidden")
 # set(cxxflags =-fvisibility=hidden)
@@ -134,9 +134,9 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME}
+ LIBRARIES ${PROJECT_NAME} 
  CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge
-#  DEPENDS system_lib
+ DEPENDS tbb
 )
 
 ###########
@@ -148,7 +148,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
-  
+  # ${TBB_INCLUDE_DIRS}
 )
 include(IceoryxPackageHelper)
 include(IceoryxPlatform)
@@ -181,6 +181,7 @@ foreach(f ${EXECUTABLE_FILES})
                           ${catkin_LIBRARIES}
                           iceoryx_posh::iceoryx_posh
                           iceoryx_hoofs::iceoryx_hoofs
+                          TBB::tbb
                         )
 endforeach()
 

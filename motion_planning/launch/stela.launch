@@ -7,6 +7,7 @@
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
+  <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <arg name="environment" default="environments/forest.yaml"/>
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
@@ -163,15 +164,13 @@ launch-prefix="gdb --args">
       <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="experiment_id" value="$(arg experiment_id)"/>
-
-
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaDbg')" 
       pkg="motion_planning" type="mp_nodelet_debugging" 
-      name="StelaDbg" output="screen" 
+      name="StelaLtvSde" output="screen" 
+      launch-prefix="lldb &#45;&#45;"
       >
-      <!-- launch-prefix="lldb &#45;&#45;" -->
       <param name="node_name" value="Stela"/>
       <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
       <param name="control_topic" value="$(arg control_topic)"/> 
@@ -184,6 +183,8 @@ launch-prefix="gdb --args">
       <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
       <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+      <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
+      <param name="experiment_id" value="$(arg experiment_id)"/>
     </node>
 
     <node if="$(eval arg('Stepper') == 'Stela')" 

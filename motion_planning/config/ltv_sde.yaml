@@ -3,6 +3,8 @@ path: "fg_ltv_sde"
 
 vis_body: "body"
 
+simulation_step: 0.1
+
 control_steps: 
   min: 25
   max: 50

@@ -7,6 +7,7 @@
 // mj-ros
 // #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
+#include <ml4kp_bridge/ltv_sde_factors.hpp>
 
 // ML4KP
 #include <prx/simulation/plant.hpp>
@@ -17,6 +18,7 @@
 #include <prx/factor_graphs/factors/obstacle_factor.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <prx/simulation/system_factory.hpp>
+#include <prx/factor_graphs/factors/constraint_factor.hpp>
 
 // Gtsam
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -35,6 +37,7 @@ class ltv_sde_utils_t
 {
   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
   using SF = prx::fg::symbol_factory_t;
+  using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
 
 public:
   using Values = gtsam::Values;
@@ -71,6 +74,11 @@ public:
   static gtsam::Key keyX(const int& level, const int& step)
   {
     return SF::create_hashed_symbol("X^{", level, "}_{", step, "}");
+  }
+
+  static gtsam::Key keyT(const int& level, const int& step)
+  {
+    return SF::create_hashed_symbol("t^{", level, "}_{", step, "}");
   }
 
   // KeyXdot = X^{level}_{step}
@@ -336,15 +344,15 @@ public:
 
   static GraphValues root_factor_graph(const local_update_t& update)
   {
-    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
-    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
+    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
+    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
     GraphValues graph_values;
 
     const int estimation{ update.estimate ? -1 : +1 };
     const gtsam::Key x0{ keyX(estimation, update.parent) };
     const gtsam::Key xdot0{ keyXdot(estimation, update.parent) };
 
-    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e-5) };
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
 
     graph_values.first.addPrior(x0, update.x, integration_noise);
     graph_values.first.addPrior(xdot0, update.xdot, integration_noise);
@@ -356,8 +364,8 @@ public:
 
   static GraphValues local_factor_graph(const local_update_t& update)
   {
-    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
-    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
+    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
+    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(1, update.parent) };
@@ -365,21 +373,27 @@ public:
     const gtsam::Key xdot0{ keyXdot(1, update.parent) };
     const gtsam::Key xdot1{ keyXdot(1, update.child) };
     const gtsam::Key u01{ keyU(update.parent, update.child) };
+    const gtsam::Key k_t01{ keyT(update.parent, update.child) };
 
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-0) };
 
-    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, update.integration_noise, update.dt,
+    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, k_t01, update.integration_noise,
                                                                 "EulerX");
-    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, update.dynamic_noise, update.dt,
+    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, k_t01, update.dynamic_noise,
                                                                   "EulerXdot");
+    graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+
     graph_values.first.addPrior(x1, update.x);
     graph_values.first.addPrior(xdot1, update.xdot);
-    graph_values.first.addPrior(u01, update.control);
+    // graph_values.first.addPrior(u01, update.control, u_prior_noise);
+    graph_values.first.addPrior(k_t01, update.dt, dt_noise);
 
     graph_values.second.insert(x1, update.x);
     graph_values.second.insert(xdot1, update.xdot);
     graph_values.second.insert(u01, update.control);
+    graph_values.second.insert(k_t01, update.dt);
     return graph_values;
   }
 
@@ -402,32 +416,36 @@ public:
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
     using ObservationFactor = gtsam::PriorFactor<State>;
+    using EulerObservation = prx::fg::euler_observation_factor_t<State, StateDot>;
 
     const State& x0_value{ std::get<0>(estimates) };
     const StateDot& xdot0_value{ std::get<1>(estimates) };
     GraphValues graph_values;
 
-    const gtsam::Key x0{ keyX(-1, prev_id) };
-    const gtsam::Key x1{ keyX(-1, curr_id) };
-    const gtsam::Key xdot0{ keyXdot(-1, prev_id) };
-    const gtsam::Key xdot1{ keyXdot(-1, curr_id) };
-    const gtsam::Key u01{ keyU(-1 * prev_id, -1 * curr_id) };
+    const gtsam::Key x0{ keyX(1, prev_id) };
+    const gtsam::Key x1{ keyX(1, curr_id) };
+    const gtsam::Key xdot0{ keyXdot(1, prev_id) };
+    const gtsam::Key xdot1{ keyXdot(1, curr_id) };
+    const gtsam::Key u01{ keyU(prev_id, curr_id) };
 
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
     NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
     NoiseModel observation_noise{ gtsam::noiseModel::Isotropic::Sigma(2, z_noise) };
 
-    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, dt);
-    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, dt);
-    graph_values.first.emplace_shared<ObservationFactor>(x0, z, observation_noise);
-    graph_values.first.addPrior(u01, u_prev);
+    // graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, dt);
+    // graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, dt);
+    graph_values.first.emplace_shared<EulerObservation>(x0, xdot0, observation_noise, z, dt);
+    // graph_values.first.emplace_shared<ObservationFactor>(x1, z, observation_noise);
 
-    const StateDot p_xdot1{ EulerStateDotControlFactor::predict(xdot0_value, u_prev, dt) };
-    const StateDot p_x1{ EulerStateStateDotFactor::predict(x0_value, xdot0_value, dt) };
+    // graph_values.first.addPrior(u01, u_prev);
+    // graph_values.first.addPrior(x1, u_prev);
 
-    graph_values.second.insert(u01, u_prev);
-    graph_values.second.insert(xdot1, p_xdot1);
-    graph_values.second.insert(x1, p_x1);
+    // const StateDot p_xdot1{ EulerStateDotControlFactor::predict(xdot0_value, u_prev, dt) };
+    // const StateDot p_x1{ EulerStateStateDotFactor::predict(x0_value, xdot0_value, dt) };
+
+    // graph_values.second.insert(u01, u_prev);
+    // graph_values.second.insert(xdot1, p_xdot1);
+    // graph_values.second.insert(x1, p_x1);
     return graph_values;
   }
 
@@ -460,7 +478,8 @@ public:
 
     update.dt = duration;
 
-    const double numerical_error{ update.dt };
+    // const double numerical_error{ update.dt };
+    const double numerical_error{ 0.1 };
     update.integration_noise = gtsam::noiseModel::Isotropic::Sigma(2, numerical_error);
     update.dynamic_noise = gtsam::noiseModel::Isotropic::Sigma(2, numerical_error);
 
@@ -563,8 +582,9 @@ public:
   static GraphValues local_adaptation(const std::size_t current, const std::size_t next, const Control control,
                                       const double dt)
   {
-    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
-    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
+    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
+    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
+
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(-1, current) };
@@ -574,15 +594,22 @@ public:
     const gtsam::Key xdot1{ keyXdot(1, next) };
 
     const gtsam::Key u01{ keyU(-1 * current, next) };
+    const gtsam::Key k_t01{ keyT(-1 * current, next) };
+    // const gtsam::Key u01{ keyU(current, next) };
 
-    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
-    NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
+    const NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
+    const NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1) };
+    const NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-10) };
 
-    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, dt, "EulerX");
-    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, dt, "EulerXdot");
+    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, k_t01, integration_noise, "EulerX");
+    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, k_t01, dynamic_noise, "EulerXdot");
+    graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+
     graph_values.first.addPrior(u01, control);
+    graph_values.first.addPrior(k_t01, dt);
 
     graph_values.second.insert(u01, control);
+    graph_values.second.insert(k_t01, dt);
 
     return graph_values;
   }

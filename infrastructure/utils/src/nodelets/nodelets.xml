@@ -87,4 +87,12 @@
       Subscribe to multiple std_msgs::Bool topics and publish into a single topic
     </description>
   </class>
+  <class 
+      name="utils/PlanToTreePublisher" 
+      type="utils::PlanToTreePublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Subscribe to multiple std_msgs::Bool topics and publish into a single topic
+    </description>
+  </class>
 </library>

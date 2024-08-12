@@ -8,6 +8,7 @@
 #include <ml4kp_bridge/plan_bridge.hpp>
 #include <ml4kp_bridge/SendString.h>
 #include <std_srvs/Empty.h>
+
 namespace ml4kp_bridge
 {
 class plan_from_file_t : public nodelet::Nodelet
@@ -36,6 +37,8 @@ protected:
     _plan = std::make_shared<prx::plan_t>(_control_space.get());
     _plan->from_file(_plan_file);
     copy(_plan_msg, _plan);
+
+    PRX_DBG_VARS(_publisher_topic);
 
     // const std::string publisher_name{ ros::this_node::getNamespace() + "/plan" };
     const std::string service_name{ ros::this_node::getNamespace() + "/plan_reader/publish_plan" };
