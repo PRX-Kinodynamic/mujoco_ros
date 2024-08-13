@@ -192,16 +192,16 @@ public:
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
     ofs_data << "ObstacleMode: " << _mode << "\n";
 
+    // for (int i = 0; i < _id_x_hat; ++i)
+    // {
+    // }
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
-    for (int i = 0; i < _id_x_hat; ++i)
-    {
-      ofs << i << " ";
-      const StateKeys keys{ SystemInterface::keyState(-1, i) };
-      estimates_to_file<0>(ofs, estimate, keys);
-    }
     ofs_branch << "# id point[...]\n";
     for (auto node_id : _selected_nodes)
     {
+      ofs << node_id << " ";
+      const StateKeys keys{ SystemInterface::keyState(1, node_id) };
+      estimates_to_file<0>(ofs, estimate, keys);
       // const ml4kp_bridge::SpacePoint& {};
       ofs_branch << node_id << " ";
       ml4kp_bridge::to_file(_tree.nodes[node_id].point, ofs_branch);
@@ -254,10 +254,7 @@ public:
 
           _stela_action_server->setPreempted();
 
-          // LOG_VARS(_selected_nodes);
-          // DEBUG_VARS(__LINE__, ros::Time::now());
           build_feedback_lookahead_tree();
-          // DEBUG_VARS(__LINE__, ros::Time::now());
         }
       }
       if (not _goal_received)
@@ -640,15 +637,15 @@ public:
       _isam2_result = _isam.update(_obstacle_graph, gtsam::Values());
     }
     ROS_DEBUG_STREAM_NAMED("STELA", "Finished traversing tree ");
-    _id_x_hat = msg->root;
+    // _id_x_hat = msg->root;
 
     // const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
     // _isam2_result = _isam.update(graph_values.first, graph_values.second);
 
-    const StateKeys state_keys{ SystemInterface::keyState(1, _id_x_hat) };
+    const StateKeys state_keys{ SystemInterface::keyState(1, msg->root) };
     update_estimates<0>(_state_estimates, state_keys);
 
-    auto X0 = _isam.calculateEstimate<State>(SystemInterface::keyX(1, _id_x_hat)).transpose();
+    auto X0 = _isam.calculateEstimate<State>(SystemInterface::keyX(1, msg->root)).transpose();
     auto X0hat = std::get<0>(_state_estimates).transpose();
     // LOG_VARS(msg->root, node);
     // LOG_VARS(_id_x_hat, X0, X0hat);
@@ -783,7 +780,7 @@ private:
   geometry_msgs::TransformStamped _tf;
   std_msgs::Header _prev_header;
 
-  std::size_t _id_x_hat;
+  // std::size_t _id_x_hat;
 
   State _state;
   Control _u01;
