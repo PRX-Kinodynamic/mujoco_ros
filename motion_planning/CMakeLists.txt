@@ -29,7 +29,7 @@ include(GNUInstallDirs)
 # find_package(iceoryx_platform REQUIRED)
 find_package(iceoryx_posh CONFIG REQUIRED)
 find_package(iceoryx_hoofs CONFIG REQUIRED)
-find_package(TBB REQUIRED)
+# find_package(TBB REQUIRED)
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
 # add_definitions("cxxflags=-fvisibility=hidden")
 # set(cxxflags =-fvisibility=hidden)
@@ -79,6 +79,9 @@ find_package(TBB REQUIRED)
 #   FILES
 #   MushrPlanner.srv
 # )
+set(BUILD_FLAGS "-O3 -march=native")
+list(APPEND BUILD_FLAGS "-fPIC")
+add_definitions(${BUILD_FLAGS})
 
 set(ACTION_FILES "")
 file(GLOB_RECURSE SRV_DIRS "action/*.action")
@@ -136,7 +139,7 @@ catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ${PROJECT_NAME} 
  CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge
- DEPENDS tbb
+ # DEPENDS tbb
 )
 
 ###########
@@ -181,7 +184,7 @@ foreach(f ${EXECUTABLE_FILES})
                           ${catkin_LIBRARIES}
                           iceoryx_posh::iceoryx_posh
                           iceoryx_hoofs::iceoryx_hoofs
-                          TBB::tbb
+                          # TBB::tbb
                         )
 endforeach()
 

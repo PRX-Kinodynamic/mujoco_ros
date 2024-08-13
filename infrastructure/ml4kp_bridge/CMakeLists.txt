@@ -149,18 +149,24 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+set(BUILD_FLAGS "-O3 -march=native")
+list(APPEND BUILD_FLAGS "-fPIC")
+add_definitions(${BUILD_FLAGS})
+
+
 ## Declare a C++ library
 # Consider all src to add to the library (no executables in this package)
 # file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
 add_library(${PROJECT_NAME} INTERFACE)
 add_dependencies(${PROJECT_NAME} ML4KP::ML4KP )
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP gtsam ${GTSAM_ADDITIONAL_LIBRARIES})
+target_include_directories(${PROJECT_NAME} INTERFACE include ${ML4KP_INCLUDE_DIR} ${GTSAM_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP gtsam)
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
-target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS} ${ML4KP_INCLUDE_DIR} ${GTSAM_INCLUDE_DIR})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME} )
 
