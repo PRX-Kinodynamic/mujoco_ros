@@ -69,7 +69,7 @@ protected:
     // This copy is relatively expensive, but should be fine as long as plan_in is *small*
     // The copy is needed to be able to append plans
     std::copy(plan_in->plan.steps.begin(), plan_in->plan.steps.end(), std::back_inserter(_plan.steps));
-
+    _next_time = ros::Time::now();
     _plan_received = true;
   }
   void timer_callback(const ros::TimerEvent& event)
@@ -82,7 +82,7 @@ protected:
         if (now >= _next_time)
         {
           // We still have some plan steps to execute
-          _next_time = now + _plan.steps[_current_plan_step].duration.data - _timer_duration;
+          _next_time += _plan.steps[_current_plan_step].duration.data;  // - _timer_duration;
           _ctrl_stamped.space_point = _plan.steps[_current_plan_step].control;
           _current_plan_step++;
         }

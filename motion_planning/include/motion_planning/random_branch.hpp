@@ -71,8 +71,10 @@ protected:
     _traj_publisher.publish(_traj);
     _plan_publisher.publish(_plan);
 
-    std::ofstream ofs(_output_dir + "/tree_to_trajectory_" + _experiment_id + ".txt");
+    const std::string random_branch_filename{ _output_dir + "/tree_to_trajectory_" + _experiment_id + ".txt" };
+    std::ofstream ofs(random_branch_filename);
     ml4kp_bridge::to_file(_traj, ofs);
+
     ofs.close();
     return true;
   }

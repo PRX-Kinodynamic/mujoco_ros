@@ -14,9 +14,9 @@ namespace dbg
 {
 namespace variables
 {
+
 inline static const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
 inline static std::ofstream ofs_log;
-
 }  // namespace variables
 
 inline void print_variables(std::ostream& stream, std::string name)
@@ -56,7 +56,7 @@ inline void print_variables(std::ostream& stream, std::string name, Var0 var, Va
     other_names = name.substr(split_on + match.length());  // <-- also, skip the whole math
   }
 
-  stream << var_name << ": ";
+  stream << prx::constants::color::yellow << var_name << ": " << prx::constants::color::normal;
   print_value(stream, var);
   print_variables(stream, other_names, vars...);
 }
