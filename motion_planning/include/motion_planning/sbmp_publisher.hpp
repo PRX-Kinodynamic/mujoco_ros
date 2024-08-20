@@ -99,7 +99,9 @@ protected:
     if (_params.exists("planner/medial_axis"))
     {
       prx::param_loader ma_params{ _params["planner/medial_axis"] };
-      if (ma_params["use"].as<bool>())
+      const bool use_medial_axis{ ma_params["use"].as<bool>() };
+      DEBUG_VARS(use_medial_axis);
+      if (use_medial_axis)
       {
         ma_params["environment"] = _params["planner/environment"].as<>();
         _medial_axis = setup_medial_axis_sampler(ma_params, _query->start_state, _query->goal_state);

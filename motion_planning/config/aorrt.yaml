@@ -16,13 +16,13 @@ checker_type: time
 # checker_value: 60
 checker_value: 30
 # cost_multiplier: 2.5
-cost_multiplier: 5.0
+cost_multiplier: 2.0
 
 max_edge_duration: 1.0
 
 medial_axis:
-  use: false
-  rate: 0.25
+  use: true
+  rate: 0.1
   directory: "${ML4KP_ROS}/data/medial_axis/"
   # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
   # filename: "${ML4KP_ROS}/data/medial_axis/forest.txt"
