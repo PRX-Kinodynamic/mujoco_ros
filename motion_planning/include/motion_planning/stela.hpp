@@ -221,6 +221,15 @@ public:
     ros::shutdown();
   }
 
+  void failure_to_file(const std::string msg)
+  {
+    const std::string filename{ _output_dir + "/stela_fail_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
+
+    std::ofstream ofs(filename);
+    ofs << "STELA failure: " << msg << "\n";
+    ofs.close();
+  }
+
   void action_function(const ros::TimerEvent& event)
   {
     if (_tree_recevied)
@@ -417,6 +426,13 @@ public:
     }
   }
 
+  void dbg_isam_error(const std::string msg = "isam error:")
+  {
+    const Values estimated_values{ _isam.calculateBestEstimate() };
+    const double isam_error{ _isam.getFactorsUnsafe().error(estimated_values) };
+    DEBUG_VARS(msg, isam_error);
+  }
+
   void dbg_print_cluster(const int id0, const int id1)
   {
     const gtsam::Key kx0{ SystemInterface::keyX(1, id0) };
@@ -424,21 +440,35 @@ public:
     const gtsam::Key kxdot0{ SystemInterface::keyXdot(1, id0) };
     const gtsam::Key kxdot1{ SystemInterface::keyXdot(1, id1) };
     const gtsam::Key kt{ SystemInterface::keyT(id0, id1) };  // t^{347}_{367}
+    const gtsam::Key ku{ SystemInterface::keyU(id0, id1) };  // t^{347}_{367}
     const Eigen::RowVector2d x0{ _isam.calculateEstimate<State>(kx0).transpose() };
     const Eigen::RowVector2d x1{ _isam.calculateEstimate<State>(kx1).transpose() };
     const Eigen::RowVector2d xdot0{ _isam.calculateEstimate<State>(kxdot0).transpose() };
     const Eigen::RowVector2d xdot1{ _isam.calculateEstimate<State>(kxdot1).transpose() };
+    const Eigen::RowVector2d u01{ _isam.calculateEstimate<State>(ku).transpose() };
     const double t{ _isam.calculateEstimate<double>(kt) };
     const std::string lt{ SF::formatter(kt) };
     const std::string lx0{ SF::formatter(kx0) };
     const std::string lx1{ SF::formatter(kx1) };
     const std::string lxdot0{ SF::formatter(kxdot0) };
     const std::string lxdot1{ SF::formatter(kxdot1) };
+    const std::string lu01{ SF::formatter(ku) };
     DEBUG_VARS(lt, t);
     DEBUG_VARS(lx0, x0);
     DEBUG_VARS(lx1, x1);
     DEBUG_VARS(lxdot0, xdot0);
     DEBUG_VARS(lxdot1, xdot1);
+    DEBUG_VARS(lu01, u01);
+  }
+
+  void dbg_print_high_error_factors(const double error)
+  {
+    const Values estimated_values{ _isam.calculateBestEstimate() };
+    const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+        printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > error; };
+    _isam.getFactorsUnsafe().printErrors(estimated_values, "isam graph: ", SF::formatter, printCondition);
+
+    // estimated_values.print("isam values: ", SF::formatter);
   }
 
   void add_observations()
@@ -461,11 +491,19 @@ public:
                                                                                 _state_estimates, _u01,  // no-lint
                                                                                 _z_new, dt, 0.01) };
 
-      // dbg_print_cluster(347, 367);
-
-      // DEBUG_PRINT
-      // dbg_isam(graph_values_z.first, graph_values_z.second);
-      _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
+      try
+      {
+        // throw my_exception();
+        // _isam2_result = _isam.update(graph_values.first, graph_values.second);
+        _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
+      }
+      catch (gtsam::IndeterminantLinearSystemException e)
+      {
+        // Var:U^{930}_{960}
+        // dbg_print_cluster(930, 960);
+        std::cout << "[EXCEPTION] Var:" << SF::formatter(e.nearbyVariable()) << std::endl;
+        failure_to_file("Adding observations - " + SF::formatter(e.nearbyVariable()));
+      }
       // DEBUG_PRINT
 
       // _isam2_result = _isam.update(graph_values_1.first, graph_values_1.second);
@@ -543,7 +581,7 @@ public:
     const prx_models::Node& node_parent{ msg->nodes[edge.source] };
     const prx_models::Node& node_current{ msg->nodes[edge.target] };
 
-    // DEBUG_VARS(edge.source, edge_id, edge.target);
+    // Create a FG that goes from N0 to N1 with plan P01
     GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
                                                                edge.plan) };
 
@@ -554,7 +592,9 @@ public:
 
     _values.insert(graph_values.second);
 
-    // if (edge.source == 928 or edge.source == 5017)
+    // const uint64_t dbg_source{ 0 };
+    // const uint64_t dbg_target{ 427 };
+    // if (edge.source == dbg_source and edge.target == dbg_target)
     // {
     //   // void printErrors(const Values& values, const std::string& str = "NonlinearFactorGraph: ",
     //   // const KeyFormatter& keyFormatter = DefaultKeyFormatter);
@@ -562,16 +602,34 @@ public:
     //   // void print(const std::string& str = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const;
     //   graph_values.second.print("Values: ", SF::formatter);
     //   graph_values.first.printErrors(_values, "Graph: ", SF::formatter);
+    //   dbg_isam_error("ISAM Error before");
     // }
-    // gtsam::NonlinearFactorGraph fg{ _isam.getFactorsUnsafe() };
-    // fg += graph_values.first;
-    // std::ofstream ofs_map(dbg::variables::lib_path + "/dbg.txt");
-    // prx::fg::indeterminant_linear_system_helper(fg, _values, ofs_map);
-    //
-    // graph_values.first.print("Errors", SF::formatter);
-    // SF::symbols_to_file();
+    try
+    {
+      // throw my_exception();
+      _isam2_result = _isam.update(graph_values.first, graph_values.second);
+    }
+    catch (gtsam::IndeterminantLinearSystemException e)
+    {
+      // dbg_print_cluster(edge.source, edge.target);
+      std::cout << "[EXCEPTION] Var:" << SF::formatter(e.nearbyVariable()) << std::endl;
+      failure_to_file("Initialization - " + SF::formatter(e.nearbyVariable()));
+    }
 
-    _isam2_result = _isam.update(graph_values.first, graph_values.second);
+    // static bool u_reached{ false };
+    // u_reached = (edge.source == dbg_source and edge.target == dbg_target) or u_reached;
+    // if (u_reached)
+    // {
+    //   dbg_isam_error("ISAM Error after");
+    //   // const Control u_87_107{ _isam.calculateEstimate<Control>(SystemInterface::keyU(edge.source, edge.target)) };
+    //   // DEBUG_VARS(u_87_107.transpose());
+    //   dbg_print_cluster(edge.source, edge.target);
+    //   dbg_print_high_error_factors();
+    //   // graph_values.first.print("Graph: ", SF::formatter);
+    //   // void print(const std::string& str = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const;
+    //   // graph_values.second.print("Values: ", SF::formatter);
+    //   // graph_values.first.printErrors(_values, "Graph: ", SF::formatter);
+    // }
     // DEBUG_VARS(_isam2_result.cliques);
     const std::size_t total_children{ node_current.children.size() };
 
@@ -629,6 +687,7 @@ public:
 
       branch_to_traj(msg, node_child.parent_edge);
     }
+    SF::symbols_to_file();
 
     ROS_DEBUG_STREAM_NAMED("STELA", "Adding obstacle graph: " << _obstacle_graph.size());
     if (_obstacle_graph.size() > 0)
@@ -645,10 +704,11 @@ public:
     const StateKeys state_keys{ SystemInterface::keyState(1, msg->root) };
     update_estimates<0>(_state_estimates, state_keys);
 
-    auto X0 = _isam.calculateEstimate<State>(SystemInterface::keyX(1, msg->root)).transpose();
-    auto X0hat = std::get<0>(_state_estimates).transpose();
-    // LOG_VARS(msg->root, node);
-    // LOG_VARS(_id_x_hat, X0, X0hat);
+    const Values estimated_values{ _isam.calculateBestEstimate() };
+    const double isam_error{ _isam.getFactorsUnsafe().error(estimated_values) };
+    DEBUG_VARS(isam_error);
+
+    // (estimated_values) };
 
     _tree.root = msg->root;
     _tree.nodes = msg->nodes;
@@ -662,7 +722,8 @@ public:
 
     _isam.calculateBestEstimate();
     _start_time = ros::Time::now();
-    SF::symbols_to_file();
+
+    dbg_print_high_error_factors(1.0);
   }
 
 private:

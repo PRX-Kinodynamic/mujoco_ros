@@ -70,6 +70,33 @@ void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::rrt_specif
 {
   spec->init(params["plant"]);
   spec->init(params["planner"]);
+  if (params["plant/name"].as<>() == "fg_ltv_sde")
+  {
+    spec->sample_state = [&](prx::space_point_t& s) {
+      default_sample_state(s, spec->state_space);
+      const double x2{ prx::uniform_random(-0.15, 0.15) };
+      const double x3{ prx::uniform_random(-0.15, 0.15) };
+
+      s->at(2) = x2;
+      s->at(3) = x3;
+    };
+    spec->cost_function = [](const prx::trajectory_t& traj, const prx::plan_t& plan) {
+      double x_cost{ 0.0 };
+      double u_cost{ 0.0 };
+      const Eigen::Matrix2d C{ Eigen::Matrix2d::Identity() };
+      for (auto state : traj)
+      {
+        const Eigen::Vector2d xdot{ Vec(state).tail(2) };
+        x_cost += xdot.transpose() * C * xdot;
+      }
+      for (auto step : plan)
+      {
+        const Eigen::Vector2d u{ Vec(step.control) };
+        u_cost += u.transpose() * C * u;
+      }
+      return x_cost + u_cost;
+    };
+  }
 }
 
 void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::dirt_specification_t>& spec)

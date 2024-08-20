@@ -198,6 +198,7 @@ launch-prefix="gdb --args">
       <param name="branch_selection" value="min_cost"/> 
       <!-- <param name="branch_selection" value="random"/>  -->
       <param name="random_seed" value="$(arg random_seed)"/>
+      <param name="plan_topic_name" value="$(arg plan_topic)"/>
     </node>
 
     <node if="$(eval arg('Stepper') == 'StelaDbg')" 

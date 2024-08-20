@@ -91,12 +91,12 @@ public:
   using U = mushr_types::Control::type;
 
   mushr_ub_u_xdot_param_t(gtsam::Key ubar1, gtsam::Key u, gtsam::Key ubar0, gtsam::Key param,
-                          const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(ubar1, u, ubar0, param, cost_model, 0.01)
+                          const gtsam::noiseModel::Base::shared_ptr& cost_model, const double dt)
+    : Base(ubar1, u, ubar0, param, cost_model, 0.01), _dt(dt)
   {
   }
 
-  static Ubar dynamics(const U& u, const Ubar& ubar, const Params& params)
+  static Ubar dynamics(const U& u, const Ubar& ubar, const Params& params, const double& dt)
   {
     const double& v_current{ ubar[mushr_types::Ubar::velocity] };
     const double& steering{ u[mushr_types::Control::steering] };
@@ -106,8 +106,8 @@ public:
     const double& steering_param{ params[mushr_types::Ubar::steering_param] };
     const double& max_vel_param{ params[mushr_types::Ubar::max_vel_param] };
 
-    const double dv{ v_desired - v_current };
-    const double v_next{ v_current + dv * accel_slope };
+    // const double dv{ v_desired - v_current };
+    const double v_next{ v_current + dt * accel_slope };
     const double beta{ std::atan(0.5 * std::tan(steering * steering_param)) };
 
     Ubar ubar_next{};
@@ -119,7 +119,7 @@ public:
 
   virtual Ubar predict(const U& u, const Ubar& ubar, const Params& params) const override
   {
-    return dynamics(u, ubar, params);
+    return dynamics(u, ubar, params, _dt);
   }
 
   virtual Ubar compute_error(const Ubar& ubar1, const U& u, const Ubar& ubar0, const Params& params) const override
@@ -143,6 +143,7 @@ public:
   }
 
 private:
+  const double _dt;
 };
 
 class mushr_xdot_ub_t : public prx::fg::noise_model_2factor_t<mushr_types::StateDot::type, mushr_types::Ubar::type>
@@ -165,11 +166,6 @@ public:
     const double& vt{ ubar[mushr_types::Ubar::velocity] };
     const double& beta{ ubar[mushr_types::Ubar::beta] };
 
-    // const double pi2{ prx::constants::pi / 2.0 };
-    // const double& theta{ x[mushr_types::State::theta] };
-
-    // const double cTh{ std::cos(theta + beta) };
-    // const double sTh{ std::sin(theta + beta) };
     const double wt{ 2.0 * vt * std::sin(beta) / mushr_types::Parameters::L };
 
     // const Xdot t_x{ vt * cTh, vt * sTh, wt };
@@ -204,11 +200,11 @@ public:
 private:
 };
 
-class mushr_ub_u_xdot_t
-  : public prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Control::type, mushr_types::Ubar::type>
+class mushr_ub_u_xdot_t : public prx::fg::noise_model_4factor_t<mushr_types::Ubar::type, mushr_types::Control::type,
+                                                                mushr_types::Ubar::type, double>
 {
-  using Base =
-      prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Control::type, mushr_types::Ubar::type>;
+  using Base = prx::fg::noise_model_4factor_t<mushr_types::Ubar::type, mushr_types::Control::type,
+                                              mushr_types::Ubar::type, double>;
 
 public:
   using Xdot = mushr_types::StateDot::type;
@@ -216,25 +212,25 @@ public:
   using Params = mushr_types::Ubar::params;
   using U = mushr_types::Control::type;
 
-  mushr_ub_u_xdot_t(gtsam::Key ubar, gtsam::Key u, gtsam::Key xdot, const Params params,
+  mushr_ub_u_xdot_t(gtsam::Key ubar1, gtsam::Key u, gtsam::Key ubar0, gtsam::Key t01, const Params params,
                     const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(ubar, u, xdot, cost_model, 0.01), _params{ params }
+    : Base(ubar1, u, ubar0, t01, cost_model, 0.01), _params{ params }
   {
   }
 
-  inline static Ubar dynamics(const U& u, const Ubar& ubar, const Params& params)
+  inline static Ubar dynamics(const U& u, const Ubar& ubar, const Params& params, const double& dt)
   {
-    return mushr_ub_u_xdot_param_t::dynamics(u, ubar, params);
+    return mushr_ub_u_xdot_param_t::dynamics(u, ubar, params, dt);
   }
 
-  virtual Ubar predict(const U& u, const Ubar& ubar) const override
+  virtual Ubar predict(const U& u, const Ubar& ubar, const double& dt) const override
   {
-    return dynamics(u, ubar, _params);
+    return dynamics(u, ubar, _params, dt);
   }
 
-  virtual Ubar compute_error(const Ubar& ubar1, const U& u, const Ubar& ubar0) const override
+  virtual Ubar compute_error(const Ubar& ubar1, const U& u, const Ubar& ubar0, const double& dt) const override
   {
-    return predict(u, ubar0) - ubar1;
+    return predict(u, ubar0, dt) - ubar1;
   }
 
   void eval_to_stream(gtsam::Values& values, std::ostream& os)
@@ -242,12 +238,14 @@ public:
     const Ubar ubar1{ values.at<Ubar>(key<1>()) };
     const U u{ values.at<U>(key<2>()) };
     const Ubar Ubar0{ values.at<Ubar>(key<3>()) };
+    const double dt{ values.at<double>(key<4>()) };
 
     os << ubar1.transpose() << " ";
     os << u.transpose() << " ";
     os << Ubar0.transpose() << " ";
     os << _params.transpose() << " ";
-    os << compute_error(ubar1, u, Ubar0).transpose() << " ";
+    os << dt << " ";
+    os << compute_error(ubar1, u, Ubar0, dt).transpose() << " ";
     os << "\n";
   }
 
@@ -255,50 +253,51 @@ private:
   const Params _params;
 };
 
-class mushr_ub_ufix_xdot_param_t
-  : public prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type, mushr_types::Ubar::params>
-{
-  using Base =
-      prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type, mushr_types::Ubar::params>;
+// class mushr_ub_ufix_xdot_param_t
+//   : public prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type,
+//   mushr_types::Ubar::params>
+// {
+//   using Base =
+//       prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type, mushr_types::Ubar::params>;
 
-public:
-  using Xdot = mushr_types::StateDot::type;
-  using Ubar = mushr_types::Ubar::type;
-  using Params = mushr_types::Ubar::params;
-  using U = mushr_types::Control::type;
+// public:
+//   using Xdot = mushr_types::StateDot::type;
+//   using Ubar = mushr_types::Ubar::type;
+//   using Params = mushr_types::Ubar::params;
+//   using U = mushr_types::Control::type;
 
-  mushr_ub_ufix_xdot_param_t(gtsam::Key ubar, gtsam::Key xdot, gtsam::Key param, const U u,
-                             const gtsam::noiseModel::Base::shared_ptr& cost_model)
-    : Base(ubar, xdot, param, cost_model, 0.01), _u(u)
-  {
-  }
+//   mushr_ub_ufix_xdot_param_t(gtsam::Key ubar, gtsam::Key xdot, gtsam::Key param, const U u,
+//                              const gtsam::noiseModel::Base::shared_ptr& cost_model)
+//     : Base(ubar, xdot, param, cost_model, 0.01), _u(u)
+//   {
+//   }
 
-  virtual Ubar predict(const Ubar& ubar, const Params& params) const override
-  {
-    return mushr_ub_u_xdot_param_t::dynamics(_u, ubar, params);
-  }
+//   virtual Ubar predict(const Ubar& ubar, const Params& params) const override
+//   {
+//     return mushr_ub_u_xdot_param_t::dynamics(_u, ubar, params);
+//   }
 
-  virtual Ubar compute_error(const Ubar& ubar1, const Ubar& ubar0, const Params& params) const override
-  {
-    return predict(ubar0, params) - ubar1;
-  }
+//   virtual Ubar compute_error(const Ubar& ubar1, const Ubar& ubar0, const Params& params) const override
+//   {
+//     return predict(ubar0, params) - ubar1;
+//   }
 
-  void eval_to_stream(gtsam::Values& values, std::ostream& os)
-  {
-    const Ubar ubar1{ values.at<Ubar>(key<1>()) };
-    const Ubar Ubar0{ values.at<Ubar>(key<2>()) };
-    const Params params{ values.at<Params>(key<3>()) };
+//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
+//   {
+//     const Ubar ubar1{ values.at<Ubar>(key<1>()) };
+//     const Ubar Ubar0{ values.at<Ubar>(key<2>()) };
+//     const Params params{ values.at<Params>(key<3>()) };
 
-    os << ubar1.transpose() << " ";                                // 1, 2, 3
-    os << _u.transpose() << " ";                                   // 4, 5, 6
-    os << Ubar0.transpose() << " ";                                // 7, 8
-    os << params.transpose() << " ";                               // 9
-    os << compute_error(ubar1, Ubar0, params).transpose() << " ";  // 4, 5, 6
-    os << "\n";
-  }
+//     os << ubar1.transpose() << " ";                                // 1, 2, 3
+//     os << _u.transpose() << " ";                                   // 4, 5, 6
+//     os << Ubar0.transpose() << " ";                                // 7, 8
+//     os << params.transpose() << " ";                               // 9
+//     os << compute_error(ubar1, Ubar0, params).transpose() << " ";  // 4, 5, 6
+//     os << "\n";
+//   }
 
-private:
-  const U _u;
-};
+// private:
+//   const U _u;
+// };
 
 }  // namespace prx_models

@@ -53,6 +53,7 @@ public:
     // double frequency{ 0.0 };
     std::string action_topic{ "" };
     std::string tree_topic_name{ "" };
+    std::string plan_topic_name{ "" };
     std::string branch_selection{ "min_cost" };
     double& node_epsilon_radius{ _node_epsilon };
     double& lookahead_duration{ _lookahead_duration };
@@ -64,6 +65,7 @@ public:
     PARAM_SETUP(private_nh, tree_topic_name);
     PARAM_SETUP(private_nh, lookahead_duration);
     PARAM_SETUP(private_nh, cost_threashold);
+    PARAM_SETUP(private_nh, plan_topic_name);
     PARAM_SETUP_WITH_DEFAULT(private_nh, random_seed, random_seed);
     PARAM_SETUP_WITH_DEFAULT(private_nh, branch_selection, branch_selection);
     PARAM_SETUP_WITH_DEFAULT(private_nh, node_epsilon_radius, node_epsilon_radius);
@@ -86,6 +88,8 @@ public:
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::tree_callback, this);
 
     _stela_tree_publisher = private_nh.advertise<prx_models::Tree>(stela_tree_topic_name, 1);
+
+    _plan_publisher = private_nh.advertise<ml4kp_bridge::PlanStamped>(plan_topic_name, 1, true);
 
     DEBUG_VARS(action_topic);
     DEBUG_VARS(tree_topic_name);
@@ -356,17 +360,22 @@ private:
       // ROS_INFO("Action callback");
       _current_root = feedback->current_root;
 
+      // if (_last_root_plan != _current_root)
+      // {
+      //   // _stamped_plan.plan.clear();
+      //   const prx_models::Edge& edge{ _tree.edges[_current_root] };
+      //   _stamped_plan.plan = edge.plan;
+      //   _plan_publisher.publish(_stamped_plan);
+      //   _last_root_plan = _current_root;
+      //   DEBUG_VARS(_last_root_plan);
+      // }
+
       _goal.selected_branch.clear();
       _goal.durations.clear();
 
       compute_goal(feedback);
 
       _next_goal_check = now + ros::Duration(0.2);
-
-      // if (_goal.selected_branch.size() == 1)
-      // {
-      //   _goal.stop = true;
-      // }
 
       _action_client->sendGoal(_goal,                                    // no-lint
                                StelaActionClient::SimpleDoneCallback(),  // no-lint
@@ -396,6 +405,10 @@ private:
   ros::Timer _stepper_timer;
   ros::Subscriber _tree_subscriber;
   ros::Publisher _stela_tree_publisher;
+
+  std::uint64_t _last_root_plan;
+  ml4kp_bridge::PlanStamped _stamped_plan;
+  ros::Publisher _plan_publisher;
 
   motion_planning::StelaGraphTraversalGoal _goal;
 

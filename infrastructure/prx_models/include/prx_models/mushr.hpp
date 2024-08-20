@@ -7,12 +7,13 @@
 #include <utils/dbg_utils.hpp>
 #include <prx_models/mj_mushr.hpp>
 #include <prx_models/mushr_factors.hpp>
-
+#include <ml4kp_bridge/lie_ode_observation.cpp>
 // ML4KP
 #include <prx/simulation/plant.hpp>
 #include <prx/factor_graphs/factors/euler_integration_factor.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <prx/factor_graphs/factors/quadratic_cost_factor.hpp>
+#include <prx/factor_graphs/lie_groups/lie_integrator.hpp>
 
 // Gtsam
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -28,7 +29,6 @@ class mushr_utils_t
   using XVelFactor = prx_models::mushr_x_xdot_t;
   using VelUbarFactor = prx_models::mushr_xdot_ub_t;
   using CtrlUbarFactor = prx_models::mushr_ub_u_xdot_t;
-  using ObservationFactor = gtsam::PriorFactor<prx_models::mushr_types::State::type>;
 
 public:
   static constexpr std::string_view plant_name = "mushrFG";
@@ -54,6 +54,11 @@ public:
   static gtsam::Key keyU(const int& level, const int& step)
   {
     return SF::create_hashed_symbol("U^{", level, "}_{", step, "}");
+  }
+
+  static gtsam::Key keyT(const int& level, const int& step)
+  {
+    return SF::create_hashed_symbol("t^{", level, "}_{", step, "}");
   }
 
   static gtsam::Key keyUbar(const int& level, const int& step)
@@ -115,6 +120,13 @@ public:
     pt.point[3] = ubar[mushr_types::Ubar::velocity];
   }
 
+  static void state(State& x, const ml4kp_bridge::SpacePoint& pt)
+  {
+    x[0] = pt.point[0];
+    x[1] = pt.point[1];
+    x[2] = pt.point[2];
+  }
+
   struct ConfigFromState
   {
     void operator()(Eigen::Matrix3d& rotation, Eigen::Vector3d& translation, const State& state)
@@ -122,13 +134,14 @@ public:
       translation[0] = state[0];
       translation[1] = state[1];
       translation[2] = 0;
-      rotation = Eigen::AngleAxisd(state[2], Eigen::Vector3d::UnitZ());
+      rotation = Eigen::Matrix3d::Identity();
+      rotation.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
     }
 
-    void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
+    void operator()(const Eigen::Vector3d& translation, const State& state, Eigen::MatrixXd& H)
     {
-      H = Eigen::Matrix2d::Identity();
-      H.diagonal() = translation.head(2);
+      H = Eigen::Matrix3d::Identity();
+      H.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
     }
   };
 
@@ -160,6 +173,7 @@ public:
                                             const StateEstimates& estimates, const Control u_prev, const Observation& z,
                                             const double dt, const double z_noise)
   {
+    using ObservationFactor = prx::fg::lie_ode_observation_factor_t<State, StateDot>;
     //     XVelFactor
     // VelUbarFactor
     // CtrlUbarFactor
@@ -169,36 +183,108 @@ public:
     const Ubar& ubar0_value{ std::get<2>(estimates) };
     GraphValues graph_values;
 
-    const gtsam::Key x0{ keyX(-1, prev_id) };
-    const gtsam::Key x1{ keyX(-1, curr_id) };
-    const gtsam::Key xdot0{ keyXdot(-1, prev_id) };
-    const gtsam::Key xdot1{ keyXdot(-1, curr_id) };
-    const gtsam::Key ubar0{ keyUbar(-1, prev_id) };
-    const gtsam::Key ubar1{ keyUbar(-1, curr_id) };
-    const gtsam::Key u01{ keyU(-1 * prev_id, -1 * curr_id) };
+    const gtsam::Key x0{ keyX(1, prev_id) };
+    const gtsam::Key x1{ keyX(1, curr_id) };
+    const gtsam::Key xdot0{ keyXdot(1, prev_id) };
+    const gtsam::Key xdot1{ keyXdot(1, curr_id) };
+    const gtsam::Key ubar0{ keyUbar(1, prev_id) };
+    const gtsam::Key ubar1{ keyUbar(1, curr_id) };
+    const gtsam::Key u01{ keyU(prev_id, curr_id) };
 
-    NoiseModel ubar_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
-    NoiseModel qdot_noise{ gtsam::noiseModel::Isotropic::Sigma(3, dt) };
-    NoiseModel q_noise{ gtsam::noiseModel::Isotropic::Sigma(3, z_noise) };
+    // NoiseModel ubar_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
+    // NoiseModel qdot_noise{ gtsam::noiseModel::Isotropic::Sigma(3, dt) };
+    // NoiseModel q_noise{ gtsam::noiseModel::Isotropic::Sigma(3, z_noise) };
     NoiseModel observation_noise{ gtsam::noiseModel::Isotropic::Sigma(3, z_noise) };
 
-    graph_values.first.emplace_shared<CtrlUbarFactor>(ubar1, u01, ubar0, mushr_utils_t::default_params, ubar_noise);
-    graph_values.first.emplace_shared<VelUbarFactor>(xdot1, ubar1, qdot_noise);
-    graph_values.first.emplace_shared<XVelFactor>(x1, x0, xdot0, q_noise, dt);
-    graph_values.first.emplace_shared<ObservationFactor>(x0, z, observation_noise);
-    graph_values.first.addPrior(u01, u_prev);
+    // graph_values.first.emplace_shared<CtrlUbarFactor>(ubar1, u01, ubar0, mushr_utils_t::default_params, ubar_noise);
+    // graph_values.first.emplace_shared<VelUbarFactor>(xdot1, ubar1, qdot_noise);
+    // graph_values.first.emplace_shared<XVelFactor>(x1, x0, xdot0, q_noise, dt);
+    // graph_values.first.emplace_shared<ObservationFactor>(x0, z, observation_noise);
+    // graph_values.first.addPrior(u01, u_prev);
+    graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, observation_noise, z, dt);
 
-    const Ubar val_ubar1{ CtrlUbarFactor::dynamics(u_prev, ubar0_value, mushr_utils_t::default_params) };
-    const StateDot val_xdot1{ VelUbarFactor::dynamics(val_ubar1) };
-    const State val_x1{ XVelFactor::predict(x0_value, val_xdot1, dt) };
+    // const Ubar val_ubar1{ CtrlUbarFactor::dynamics(u_prev, ubar0_value, mushr_utils_t::default_params) };
+    // const StateDot val_xdot1{ VelUbarFactor::dynamics(val_ubar1) };
+    // const State val_x1{ XVelFactor::predict(x0_value, val_xdot1, dt) };
 
-    graph_values.second.insert(u01, u_prev);
-    graph_values.second.insert(xdot1, val_xdot1);
-    graph_values.second.insert(x1, val_x1);
+    // graph_values.second.insert(u01, u_prev);
+    // graph_values.second.insert(xdot1, val_xdot1);
+    // graph_values.second.insert(x1, val_x1);
 
-    graph_values.second.insert(ubar1, val_ubar1);
+    // graph_values.second.insert(ubar1, val_ubar1);
     return graph_values;
   }
+
+  // Create a FG that goes from N0 to N1 with plan P01
+  static GraphValues node_edge_to_fg(const std::size_t parent, const std::size_t child,
+                                     const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan)
+  {
+    using StateStateDotFactor = prx::fg::lie_integration_factor_t<State, StateDot, double>;
+    using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
+
+    const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
+    const double dt{ edge_plan.steps[0].duration.data.toSec() };
+    // using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
+    State x1;
+    StateDot xdot1;
+    Control u01;
+    Ubar ubar0, ubar1;
+
+    mushr_utils_t::state(x1, node_state);
+    u01[0] = edge_control.point[0];
+    u01[1] = edge_control.point[1];
+
+    // Setting ubar velocity, the steering doesn't matter to get ubar1
+    ubar0[mushr_types::Ubar::velocity] = node_state.point[3];
+
+    ubar1 = mushr_ub_u_xdot_param_t::dynamics(u01, ubar0, default_params, dt);
+    xdot1 = mushr_xdot_ub_t::dynamics(ubar1);
+
+    GraphValues graph_values;
+
+    const gtsam::Key k_x0{ keyX(1, parent) };
+    const gtsam::Key k_x1{ keyX(1, child) };
+
+    const gtsam::Key k_xdot0{ keyXdot(1, parent) };
+    const gtsam::Key k_xdot1{ keyXdot(1, child) };
+
+    const gtsam::Key k_ubar0{ keyUbar(1, parent) };
+    const gtsam::Key k_ubar1{ keyUbar(1, child) };
+
+    const gtsam::Key k_u01{ keyU(parent, child) };
+    const gtsam::Key k_t01{ keyT(parent, child) };
+
+    NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-0) };
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
+    // _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u);
+    // _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
+    // _state = mushr_x_xdot_t::predict(_state, _state_dot, simulation_step);
+    //
+    //   mushr_ub_u_xdot_t(gtsam::Key ubar1, gtsam::Key u, gtsam::Key ubar0, const Params params,
+    // const gtsam::noiseModel::Base::shared_ptr& cost_model)
+    graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
+    graph_values.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
+    graph_values.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
+    graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+    // mushr_xdot_ub_t(gtsam::Key xdot, gtsam::Key ubar, const gtsam::noiseModel::Base::shared_ptr& cost_model)
+    //   : Base(xdot, ubar, cost_model, 0.01)
+
+    graph_values.first.addPrior(k_x1, x1);
+    graph_values.first.addPrior(k_xdot1, xdot1);
+    graph_values.first.addPrior(k_ubar1, ubar1);
+    // graph_values.first.addPrior(u01, control, u_prior_noise);
+    graph_values.first.addPrior(k_t01, dt, dt_noise);
+
+    graph_values.second.insert(k_x1, x1);
+    graph_values.second.insert(k_xdot1, xdot1);
+    graph_values.second.insert(k_ubar1, ubar1);
+    graph_values.second.insert(k_u01, u01);
+    graph_values.second.insert(k_t01, dt);
+
+    return graph_values;
+  };
 
 private:
   static inline mushr_types::Ubar::params default_params{ 0.9898, 0.4203, 0.6228 };
@@ -239,7 +325,7 @@ public:
   {
     // DEBUG_VARS("--------------")
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
-    _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u);
+    _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u, simulation_step);
     _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
     // _state = mushr_x_xdot_t::dynamics(_state, _state_dot, simulation_step);
     // mushr_x_xdot_ub_t();

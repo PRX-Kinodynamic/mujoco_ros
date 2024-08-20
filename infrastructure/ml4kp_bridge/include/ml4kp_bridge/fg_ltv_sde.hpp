@@ -225,7 +225,8 @@ public:
       translation[2] = 0;
     }
 
-    void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
+    // void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
+    void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
     {
       H = Eigen::Matrix2d::Identity();
       H.diagonal() = translation.head(2);
@@ -352,10 +353,10 @@ public:
     const gtsam::Key x0{ keyX(estimation, update.parent) };
     const gtsam::Key xdot0{ keyXdot(estimation, update.parent) };
 
-    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e-1) };
 
     graph_values.first.addPrior(x0, update.x, integration_noise);
-    graph_values.first.addPrior(xdot0, update.xdot, integration_noise);
+    graph_values.first.addPrior(xdot0, update.xdot);
 
     graph_values.second.insert(x0, update.x);
     graph_values.second.insert(xdot0, update.xdot);
@@ -364,6 +365,8 @@ public:
 
   static GraphValues local_factor_graph(const local_update_t& update)
   {
+    using VectorElementGreaterComparison = prx::fg::VectorGreaterThanCmp<Control>;
+    using VectorGreaterThanFactor = prx::fg::constraint_factor_t<Control, VectorElementGreaterComparison>;
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
     GraphValues graph_values;
@@ -377,13 +380,15 @@ public:
 
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
-    NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-0) };
+    NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
 
     graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, k_t01, update.integration_noise,
                                                                 "EulerX");
     graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, k_t01, update.dynamic_noise,
                                                                   "EulerXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(u01, Control(0.2, 0.2));
+    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(xdot1, Control(0.5, 0.5));
 
     graph_values.first.addPrior(x1, update.x);
     graph_values.first.addPrior(xdot1, update.xdot);
@@ -731,7 +736,7 @@ public:
     compute_derivative();
     _x = EulerFactor::integrate(_x, _xdot, prx::simulation_step);
     _x += fg::ltv_sde_utils_t::noise(_Gx, _wx_sigmas);
-    state_space->enforce_bounds();
+    // state_space->enforce_bounds();
   }
 
   virtual void update_configuration() override

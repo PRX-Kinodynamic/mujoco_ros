@@ -77,9 +77,10 @@ inline void to_file(const ml4kp_bridge::Plan& msg, std::ofstream& ofs)
 {
   for (auto step : msg.steps)
   {
+    // PRX_DBG_VARS(step);
     to_file(step, ofs);
   }
-  ofs << "\n";
+  ofs << std::endl;
 }
 
 inline void to_file(const ml4kp_bridge::PlanStamped& msg, std::ofstream& ofs)
