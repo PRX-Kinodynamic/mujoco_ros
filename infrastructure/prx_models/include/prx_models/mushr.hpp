@@ -7,7 +7,7 @@
 #include <utils/dbg_utils.hpp>
 #include <prx_models/mj_mushr.hpp>
 #include <prx_models/mushr_factors.hpp>
-#include <ml4kp_bridge/lie_ode_observation.cpp>
+#include <ml4kp_bridge/lie_ode_observation.hpp>
 // ML4KP
 #include <prx/simulation/plant.hpp>
 #include <prx/factor_graphs/factors/euler_integration_factor.hpp>
