@@ -69,11 +69,11 @@
     </description>
   </class>
   <class 
-      name="motion_planning/RandomBranch" 
-      type="motion_planning::RandomBranch" 
+      name="motion_planning/BranchSelector" 
+      type="motion_planning::BranchSelector" 
       base_class_type="nodelet::Nodelet">
     <description> 
-      Get the trajectories from a tree
+      Get the a trajectory (branch) from a tree
     </description>
   </class>
   <class 

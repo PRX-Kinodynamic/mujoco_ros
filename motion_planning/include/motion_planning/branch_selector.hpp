@@ -15,12 +15,13 @@ namespace motion_planning
 {
 
 template <class Base>
-class random_branch_t : public Base
+class branch_selector_t : public Base
 {
-  using Derived = random_branch_t<Base>;
+  using Derived = branch_selector_t<Base>;
 
 public:
-  random_branch_t() : Base(), _traj_plan_pub_service_name("/sbmp/tree_to_trajectory")
+  branch_selector_t()
+    : Base(), _traj_plan_pub_service_name("/sbmp/tree_to_trajectory"), _current_cost(std::numeric_limits<double>::max())
   {
   }
 
@@ -86,25 +87,44 @@ protected:
 
     const std::size_t total_children{ node.children.size() };
 
-    _traj.data.push_back(node.point);
-    // std::copy(edge.plan.steps.begin(), edge.plan.steps.end(), std::back_inserter(_plans[traj_id].steps));
-    ml4kp_bridge::append(_plan.plan, edge.plan);
+    // _traj.data.push_back(node.point);
+    // ml4kp_bridge::append(_plan.plan, edge.plan);
 
     if (total_children >= 1)  // This is not a leaf
     {
       // const int idx{ prx::uniform_int_random(0, total_children - 1) };
       const std::size_t child_id{ node.children[0] };
 
-      // _trajs.emplace_back();
-      // _plans.emplace_back();
-      // _plans.back().plan.emplace_back();
-      // ml4kp_bridge::copy(_trajs.back(), _trajs[traj_id]);
-      // ml4kp_bridge::copy(_plans.back().plan, _plans[traj_id].plan);
-
       branch_to_traj(msg, child_id);
       // branch_to_traj(msg, node.children[0], traj_id);
     }
-    // DEBUG_VARS(node_id, _trajs.size());
+    else
+    {
+      if (_current_cost > node.cost)
+      {
+        _min_cost_node_id = node_id;
+      }
+    }
+  }
+
+  void recover_min_cost_traj(const prx_models::TreeConstPtr msg, const std::uint64_t node_id)
+  {
+    const prx_models::Node& node{ msg->nodes[node_id] };
+    const prx_models::Edge& edge{ msg->edges[node.parent_edge] };
+
+    if (node_id != msg->root)
+    {
+      recover_min_cost_traj(msg, node.parent);
+      _traj.data.push_back(node.point);
+      ml4kp_bridge::append(_plan.plan, edge.plan);
+    }
+    else
+    {
+      _traj.data.push_back(node.point);
+
+      //   std::reverse(_traj.data.begin(), _traj.data.end());
+      //   std::reverse(_plan.plan.steps.begin(), _plan.plan.steps.end());
+    }
   }
 
   void tree_callback(const prx_models::TreeConstPtr msg)
@@ -112,11 +132,11 @@ protected:
     const prx_models::Node& node{ msg->nodes[msg->root] };
 
     const std::size_t total_children{ node.children.size() };
-    // for (auto child_id : node.children)
-    while (true)
+    // while (true)
+    for (auto child_id : node.children)
     {
-      const int idx{ prx::uniform_int_random(0, total_children - 1) };
-      const std::size_t child_id{ node.children[idx] };
+      // const int idx{ prx::uniform_int_random(0, total_children - 1) };
+      // const std::size_t child_id{ node.children[idx] };
       if (child_id == msg->root)  // The root node is its own parent :/
         continue;
       // _trajs.emplace_back();
@@ -125,11 +145,17 @@ protected:
       _traj.data.push_back(node.point);
 
       branch_to_traj(msg, child_id);
-      break;
+      // break;
     }
+    recover_min_cost_traj(msg, _min_cost_node_id);
+
     // const std::size_t total_trajectories{ _trajs.size() };
-    // DEBUG_VARS(total_trajectories);
+    // DEBUG_VARS(_traj);
+    // DEBUG_VARS(_plan);
   }
+
+  double _current_cost;
+  std::uint64_t _min_cost_node_id;
 
   // Topic names
   std::string _traj_plan_pub_service_name;

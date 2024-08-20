@@ -149,8 +149,12 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-set(BUILD_FLAGS "-O3 -march=native")
-list(APPEND BUILD_FLAGS "-fPIC")
+set(BUILD_FLAGS "-O3")
+if (UNIX AND NOT APPLE)
+  MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  set(BUILD_FLAGS "-march=native")
+  list(APPEND BUILD_FLAGS "-fPIC")
+endif(UNIX)
 add_definitions(${BUILD_FLAGS})
 
 

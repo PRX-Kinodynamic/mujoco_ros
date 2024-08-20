@@ -353,10 +353,10 @@ public:
     const gtsam::Key x0{ keyX(estimation, update.parent) };
     const gtsam::Key xdot0{ keyXdot(estimation, update.parent) };
 
-    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e-1) };
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
 
     graph_values.first.addPrior(x0, update.x, integration_noise);
-    graph_values.first.addPrior(xdot0, update.xdot);
+    graph_values.first.addPrior(xdot0, update.xdot, integration_noise);
 
     graph_values.second.insert(x0, update.x);
     graph_values.second.insert(xdot0, update.xdot);

@@ -100,8 +100,8 @@ launch-prefix="gdb --args">
     </node>
 
     <node if="$(eval arg('planner') == 'OpenLoop' or arg('planner') == 'Feedback')" 
-      pkg="nodelet" type="nodelet" name="RandomBranch" 
-      args="load motion_planning/RandomBranch stela_nodelet_manager" output="screen">
+      pkg="nodelet" type="nodelet" name="BranchSelector" 
+      args="load motion_planning/BranchSelector stela_nodelet_manager" output="screen">
       <param name="random_seed" value="$(arg random_seed)"/>
       <param name="plan_topic_name" value="$(arg plan_topic)"/>
       <param name="traj_topic_name" value="$(arg trajectory_topic)"/>

@@ -79,10 +79,14 @@ find_package(iceoryx_hoofs CONFIG REQUIRED)
 #   FILES
 #   MushrPlanner.srv
 # )
-set(BUILD_FLAGS "-O3 -march=native")
-list(APPEND BUILD_FLAGS "-fPIC")
-add_definitions(${BUILD_FLAGS})
+set(BUILD_FLAGS "-O3")
+if (UNIX AND NOT APPLE)
+  MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  set(BUILD_FLAGS "-march=native")
+  list(APPEND BUILD_FLAGS "-fPIC")
+endif(UNIX)
 
+add_definitions(${BUILD_FLAGS})
 set(ACTION_FILES "")
 file(GLOB_RECURSE SRV_DIRS "action/*.action")
 foreach(S_DIR ${SRV_DIRS})
