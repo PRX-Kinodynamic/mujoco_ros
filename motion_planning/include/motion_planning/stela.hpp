@@ -55,6 +55,7 @@ public:
     , _goal_received(false)
     , _mode("None")
     , _experiment_id("test")
+    , _files_created(false)
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -163,6 +164,11 @@ public:
     _dt01 = 0.0;
   }
 
+  ~stela_t()
+  {
+    to_file();
+  }
+
   void collision_callback(const std_msgs::BoolConstPtr& msg)
   {
     if (msg->data)
@@ -173,6 +179,9 @@ public:
 
   void to_file(const bool collision = false)
   {
+    if (_files_created)
+      return;
+
     gtsam::Values estimate{ _isam.calculateEstimate() };
     const std::string filename{ _output_dir + "/stela_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
     const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + _experiment_id + "_" +
@@ -210,6 +219,8 @@ public:
     ofs.close();
     ofs_branch.close();
     ofs_data.close();
+
+    _files_created = true;
 
     std_msgs::Bool msg;
     msg.data = true;
@@ -867,6 +878,7 @@ private:
   bool _last_local_goal;
 
   // File/output
+  bool _files_created;
   std::string _output_dir;
   std::string _experiment_id;
 
