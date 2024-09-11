@@ -14,6 +14,7 @@
 
 #include <cv_bridge/cv_bridge.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 // Nodelet to read from a physical camera and publish to '*Namespace*/camera/rgb' at a given framerate
 // As a nodelet, publishing to another nodelet in the same manager is equivalent to a pointer copy
 namespace perception
@@ -43,6 +44,9 @@ private:
     _cap.open(std::stoi(camera), cv::CAP_ANY);
 #endif
 
+    DEBUG_VARS(frequency);
+
+    _cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     _cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     _cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
     _cap.set(cv::CAP_PROP_FPS, frequency);

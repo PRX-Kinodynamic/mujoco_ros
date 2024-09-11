@@ -17,12 +17,12 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <visualization_msgs/Marker.h>
 
-#include <opencv2/core/hal/interface.h>
-#include <opencv2/core/quaternion.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+//#include <opencv2/core/hal/interface.h>
+//#include <opencv2/core/quaternion.hpp>
+//#include <opencv2/highgui/highgui.hpp>
+//#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/opencv.hpp>
-#include <opencv2/videoio.hpp>
+//#include <opencv2/videoio.hpp>
 #include <cv_bridge/cv_bridge.h>
 
 #include <interface/StampedMarkers.h>
@@ -33,7 +33,6 @@
 
 namespace estimation
 {
-
 template <class Base>
 class aruco_wTc_t : public Base
 {
@@ -130,13 +129,16 @@ private:
   void get_trajectory(const ml4kp_bridge::TrajectoryStampedConstPtr message)
   {
     _cv_traj.clear();
-    for (auto& state : message->trajectory.data)
+    if (message->trajectory.data.size() > 0)
     {
-      // x,y,z: setting z=0 for now
-      _cv_traj.emplace_back(state.point[0], state.point[1], 0.0);
-      _msgs_received[PointIdx::trajectory] = true;
+      for (auto& state : message->trajectory.data)
+      {
+        // x,y,z: setting z=0 for now
+        _cv_traj.emplace_back(state.point[0], state.point[1], 0.0);
+        _msgs_received[PointIdx::trajectory] = true;
+      }
+      cv::projectPoints(_cv_traj, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_traj);
     }
-    cv::projectPoints(_cv_traj, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, _image_traj);
   }
 
   void get_goal_rad(const std_msgs::Float64ConstPtr message)

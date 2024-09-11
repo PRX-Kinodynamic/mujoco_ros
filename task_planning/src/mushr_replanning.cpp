@@ -3,7 +3,7 @@
 #include "prx_models/mj_mushr.hpp"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>

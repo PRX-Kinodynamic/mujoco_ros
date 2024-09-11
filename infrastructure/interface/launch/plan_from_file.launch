@@ -2,7 +2,7 @@
     <arg name="simulation" default="true" />
     <arg name="plan_from_file_topic" default="/mushr/ml4kp_plan" />
     <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
-    <arg name="plan_filename" default="$(env ML4KP_ROS)/plan0.txt" />
+    <arg name="plan_filename" default="$(env ML4KP_ROS)/data/plans/plan0.txt" />
 
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen"/>
@@ -14,7 +14,8 @@
             <param name="control_dimension" value="2" />
             <param name="control_topology" value="EE" />
             <param name="publisher_topic" value="$(arg plan_from_file_topic)" />
-        </node>
+        </node> 
+         
          <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
             args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
             output="screen">
@@ -29,14 +30,14 @@
             <param name="publisher_topic" value="/mushr/control" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
             <param name="frequency" value="10" />
-        </node>         
+        </node>       
 
         <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
             args="load interface/AckermannFromSpacePointNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
-            <param name="frequency" value="10" />
+            <param name="frequency" value="100" />
         </node>         
     </group>
   

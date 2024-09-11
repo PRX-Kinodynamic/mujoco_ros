@@ -6,11 +6,11 @@
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "nodelets_as_nodes");
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
 
   std::string node_name{};
   DEBUG_VARS(node_name);
-  GLOBAL_PARAM_SETUP(nh, node_name);
+  PARAM_SETUP(nh, node_name);
 
   DEBUG_VARS(node_name);
   std::unique_ptr<utils::nodelet_as_node_t> node;
