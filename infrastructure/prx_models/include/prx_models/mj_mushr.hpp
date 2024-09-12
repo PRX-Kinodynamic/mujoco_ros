@@ -19,8 +19,8 @@ namespace mushr_t
 static constexpr std::size_t u_dim{ 2 };
 namespace control
 {
-static constexpr std::size_t steering_idx{ 0 };
-static constexpr std::size_t velocity_idx{ 1 };
+static constexpr std::size_t steering_idx{ 1 };
+static constexpr std::size_t velocity_idx{ 0 };
 };  // namespace control
 namespace sensors_t
 {

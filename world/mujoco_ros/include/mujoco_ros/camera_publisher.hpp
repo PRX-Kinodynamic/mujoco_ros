@@ -16,11 +16,12 @@ class simulator_t;
 class camera_rgb_publisher_t
 {
 public:
-  camera_rgb_publisher_t(ros::NodeHandle& nh, SimulatorPtr sim, const std::string camera_name, double frequency = 30)
+  camera_rgb_publisher_t(ros::NodeHandle& nh, SimulatorPtr sim, const std::string camera_name, double frequency = 30,
+                         const std::string topic_name = ros::this_node::getNamespace() + "/camera/rgb")
     : _sim(sim)
     , _rate(frequency)
     , _root(ros::this_node::getNamespace())
-    , _topic_name(_root + "/camera/rgb")
+    , _topic_name(topic_name)
     , _publisher(nh.advertise<sensor_msgs::Image>(_topic_name, 1000))
     , _cam_name(camera_name)
     , _header()

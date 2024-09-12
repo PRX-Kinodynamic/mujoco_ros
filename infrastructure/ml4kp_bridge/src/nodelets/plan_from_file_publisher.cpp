@@ -8,13 +8,14 @@
 #include <ml4kp_bridge/plan_bridge.hpp>
 #include <ml4kp_bridge/SendString.h>
 #include <std_srvs/Empty.h>
+// #include <utils/rosparams_utils.hpp>
 
 namespace ml4kp_bridge
 {
 class plan_from_file_t : public nodelet::Nodelet
 {
 public:
-  plan_from_file_t()
+  plan_from_file_t() : _plan_file("")
   {
   }
 
@@ -22,6 +23,7 @@ protected:
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
+
     private_nh.getParam("publisher_topic", _publisher_topic);
     private_nh.getParam("plan_file", _plan_file);
 
@@ -35,8 +37,13 @@ protected:
     }
     _control_space = std::make_shared<prx::space_t>(_topology, _address, "plan_control_space");
     _plan = std::make_shared<prx::plan_t>(_control_space.get());
-    _plan->from_file(_plan_file);
-    copy(_plan_msg, _plan);
+
+    if (_plan_file != "")
+    {
+      _plan->from_file(_plan_file);
+
+      copy(_plan_msg, _plan);
+    }
 
     PRX_DBG_VARS(_publisher_topic);
 
@@ -54,11 +61,13 @@ protected:
   {
     const std::filesystem::path filename{ request.string };
 
+    PRX_DBG_VARS(filename);
     if (std::filesystem::exists(filename))
     {
       _plan->clear();
       _plan->from_file(request.string);
       copy(_plan_msg, _plan);
+      PRX_DBG_VARS(_plan);
       response.ok = true;
     }
     else

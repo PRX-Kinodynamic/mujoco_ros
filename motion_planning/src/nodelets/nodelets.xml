@@ -92,5 +92,13 @@
       Mushr trajectory estimation
     </description>
   </class>
+  <class 
+      name="motion_planning/StelaMushr" 
+      type="motion_planning::StelaMushr" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Mushr stela
+    </description>
+  </class>
   
 </library>

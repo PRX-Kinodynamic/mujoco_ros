@@ -20,6 +20,11 @@ int main(int argc, char** argv)
 
   std::string model_path;
   bool visualize, save_trajectory, publish_ground_truth_pose;
+  double frequency;
+  std::string camera_topic{ ros::this_node::getNamespace() + "/camera/rgb" };
+
+  PARAM_SETUP_WITH_DEFAULT(private_nh, camera_topic, camera_topic)
+  PARAM_SETUP_WITH_DEFAULT(private_nh, frequency, 30)
 
   utils::get_param_and_check(n, "/model_path", model_path);
   utils::get_param_and_check(n, node_name_prefix + "/visualize", visualize);
@@ -47,7 +52,7 @@ int main(int argc, char** argv)
         n.subscribe(root + "/reset", 1000, &mj_ros::simulator_visualizer_t::reset, visualizer.get()));
   }
 
-  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0");
+  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "camera_0", frequency, camera_topic);
   if (publish_ground_truth_pose)
   {
     mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);

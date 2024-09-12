@@ -11,6 +11,7 @@
 #include <motion_planning/branch_selector.hpp>
 #include <motion_planning/ltv_controller.hpp>
 #include <motion_planning/trajectory_estimation.hpp>
+#include <prx_models/mushr.hpp>
 
 #include <prx/planning/planners/planner.hpp>
 #include <prx/planning/planners/rrt.hpp>
@@ -29,10 +30,12 @@ using DirtPublisher = sbmp_publisher_t<prx::dirt_t, prx::dirt_specification_t, p
 using RRTPublisher = sbmp_publisher_t<prx::rrt_t, prx::rrt_specification_t, prx::rrt_query_t, nodelet::Nodelet>;
 using AORRTPublisher = sbmp_publisher_t<prx::aorrt_t, prx::aorrt_specification_t, prx::aorrt_query_t, nodelet::Nodelet>;
 using StelaLtvSde = stela_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
-using StelaStepper = stela_stepper_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
+using StelaStepper = stela_stepper_t<nodelet::Nodelet>;
 using BranchSelector = branch_selector_t<nodelet::Nodelet>;
 using LtvPositionController = ltv_controller_t<nodelet::Nodelet>;
 using MushrTrajectoryEstimation = trajectory_estimation_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
+
+using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -46,3 +49,4 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::StelaStepper, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::BranchSelector, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::LtvPositionController, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::MushrTrajectoryEstimation, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::StelaMushr, nodelet::Nodelet);

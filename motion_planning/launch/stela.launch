@@ -11,10 +11,12 @@
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <arg name="environment" default="environments/forest.yaml"/>
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
+  <!-- <arg name="environment" default="environments/bug_trap.yaml"/> -->
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
   <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
+  <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/tunning"/> -->
   <arg name="simulation_step" default="0.1"/>
   <arg name="collect_data" default="true"/>
   <arg name="sim_clock" default="false"/>
@@ -148,7 +150,7 @@ launch-prefix="gdb --args">
       <param name="finished_topic" value="$(arg stop_topic)"/>
     </node> 
 
-    <node if="$(eval arg('planner') == 'Stela')" 
+    <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'ltv_sde')" 
       pkg="nodelet" type="nodelet" name="StelaLtvSde" 
       args="load motion_planning/StelaLtvSde stela_nodelet_manager" output="screen">
       <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
@@ -156,6 +158,24 @@ launch-prefix="gdb --args">
       <param name="control_frequency" value="30"/>
       <param name="world_frame" value="world"/>
       <param name="robot_frame" value="robot"/>
+      <param name="output_dir" value="$(arg data_dir)"/>
+      <param name="collision_topic" value="$(arg collision_topic)"/>
+      <param name="environment" value="$(arg environment)"/>
+      <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+      <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
+      <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
+      <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+      <param name="experiment_id" value="$(arg experiment_id)"/>
+    </node> 
+
+    <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'mushr')" 
+      pkg="nodelet" type="nodelet" name="StelaMushr" 
+      args="load motion_planning/StelaMushr stela_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
+      <param name="control_topic" value="$(arg control_topic)"/> 
+      <param name="control_frequency" value="30"/>
+      <param name="world_frame" value="$(arg world_frame)"/>
+      <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="output_dir" value="$(arg data_dir)"/>
       <param name="collision_topic" value="$(arg collision_topic)"/>
       <param name="environment" value="$(arg environment)"/>
@@ -196,7 +216,6 @@ launch-prefix="gdb --args">
       <param name="cost_threashold" value="10000"/> 
       <param name="node_name" value="StelaStepper"/> 
       <param name="branch_selection" value="min_cost"/> 
-      <!-- <param name="branch_selection" value="random"/>  -->
       <param name="random_seed" value="$(arg random_seed)"/>
       <param name="plan_topic_name" value="$(arg plan_topic)"/>
     </node>
@@ -220,7 +239,7 @@ launch-prefix="gdb --args">
 
   <group ns="simulator">
     
-    <include if="$(eval arg('Plant') == 'ltv_sde')" 
+    <include if="$(eval arg('Plant') == 'ltv_sde' or arg('Plant') == 'mushr' )" 
              file="$(find analytical)/launch/simulator.launch" >
       <arg name="ns" value="stela"/>
       <arg name="plant_file" value="$(arg plant_file)"/>
@@ -238,12 +257,12 @@ launch-prefix="gdb --args">
       <arg name="num_workers" default="$(arg num_workers)"/>
     </include>
 
-    <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 
+    <!-- <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 
              file="$(find mujoco_ros)/launch/mushr.launch" 
             >
       <arg name="visualize" default="$(arg visualize)"/>
       <arg name="control_topic" default="$(arg control_topic)"/> 
-    </include>
+    </include> -->
 
     <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
         args="0 0 0 0 0 0 1 world map" />
@@ -252,6 +271,13 @@ launch-prefix="gdb --args">
   <group ns="utils">
     <node pkg="nodelet" type="nodelet" name="to_file_nodelet_manager"  args="manager" output="screen">
       <param name="num_worker_threads" value="$(arg num_workers)" />
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="plan_from_file_t" output="screen"
+          args="load ml4kp_bridge/plan_from_file_t to_file_nodelet_manager" >
+      <param name="control_dimension" value="2" />
+      <param name="control_topology" value="EE" />
+      <param name="publisher_topic" value="$(arg plan_topic)" />
     </node>
 
     <node 
@@ -311,7 +337,6 @@ launch-prefix="gdb --args">
       <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>
 
-    <!-- <node pkg="nodelet" type="nodelet" name="collision_nodelet_manager"  args="manager" output="screen"/> -->
 
     <node if="$(arg collect_data)" 
       pkg="nodelet" type="nodelet" name="CollisionToFile" output="screen"
@@ -387,9 +412,18 @@ launch-prefix="gdb --args">
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
     </node>  
 
-    <node if="$(arg visualize)" 
+    <node if="$(eval arg('visualize') and arg('Plant') == 'ltv_sde')" 
       pkg="nodelet" type="nodelet" name="ControlVizPublisher" 
       args="load interface/ControlVisualizationNodelet viz_nodelet_manager" output="screen">
+      <param name="world_frame" value="$(arg world_frame)"/>
+      <param name="robot_frame" value="$(arg robot_frame)"/>
+      <param name="control_topic_name" value="$(arg control_topic)"/>
+      <param name="color" type="yaml" value="[.50, 1.0, 1.0, 1.0]"/>
+    </node>   
+
+     <node if="$(eval arg('visualize') and arg('Plant') == 'mushr')" 
+      pkg="nodelet" type="nodelet" name="MushrControlVisualizationNodelet" 
+      args="load interface/MushrControlVisualizationNodelet viz_nodelet_manager" output="screen">
       <param name="world_frame" value="$(arg world_frame)"/>
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="control_topic_name" value="$(arg control_topic)"/>

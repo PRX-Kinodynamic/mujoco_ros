@@ -10,6 +10,8 @@
 
 #include "prx/factor_graphs/utilities/symbols_factory.hpp"
 #include "prx/factor_graphs/lie_groups/lie_integrator.hpp"
+#include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace prx
 {
@@ -61,31 +63,32 @@ public:
   virtual Eigen::VectorXd evaluateError(const X& x, const Xdot& xdot,  // no-lint
                                         OptDeriv Hx = boost::none, OptDeriv Hxdot = boost::none) const override
   {
-    Eigen::Matrix<double, DimX, DimX> err_H_b;       // Deriv error wrt between
-    Eigen::Matrix<double, DimX, DimX> b_H_q1;        // Deriv between wrt x1
-    Eigen::Matrix<double, DimX, DimX> b_H_qp;        // Deriv between wrt predicted
-    Eigen::Matrix<double, DimX, DimX> qp_H_q0;       // Deriv predicted wrt x0
-    Eigen::Matrix<double, DimX, DimXdot> qp_H_qdot;  // Deriv predicted wrt xdot
-    Eigen::Matrix<double, DimX, 1> qp_H_qdt;         // Deriv predicted wrt dt
+    Eigen::Matrix<double, DimX, DimX> err_H_b;      // Deriv error wrt between
+    Eigen::Matrix<double, DimX, DimX> b_H_z;        // Deriv between wrt z
+    Eigen::Matrix<double, DimX, DimX> b_H_p;        // Deriv between wrt predicted
+    Eigen::Matrix<double, DimX, DimX> p_H_x;        // Deriv predicted wrt x
+    Eigen::Matrix<double, DimX, DimXdot> p_H_xdot;  // Deriv predicted wrt xdot
 
-    const X prediction{ predict(x, xdot, _dt,             // no-lint
-                                Hx ? &qp_H_q0 : nullptr,  // no-lint
-                                Hxdot ? &qp_H_qdot : nullptr) };
+    const X prediction{ predict(x, xdot, _dt,           // no-lint
+                                Hx ? &p_H_x : nullptr,  // no-lint
+                                Hxdot ? &p_H_xdot : nullptr) };
     // X1_p (-) x1 => Eq. 26 from "A micro Lie theory [...]" https://arxiv.org/pdf/1812.01537.pdf
-    const X between{ _xte.between(prediction,                         // no-lint
-                                  (Hx or Hxdot) ? &b_H_q1 : nullptr,  // no-lint
-                                  (Hx or Hxdot) ? &b_H_qp : nullptr) };
-    const Eigen::VectorXd error{ X::Logmap(between, (Hx or Hxdot) ? &err_H_b : nullptr) };
+    const X between{ _xte.between(prediction,                        // no-lint
+                                  (Hx or Hxdot) ? &b_H_z : nullptr,  // no-lint
+                                  (Hx or Hxdot) ? &b_H_p : nullptr) };
+    const Eigen::Vector<double, DimX> error{ X::Logmap(between, (Hx or Hxdot) ? &err_H_b : nullptr) };
 
     if (Hx)
     {
-      *Hx = err_H_b * b_H_q1;
+      *Hx = err_H_b * b_H_p * p_H_x;
     }
     if (Hxdot)
     {
-      *Hxdot = err_H_b * b_H_qp * qp_H_qdot;
+      *Hxdot = err_H_b * b_H_p * p_H_xdot;
     }
-
+    // PRX_DBG_VARS(_xte);
+    // PRX_DBG_VARS(x);
+    // PRX_DBG_VARS(error.transpose());
     // // Derivatives of q1p with respect to q/qdot
     // Eigen::Matrix<double, DimX, DimX> q1p_H_q0;
     // Eigen::Matrix<double, DimX, DimXdot> q1p_H_qdot;

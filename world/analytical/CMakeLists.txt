@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   nodelet
   tf
+  prx_models
 )
 
 

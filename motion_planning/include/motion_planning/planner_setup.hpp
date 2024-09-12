@@ -97,6 +97,27 @@ void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::rrt_specif
       return x_cost + u_cost;
     };
   }
+  // if (params["plant/name"].as<>() == "mushrFG")
+  // {
+  //   spec->cost_function = [](const prx::trajectory_t& traj, const prx::plan_t& plan) {
+  //     double x_cost{ 0.0 };
+  //     double u_cost{ 0.0 };
+  //     const Eigen::Matrix2d C{ Eigen::Matrix2d::Identity() };
+  //     for (auto state : traj)
+  //     {
+  //       // const Eigen::Vector2d xdot{ Vec(state).tail(2) };
+  //       // x_cost += xdot.transpose() * C * xdot;
+  //       x_cost += std::pow(state->at(3), 2) * 0.1;
+  //     }
+  //     for (auto step : plan)
+  //     {
+  //       const Eigen::Vector2d u{ Vec(step.control) };
+  //       // u_cost += std::pow(u[0], 2);
+  //       // u_cost += u.transpose() * C * u;
+  //     }
+  //     return x_cost + u_cost;
+  //   };
+  // }
 }
 
 void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::dirt_specification_t>& spec)

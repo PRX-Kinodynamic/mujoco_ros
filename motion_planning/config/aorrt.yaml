@@ -1,5 +1,5 @@
-# random_seed: 231192
-random_seed: 9080352
+random_seed: 231192
+# random_seed: 9080352
 simulation_step: 0.1
 
 environment: "environments/simple_obstacle.yaml"
@@ -11,12 +11,13 @@ visualize: true
 checker_type: time
 # checker_value: 7200
 # checker_value: 3600
-# checker_value: 600
+checker_value: 600
 # checker_value: 120
 # checker_value: 60
-checker_value: 30
+# checker_value: 30
+# checker_value: 4
 # cost_multiplier: 2.5
-cost_multiplier: 2.0
+cost_multiplier: 1.0
 
 max_edge_duration: 1.0
 

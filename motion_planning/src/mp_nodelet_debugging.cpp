@@ -58,7 +58,7 @@ int main(int argc, char** argv)
   }
   else if (node_name == "StelaStepper")
   {
-    node = std::make_unique<motion_planning::stela_stepper_t<prx::fg::ltv_sde_utils_t, utils::nodelet_as_node_t>>();
+    node = std::make_unique<motion_planning::stela_stepper_t<utils::nodelet_as_node_t>>();
   }
   else if (node_name == "Steap")
   {

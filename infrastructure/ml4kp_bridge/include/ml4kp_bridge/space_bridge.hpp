@@ -44,7 +44,7 @@ inline void to_file(const ml4kp_bridge::SpacePoint& msg, std::ofstream& ofs)
   {
     ofs << value << " ";
   }
-  ofs << "\n";
+  // ofs << "\n";
 }
 
 inline void to_file(const ml4kp_bridge::SpacePointStamped& msg, std::ofstream& ofs)

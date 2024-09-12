@@ -101,23 +101,10 @@ std::shared_ptr<prx::tree_t> fulfill_stela_query(const prx::param_loader& params
   if (params.exists("goal"))
   {
     query->init(params);
-    // const prx::param_loader params_goal{ params["goal"] };
 
-    // const double radius{ params_goal.exists("radius") ? params_goal["radius"].as<bool>() : -1.0 };
-    // if (params_goal.exists("state"))
-    // {
-    //   query->goal_state->init(params_goal["state"]);
-    // }
+    DEBUG_VARS(*query);
 
     return planner->tree_of_solutions();
-
-    // DEBUG_VARS(radius, goal_state);
-    // const std::vector<prx::proximity_node_t*> close_nodes{
-    // planner->graph_nearest_neighbors()->radius_and_closest_query(
-    //     goal_state, radius) };
-
-    // return build_solution_tree<Node, Edge>(close_nodes, planner->tree(), state_space, planner->template
-    // root<Node>());
   }
   prx_throw("No valid parameters for fulfill_stela_query ");
   return nullptr;

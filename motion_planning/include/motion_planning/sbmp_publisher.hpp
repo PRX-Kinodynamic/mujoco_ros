@@ -127,6 +127,8 @@ protected:
     }
 
     DEBUG_VARS(*_spec);
+    DEBUG_VARS(*_query);
+
     visualization_msgs::Marker goal_marker{ create_goal_marker() };
 
     _goal_marker_publisher.publish(goal_marker);

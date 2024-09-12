@@ -31,10 +31,10 @@ namespace motion_planning
 {
 
 // Assuming the system can be (roughly) divided into X, Xdot, Xddot...
-template <typename SystemInterface, typename Base>
+template <typename Base>
 class stela_stepper_t : public Base
 {
-  using Derived = stela_stepper_t<SystemInterface, Base>;
+  using Derived = stela_stepper_t<Base>;
   using StelaActionClient = actionlib::SimpleActionClient<motion_planning::StelaGraphTraversalAction>;
   using CostTrajectoryPair = std::pair<double, std::vector<std::uint64_t>>;
 

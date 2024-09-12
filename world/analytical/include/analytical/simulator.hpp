@@ -13,6 +13,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <analytical/fg_ltv_sde.hpp>
 
+#include <prx_models/mushr.hpp>
 namespace analytical
 {
 template <typename Base>
@@ -161,14 +162,14 @@ protected:
     _state_space->copy_to(_state_msg.space_point.point);
     _state_publisher.publish(_state_msg);
 
+    _tf_gt.header.stamp = ros::Time::now();
+    _tf_noise.header.stamp = ros::Time::now();
+    _tf_gt.header.seq++;
+    _tf_noise.header.seq++;
     if (_plant_name == "fg_ltv_sde")
     {
       // _plant_name
       // DEBUG_VARS(ros::Time::now());
-      _tf_gt.header.stamp = ros::Time::now();
-      _tf_noise.header.stamp = ros::Time::now();
-      _tf_gt.header.seq++;
-      _tf_noise.header.seq++;
       prx::fg::ltv_sde_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
       prx::fg::ltv_sde_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
       add_tf_noise(_tf_noise.transform);
@@ -176,6 +177,16 @@ protected:
       _tf_broadcaster.sendTransform(_tf_gt);
       _tf_broadcaster.sendTransform(_tf_noise);
     }
+    if (_plant_name == "mushrFG")
+    {
+      prx_models::mushr_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
+      prx_models::mushr_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
+      add_tf_noise(_tf_noise.transform);
+
+      _tf_broadcaster.sendTransform(_tf_gt);
+      _tf_broadcaster.sendTransform(_tf_noise);
+    }
+
     _prev_time = ros::Time::now();
   }
 

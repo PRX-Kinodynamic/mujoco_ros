@@ -1,11 +1,17 @@
 <launch>
     <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
+    <arg name="cam_file" value="$(find estimation)/config/mujoco_cam.yaml"/>
     <arg name="save_trajectory" default="false"/>
     <arg name="visualize" default="true"/>
     <arg name="publish_ground_truth_pose" default="false"/>
     <arg name="control_topic" default="/mushr/plan_stepper/control"/> 
     <arg name="mj_control_topic" default="/mushr/control"/> 
 
+    <arg name="current_ns" value="mushr"/>
+
+    <arg name="rgb_topic" default="/$(arg current_ns)/camera/rgb"/>
+    <arg name="image_topic" default="/$(arg current_ns)/camera/markers"/>
+    <arg name="markers_topic" default="/$(arg current_ns)/markers"/>
 
     <group ns="mushr">
         <node pkg="nodelet" type="nodelet" name="MJ_standalone_nodelet"  args="manager" output="screen"/>
@@ -42,18 +48,34 @@
             <param name="frequency" value="15" />
         </node>
 
-        <node unless="$(arg publish_ground_truth_pose)" pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" args="standalone perception/aruco_detection_nodelet_t" output="screen">
-            <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" />
+        <node pkg="nodelet" type="nodelet" name="aruco_detection_nodelet_t" 
+            args="load perception/aruco_detection_nodelet_t MJ_standalone_nodelet" output="screen">
+        <!-- <rosparam command="load" file="$(find perception)/config/aruco_detection.yaml" /> -->
+            <param name="publish_markers_img" value="true" />
+            <param name="rgb_topic" value="$(arg rgb_topic)" />
+            <param name="image_topic" value="$(arg image_topic)" />
+            <param name="markers_topic" value="$(arg markers_topic)" />
         </node>
 
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
             <param name="control_topic" value="$(arg mj_control_topic)" />
-            <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
+            <param name="publish_ground_truth_pose" value="false" />
+            <param name="camera_topic" value="$(arg rgb_topic)" />
+            <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->
         </node>
+
+        <node pkg="nodelet" type="nodelet" name="aruco_cTw_nodelet_t" args="load estimation/aruco_cTw_nodelet_t MJ_standalone_nodelet" output="screen">
+            <rosparam command="load" file="$(arg cam_file)" />
+            <param name="vizualize_markers" value="true" />
+            <param name="markers_topic_name" value="$(arg markers_topic)" />
+        </node>  
     </group>
-    <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" />
+    <node pkg="tf2_ros" type="static_transform_publisher" 
+        name="tf_marker_50_world" args="0 0 0 0 0 0 1  marker_50 world" />
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher"  -->
+        <!-- name="tf_marker_54_world" args="0 0 0 0 0 0 1  marker_54 world" /> -->
 
 </launch>
 

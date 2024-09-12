@@ -64,6 +64,7 @@ protected:
   void topic_to_file_callback(const TopicConstPtr& msg)
   {
     ToFile(*msg, _ofs_topic);
+    _ofs_topic << "\n";
   }
 
   std::string _on_reset_value;

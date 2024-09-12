@@ -7,6 +7,7 @@
 #include <gtsam/nonlinear/NonlinearFactor.h>
 #include <gtsam/geometry/Pose2.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <utils/dbg_utils.hpp>
 
 #include <prx/simulation/plant.hpp>
 #include <prx/utilities/math/first_order_derivative.hpp>
@@ -70,11 +71,138 @@ using type = Eigen::Vector<double, 2>;
 constexpr std::size_t vel_desired{ prx_models::mushr_t::control::velocity_idx };
 constexpr std::size_t steering{ prx_models::mushr_t::control::steering_idx };
 
+// constexpr std::size_t vel_desired{ prx_models::mushr_t::control::steering_idx };
+// constexpr std::size_t steering{ prx_models::mushr_t::control::velocity_idx };
+
 }  // namespace Control
 
 }  // namespace mushr_types
 
-using mushr_x_xdot_t = prx::fg::lie_integration_factor_t<mushr_types::State::type, mushr_types::StateDot::type>;
+using mushr_x_xdot_t = prx::fg::lie_integration_factor_t<mushr_types::State::type, mushr_types::StateDot::type, double>;
+// template <typename X, typename Xdot, typename... Types>
+// class mushr_x_xdot_t : public gtsam::NoiseModelFactorN<mushr_types::State::type, mushr_types::State::type,
+//                                                        mushr_types::StateDot::type, mushr_types::Ubar::type, double>
+// {
+//   using X = mushr_types::State::type;
+//   using Xdot = mushr_types::StateDot::type;
+//   using Ubar = mushr_types::Ubar::type;
+
+//   using Base = gtsam::NoiseModelFactorN<X, X, Xdot, Ubar, double>;
+//   using LieIntegrator = prx::fg::lie_integrator_t<X, Xdot, double>;
+//   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+//   static constexpr Eigen::Index DimX{ gtsam::traits<X>::dimension };
+//   static constexpr Eigen::Index DimXdot{ gtsam::traits<Xdot>::dimension };
+//   static constexpr Eigen::Index DimUbar{ gtsam::traits<Ubar>::dimension };
+
+//   // static constexpr std::size_t NumTypes{ sizeof...(Types) };
+
+//   using DerivativeX = Eigen::Matrix<double, DimX, DimX>;
+//   using OptDeriv = boost::optional<Eigen::MatrixXd&>;
+//   template <typename T>
+//   using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
+
+//   using MatXX = Eigen::Matrix<double, DimX, DimX>;
+//   using MatXXdot = Eigen::Matrix<double, DimX, DimXdot>;
+//   using MatXdotXdot = Eigen::Matrix<double, DimXdot, DimXdot>;
+//   using MatXdotDt = Eigen::Matrix<double, DimXdot, 1>;
+
+//   mushr_x_xdot_t() = delete;
+//   mushr_x_xdot_t(const mushr_x_xdot_t& other) = delete;
+
+// public:
+//   mushr_x_xdot_t(const gtsam::Key key_xt1, const gtsam::Key key_xt0, const gtsam::Key key_xdot,
+//                  const gtsam::Key key_ubar, const gtsam::Key key_dt, const NoiseModel& cost_model,
+//                  const std::string label = "MushrLieOdeIntegration")
+//     : Base(cost_model, key_xt1, key_xt0, key_xdot, key_ubar, key_dt), _h(0.0), _label(label)
+//   {
+//   }
+
+//   ~mushr_x_xdot_t() override
+//   {
+//   }
+
+//   // virtual X0 predict(const X1& x1, const X2& x2) const = 0;
+//   static X predict(const X& x, const Xdot& xdot, const Ubar& ubar, const double dt,  // no-lint
+//                    gtsam::OptionalJacobian<DimX, DimX> Hx = boost::none,             // no-lint
+//                    gtsam::OptionalJacobian<DimX, DimXdot> Hxdot = boost::none,       // no-lint
+//                    gtsam::OptionalJacobian<DimX, DimUbar> Hubar = boost::none,       // no-lint
+//                    gtsam::OptionalJacobian<DimX, 1> Hdt = boost::none)
+//   {
+//     const double& beta{ ubar[mushr_types::Ubar::beta] };
+//     const X x_beta(Eigen::Vector2d::Zero(), beta);
+//     // const X xp{ x * x_beta };  // x' <= beta + theta
+//     const X xp{ gtsam::traits<X>::Compose(x, x_beta) };
+//     // DEBUG_VARS(x);
+//     // DEBUG_VARS(beta, x_beta);
+//     // DEBUG_VARS(xp);
+//     // const X xp{ x };
+//     // return gtsam::traits<prx::fg::SE2_t>::Compose(x, exmap);
+
+//     const X result{ LieIntegrator::integrate(xp, xdot, dt, Hx, Hxdot, Hdt) };
+
+//     return result;
+//   }
+
+//   Eigen::VectorXd error(const X& x1, const X& x0, const Xdot& xdot, const Ubar& ubar, const double& dt,
+//                         boost::optional<Eigen::MatrixXd&> Hx1 = boost::none,
+//                         boost::optional<Eigen::MatrixXd&> Hx0 = boost::none,
+//                         boost::optional<Eigen::MatrixXd&> Hxdot = boost::none,
+//                         boost::optional<Eigen::MatrixXd&> Hubar = boost::none,
+//                         boost::optional<Eigen::MatrixXd&> Hdt = boost::none) const
+//   {
+//     Eigen::Matrix<double, DimX, DimX> err_H_b;       // Deriv error wrt between
+//     Eigen::Matrix<double, DimX, DimX> b_H_q1;        // Deriv between wrt x1
+//     Eigen::Matrix<double, DimX, DimX> b_H_qp;        // Deriv between wrt predicted
+//     Eigen::Matrix<double, DimX, DimX> qp_H_q0;       // Deriv predicted wrt x0
+//     Eigen::Matrix<double, DimX, DimXdot> qp_H_qdot;  // Deriv predicted wrt xdot
+//     Eigen::Matrix<double, DimX, DimUbar> qp_H_ubar;  // Deriv predicted wrt dt
+//     Eigen::Matrix<double, DimX, 1> qp_H_qdt;         // Deriv predicted wrt dt
+
+//     const X prediction{ predict(x0, xdot, ubar, dt,            // no-lint
+//                                 Hx0 ? &qp_H_q0 : nullptr,      // no-lint
+//                                 Hxdot ? &qp_H_qdot : nullptr,  // no-lint
+//                                 Hubar ? &qp_H_ubar : nullptr,  // no-lint
+//                                 Hdt ? &qp_H_qdt : nullptr) };
+//     // X1_p (-) x1 => Eq. 26 from "A micro Lie theory [...]" https://arxiv.org/pdf/1812.01537.pdf
+//     const X between{ x1.between(prediction,                                 // no-lint
+//                                 (Hx0 or Hxdot or Hdt) ? &b_H_q1 : nullptr,  // no-lint
+//                                 (Hx0 or Hxdot or Hdt) ? &b_H_qp : nullptr) };
+//     const Eigen::VectorXd error{ X::Logmap(between, (Hx0 or Hxdot or Hdt) ? &err_H_b : nullptr) };
+
+//     if (Hx1)
+//     {
+//       *Hx1 = err_H_b * b_H_q1;
+//     }
+//     if (Hx0)
+//     {
+//       *Hx0 = err_H_b * b_H_qp * qp_H_q0;
+//     }
+//     if (Hxdot)
+//     {
+//       *Hxdot = err_H_b * b_H_qp * qp_H_qdot;
+//     }
+//     if (Hdt)
+//     {
+//       *Hdt = err_H_b * b_H_qp * qp_H_qdt;
+//     }
+
+//     return error;
+//   }
+
+//   virtual Eigen::VectorXd evaluateError(const X& x1, const X& x0, const Xdot& xdot, const Ubar& ubar,
+//                                         const double& dt,  // no-lint
+//                                         OptDeriv H1 = boost::none, OptDeriv H0 = boost::none,
+//                                         OptDeriv Hdot = boost::none, OptDeriv Hubar = boost::none,
+//                                         OptDeriv Hdt = boost::none) const override
+//   {
+//     return error(x1, x0, xdot, ubar, dt, H1, H0, Hdot, Hubar, Hdt);
+//   }
+
+// private:
+//   const double _h;
+//   const std::string _label;
+//   // const DerivativeX _negative_identity;
+// };
 
 // CtrlUbarFactor
 class mushr_ub_u_xdot_param_t
@@ -106,13 +234,13 @@ public:
     const double& steering_param{ params[mushr_types::Ubar::steering_param] };
     const double& max_vel_param{ params[mushr_types::Ubar::max_vel_param] };
 
-    // const double dv{ v_desired - v_current };
-    const double v_next{ v_current + dt * accel_slope };
+    const double dv{ max_vel_param * v_desired - v_current };
+    const double v_next{ v_current + dt * dv * accel_slope };
     const double beta{ std::atan(0.5 * std::tan(steering * steering_param)) };
 
     Ubar ubar_next{};
     ubar_next[mushr_types::Ubar::beta] = beta;
-    ubar_next[mushr_types::Ubar::velocity] = max_vel_param * v_next;
+    ubar_next[mushr_types::Ubar::velocity] = v_next;
 
     return ubar_next;
   }
@@ -166,11 +294,15 @@ public:
     const double& vt{ ubar[mushr_types::Ubar::velocity] };
     const double& beta{ ubar[mushr_types::Ubar::beta] };
 
-    const double wt{ 2.0 * vt * std::sin(beta) / mushr_types::Parameters::L };
+    const double cBeta{ std::cos(beta) };
+    const double sBeta{ std::sin(beta) };
+    const double lr{ mushr_types::Parameters::L / 2.0 };  // L = lr + lf (rear|front)
+    const double wt{ vt * sBeta / lr };
 
     // const Xdot t_x{ vt * cTh, vt * sTh, wt };
     // const Xdot t_x{ vt, 0, beta };
-    const Xdot t_x{ vt, 0, wt };
+    // const Xdot t_x{ vt, 0, wt };
+    const Xdot t_x{ vt * cBeta, vt * sBeta, wt };
     // return x.AdjointMap().inverse() * t_x;
     return t_x;
   }
@@ -252,52 +384,5 @@ public:
 private:
   const Params _params;
 };
-
-// class mushr_ub_ufix_xdot_param_t
-//   : public prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type,
-//   mushr_types::Ubar::params>
-// {
-//   using Base =
-//       prx::fg::noise_model_3factor_t<mushr_types::Ubar::type, mushr_types::Ubar::type, mushr_types::Ubar::params>;
-
-// public:
-//   using Xdot = mushr_types::StateDot::type;
-//   using Ubar = mushr_types::Ubar::type;
-//   using Params = mushr_types::Ubar::params;
-//   using U = mushr_types::Control::type;
-
-//   mushr_ub_ufix_xdot_param_t(gtsam::Key ubar, gtsam::Key xdot, gtsam::Key param, const U u,
-//                              const gtsam::noiseModel::Base::shared_ptr& cost_model)
-//     : Base(ubar, xdot, param, cost_model, 0.01), _u(u)
-//   {
-//   }
-
-//   virtual Ubar predict(const Ubar& ubar, const Params& params) const override
-//   {
-//     return mushr_ub_u_xdot_param_t::dynamics(_u, ubar, params);
-//   }
-
-//   virtual Ubar compute_error(const Ubar& ubar1, const Ubar& ubar0, const Params& params) const override
-//   {
-//     return predict(ubar0, params) - ubar1;
-//   }
-
-//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
-//   {
-//     const Ubar ubar1{ values.at<Ubar>(key<1>()) };
-//     const Ubar Ubar0{ values.at<Ubar>(key<2>()) };
-//     const Params params{ values.at<Params>(key<3>()) };
-
-//     os << ubar1.transpose() << " ";                                // 1, 2, 3
-//     os << _u.transpose() << " ";                                   // 4, 5, 6
-//     os << Ubar0.transpose() << " ";                                // 7, 8
-//     os << params.transpose() << " ";                               // 9
-//     os << compute_error(ubar1, Ubar0, params).transpose() << " ";  // 4, 5, 6
-//     os << "\n";
-//   }
-
-// private:
-//   const U _u;
-// };
 
 }  // namespace prx_models

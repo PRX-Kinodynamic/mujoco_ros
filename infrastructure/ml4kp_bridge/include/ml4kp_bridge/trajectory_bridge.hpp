@@ -47,6 +47,7 @@ inline void to_file(const ml4kp_bridge::Trajectory& msg, std::ofstream& ofs)
   for (auto state : msg.data)
   {
     to_file(state, ofs);
+    ofs << "\n";
   }
   ofs << "\n";
 }
