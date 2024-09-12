@@ -40,6 +40,9 @@ class stela_t : public Base
 
   using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
 
+  static constexpr Eigen::Index XDim{ gtsam::traits<State>::dimension };
+  static constexpr Eigen::Index UDim{ gtsam::traits<Control>::dimension };
+
 public:
   using Values = gtsam::Values;
   using FactorGraph = gtsam::NonlinearFactorGraph;
@@ -125,7 +128,7 @@ public:
     _control_stamped.header.stamp = ros::Time::now();
     _control_stamped.header.frame_id = "StelaControl";
 
-    _stela_action_server = std::make_unique<StelaActionServer>(private_nh, "action", false);
+    _stela_action_server = std::make_unique<StelaActionServer>(private_nh, "/stela/StelaLtvSde/action", false);
 
     _prev_header.stamp = ros::Time::now();
     _local_goal_id = 0;
@@ -136,7 +139,7 @@ public:
     _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
     _robot_collision_ptr = SystemInterface::collision_geometry();
-    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(2, obstacle_sigma);
+    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(XDim, obstacle_sigma);
 
     _obstacles_marker.header.frame_id = "world";
     _obstacles_marker.header.stamp = ros::Time();
@@ -254,7 +257,7 @@ public:
           ROS_INFO_ONCE("Goal received");
           _goal_received = true;
           _goal = *new_goal;
-          _prev_header.stamp = ros::Time::now();
+          // _prev_header.stamp = ros::Time::now();
 
           for (int i = 0; i < _selected_nodes.size(); ++i)
           {
@@ -322,6 +325,7 @@ public:
     // _factor_graph
     // DEBUG_VARS(__LINE__, ros::Time::now(), node_keys.size());
     const double updated_cost{ compute_error<0>(node_keys) };
+    // const double updated_cost{ compute_error<0>(node_keys) };
     // DEBUG_VARS(__LINE__, ros::Time::now());
 
     nodes_ids_map[node_id] = new_node.index;
@@ -404,13 +408,14 @@ public:
 
     const double nowdt{ (now - _start_time).toSec() };
     const double finishdt{ (finish_time - _start_time).toSec() };
-    // DEBUG_VARS(nowdt, finishdt);
-    if (now >= finish_time)
+    if (query_tf() and now >= finish_time)
     {
       if (_local_goal_id < _selected_nodes.size() - 1)
       {
+        // DEBUG_VARS(nowdt, finishdt);
         _local_goal_id++;
 
+        // DEBUG_VARS(_x_curr, _x_next, nowdt, _dt01);
         _feedback.current_root = _x_next;
         _x_curr = _x_next;
         _x_next = _selected_nodes[_local_goal_id];
@@ -428,7 +433,6 @@ public:
         _key_dt = SystemInterface::keyT(_x_curr, _x_next);
 
         _x0_start_time = now;
-        // _prev_header.stamp = now;
       }
       else  // last available goal
       {
@@ -452,11 +456,11 @@ public:
     const gtsam::Key kxdot1{ SystemInterface::keyXdot(1, id1) };
     const gtsam::Key kt{ SystemInterface::keyT(id0, id1) };  // t^{347}_{367}
     const gtsam::Key ku{ SystemInterface::keyU(id0, id1) };  // t^{347}_{367}
-    const Eigen::RowVector2d x0{ _isam.calculateEstimate<State>(kx0).transpose() };
-    const Eigen::RowVector2d x1{ _isam.calculateEstimate<State>(kx1).transpose() };
-    const Eigen::RowVector2d xdot0{ _isam.calculateEstimate<State>(kxdot0).transpose() };
-    const Eigen::RowVector2d xdot1{ _isam.calculateEstimate<State>(kxdot1).transpose() };
-    const Eigen::RowVector2d u01{ _isam.calculateEstimate<State>(ku).transpose() };
+    const State x0{ _isam.calculateEstimate<State>(kx0) };
+    const State x1{ _isam.calculateEstimate<State>(kx1) };
+    // const StateDot xdot0{ _isam.calculateEstimate<StateDot>(kxdot0) };
+    // const StateDot xdot1{ _isam.calculateEstimate<StateDot>(kxdot1) };
+    const Control u01{ _isam.calculateEstimate<Control>(ku) };
     const double t{ _isam.calculateEstimate<double>(kt) };
     const std::string lt{ SF::formatter(kt) };
     const std::string lx0{ SF::formatter(kx0) };
@@ -467,8 +471,8 @@ public:
     DEBUG_VARS(lt, t);
     DEBUG_VARS(lx0, x0);
     DEBUG_VARS(lx1, x1);
-    DEBUG_VARS(lxdot0, xdot0);
-    DEBUG_VARS(lxdot1, xdot1);
+    // DEBUG_VARS(lxdot0, xdot0);
+    // DEBUG_VARS(lxdot1, xdot1);
     DEBUG_VARS(lu01, u01);
   }
 
@@ -485,7 +489,9 @@ public:
   void add_observations()
   {
     const bool new_observation{ query_tf() };
-    if (new_observation and _tf.header.stamp > _prev_header.stamp and not _last_local_goal)
+    const bool header_updated{ _tf.header.stamp > _prev_header.stamp };
+    // DEBUG_VARS(new_observation, header_updated, _last_local_goal);
+    if (new_observation and header_updated and not _last_local_goal)
     {
       _prev_header = _tf.header;
       // const double dt{ (_tf.header.stamp - _prev_header.stamp).toSec() };
@@ -507,13 +513,20 @@ public:
         // throw my_exception();
         // _isam2_result = _isam.update(graph_values.first, graph_values.second);
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
+        const State xt0{ _isam.calculateEstimate<State>(SystemInterface::keyX(1, _x_curr)) };
+        const State xt1{ _isam.calculateEstimate<State>(SystemInterface::keyX(1, _x_next)) };
+        // dbg_isam_error();
+        // dbg_print_high_error_factors(0.0001);
+        // DEBUG_VARS(_z_new);
+        // DEBUG_VARS(xt0, xt1);
       }
       catch (gtsam::IndeterminantLinearSystemException e)
       {
         // Var:U^{930}_{960}
         // dbg_print_cluster(930, 960);
         std::cout << "[EXCEPTION] Var:" << SF::formatter(e.nearbyVariable()) << std::endl;
-        failure_to_file("Adding observations - " + SF::formatter(e.nearbyVariable()));
+        std::cout << std::string(e.what()) << std::endl;
+        // failure_to_file("Adding observations - " + SF::formatter(e.nearbyVariable()));
       }
       // DEBUG_PRINT
 
@@ -541,7 +554,8 @@ public:
   {
     _u01 = _isam.calculateEstimate<Control>(_key_u01);
     _dt01 = _isam.calculateEstimate<double>(_key_dt);
-    // LOG_VARS(_u01.transpose());
+    LOG_VARS(_u01.transpose(), _dt01);
+    DEBUG_VARS(_u01.transpose(), _dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;
@@ -593,6 +607,7 @@ public:
     // Create a FG that goes from N0 to N1 with plan P01
     GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
                                                                edge.plan) };
+    SF::symbols_to_file();
 
     if (msg->root != node_current.index)
     {
@@ -615,14 +630,20 @@ public:
     // }
     try
     {
-      // throw my_exception();
       _isam2_result = _isam.update(graph_values.first, graph_values.second);
     }
     catch (gtsam::IndeterminantLinearSystemException e)
     {
+      graph_values.first.printErrors(_values, "Problem graph", SF::formatter);
+      _values.print("Values", SF::formatter);
+
+      prx::fg::indeterminant_linear_system_helper(graph_values.first, _values);
       // dbg_print_cluster(edge.source, edge.target);
       std::cout << "[EXCEPTION] Var:" << SF::formatter(e.nearbyVariable()) << std::endl;
-      failure_to_file("Initialization - " + SF::formatter(e.nearbyVariable()));
+      // std::cout << std::string(e.what()) << std::endl;
+      // exit(-1);
+      throw e;
+      // failure_to_file("Initialization - " + SF::formatter(e.nearbyVariable()));
     }
 
     // static bool u_reached{ false };
@@ -678,7 +699,8 @@ public:
   void tree_callback(const prx_models::TreeConstPtr msg)
   {
     const ros::Time start{ ros::Time::now() };
-    ROS_DEBUG_STREAM_NAMED("STELA", "Tree received: " << msg->nodes.size());
+    const std::size_t total_tree_nodes{ msg->nodes.size() };
+    DEBUG_VARS(total_tree_nodes);
     _isam.clear();
     _values = gtsam::Values();
     const prx_models::Node& node{ msg->nodes[msg->root] };
@@ -754,6 +776,8 @@ private:
   double compute_error(const StateKeys& keys)
   {
     using StateType = typename std::tuple_element<I, StateEstimates>::type;
+    static constexpr Eigen::Index N{ gtsam::traits<StateType>::dimension };
+
     const gtsam::Key& key{ keys[I] };
     const StateType& x{ std::get<I>(_node_estimates) };
     const StateType x_sbmp{ _values.at<StateType>(key) };
@@ -766,8 +790,13 @@ private:
     // DEBUG_VARS(cov);
     // DEBUG_VARS(S);
 
-    const StateType diff{ x - x_sbmp };
-    return diff.transpose() * S * diff + compute_error<I + 1>(keys);
+    // const StateType diff{ x - x_sbmp };
+    const StateType between{ gtsam::traits<StateType>::Between(x, x_sbmp) };  //
+    const Eigen::VectorXd diff{ gtsam::traits<StateType>::Logmap(between) };
+    // const Eigen::VectorXd diff{ StateType::Logmap(between) };
+
+    const Eigen::VectorXd cost{ diff.transpose() * S * diff };
+    return cost[0] + compute_error<I + 1>(keys);
   }
 
   template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
@@ -787,9 +816,9 @@ private:
 
     // ofs << i << " ";
     ofs << SF::formatter(key) << " ";
-    for (auto e : state)
+    for (int i = 0; i < state.size(); ++i)
     {
-      ofs << e << " ";
+      ofs << state[i] << " ";
     }
     for (auto e : diagonal)
     {
