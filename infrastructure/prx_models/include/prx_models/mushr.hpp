@@ -415,8 +415,12 @@ public:
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
     _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u, simulation_step);
     _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
-    // _state = mushr_x_xdot_t::dynamics(_state, _state_dot, simulation_step);
-    // mushr_x_xdot_ub_t();
+
+    const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
+                             prx::gaussian_random(0.0, _state_dot_noise[1]),
+                             prx::gaussian_random(0.0, _state_dot_noise[2]) };
+    _state_dot += w;
+
     _state = mushr_x_xdot_t::predict(_state, _state_dot, simulation_step);
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
     // state_space->enforce_bounds();
