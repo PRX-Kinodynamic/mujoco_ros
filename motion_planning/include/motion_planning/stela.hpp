@@ -139,7 +139,7 @@ public:
     _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
     _robot_collision_ptr = SystemInterface::collision_geometry();
-    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(XDim, obstacle_sigma);
+    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(2, obstacle_sigma);
 
     _obstacles_marker.header.frame_id = "world";
     _obstacles_marker.header.stamp = ros::Time();

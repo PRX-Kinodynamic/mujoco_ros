@@ -183,8 +183,8 @@ public:
     // void operator()(const Eigen::Vector3d& translation, const State& state, Eigen::MatrixXd& H)
     void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
     {
-      H = Eigen::Matrix3d::Zero();
-      // H.diagonal().head(2) = translation.head(2);
+      H = Eigen::Matrix<double, 2, 3>::Zero();
+      // H.diagonal().tail(2) = translation.head(2);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
       H.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
@@ -269,6 +269,7 @@ public:
     // using StateStateDotFactor = prx::fg::lie_integration_factor_t<State, StateDot, double>;
     using StateStateDotFactor = prx_models::mushr_x_xdot_t;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
+    using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
 
     const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
     const double dt{ edge_plan.steps[0].duration.data.toSec() };
@@ -282,11 +283,11 @@ public:
     u01[0] = edge_control.point[0];
     u01[1] = edge_control.point[1];
 
-    // Setting ubar velocity, the steering doesn't matter to get ubar1
-    ubar0[mushr_types::Ubar::velocity] = node_state.point[3];
-
     ubar1 = mushr_ub_u_xdot_param_t::dynamics(u01, ubar0, default_params, dt);
+    ubar1[mushr_types::Ubar::velocity] = node_state.point[3];
+
     xdot1 = mushr_xdot_ub_t::dynamics(ubar1);
+    // xdot1 = State::Logmap(x1.inverse() * x0);
 
     GraphValues graph_values;
 
@@ -302,7 +303,7 @@ public:
     const gtsam::Key k_u01{ keyU(parent, child) };
     const gtsam::Key k_t01{ keyT(parent, child) };
 
-    NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e-1) };
+    NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-0) };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
@@ -316,11 +317,14 @@ public:
     graph_values.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
     graph_values.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+    using VectorElementGreaterComparison = prx::fg::VectorGreaterThanCmp<Control>;
+    using VectorGreaterThanFactor = prx::fg::constraint_factor_t<Control, VectorElementGreaterComparison>;
+    graph_values.first.emplace_shared<VectorGreaterThanFactor>(k_u01, Control{ 0.5, 0.8 }, nullptr);
     // mushr_xdot_ub_t(gtsam::Key xdot, gtsam::Key ubar, const gtsam::noiseModel::Base::shared_ptr& cost_model)
     //   : Base(xdot, ubar, cost_model, 0.01)
 
-    graph_values.first.addPrior(k_x1, x1);
-    graph_values.first.addPrior(k_xdot1, xdot1);
+    graph_values.first.addPrior(k_x1, x1, prior_noise);
+    graph_values.first.addPrior(k_xdot1, xdot1, prior_noise);
     graph_values.first.addPrior(k_ubar1, ubar1);
     // graph_values.first.addPrior(u01, control, u_prior_noise);
     graph_values.first.addPrior(k_t01, dt, dt_noise);
