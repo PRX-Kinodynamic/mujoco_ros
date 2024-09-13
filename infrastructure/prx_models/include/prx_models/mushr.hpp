@@ -378,7 +378,10 @@ class mushrFG_t : public prx::plant_t
 {
 public:
   mushrFG_t(const std::string& path)
-    : plant_t(path), _params_ubar_u(mushr_utils_t::default_params), _ubar(mushr_types::Ubar::type::Zero())
+    : plant_t(path)
+    , _params_ubar_u(mushr_utils_t::default_params)
+    , _ubar(mushr_types::Ubar::type::Zero())
+    , _state_dot_noise(mushr_types::StateDot::type::Zero())
   {
     // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
     state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[mushr_types::Ubar::velocity] };
@@ -392,8 +395,9 @@ public:
     derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2], &_idle };
     derivative_space = new prx::space_t("EEEI", derivative_memory, "mushr_deriv");
 
-    parameter_memory = { &_params_ubar_u[0], &_params_ubar_u[1], &_params_ubar_u[2] };
-    parameter_space = new prx::space_t("EEE", parameter_memory, "mushr_params");
+    parameter_memory = { &_params_ubar_u[0],   &_params_ubar_u[1],   &_params_ubar_u[2],
+                         &_state_dot_noise[0], &_state_dot_noise[1], &_state_dot_noise[2] };
+    parameter_space = new prx::space_t("EEEEEE", parameter_memory, "mushr_params");
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.2965, 0.230, 0.25 });
@@ -436,6 +440,7 @@ protected:
   mushr_types::Control::type _ctrl;
   mushr_types::Ubar::type _ubar;
   mushr_types::Ubar::params _params_ubar_u;
+  mushr_types::StateDot::type _state_dot_noise;
 
   double _idle;
 };
