@@ -555,7 +555,7 @@ public:
     _u01 = _isam.calculateEstimate<Control>(_key_u01);
     _dt01 = _isam.calculateEstimate<double>(_key_dt);
     LOG_VARS(_u01.transpose(), _dt01);
-    DEBUG_VARS(_u01.transpose(), _dt01);
+    // DEBUG_VARS(_u01.transpose(), _dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;
