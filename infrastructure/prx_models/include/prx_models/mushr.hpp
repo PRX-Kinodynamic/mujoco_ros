@@ -370,6 +370,20 @@ public:
     return graph_values;
   }
 
+  template <typename Params>
+  static void set_params(const Params& params)
+  {
+    prx_assert(params.size() == 3, "Wrong number of parameters!");
+    for (int i = 0; i < params.size(); ++i)
+    {
+      default_params[i] = params[i];
+    }
+  }
+
+  static void print_params()
+  {
+    DEBUG_VARS(default_params);
+  }
   // static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
   static inline mushr_types::Ubar::params default_params{ 0.516624, 1, 0.738035 };
 };

@@ -64,6 +64,17 @@ public:
   using DynamicsFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
   using ObservationFactor = gtsam::PriorFactor<State>;
 
+  using Parameters = Eigen::Vector<double, 1>;
+
+  template <typename Params>
+  static void set_params(const Params& params)
+  {
+  }
+
+  static void print_params()
+  {
+  }
+
   // KeyU = U^{level}_{step}
   static gtsam::Key keyU(const int& level, const int& step)
   {

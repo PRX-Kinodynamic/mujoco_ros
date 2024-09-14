@@ -86,6 +86,7 @@ public:
     std::string& obstacle_mode{ _obstacle_mode };
     std::string& experiment_id{ _experiment_id };
 
+    std::vector<double> plant_parameters{};
     // ROS_PARAM_SETUP(private_nh, random_seed);
     // ROS_PARAM_SETUP(private_nh, plant_config_file);
     // ROS_PARAM_SETUP(private_nh, planner_config_file);
@@ -102,7 +103,13 @@ public:
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, plant_parameters, plant_parameters)
 
+    if (plant_parameters.size() > 0)
+    {
+      SystemInterface::set_params(plant_parameters);
+      SystemInterface::print_params();
+    }
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
     const std::string pose_with_cov_topic{ ros::this_node::getNamespace() + "/pose_with_cov" };
@@ -482,6 +489,8 @@ public:
     const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
         printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > error; };
     _isam.getFactorsUnsafe().printErrors(estimated_values, "isam graph: ", SF::formatter, printCondition);
+
+    // estimated_values.print("Values", SF::formatter);
 
     // estimated_values.print("isam values: ", SF::formatter);
   }
