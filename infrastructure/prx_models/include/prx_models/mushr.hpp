@@ -370,7 +370,8 @@ public:
     return graph_values;
   }
 
-  static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
+  // static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
+  static inline mushr_types::Ubar::params default_params{ 0.516624, 1, 0.738035 };
 };
 // mushr_types::Ubar::params mushr_types::default_params = mushr_types::Ubar::params(0.9898, 0.4203, 0.6228);
 
