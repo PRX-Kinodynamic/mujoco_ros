@@ -181,14 +181,14 @@ public:
     }
   }
 
-  static void control_vizualization(geometry_msgs::Point& endpoint, const ml4kp_bridge::SpacePoint& msg)
+  static void control_vizualization(Eigen::Vector3d& endpoint, const ml4kp_bridge::SpacePoint& msg)
   {
     Control u(msg.point[0], msg.point[1]);
     u.normalize();
 
-    endpoint.x = u[0];
-    endpoint.y = u[1];
-    endpoint.z = 0.0;
+    endpoint[0] = u[0];
+    endpoint[1] = u[1];
+    endpoint[2] = 0.0;
   }
 
   static std::shared_ptr<prx::fg::collision_info_t> collision_geometry()

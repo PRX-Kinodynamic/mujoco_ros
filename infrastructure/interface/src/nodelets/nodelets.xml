@@ -39,4 +39,13 @@
       Nodelet to publish a control as an arrow at robot's position
     </description>
   </class>
+  <class 
+      name="interface/MushrControlVisualizationNodelet" 
+      type="interface::MushrControlVisualizationNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish a control as an arrow at robot's position
+    </description>
+  </class>
+  
 </library>
