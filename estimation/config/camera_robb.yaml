@@ -1,0 +1,11 @@
+camera_id: 1
+robot_id: 0
+main_marker: 54
+marker_size: 0.167
+
+markers_topic_name: "/mushr/markers"
+rotation_offset: [0, 0, -1.5707963268]
+camera_matrix: [1.23812397e+03, 0.0, 9.51360949e+02, 0, 1.23687811e+03, 5.61995101e+02]
+dist_coeffs: [0.24182882, -0.55601982, -0.00215198, -0.00382226, 0.30789177]
+front_corner: 2
+
