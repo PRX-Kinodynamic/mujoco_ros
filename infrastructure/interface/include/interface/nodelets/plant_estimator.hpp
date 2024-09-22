@@ -64,10 +64,10 @@ private:
     {
       _tf_listener.lookupTransform(_world_frame, _robot_frame, ros::Time(0), _tf_robot);
       tf::transformTFToEigen(_tf_robot, _robot_transform);
-      linear_speed.data = _most_recent_control.velocity.data * 0.6228;
+      // linear_speed.data = _most_recent_control.velocity.data * 0.6228;
       // linear_speed.data = _most_recent_control.velocity.data * 0.6343;
       // linear_speed.data = _most_recent_control.velocity.data * 0.774;
-      // linear_speed.data = _most_recent_control.velocity.data * 2.0;
+      linear_speed.data = _most_recent_control.velocity.data * 2.0;
       _previous_robot_transform = _robot_transform;
     }
     copy(_observation, _robot_transform);

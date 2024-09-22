@@ -93,6 +93,7 @@ public:
 
   void get_trajectory(const ml4kp_bridge::TrajectoryStamped& msg)
   {
+    ROS_INFO_STREAM("Received trajectory with " << msg.trajectory.data.size() << " points.");
     ml4kp_bridge::copy(trajectory, msg.trajectory);
     controller->set_points(trajectory);
     _trajectory_received = true;

@@ -62,12 +62,10 @@ int main(int argc, char** argv)
   rogue_spec->blossom_number = 1;
   rogue_spec->use_pruning = false;
 
-  std::string goal_config_str;
-  n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
 
   std_msgs::Float64 goal_radius;
-  goal_radius.data = 0.25;
+  goal_radius.data = params["goal_region_radius"].as<double>();
 
   prx::rogue_query_t* rogue_query = new prx::rogue_query_t(ss, cs);
   rogue_query->start_state = ss->make_point();

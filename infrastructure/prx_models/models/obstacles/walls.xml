@@ -1,0 +1,17 @@
+<mujoco model = "obstacles">
+<compiler angle="radian" />
+<worldbody>
+<body name="obstacle_wall_down">
+	<geom name="obstacle_wall_down" type="box" pos="1 -1 0.1" euler="0.0 0.0 0.0" size="1.25 0.05 0.1" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_up">
+	<geom name="obstacle_wall_up" type="box" pos="1 6 0.1" euler="0.0 0.0 0.0" size="1.25 0.05 0.1" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_left">
+	<geom name="obstacle_wall_left" type="box" pos="-.25 2.5 0.1" euler="0.0 0.0 0.0" size="0.05 3.5 0.1" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_right">
+	<geom name="obstacle_wall_right" type="box" pos="2.25 2.5 0.1" euler="0.0 0.0 0.0" size="0.05 3.5 0.1" rgba="1.0 0.0 0.0 1"/>
+</body>
+</worldbody>
+</mujoco>

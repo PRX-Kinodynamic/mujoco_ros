@@ -142,7 +142,10 @@ public:
         collision_body2 = mj_id2name(m, mjOBJ_BODY, m->geom_bodyid[d->contact[i].geom2]);
         if (collision_body1.find("obs") != std::string::npos ^ collision_body2.find("obs") != std::string::npos)
         {
-          collision_in_history = true;
+          if (!(collision_body1.find("free") != std::string::npos ^ collision_body2.find("free") != std::string::npos))
+          {
+            collision_in_history = true;
+          }
         }
       }
     }

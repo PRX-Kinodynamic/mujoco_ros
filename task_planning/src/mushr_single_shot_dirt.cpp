@@ -55,15 +55,37 @@ int main(int argc, char** argv)
   std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
   prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
+  
+  /*
+  prx::space_point_t goal = ss->make_point();
+  goal->at(0) = goal_config[0];
+  goal->at(1) = goal_config[1];
+  auto dirt_spec_ptr = std::shared_ptr<prx::dirt_specification_t>(dirt_spec);
+  std::cout << "Goal: " << ss->print_point(goal) << std::endl;
+  prx::heuristic_map_t heuristic_map(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, dirt_spec_ptr);
+  heuristic_map.set_obstacle_grid(PRX_PI/2);
+  heuristic_map.set_heuristic_grid(goal);
+  heuristic_map.set_u_rep_coeff(params["u_rep"].as<double>());
+
+  std::ofstream file;
+  file.open("/home/aravind/heuristic_map.txt");
+  file << heuristic_map;
+  file.close();
+
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-    return dirt_spec->distance_function(s, s2) / 0.625;
+    return 0.5 * heuristic_map.get_cost(s);
   };
+  */
+  
+  // dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+  //   return dirt_spec->distance_function(s, s2) / 0.625;
+  // };
   dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
   dirt_spec->blossom_number = params["blossom_number"].as<int>();
   dirt_spec->use_pruning = false;
   
-  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = goal_config[0];
   goal_configuration.y = goal_config[1];
@@ -79,7 +101,7 @@ int main(int argc, char** argv)
   dirt_query->get_visualization = true;
   ROS_WARN("Using default goal check");
 
-  // /*
+  /*
   auto sg = planning_context.first;
   auto cg = planning_context.second;
   prx::plan_t plan(cs);
@@ -106,7 +128,7 @@ int main(int argc, char** argv)
       prx::default_expand(s, plans, trajs, 1, sg, dirt_spec->sample_plan, dirt_spec->propagate);
     }
   };
-  // */
+  */
 
   dirt->link_and_setup_spec(dirt_spec);
   dirt->preprocess();

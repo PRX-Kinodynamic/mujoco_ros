@@ -1,6 +1,7 @@
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
+#include "control/MushrControlPropagation.h"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
 #include "motion_planning/PlanningResult.h"
@@ -62,40 +63,12 @@ int main(int argc, char** argv)
   rogue_spec->blossom_number = 1;
   rogue_spec->use_pruning = false;
 
-  bool propagate_dynamics, use_viability, retain_previous;
+  bool propagate_dynamics, retain_previous;
   n.getParam(ros::this_node::getName() + "/propagate_dynamics", propagate_dynamics);
-  n.getParam(ros::this_node::getName() + "/use_viability", use_viability);
   n.getParam(ros::this_node::getName() + "/retain_previous", retain_previous);
 
-  plan_t plan(cs);
-  plan.append_onto_back(1.0);
-  space_point_t point = ss->make_point();
-
-  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 }, { 0.0, 1.0 }, { 1.0, 1.0 } };
-
-  rogue_spec->valid_check = [&](trajectory_t& traj) {
-    for (unsigned i = 0; i < traj.size(); i++)
-    {
-      ss->copy_from_point(traj.at(i));
-      if (cg->in_collision())
-        return false;
-      if (use_viability)
-      {
-        for (auto& control : control_list)
-        {
-          cs->copy(plan.back().control, control);
-          sg->propagate(traj.at(i), plan, point);
-          ss->copy_from_point(point);
-          if (cg->in_collision())
-            return false;
-        }
-      }
-    }
-    return true;
-  };
-
   std_msgs::Float64 goal_radius;
-  goal_radius.data = 0.25;
+  goal_radius.data = params["goal_region_radius"].as<double>();
 
   prx::rogue_query_t* rogue_query = new prx::rogue_query_t(ss, cs);
   rogue_query->start_state = ss->make_point();
@@ -104,16 +77,14 @@ int main(int argc, char** argv)
   rogue_query->get_visualization = false;
   ROS_WARN("Using default goal check");
 
-  std::string goal_config_str;
-  n.getParam(ros::this_node::getName() + "/goal_config", goal_config_str);
-  std::vector<double> goal_config = utils::split<double>(goal_config_str, ',');
+  std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
 
   geometry_msgs::Pose2D goal_configuration;
   goal_configuration.x = rogue_query->goal_state->at(0) = goal_config[0];
   goal_configuration.y = rogue_query->goal_state->at(1) = goal_config[1];
   goal_configuration.theta = rogue_query->goal_state->at(2) = goal_config[2];
 
-  auto learned_controller_params = prx::param_loader(params["controller"].as<std::string>());
+  auto learned_controller_params = prx::param_loader(params["learned_controller"].as<std::string>());
   prx::learned_controller_t controller(plant, learned_controller_params);
 
   rogue_query_t controller_query(planning_context.first->get_state_space(),
@@ -122,13 +93,21 @@ int main(int argc, char** argv)
   controller_query.goal_state = ss->clone_point(rogue_query->goal_state);
   controller_query.goal_region_radius = rogue_query->goal_region_radius;
 
+  distance_function_t goal_dist = [](const space_point_t& a, const space_point_t& b) {
+    double diff2 = (a->at(0) - b->at(0)) * (a->at(0) - b->at(0)) + (a->at(1) - b->at(1)) * (a->at(1) - b->at(1));
+    double angdiff2 = norm_angle_pi(a->at(2) - b->at(2)) *
+                      norm_angle_pi(a->at(2) - b->at(2));
+    diff2 += angdiff2;
+    return sqrt(diff2);
+  };
+
   double duration = learned_controller_params["control_duration"].as<double>();
   std::shared_ptr<roadmap_with_gaps_t> roadmap =
       std::make_shared<roadmap_with_gaps_t>(*rogue_spec, controller_query, controller);
   std::string vertices_fname =
-      prx::lib_path + "resources/roadmaps/" + params["roadmap_dir"].as<std::string>() + "vertices.txt";
+      prx::lib_path + "resources/roadmaps/" + params["/roadmap/dir"].as<std::string>() + "vertices.txt";
   std::string edges_fname =
-      prx::lib_path + "resources/roadmaps/" + params["roadmap_dir"].as<std::string>() + "edges.txt";
+      prx::lib_path + "resources/roadmaps/" + params["/roadmap/dir"].as<std::string>() + "edges.txt";
   roadmap->load_roadmap_from_file(vertices_fname, edges_fname);
 
   auto s_nn = roadmap->add_start(rogue_query->start_state);
@@ -136,7 +115,7 @@ int main(int argc, char** argv)
   auto g_nn = roadmap->add_goal(rogue_query->goal_state);
   std::cout << "Added goal node" << std::endl;
 
-  graph_nearest_neighbors_t* metric = new graph_nearest_neighbors_t(rogue_spec->distance_function);
+  graph_nearest_neighbors_t* metric = new graph_nearest_neighbors_t(goal_dist);
   auto vertices = roadmap->get_vertices();
   for (auto it : vertices)
   {
@@ -148,7 +127,7 @@ int main(int argc, char** argv)
   std::vector<roadmap_with_gaps_node_t*> nodes;
 
   rogue_spec->h = [&](const space_point_t& s, const space_point_t& s2) {
-    return rogue_spec->distance_function(s, s2) / 0.6;
+    return rogue_spec->distance_function(s, s2) / 0.625;
   };
 
   rogue_spec->roadmap_heuristic = [&](const space_point_t& s) {
@@ -216,7 +195,7 @@ int main(int argc, char** argv)
   ros::AsyncSpinner spinner(2);
 
   using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::rogue_t>, prx::rogue_specification_t*,
-                                                   prx::rogue_query_t*, prx_models::MushrPlanner>;
+                                                   prx::rogue_query_t*, prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerService planner_service(n, rogue, rogue_spec, rogue_query, propagate_dynamics, retain_previous);
 
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
@@ -297,6 +276,24 @@ int main(int argc, char** argv)
     planning_result_msg.goal_reached.data = false;
     planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
     planning_result_publisher.publish(planning_result_msg);
+  }
+
+  int id;
+  n.getParam(ros::this_node::getName() + "/id", id);
+
+  auto error_data = planner_client.get_error_data();
+  prx::space_point_t print_state = ss->make_point();
+
+  std::ofstream error_file;
+  error_file.open("/home/aravind/error_data_" + std::to_string(id) + ".txt");
+  for (unsigned i = 0; i < std::get<0>(error_data).size(); i++)
+  {
+    ml4kp_bridge::copy(print_state, std::get<0>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    ml4kp_bridge::copy(print_state, std::get<1>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    prx_models::copy(print_state, std::get<2>(error_data)[i]);
+    error_file << ss->print_point(print_state) << std::endl;
   }
 
   spinner.stop();

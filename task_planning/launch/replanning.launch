@@ -4,9 +4,9 @@
     <arg name = "propagate_dynamics" default = "true"/>
     <arg name = "retain_previous" default = "true"/>
     <!-- <arg name = "use_contingency" default = "true"/> -->
-    <arg name = "use_contingency" default = "true"/>
+    <arg name = "use_contingency" default = "false"/>
     <arg name = "use_rogue" default="false"/>
-    <arg name = "max_cycles" default="90"/>
+    <arg name = "max_cycles" default="90"/>1    `
     <arg name = "preprocess_timeout" default = "0.05" />
     <arg name = "postprocess_timeout" default = "0.05" />
     <arg name = "record" default = "false"/>

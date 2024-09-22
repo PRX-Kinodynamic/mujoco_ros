@@ -7,7 +7,8 @@
     <arg name = "timeout" default = "30.0"/>
     <arg name = "seed" default = "0"/>
     <arg name = "use_rogue" default="false"/>
-    <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" />
+    <!-- <arg name = "params_file" default="examples/replanning/planning_simulation.yaml" /> -->
+    <arg name = "params_file" default="examples/replanning/planning_real.yaml" />
     <param name = "ml4kp_params" value="$(arg params_file)"/>
     <group ns="$(arg namespace)">
         <node unless="$(arg use_rogue)" pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_dirt" output="screen">
@@ -18,6 +19,7 @@
             <param name="timeout" value="$(arg timeout)" />
             <param name="seed" value="$(arg seed)" />
             <param name="params_file" value="$(arg params_file)" />
+            <param name="use_contingency" value="false"/>
         </node>
         <node if="$(arg use_rogue)" pkg="task_planning" name="single_shot_planner" type="$(arg namespace)_single_shot_rogue" output="screen">
             <param name="traj_file" value="$(arg traj_file)" />

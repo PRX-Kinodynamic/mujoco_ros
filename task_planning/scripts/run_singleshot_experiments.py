@@ -46,7 +46,7 @@ class PlanningExperiment:
 
             roslaunch_file = roslaunch.rlutil.resolve_launch_arguments([self.package, self.launch_file])[0]
             launch_args = self.args + ['goal_config:=' + convert_to_string(goal_config),
-                                       'planning_cycle_duration:=' + str(planning_cycle_duration), 'seed:=' + str(i)]
+                                     'seed:=' + str(i)]
 
             rospy.loginfo("Init launch file")
             parent = roslaunch.parent.ROSLaunchParent(rospy.get_param("/run_id") , [(roslaunch_file, launch_args)])
@@ -68,6 +68,6 @@ class PlanningExperiment:
 if __name__ == '__main__':
     try:
         planning_experiment = PlanningExperiment(use_rogue=False)
-        planning_experiment.run(np.array([1.5, 5.0, 0.0]), 10, 1.0)
+        planning_experiment.run(np.array([1.5, 5.0, 0.0]), 30, 1.0)
     except rospy.ROSInterruptException:
         pass

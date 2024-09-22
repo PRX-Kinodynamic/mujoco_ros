@@ -26,16 +26,21 @@ class ReplanningExperiment:
         self.collisions = []
         self.timeouts = []
 
-        self.args = ['record:=false', 'use_rogue:=' + str(use_rogue)]
+        self.args = []
+        self.runs = []
+        # self.args = ['record:=false', 'use_rogue:=' + str(use_rogue)]
 
     def planning_result_callback(self, msg):
         if msg.goal_reached.data:
             self.successes.append(1)
             self.times.append(msg.total_time.data)
+            self.runs.append([1,0,0,msg.total_time.data])
         elif msg.in_collision.data:
             self.collisions.append(1)
+            self.runs.append([0,1,0,msg.total_time.data])
         else:
             self.timeouts.append(1)
+            self.runs.append([0,0,1,msg.total_time.data])
     
     def run(self, goal_config, num_trials=2, planning_cycle_duration=1.0):
         max_cycles = int(60.0 / planning_cycle_duration)
@@ -59,6 +64,9 @@ class ReplanningExperiment:
             
             rospy.sleep(0.5)
         
+        self.runs = np.array(self.runs)
+        np.savetxt('/home/aravind/runs.csv', self.runs, delimiter=',')
+
         rospy.loginfo("Successes: " + str(len(self.successes)) + " out of " + str(num_trials))
         rospy.loginfo("Collisions: " + str(len(self.collisions)) + " out of " + str(num_trials))
         rospy.loginfo("Timeouts: " + str(len(self.timeouts)) + " out of " + str(num_trials))
@@ -67,6 +75,6 @@ class ReplanningExperiment:
 if __name__ == '__main__':
     try:
         replanning_experiment = ReplanningExperiment(use_rogue=False)
-        replanning_experiment.run(np.array([1.0, 5.0, 0.0]), 10, 1.0)
+        replanning_experiment.run(np.array([1.0, 5.0, 0.0]), 30, 1.0)
     except rospy.ROSInterruptException:
         pass
