@@ -38,7 +38,8 @@ class stela_t : public Base
   using StateEstimates = typename SystemInterface::StateEstimates;
   using ControlEstimates = typename SystemInterface::ControlEstimates;
 
-  using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
+  using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState,
+                                                    prx::fg::collision_info_t::CollisionErrorType::STEP>;
 
   static constexpr Eigen::Index XDim{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index UDim{ gtsam::traits<Control>::dimension };
@@ -146,7 +147,7 @@ public:
     _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
     _robot_collision_ptr = SystemInterface::collision_geometry();
-    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(2, obstacle_sigma);
+    _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
 
     _obstacles_marker.header.frame_id = "world";
     _obstacles_marker.header.stamp = ros::Time();
@@ -224,6 +225,7 @@ public:
       // const ml4kp_bridge::SpacePoint& {};
       ofs_branch << node_id << " ";
       ml4kp_bridge::to_file(_tree.nodes[node_id].point, ofs_branch);
+      ofs_branch << "\n";
     }
 
     ofs.close();
@@ -563,8 +565,8 @@ public:
   {
     _u01 = _isam.calculateEstimate<Control>(_key_u01);
     _dt01 = _isam.calculateEstimate<double>(_key_dt);
-    LOG_VARS(_u01.transpose(), _dt01);
-    // DEBUG_VARS(_u01.transpose(), _dt01);
+    // LOG_VARS(_u01.transpose(), _dt01);
+    DEBUG_VARS(_u01.transpose(), _dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;

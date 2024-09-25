@@ -49,6 +49,8 @@ public:
   using StateEstimates = std::tuple<State, StateDot, Ubar>;
   using ControlEstimates = std::tuple<Control>;
 
+  using Parameters = mushr_types::Ubar::params;
+
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
 
@@ -173,21 +175,26 @@ public:
   {
     void operator()(Eigen::Matrix3d& rotation, Eigen::Vector3d& translation, const State& state)
     {
+      const Eigen::Vector<double, 1> vec{ state.angle() };
+      rotation = prx::euler_to_rotation<Eigen::Matrix3d>(vec, "Z");
       translation[0] = state[0];
       translation[1] = state[1];
       translation[2] = 0;
-      rotation = Eigen::Matrix3d::Identity();
-      rotation.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
     }
 
     // void operator()(const Eigen::Vector3d& translation, const State& state, Eigen::MatrixXd& H)
     void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
     {
-      H = Eigen::Matrix<double, 2, 3>::Zero();
+      // H = Eigen::Matrix<double, 2, 3>::Zero();
+      // const Eigen::Vector<double, 1> vec{ state.angle() };
+      // H = Eigen::Matrix<double, 3, 3>::Identity();
+      H = Eigen::Matrix<double, 1, 3>::Zero();
+      H(0, 0) = translation[0];
+      H(0, 1) = translation[1];
       // H.diagonal().tail(2) = translation.head(2);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
-      H.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
+      // H.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
     }
   };
 
@@ -384,8 +391,9 @@ public:
   {
     DEBUG_VARS(default_params);
   }
+
   // static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
-  static inline mushr_types::Ubar::params default_params{ 0.516624, 1, 0.738035 };
+  static inline Parameters default_params{ 1.0, 1.0, 1.0 };
 };
 // mushr_types::Ubar::params mushr_types::default_params = mushr_types::Ubar::params(0.9898, 0.4203, 0.6228);
 
@@ -415,14 +423,14 @@ public:
     parameter_space = new prx::space_t("EEEEEE", parameter_memory, "mushr_params");
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
-    geometries["body"]->initialize_geometry({ 0.2965, 0.230, 0.25 });
+    geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
     // geometries["body"]->initialize_geometry({ 0.01, 0.01, 0.25 });
     geometries["body"]->generate_collision_geometry();
     geometries["body"]->set_visualization_color("0x00ff00");
     configurations["body"] = std::make_shared<prx::transform_t>();
     configurations["body"]->setIdentity();
   }
-  ~mushrFG_t(){};
+  ~mushrFG_t() {};
 
   virtual void propagate(const double simulation_step) override final
   {

@@ -29,7 +29,7 @@ namespace mushr_types
 
 namespace Parameters
 {
-constexpr double L{ 0.2965 };
+constexpr double L{ 0.31 };
 
 }
 namespace State
