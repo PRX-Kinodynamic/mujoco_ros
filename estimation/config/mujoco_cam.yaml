@@ -2,7 +2,7 @@ robot_id: 0
 main_marker: 54
 marker_size: 0.265 
 
-markers_topic_name: "/mushr/markers"
+# markers_topic_name: "/mushr/markers"
 # rotation_offset: [0, 0, -1.5707963268]
 rotation_offset: [0, 0, 0]
 f: &f 800

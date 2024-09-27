@@ -298,7 +298,7 @@ public:
   struct local_update_t
   {
     local_update_t()
-      : estimate(false), integration_noise(nullptr), dynamic_noise(nullptr), observation_noise(nullptr){};
+      : estimate(false), integration_noise(nullptr), dynamic_noise(nullptr), observation_noise(nullptr) {};
 
     void init(prx::param_loader& params)
     {
@@ -462,6 +462,13 @@ public:
     // graph_values.second.insert(u01, u_prev);
     // graph_values.second.insert(xdot1, p_xdot1);
     // graph_values.second.insert(x1, p_x1);
+    return graph_values;
+  }
+
+  static GraphValues leaf_to_fg(const std::size_t parent, const std::size_t leaf,
+                                const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan)
+  {
+    GraphValues graph_values;
     return graph_values;
   }
 

@@ -12,7 +12,7 @@
   <include file="../friction_floors/friction_floor_uniform.xml"/>
   <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00000.xml"/>
   <include file="lab_markers.xml"/>
-  <include file="../obstacles/obstacle_0.xml"/>
+  <!-- <include file="../obstacles/obstacle_0.xml"/> -->
   <!-- <include file="../aruco_mip_36h12/multitags/multitags_2x3.xml"/> -->
   <!-- <include file="../friction_floors/friction_floor_midpatch.xml"/> -->
   <!-- <include file="../friction_floors/friction_floor_midpatch_lab.xml"/> -->

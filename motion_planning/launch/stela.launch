@@ -10,6 +10,8 @@
   <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <arg name="environment" default="environments/forest.yaml"/>
+  <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
+  <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
   <!-- <arg name="environment" default="environments/bug_trap.yaml"/> -->
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
@@ -23,8 +25,8 @@
   <arg name="random_seed" default="390489"/>
   <arg name="experiment_name" default="test"/>
   <arg name="obstacle_mode" default="None"/>
-  <arg name="obstacle_distance_tolerance" default="0.5"/>
-  <arg name="obstacle_factor_include_distance" default="0.5"/>
+  <arg name="obstacle_distance_tolerance" default="1.0"/>
+  <arg name="obstacle_factor_include_distance" default="1.0"/>
   <arg name="obstacle_sigma" default="1.0"/>
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="robot"/>

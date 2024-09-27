@@ -16,6 +16,7 @@
 #include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace perception
 {
@@ -33,13 +34,25 @@ private:
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
+
     _rgb_topic_name = ros::this_node::getNamespace() + _rgb_topic_name;
     _img_topic_name = ros::this_node::getNamespace() + _img_topic_name;
     _markers_topic_name = ros::this_node::getNamespace() + _markers_topic_name;
 
-    bool publish_markers_img;
+    std::string& rgb_topic{ _rgb_topic_name };
+    std::string& image_topic{ _img_topic_name };
+    std::string& markers_topic{ _markers_topic_name };
+
+    bool& publish_markers_img{ _publish_markers_img };
+
     NODELET_PARAM_SETUP(private_nh, publish_markers_img);
-    _publish_markers_img = publish_markers_img;
+    PARAM_SETUP_WITH_DEFAULT(private_nh, rgb_topic, rgb_topic)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, image_topic, image_topic)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, markers_topic, markers_topic)
+
+    DEBUG_VARS(rgb_topic);
+    DEBUG_VARS(image_topic);
+    DEBUG_VARS(markers_topic);
 
     _header.seq = 0;
     _header.stamp = ros::Time::now();

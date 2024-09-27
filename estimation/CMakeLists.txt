@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
   utils
   analytical
+  dynamic_reconfigure
 )
 
 # add_definitions("-g")
@@ -44,6 +45,10 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+generate_dynamic_reconfigure_options(
+  cfg/MushrEstimator.cfg
+)
+
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES mujoco
@@ -82,6 +87,7 @@ foreach(f ${EXECUTABLE_FILES})
   add_dependencies(${fname}
                    ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                    ${catkin_EXPORTED_TARGETS}
+                   ${PROJECT_NAME}_gencfg
                    )
   ## Specify libraries to link a library or executable target against
   target_link_libraries(${fname}

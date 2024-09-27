@@ -29,6 +29,7 @@ class stela_t : public Base
 
   using Control = typename SystemInterface::Control;
   using State = typename SystemInterface::State;
+
   // using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
 
@@ -43,6 +44,8 @@ class stela_t : public Base
 
   static constexpr Eigen::Index XDim{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index UDim{ gtsam::traits<Control>::dimension };
+
+  using ControlTranspose = Eigen::RowVector<double, UDim>;
 
 public:
   using Values = gtsam::Values;
@@ -109,8 +112,8 @@ public:
     if (plant_parameters.size() > 0)
     {
       SystemInterface::set_params(plant_parameters);
-      SystemInterface::print_params();
     }
+    SystemInterface::print_params();
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
     const std::string pose_with_cov_topic{ ros::this_node::getNamespace() + "/pose_with_cov" };
@@ -171,7 +174,7 @@ public:
     _obstacles_marker.color.g = 0.55;
     _obstacles_marker.color.b = 0.02;
 
-    _x0_start_time = ros::Time::now();
+    _x0_start_time = ros::Time::ZERO;
     _dt01 = 0.0;
   }
 
@@ -413,6 +416,7 @@ public:
   void update_next_goal()
   {
     const ros::Time now{ ros::Time::now() };
+    _x0_start_time = _x0_start_time.isZero() ? now : _x0_start_time;  // Only update the first time
     const ros::Time finish_time{ _x0_start_time + ros::Duration(_dt01) };
 
     const double nowdt{ (now - _start_time).toSec() };
@@ -421,7 +425,7 @@ public:
     {
       if (_local_goal_id < _selected_nodes.size() - 1)
       {
-        // DEBUG_VARS(nowdt, finishdt);
+        DEBUG_VARS(_dt01, nowdt, finishdt);
         _local_goal_id++;
 
         // DEBUG_VARS(_x_curr, _x_next, nowdt, _dt01);
@@ -434,14 +438,15 @@ public:
         const ml4kp_bridge::Plan& plan{ _tree.edges[parent_edge].plan };
         const double next_duration{ ml4kp_bridge::duration(plan).toSec() };
 
-        _next_node_time = now + ros::Duration(next_duration);
         SystemInterface::copy(_u_plan, plan.steps[0].control);
         // LOG_VARS(_local_goal_id, _feedback.current_root, _x_next, next_duration);
-        // LOG_VARS(plan);
 
         _key_dt = SystemInterface::keyT(_x_curr, _x_next);
+        _dt01 = _isam.calculateEstimate<double>(_key_dt);
 
-        _x0_start_time = now;
+        // const ros::Duration extra{};
+        _x0_start_time = finish_time;
+        _next_node_time = _x0_start_time + ros::Duration(_dt01);
       }
       else  // last available goal
       {
@@ -566,7 +571,11 @@ public:
     _u01 = _isam.calculateEstimate<Control>(_key_u01);
     _dt01 = _isam.calculateEstimate<double>(_key_dt);
     // LOG_VARS(_u01.transpose(), _dt01);
-    DEBUG_VARS(_u01.transpose(), _dt01);
+    const ControlTranspose u_fg{ _u01.transpose() };
+    const ControlTranspose u_plan{ _u_plan.transpose() };
+    DEBUG_VARS(u_fg, u_plan, _dt01);
+
+    _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;
@@ -614,11 +623,19 @@ public:
     const prx_models::Edge& edge{ msg->edges[edge_id] };
     const prx_models::Node& node_parent{ msg->nodes[edge.source] };
     const prx_models::Node& node_current{ msg->nodes[edge.target] };
+    const std::size_t total_children{ node_current.children.size() };
 
-    // Create a FG that goes from N0 to N1 with plan P01
-    GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
-                                                               edge.plan) };
-    SF::symbols_to_file();
+    GraphValues graph_values;
+    if (total_children == 0)  // Is a leaf
+    {
+      graph_values = SystemInterface::leaf_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+    }
+    else
+    {
+      // Create a FG that goes from N0 to N1 with plan P01
+      graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+    }
+    // SF::symbols_to_file();
 
     if (msg->root != node_current.index)
     {
@@ -627,18 +644,6 @@ public:
 
     _values.insert(graph_values.second);
 
-    // const uint64_t dbg_source{ 0 };
-    // const uint64_t dbg_target{ 427 };
-    // if (edge.source == dbg_source and edge.target == dbg_target)
-    // {
-    //   // void printErrors(const Values& values, const std::string& str = "NonlinearFactorGraph: ",
-    //   // const KeyFormatter& keyFormatter = DefaultKeyFormatter);
-    //   graph_values.first.print("Graph: ", SF::formatter);
-    //   // void print(const std::string& str = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const;
-    //   graph_values.second.print("Values: ", SF::formatter);
-    //   graph_values.first.printErrors(_values, "Graph: ", SF::formatter);
-    //   dbg_isam_error("ISAM Error before");
-    // }
     try
     {
       _isam2_result = _isam.update(graph_values.first, graph_values.second);
@@ -656,23 +661,6 @@ public:
       throw e;
       // failure_to_file("Initialization - " + SF::formatter(e.nearbyVariable()));
     }
-
-    // static bool u_reached{ false };
-    // u_reached = (edge.source == dbg_source and edge.target == dbg_target) or u_reached;
-    // if (u_reached)
-    // {
-    //   dbg_isam_error("ISAM Error after");
-    //   // const Control u_87_107{ _isam.calculateEstimate<Control>(SystemInterface::keyU(edge.source, edge.target)) };
-    //   // DEBUG_VARS(u_87_107.transpose());
-    //   dbg_print_cluster(edge.source, edge.target);
-    //   dbg_print_high_error_factors();
-    //   // graph_values.first.print("Graph: ", SF::formatter);
-    //   // void print(const std::string& str = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const;
-    //   // graph_values.second.print("Values: ", SF::formatter);
-    //   // graph_values.first.printErrors(_values, "Graph: ", SF::formatter);
-    // }
-    // DEBUG_VARS(_isam2_result.cliques);
-    const std::size_t total_children{ node_current.children.size() };
 
     if (total_children >= 1)  // This is not a leaf
     {
@@ -729,7 +717,6 @@ public:
 
       branch_to_traj(msg, node_child.parent_edge);
     }
-    SF::symbols_to_file();
 
     ROS_DEBUG_STREAM_NAMED("STELA", "Adding obstacle graph: " << _obstacle_graph.size());
     if (_obstacle_graph.size() > 0)
@@ -739,6 +726,7 @@ public:
     }
     ROS_DEBUG_STREAM_NAMED("STELA", "Finished traversing tree ");
     // _id_x_hat = msg->root;
+    SF::symbols_to_file();
 
     // const GraphValues graph_values{ SystemInterface::root_to_fg(_id_x_hat, node.point, true) };
     // _isam2_result = _isam.update(graph_values.first, graph_values.second);

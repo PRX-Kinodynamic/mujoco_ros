@@ -21,6 +21,9 @@
       </default>
   </default>
   <worldbody>
+    <!-- <body name="buddy" pos="2.0 1.0 0.25" euler="0 0 1.5707963268"> -->
+    <!-- <body name="buddy" pos="0.0 2.0 0.25" euler="0 0 1.5707963268"> -->
+
     <body name="buddy" pos="1.0 -0.50 0.25" euler="0 0 1.5707963268">
       <geom class="geom_aruco_mip_36h12_00000" pos="0 0 0.2"/> 
 
@@ -88,7 +91,8 @@
   </tendon>
   <sensor>
    <!-- Frame position-->
-    <framepos name="global_position" objtype="xbody" objname="buddy"/>
-    <framequat name="global_orientation" objtype="xbody" objname="buddy"/>
+    <!-- <framepos name="global_position" objtype="xbody" objname="buddy"/> -->
+    <!-- <framequat name="global_orientation" objtype="xbody" objname="buddy"/> -->
+    <velocimeter name="velocimeter" site="buddy_imu"/>
   </sensor>
 </mujoco>

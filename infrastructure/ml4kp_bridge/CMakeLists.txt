@@ -11,8 +11,8 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 find_package(Eigen3 REQUIRED)
 find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(rostest REQUIRED)
-find_package(GTSAMCMakeTools)
-find_package(TBB REQUIRED)
+# find_package(GTSAMCMakeTools)
+# find_package(TBB REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -25,10 +25,11 @@ find_package(catkin REQUIRED COMPONENTS
 # find_package(TBB COMPONENTS tbb tbbmalloc)
 # find_package(TBB REQUIRED)
 
-  message(STATUS "GTSAM_DIR: ${GTSAM_DIR}")
-  message(STATUS "GTSAM_CONFIG: ${GTSAM_CONFIG}")
-  # target_link_libraries(FactorGraphs INTERFACE gtsam ${GTSAM_ADDITIONAL_LIBRARIES})
-  message(STATUS "GTSAM_USE_TBB: ${GTSAM_USE_TBB}")
+if(GTSAM_USE_TBB)
+  message(STATUS "GTSAM is using TBB")
+  find_package(TBB 4.4 REQUIRED COMPONENTS tbb tbbmalloc)
+
+endif()
 
 
 ## System dependencies are found with CMake's conventions
@@ -127,12 +128,11 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 
 message(STATUS "ML4KP_INCLUDE_DIR: ${ML4KP_INCLUDE_DIR} ")
-message(STATUS "TBB_LIBRARY: ${TBB_LIBRARY} ")
 catkin_package(
  INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR} # ${TBB_INCLUDE_DIRS}
  LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
- # DEPENDS  ${GTSAM_ADDITIONAL_LIBRARIES}
+ # DEPENDS  gtsam
 )
 
 
@@ -154,7 +154,7 @@ if (UNIX AND NOT APPLE)
   MESSAGE(STATUS "Setting Eigen SIMD speedups")
   set(BUILD_FLAGS "-march=native")
   list(APPEND BUILD_FLAGS "-fPIC")
-endif(UNIX)
+endif(UNIX AND NOT APPLE)
 add_definitions(${BUILD_FLAGS})
 
 
@@ -164,7 +164,7 @@ add_definitions(${BUILD_FLAGS})
 add_library(${PROJECT_NAME} INTERFACE)
 add_dependencies(${PROJECT_NAME} ML4KP::ML4KP )
 target_include_directories(${PROJECT_NAME} INTERFACE include ${ML4KP_INCLUDE_DIR} ${GTSAM_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP gtsam)
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP )
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)

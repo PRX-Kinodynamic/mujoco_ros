@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   prx_models
 )
+add_definitions("-g")
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)

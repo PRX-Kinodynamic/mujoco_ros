@@ -107,12 +107,12 @@ void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::rrt_specif
   //     {
   //       // const Eigen::Vector2d xdot{ Vec(state).tail(2) };
   //       // x_cost += xdot.transpose() * C * xdot;
-  //       x_cost += std::pow(state->at(3), 2) * 0.1;
+  //       // x_cost += std::pow(state->at(3), 2) * 0.1;
   //     }
   //     for (auto step : plan)
   //     {
   //       const Eigen::Vector2d u{ Vec(step.control) };
-  //       // u_cost += std::pow(u[0], 2);
+  //       u_cost += std::pow(u[0], 2);
   //       // u_cost += u.transpose() * C * u;
   //     }
   //     return x_cost + u_cost;
