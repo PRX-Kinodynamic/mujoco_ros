@@ -191,12 +191,11 @@ public:
     }
   }
 
-  void to_file(const bool collision = false)
+  void to_file(const bool collision = false, const bool rasied_exception = false)
   {
     if (_files_created)
       return;
 
-    gtsam::Values estimate{ _isam.calculateEstimate() };
     const std::string filename{ _output_dir + "/stela_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
     const std::string filename_branch_gt{ _output_dir + "/stela_branch_gt_" + _experiment_id + "_" +
                                           utils::timestamp() + ".txt" };
@@ -214,10 +213,12 @@ public:
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
     ofs_data << "ObstacleMode: " << _mode << "\n";
+    ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
 
     // for (int i = 0; i < _id_x_hat; ++i)
     // {
     // }
+    gtsam::Values estimate{ _isam.calculateEstimate() };
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     ofs_branch << "# id point[...]\n";
     for (auto node_id : _selected_nodes)
@@ -254,6 +255,7 @@ public:
     std::ofstream ofs(filename);
     ofs << "STELA failure: " << msg << "\n";
     ofs.close();
+    to_file(false, true);
   }
 
   void action_function(const ros::TimerEvent& event)
@@ -425,7 +427,7 @@ public:
     {
       if (_local_goal_id < _selected_nodes.size() - 1)
       {
-        DEBUG_VARS(_dt01, nowdt, finishdt);
+        // DEBUG_VARS(_dt01, nowdt, finishdt);
         _local_goal_id++;
 
         // DEBUG_VARS(_x_curr, _x_next, nowdt, _dt01);
@@ -442,7 +444,8 @@ public:
         // LOG_VARS(_local_goal_id, _feedback.current_root, _x_next, next_duration);
 
         _key_dt = SystemInterface::keyT(_x_curr, _x_next);
-        _dt01 = _isam.calculateEstimate<double>(_key_dt);
+        // _dt01 = _isam.calculateEstimate<double>(_key_dt);
+        calculate_estimate_safe(_dt01, _key_dt);
 
         // const ros::Duration extra{};
         _x0_start_time = finish_time;
@@ -462,32 +465,16 @@ public:
     DEBUG_VARS(msg, isam_error);
   }
 
-  void dbg_print_cluster(const int id0, const int id1)
+  void dbg_print_cluster(const int id0) const
   {
-    const gtsam::Key kx0{ SystemInterface::keyX(1, id0) };
-    const gtsam::Key kx1{ SystemInterface::keyX(1, id1) };
-    const gtsam::Key kxdot0{ SystemInterface::keyXdot(1, id0) };
-    const gtsam::Key kxdot1{ SystemInterface::keyXdot(1, id1) };
-    const gtsam::Key kt{ SystemInterface::keyT(id0, id1) };  // t^{347}_{367}
-    const gtsam::Key ku{ SystemInterface::keyU(id0, id1) };  // t^{347}_{367}
-    const State x0{ _isam.calculateEstimate<State>(kx0) };
-    const State x1{ _isam.calculateEstimate<State>(kx1) };
-    // const StateDot xdot0{ _isam.calculateEstimate<StateDot>(kxdot0) };
-    // const StateDot xdot1{ _isam.calculateEstimate<StateDot>(kxdot1) };
-    const Control u01{ _isam.calculateEstimate<Control>(ku) };
-    const double t{ _isam.calculateEstimate<double>(kt) };
-    const std::string lt{ SF::formatter(kt) };
-    const std::string lx0{ SF::formatter(kx0) };
-    const std::string lx1{ SF::formatter(kx1) };
-    const std::string lxdot0{ SF::formatter(kxdot0) };
-    const std::string lxdot1{ SF::formatter(kxdot1) };
-    const std::string lu01{ SF::formatter(ku) };
-    DEBUG_VARS(lt, t);
-    DEBUG_VARS(lx0, x0);
-    DEBUG_VARS(lx1, x1);
-    // DEBUG_VARS(lxdot0, xdot0);
-    // DEBUG_VARS(lxdot1, xdot1);
-    DEBUG_VARS(lu01, u01);
+    const StateKeys keys{ SystemInterface::keyState(1, id0) };
+
+    for (auto k : keys)
+    {
+      const std::string msg{ "Clique at key: " + SF::formatter(k) };
+      DEBUG_VARS(msg);
+      _isam.clique(k)->print("clique: ", SF::formatter);
+    }
   }
 
   void dbg_print_high_error_factors(const double error)
@@ -500,6 +487,24 @@ public:
     // estimated_values.print("Values", SF::formatter);
 
     // estimated_values.print("isam values: ", SF::formatter);
+  }
+
+  template <typename Estimate>
+  void calculate_estimate_safe(Estimate& variable, const gtsam::Key& key)
+  {
+    try
+    {
+      variable = _isam.calculateEstimate<Estimate>(key);
+    }
+    catch (gtsam::IndeterminantLinearSystemException e)
+    {
+      failure_to_file(e.what());
+
+      // gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
+      // estimates_to_file<0>(std::cout, current_estimate, key, false);
+      // const std::string msg{ "Clique of " + SF::formatter(key) };
+      // _isam[key]->print(msg, SF::formatter);
+    }
   }
 
   void add_observations()
@@ -524,24 +529,60 @@ public:
                                                                                 _state_estimates, _u01,  // no-lint
                                                                                 _z_new, dt, 0.01) };
 
+      // if (_x_curr == 234 or _x_curr == 204 or _x_curr == 242)
+      // {
+      //   std::cout << "Trying output at 236" << std::endl;
+      //   DEBUG_VARS(_x_curr, _x_next);
+      //   //   const StateKeys keys_curr{ SystemInterface::keyState(1, _x_curr) };
+      //   //   const StateKeys keys_next{ SystemInterface::keyState(1, _x_next) };
+      //   //   // estimate_to_stream(std::cout, keys_curr, const StateType& state);
+
+      //   //   gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
+
+      //   //   estimates_to_file<0>(std::cout, current_estimate, keys_curr, false);
+      //   //   estimates_to_file<0>(std::cout, current_estimate, keys_next, false);
+
+      //   //   // gtsam::NonlinearFactorGraph fg{ _isam.getFactorsUnsafe() };
+      //   _isam.saveGraph("/Users/Gary/pracsys/catkin_ws/fg.dot", SF::formatter);
+      //   dbg_print_cluster(_x_curr);
+      //   dbg_print_cluster(_x_next);
+      //   const gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
+      //   prx::fg::indeterminant_linear_system_helper(graph_values_z.first, current_estimate);
+
+      //   //   // _isam.clique(_x_curr)->print("x_current clique: ", SF::formatter);
+      //   //   // _isam.clique(_x_next)->print("_x_next clique: ", SF::formatter);
+      // }
       try
       {
         // throw my_exception();
         // _isam2_result = _isam.update(graph_values.first, graph_values.second);
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
-        const State xt0{ _isam.calculateEstimate<State>(SystemInterface::keyX(1, _x_curr)) };
-        const State xt1{ _isam.calculateEstimate<State>(SystemInterface::keyX(1, _x_next)) };
-        // dbg_isam_error();
-        // dbg_print_high_error_factors(0.0001);
-        // DEBUG_VARS(_z_new);
-        // DEBUG_VARS(xt0, xt1);
+        _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
+
+        _u01 = _isam.calculateEstimate<Control>(_key_u01);
+        _dt01 = _isam.calculateEstimate<double>(_key_dt);
       }
       catch (gtsam::IndeterminantLinearSystemException e)
       {
-        // Var:U^{930}_{960}
-        // dbg_print_cluster(930, 960);
-        std::cout << "[EXCEPTION] Var:" << SF::formatter(e.nearbyVariable()) << std::endl;
-        std::cout << std::string(e.what()) << std::endl;
+        // DEBUG_VARS(_x_curr, _x_next);
+        // _isam2_result.print("Result at error");
+
+        // gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
+        // prx::fg::indeterminant_linear_system_helper(graph_values_z.first, current_estimate);
+        // const StateKeys keys_curr{ SystemInterface::keyState(1, _x_curr) };
+        // const StateKeys keys_next{ SystemInterface::keyState(1, _x_next) };
+        // estimate_to_stream(std::cout, keys_curr, const StateType& state);
+
+        // estimates_to_file<0>(std::cout, current_estimate, keys_curr, false);
+        // estimates_to_file<0>(std::cout, current_estimate, keys_next, false);
+
+        // _isam.saveGraph("/Users/Gary/pracsys/catkin_ws/fg.dot", SF::formatter);
+        // dbg_print_cluster(_x_curr);
+        // dbg_print_cluster(_x_next);
+        const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(e.nearbyVariable()) + "\n" };
+        failure_to_file(msg + e.what());
+        std::cout << msg << std::string(e.what()) << std::endl;
+
         // failure_to_file("Adding observations - " + SF::formatter(e.nearbyVariable()));
       }
       // DEBUG_PRINT
@@ -549,7 +590,6 @@ public:
       // _isam2_result = _isam.update(graph_values_1.first, graph_values_1.second);
 
       // _id_x_hat++;
-      _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
 
       const StateKeys state_keys{ SystemInterface::keyState(1, _x_curr) };
       update_estimates<0>(_state_estimates, state_keys);
@@ -568,12 +608,12 @@ public:
 
   void publish_control()
   {
-    _u01 = _isam.calculateEstimate<Control>(_key_u01);
-    _dt01 = _isam.calculateEstimate<double>(_key_dt);
+    // _u01 = _isam.calculateEstimate<Control>(_key_u01);
+    // _dt01 = _isam.calculateEstimate<double>(_key_dt);
     // LOG_VARS(_u01.transpose(), _dt01);
     const ControlTranspose u_fg{ _u01.transpose() };
     const ControlTranspose u_plan{ _u_plan.transpose() };
-    DEBUG_VARS(u_fg, u_plan, _dt01);
+    // DEBUG_VARS(u_fg, u_plan, _dt01);
 
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
@@ -805,32 +845,56 @@ private:
   }
 
   template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  void estimates_to_file(std::ostream& ofs, const gtsam::Values& estimate, const StateKeys& keys,
+                         const bool with_covariance = true)
   {
     using StateType = typename std::tuple_element<I, StateEstimates>::type;
     const gtsam::Key key{ keys[I] };
     const StateType state{ estimate.at<StateType>(key) };
-    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    const Eigen::VectorXd diagonal{ cov.diagonal() };
+    // const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    // const Eigen::VectorXd diagonal{ cov.diagonal() };
 
     // ofs << i << " ";
+    // ofs << SF::formatter(key) << " ";
+    // for (int i = 0; i < state.size(); ++i)
+    // {
+    //   ofs << state[i] << " ";
+    // }
+    // for (auto e : diagonal)
+    // {
+    //   ofs << e << " ";
+    // }
+    estimate_to_stream(ofs, key, state);
+    if (with_covariance)
+      covariance_diagonal_to_stream(ofs, key);
+
+    estimates_to_file<I + 1>(ofs, estimate, keys, with_covariance);
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ostream& ofs, const gtsam::Values& estimate, const StateKeys& keys,
+                         const bool with_covariance)
+  {
+    ofs << "\n";
+  }
+
+  template <typename StateType>
+  void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
+  {
     ofs << SF::formatter(key) << " ";
     for (int i = 0; i < state.size(); ++i)
     {
       ofs << state[i] << " ";
     }
+  }
+  void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key)
+  {
+    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    const Eigen::VectorXd diagonal{ cov.diagonal() };
     for (auto e : diagonal)
     {
       ofs << e << " ";
     }
-    estimates_to_file<I + 1>(ofs, estimate, keys);
-    // ofs << "\n";
-  }
-
-  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
-  {
-    ofs << "\n";
   }
 
   Values _values;

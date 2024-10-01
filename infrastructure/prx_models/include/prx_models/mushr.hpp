@@ -223,10 +223,12 @@ public:
   }
 
   static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id,
-                                            const StateEstimates& estimates, const Control u_prev, const Observation& z,
-                                            const double dt, const double z_noise)
+                                            const StateEstimates& estimates, const Control u_prev,
+                                            const Observation& zx, const double dt, const double z_noise)
   {
     using ObservationFactor = prx::fg::lie_ode_observation_factor_t<State, StateDot>;
+    // using ControlObservationFactor = prx::fg::lie_ode_observation_factor_t<Ubar, Control>;
+    // using MushrObservationFactor = prx_models::mushr_observation_factor_t;
     //     XVelFactor
     // VelUbarFactor
     // CtrlUbarFactor
@@ -249,13 +251,20 @@ public:
     // NoiseModel qdot_noise{ gtsam::noiseModel::Isotropic::Sigma(3, dt) };
     // NoiseModel q_noise{ gtsam::noiseModel::Isotropic::Sigma(3, z_noise) };
     NoiseModel observation_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-0) };
+    NoiseModel control_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1.0e-0) };
 
-    graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, observation_noise, z, dt);
-    // graph_values.first.emplace_shared<CtrlUbarFactor>(ubar1, u01, ubar0, mushr_utils_t::default_params, ubar_noise);
-    // graph_values.first.emplace_shared<VelUbarFactor>(xdot1, ubar1, qdot_noise);
-    // graph_values.first.emplace_shared<XVelFactor>(x1, x0, xdot0, q_noise, dt);
-    // graph_values.first.emplace_shared<ObservationFactor>(x0, z, observation_noise);
-    // graph_values.first.addPrior(u01, u_prev);
+    graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, observation_noise, zx, dt);
+    // graph_values.first.emplace_shared<MushrObservationFactor>(x0, ubar0, zx, u_prev, dt, default_params,
+    // observation_noise);
+    if (first == prev_id)
+    {
+      // first = false;
+      graph_values.first.addPrior(u01, u_prev, control_noise);
+    }
+    else
+    {
+      first = prev_id;
+    }
 
     // const Ubar val_ubar1{ CtrlUbarFactor::dynamics(u_prev, ubar0_value, mushr_utils_t::default_params) };
     // const StateDot val_xdot1{ VelUbarFactor::dynamics(val_ubar1) };
@@ -331,6 +340,7 @@ public:
     graph_values.second.insert(k_x1, x1);
     graph_values.second.insert(k_t01, dt);
 
+    // aux_graph.first.addPrior(k_xdot1, xdot1);
     aux_graph.second.insert(k_xdot1, xdot1);
     aux_graph.second.insert(k_ubar1, ubar1);
     aux_graph.second.insert(k_u01, u01);
@@ -454,6 +464,7 @@ public:
 
 private:
   static inline GraphValues aux_graph;
+  static inline std::size_t first{ std::numeric_limits<std::size_t>::max() };
 };
 // mushr_types::Ubar::params mushr_types::default_params = mushr_types::Ubar::params(0.9898, 0.4203, 0.6228);
 
