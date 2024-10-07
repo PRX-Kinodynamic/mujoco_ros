@@ -114,6 +114,13 @@ public:
     x[1] = pt.point[1];
   }
 
+  static double node_distance(const ml4kp_bridge::SpacePoint& pt, const Observation& z)
+  {
+    const double xd{ pt.point[0] - z[0] };
+    const double yd{ pt.point[1] - z[1] };
+
+    return std::sqrt(xd * xd + yd * yd);
+  }
   template <typename Out, typename InPtr>
   static void copy(Out& u, const InPtr msg)
   {
@@ -239,8 +246,11 @@ public:
     // void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
     void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
     {
-      H = Eigen::Matrix2d::Identity();
-      H.diagonal() = translation.head(2);
+      H = Eigen::Matrix<double, 1, 3>::Zero();
+      H(0, 0) = translation[0];
+      H(0, 1) = translation[1];
+      // H = Eigen::Matrix2d::Identity();
+      // H.diagonal() = translation.head(2);
     }
   };
   /**

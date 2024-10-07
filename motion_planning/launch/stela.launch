@@ -44,6 +44,8 @@
   <arg name="experiment_id" default="test"/>
   <arg name="num_workers" default="8"/>
   <arg name="feedback_lookahead" default="3"/>
+  <arg name="stela_time_based" default="true"/>
+
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
 
@@ -168,6 +170,7 @@ launch-prefix="gdb --args">
       <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="experiment_id" value="$(arg experiment_id)"/>
+      <param name="time_based" value="$(arg stela_time_based)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'mushr')" 
@@ -186,6 +189,7 @@ launch-prefix="gdb --args">
       <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="experiment_id" value="$(arg experiment_id)"/>
+      <param name="time_based" value="$(arg stela_time_based)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaDbg')" 
@@ -207,6 +211,7 @@ launch-prefix="gdb --args">
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
       <param name="experiment_id" value="$(arg experiment_id)"/>
+      <param name="time_based" value="$(arg stela_time_based)"/>
     </node>
 
     <node if="$(eval arg('Stepper') == 'Stela')" 

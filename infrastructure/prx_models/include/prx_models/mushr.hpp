@@ -46,7 +46,7 @@ public:
   using StateKeys = std::array<gtsam::Key, 3>;
   using ControlKeys = std::array<gtsam::Key, 1>;
 
-  using StateEstimates = std::tuple<State, StateDot, Ubar>;
+  using StateEstimates = std::tuple<State, StateDot>;
   using ControlEstimates = std::tuple<Control>;
 
   using Parameters = mushr_types::Ubar::params;
@@ -135,13 +135,15 @@ public:
   {
     const State& x{ std::get<0>(estimates) };
     const StateDot& xdot{ std::get<1>(estimates) };
-    const Ubar& ubar{ std::get<2>(estimates) };
+    // const Ubar& ubar{ std::get<2>(estimates) };
 
-    pt.point.resize(4);
+    pt.point.resize(6);
     pt.point[0] = x[0];
     pt.point[1] = x[1];
     pt.point[2] = x[2];
-    pt.point[3] = ubar[mushr_types::Ubar::velocity];
+    pt.point[3] = xdot[0];
+    pt.point[4] = xdot[1];
+    pt.point[5] = xdot[2];
   }
 
   static void copy(Control& u, const ml4kp_bridge::SpacePoint& msg)
@@ -155,6 +157,23 @@ public:
     x[0] = pt.point[0];
     x[1] = pt.point[1];
     x[2] = pt.point[2];
+  }
+
+  static void stateDot(StateDot& xd, const ml4kp_bridge::SpacePoint& pt)
+  {
+    xd[0] = pt.point[3];
+    xd[1] = pt.point[4];
+    xd[2] = pt.point[5];
+  }
+
+  static double node_distance(const ml4kp_bridge::SpacePoint& pt, const Observation& z)
+  {
+    State x{};
+    state(x, pt);
+
+    const State between{ x.between(z) };
+    const Eigen::VectorXd error{ State::Logmap(between) };
+    return error.norm();
   }
 
   static void control_vizualization(Eigen::Vector3d& endpoint, const ml4kp_bridge::SpacePoint& msg)
@@ -188,9 +207,14 @@ public:
       // H = Eigen::Matrix<double, 2, 3>::Zero();
       // const Eigen::Vector<double, 1> vec{ state.angle() };
       // H = Eigen::Matrix<double, 3, 3>::Identity();
+      // const double norm{translation};
+      const Eigen::Vector2d normalized{ translation.head(2).normalized() };
       H = Eigen::Matrix<double, 1, 3>::Zero();
-      H(0, 0) = translation[0];
-      H(0, 1) = translation[1];
+      // H(0, 0) = translation[0];
+      // H(0, 1) = translation[1];
+      H(0, 0) = normalized[0];
+      H(0, 1) = normalized[1];
+      // DEBUG_VARS(state, translation.transpose(), normalized.transpose());
       // H.diagonal().tail(2) = translation.head(2);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
       // H = gtsam::Pose2::ExpmapDerivative(translation);
@@ -235,7 +259,7 @@ public:
     // ObservationFactor
     const State& x0_value{ std::get<0>(estimates) };
     const StateDot& xdot0_value{ std::get<1>(estimates) };
-    const Ubar& ubar0_value{ std::get<2>(estimates) };
+    // const Ubar& ubar0_value{ std::get<2>(estimates) };
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(1, prev_id) };
@@ -292,16 +316,19 @@ public:
     State x1;
     StateDot xdot1;
     Control u01;
-    Ubar ubar0, ubar1;
+    // Ubar ubar0, ubar1;
 
     mushr_utils_t::state(x1, node_state);
+    mushr_utils_t::stateDot(xdot1, node_state);
     u01[0] = edge_control.point[0];
     u01[1] = edge_control.point[1];
 
-    ubar1 = mushr_ub_u_xdot_param_t::dynamics(u01, ubar0, default_params, dt);
-    ubar1[mushr_types::Ubar::velocity] = node_state.point[3];
+    // xdot1 = mushr_u_xddot01_t::predict(_state_dot, dt, u01, default_params);
 
-    xdot1 = mushr_xdot_ub_t::dynamics(ubar1);
+    // ubar1 = mushr_ub_u_xdot_param_t::dynamics(u01, ubar0, default_params, dt);
+    // ubar1[mushr_types::Ubar::velocity] = node_state.point[3];
+
+    // xdot1 = mushr_xdot_ub_t::dynamics(ubar1);
     // xdot1 = State::Logmap(x1.inverse() * x0);
 
     GraphValues graph_values{ aux_graph };
@@ -314,8 +341,8 @@ public:
     const gtsam::Key k_xdot0{ keyXdot(1, parent) };
     const gtsam::Key k_xdot1{ keyXdot(1, child) };
 
-    const gtsam::Key k_ubar0{ keyUbar(1, parent) };
-    const gtsam::Key k_ubar1{ keyUbar(1, child) };
+    // const gtsam::Key k_ubar0{ keyUbar(1, parent) };
+    // const gtsam::Key k_ubar1{ keyUbar(1, child) };
 
     const gtsam::Key k_u01{ keyU(parent, child) };
     const gtsam::Key k_t01{ keyT(parent, child) };
@@ -328,8 +355,10 @@ public:
     graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
 
-    aux_graph.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
-    aux_graph.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
+    // _state_dot = mushr_u_xddot01_t::predict(_state_dot, simulation_step, _ctrl, _params_ubar_u);
+    aux_graph.first.emplace_shared<mushr_u_xddot01_t>(k_xdot1, k_xdot0, k_t01, k_u01, default_params, nullptr);
+    // aux_graph.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
+    // aux_graph.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
 
     graph_values.first.addPrior(k_t01, dt, dt_noise);
     graph_values.first.addPrior(k_x1, x1, prior_noise);
@@ -342,7 +371,7 @@ public:
 
     // aux_graph.first.addPrior(k_xdot1, xdot1);
     aux_graph.second.insert(k_xdot1, xdot1);
-    aux_graph.second.insert(k_ubar1, ubar1);
+    // aux_graph.second.insert(k_ubar1, ubar1);
     aux_graph.second.insert(k_u01, u01);
 
     return graph_values;
@@ -360,16 +389,11 @@ public:
     State x1;
     StateDot xdot1;
     Control u01;
-    Ubar ubar0, ubar1;
 
     mushr_utils_t::state(x1, node_state);
+    mushr_utils_t::stateDot(xdot1, node_state);
     u01[0] = edge_control.point[0];
     u01[1] = edge_control.point[1];
-
-    ubar1 = mushr_ub_u_xdot_param_t::dynamics(u01, ubar0, default_params, dt);
-    ubar1[mushr_types::Ubar::velocity] = node_state.point[3];
-
-    xdot1 = mushr_xdot_ub_t::dynamics(ubar1);
 
     GraphValues graph_values{ aux_graph };
     aux_graph.first.erase(aux_graph.first.begin(), aux_graph.first.end());
@@ -381,8 +405,8 @@ public:
     const gtsam::Key k_xdot0{ keyXdot(1, parent) };
     const gtsam::Key k_xdot1{ keyXdot(1, leaf) };
 
-    const gtsam::Key k_ubar0{ keyUbar(1, parent) };
-    const gtsam::Key k_ubar1{ keyUbar(1, leaf) };
+    // const gtsam::Key k_ubar0{ keyUbar(1, parent) };
+    // const gtsam::Key k_ubar1{ keyUbar(1, leaf) };
 
     const gtsam::Key k_u01{ keyU(parent, leaf) };
     const gtsam::Key k_t01{ keyT(parent, leaf) };
@@ -394,18 +418,19 @@ public:
     graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
 
-    graph_values.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
-    graph_values.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
+    aux_graph.first.emplace_shared<mushr_u_xddot01_t>(k_xdot1, k_xdot0, k_t01, k_u01, default_params, nullptr);
+    // graph_values.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
+    // graph_values.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
 
     graph_values.first.addPrior(k_t01, dt, dt_noise);
     graph_values.first.addPrior(k_x1, x1, x_leaf_noise);
     graph_values.first.addPrior(k_xdot1, xdot1);
-    graph_values.first.addPrior(k_ubar1, ubar1);
+    // graph_values.first.addPrior(k_ubar1, ubar1);
 
     graph_values.second.insert(k_x1, x1);
     graph_values.second.insert(k_t01, dt);
     graph_values.second.insert(k_xdot1, xdot1);
-    graph_values.second.insert(k_ubar1, ubar1);
+    // graph_values.second.insert(k_ubar1, ubar1);
     graph_values.second.insert(k_u01, u01);
 
     return graph_values;
@@ -430,15 +455,15 @@ public:
 
     NoiseModel x_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
     NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
-    NoiseModel ubar_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(prx_models::mushr_types::Ubar::Dim, 1e0) };
+    // NoiseModel ubar_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(prx_models::mushr_types::Ubar::Dim, 1e0) };
 
     graph_values.first.addPrior(k_x, x, x_prior_noise);
     graph_values.first.addPrior(k_xdot, xdot, x_prior_noise);
-    graph_values.first.addPrior(k_ubar, ubar, ubar_prior_noise);
+    // graph_values.first.addPrior(k_ubar, ubar, ubar_prior_noise);
 
     graph_values.second.insert(k_x, x);
     graph_values.second.insert(k_xdot, xdot);
-    graph_values.second.insert(k_ubar, ubar);
+    // graph_values.second.insert(k_ubar, ubar);
 
     return graph_values;
   }
@@ -478,16 +503,17 @@ public:
     , _state_dot_noise(mushr_types::StateDot::type::Zero())
   {
     // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
-    state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[mushr_types::Ubar::velocity] };
-    state_space = new prx::space_t("EERE", state_memory, "mushr_state");
-    state_space->set_bounds({ -100, -100, -prx::constants::pi, -100 }, { 100, 100, prx::constants::pi, 100 });
+    state_memory = { &_state[0], &_state[1], &_state[2], &_state_dot[0], &_state_dot[1], &_state_dot[2] };
+    state_space = new prx::space_t("EEREEE", state_memory, "mushr_state");
+    state_space->set_bounds({ -100, -100, -prx::constants::pi, -10, -10, -10 },
+                            { 100, 100, prx::constants::pi, 10, 10, 10 });
 
     control_memory = { &_ctrl[mushr_types::Control::vel_desired], &_ctrl[mushr_types::Control::steering] };
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
     input_control_space->set_bounds({ -prx::constants::pi / 2.0, -10 }, { prx::constants::pi / 2.0, 10 });
 
-    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2], &_idle };
-    derivative_space = new prx::space_t("EEEI", derivative_memory, "mushr_deriv");
+    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
+    derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
 
     parameter_memory = { &_params_ubar_u[0],   &_params_ubar_u[1],   &_params_ubar_u[2],
                          &_state_dot_noise[0], &_state_dot_noise[1], &_state_dot_noise[2] };
@@ -507,9 +533,9 @@ public:
   {
     // DEBUG_VARS("--------------")
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
-    _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u, simulation_step);
-    _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
-
+    // _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u, simulation_step);
+    // _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
+    _state_dot = mushr_u_xddot01_t::predict(_state_dot, simulation_step, _ctrl, _params_ubar_u);
     const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
                              prx::gaussian_random(0.0, _state_dot_noise[1]),
                              prx::gaussian_random(0.0, _state_dot_noise[2]) };

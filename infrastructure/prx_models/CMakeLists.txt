@@ -207,10 +207,12 @@ add_subdirectory(models/aruco_mip_36h12)
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
-
-## Add folders to be run by python nosetests
-# catkin_add_nosetests(test)
+file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
+set(gtest_disable_pthreads OFF)
+foreach(f_test ${TESTS_FILES})
+  get_filename_component(fname ${f_test} NAME_WE )
+  set(test_name "test_${fname}")
+  MESSAGE(STATUS "Test: ${test_name}")
+  catkin_add_gtest(${test_name} ${f_test})
+  target_link_libraries(${test_name} ${catkin_LIBRARIES} )
+endforeach()

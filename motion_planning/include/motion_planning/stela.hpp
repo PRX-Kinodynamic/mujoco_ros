@@ -63,6 +63,7 @@ public:
     , _mode("None")
     , _experiment_id("test")
     , _files_created(false)
+    , _time_based(true)
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -91,6 +92,8 @@ public:
     std::string& experiment_id{ _experiment_id };
 
     std::vector<double> plant_parameters{};
+
+    bool& time_based{ _time_based };
     // ROS_PARAM_SETUP(private_nh, random_seed);
     // ROS_PARAM_SETUP(private_nh, plant_config_file);
     // ROS_PARAM_SETUP(private_nh, planner_config_file);
@@ -105,10 +108,12 @@ public:
     PARAM_SETUP(private_nh, obstacle_mode)
     PARAM_SETUP(private_nh, obstacle_distance_tolerance)
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
+    PARAM_SETUP(private_nh, time_based)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id)
     PARAM_SETUP_WITH_DEFAULT(private_nh, plant_parameters, plant_parameters)
 
+    DEBUG_VARS(time_based);
     if (plant_parameters.size() > 0)
     {
       SystemInterface::set_params(plant_parameters);
@@ -286,6 +291,7 @@ public:
           if (_selected_nodes.size() == 0)
           {
             _selected_nodes.insert(_selected_nodes.end(), _goal.selected_branch.begin(), _goal.selected_branch.end());
+            _x_curr = _selected_nodes[0];
             _x_next = _selected_nodes[0];
           }
 
@@ -306,9 +312,15 @@ public:
         ROS_WARN("selected_branch is too short, finished?");
         return;
       }
-      // DEBUG_PRINT;
 
-      update_next_goal();
+      if (_time_based)
+      {
+        update_next_goal();
+      }
+      else
+      {
+        find_closest_nodes();
+      }
       // DEBUG_PRINT;
       add_observations();
       // publish_control();
@@ -412,6 +424,126 @@ public:
     {
     }
     return false;
+  }
+
+  std::size_t search_parents(const std::size_t node_id, double& best_distance)
+  {
+    const double distance{ SystemInterface::node_distance(_tree.nodes[node_id].point, _z_new) };
+    if (distance < best_distance)
+    {
+      best_distance = distance;
+      const std::size_t parent_id{ _tree.nodes[node_id].parent };
+      if (parent_id != node_id)
+      {
+        return search_parents(parent_id, best_distance);
+      }
+    }
+    return node_id;
+  }
+
+  std::size_t search_children(const std::size_t node_id, double& best_distance)
+  {
+    for (auto child : _tree.nodes[node_id].children)
+    {
+      const double distance{ SystemInterface::node_distance(_tree.nodes[child].point, _z_new) };
+      if (distance < best_distance)
+      {
+        best_distance = distance;
+        return search_children(child, best_distance);
+      }
+    }
+    return node_id;
+  }
+
+  void find_closest_nodes()
+  {
+    const bool new_observation{ query_tf() };
+    if (new_observation)
+    {
+      SystemInterface::copy(_z_new, _tf);
+      const std::size_t node_now{ _x_curr };
+      const std::size_t node_next{ _x_next };
+
+      const double distance{ SystemInterface::node_distance(_tree.nodes[node_now].point, _z_new) };
+      double parent_distance{ distance };
+      double child_distance{ distance };
+      const std::size_t parent_id{ _tree.nodes[node_now].parent };
+
+      const std::size_t best_parent{ search_parents(parent_id, parent_distance) };
+      const std::size_t best_child{ search_children(node_now, child_distance) };
+
+      if (parent_distance < child_distance or best_child == _tree.nodes[best_child].parent)
+      {
+        _x_curr = best_parent;
+        _x_next = _tree.nodes[_x_curr].children[0];
+      }
+      else
+      {
+        _x_curr = _tree.nodes[best_child].parent;
+        _x_next = best_child;
+      }
+      _last_local_goal = false;
+      DEBUG_VARS(_x_curr, _x_next);
+    }
+    // prx_models::Node& node{ _tree.nodes[node_id] };
+    // double dist{ SystemInterface::node_distance(node.point, _z_new) };
+    // double dist_min{ std::numeric_limits<double>::max() };
+    // std::size_t min_parent_id{ node_id };
+    // while (dist_min != dist)  // explore the parents
+    // {
+    //   min_parent_id = node.index;
+    //   dist = SystemInterface::node_distance(node.point, _z_new);
+
+    //   dist_min = std::min(dist, dist_min);
+    //   node = _tree.nodes[node.parent];
+    //   DEBUG_VARS(min_parent_id, dist, dist_min);
+    // }
+    // const double min_parent_dist{ dist_min };
+    // dist_min = std::numeric_limits<double>::max();
+    // std::size_t min_child_id{ node_id };
+    // while (dist_min != dist)  // explore the parents
+    // {
+    //   node = _tree.nodes[min_child_id];
+    //   for (auto child : _tree.nodes[node.index].children)
+    //   {
+    //     dist = SystemInterface::node_distance(_tree.nodes[child].point, _z_new);
+    //     min_child_id = dist < dist_min ? node.index : min_child_id;
+
+    //     dist_min = std::min(dist, dist_min);
+    //     DEBUG_VARS(child, min_child_id, dist, dist_min);
+    //   }
+    // }
+    // const double min_child_dist{ dist_min };
+
+    // const std::size_t min_id{ min_parent_dist < min_child_dist ? min_parent_id : min_child_id };
+    // DEBUG_VARS(min_parent_dist, min_child_dist);
+    // DEBUG_VARS(min_parent_id, min_child_id);
+
+    // const std::size_t parent_id{ _tree.nodes[min_id].parent };
+
+    // double dist_child{ std::numeric_limits<double>::max() };
+    // for (auto child : _tree.nodes[min_id].children)
+    // {
+    //   node = _tree.nodes[child];
+    //   dist = SystemInterface::node_distance(node.point, _z_new);
+    //   min_child_id = dist < dist_min ? node.index : min_child_id;
+
+    //   dist_child = std::min(dist, dist_min);
+    // }
+    // const double dist_parent{ SystemInterface::node_distance(_tree.nodes[parent_id].point, _z_new) };
+
+    // if (dist_child < dist_parent)
+    // {
+    //   _x_curr = min_id;
+    //   _x_next = min_child_id;
+    // }
+    // else
+    // {
+    //   _x_curr = parent_id;
+    //   _x_next = min_id;
+    // }
+    // DEBUG_VARS(dist_child, dist_parent);
+    // DEBUG_VARS(_x_curr, _x_next);
   }
 
   // Assuming we are currently somewhere along edge E0: N0--E0-->N1--E2-->N2, check if we need to change to E2
@@ -529,35 +661,14 @@ public:
                                                                                 _state_estimates, _u01,  // no-lint
                                                                                 _z_new, dt, 0.01) };
 
-      // if (_x_curr == 234 or _x_curr == 204 or _x_curr == 242)
-      // {
-      //   std::cout << "Trying output at 236" << std::endl;
-      //   DEBUG_VARS(_x_curr, _x_next);
-      //   //   const StateKeys keys_curr{ SystemInterface::keyState(1, _x_curr) };
-      //   //   const StateKeys keys_next{ SystemInterface::keyState(1, _x_next) };
-      //   //   // estimate_to_stream(std::cout, keys_curr, const StateType& state);
-
-      //   //   gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
-
-      //   //   estimates_to_file<0>(std::cout, current_estimate, keys_curr, false);
-      //   //   estimates_to_file<0>(std::cout, current_estimate, keys_next, false);
-
-      //   //   // gtsam::NonlinearFactorGraph fg{ _isam.getFactorsUnsafe() };
-      //   _isam.saveGraph("/Users/Gary/pracsys/catkin_ws/fg.dot", SF::formatter);
-      //   dbg_print_cluster(_x_curr);
-      //   dbg_print_cluster(_x_next);
-      //   const gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
-      //   prx::fg::indeterminant_linear_system_helper(graph_values_z.first, current_estimate);
-
-      //   //   // _isam.clique(_x_curr)->print("x_current clique: ", SF::formatter);
-      //   //   // _isam.clique(_x_next)->print("_x_next clique: ", SF::formatter);
-      // }
       try
       {
+        DEBUG_VARS(_x_curr, _x_next);
         // throw my_exception();
         // _isam2_result = _isam.update(graph_values.first, graph_values.second);
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
         _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
+        _key_dt = SystemInterface::keyT(_x_curr, _x_next);
 
         _u01 = _isam.calculateEstimate<Control>(_key_u01);
         _dt01 = _isam.calculateEstimate<double>(_key_dt);
@@ -987,5 +1098,7 @@ private:
   gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
   std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
   visualization_msgs::Marker _obstacles_marker;
+
+  bool _time_based;
 };
 }  // namespace motion_planning
