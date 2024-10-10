@@ -248,6 +248,8 @@ public:
     _finish_publisher.publish(msg);
     _tree_recevied = false;
 
+    PRX_DBG_VARS(collision);
+
     ros::Rate rate(1);
     rate.sleep();
     ros::shutdown();
@@ -321,10 +323,8 @@ public:
       {
         find_closest_nodes();
       }
-      // DEBUG_PRINT;
       add_observations();
       // publish_control();
-      // DEBUG_PRINT;
 
       // _feedback.current_root = _x_next;
       _stela_action_server->publishFeedback(_feedback);
@@ -341,25 +341,17 @@ public:
     }
 
     const StateKeys node_keys{ SystemInterface::keyState(1, node_id) };
-    // DEBUG_VARS(SF::formatter(node_keys[0]));
     update_estimates<0>(_node_estimates, node_keys);
 
     prx_models::Node new_node{ std::move(_tree_manager.create_node()) };
     SystemInterface::copy(new_node.point, _node_estimates);
 
-    // LOG_VARS(node_id, new_node.point);
-    // _factor_graph
-    // DEBUG_VARS(__LINE__, ros::Time::now(), node_keys.size());
     const double updated_cost{ compute_error<0>(node_keys) };
-    // const double updated_cost{ compute_error<0>(node_keys) };
-    // DEBUG_VARS(__LINE__, ros::Time::now());
 
     nodes_ids_map[node_id] = new_node.index;
 
     if (not root)
     {
-      // LOG_VARS(_tree.nodes[node_id].parent);
-
       const std::uint64_t original_parent_id{ _tree.nodes[node_id].parent };
       prx_models::Node parent_node{ _feedback.lookahead.nodes[nodes_ids_map[original_parent_id]] };
       prx_models::Edge edge{ _tree_manager.create_edge(parent_node, new_node) };
@@ -378,7 +370,6 @@ public:
     _feedback.lookahead_costs[node_id] = updated_cost;
     _feedback.lookahead.nodes[new_node.index] = std::move(new_node);
 
-    // DEBUG_VARS(__LINE__, ros::Time::now());
     for (auto child_id : _tree.nodes[node_id].children)
     {
       traverse_lookahead_tree(child_id, nodes_ids_map, false, remaining_nodes - 1);
@@ -389,9 +380,6 @@ public:
   {
     _tree_manager.reset();
 
-    // std::queue<std::uint64_t> nodes_to_visit;
-    // std::queue<std::uint64_t> other_branches;
-
     const std::size_t total_lookahead_nodes{ _goal.selected_branch.size() };
 
     _feedback.lookahead.nodes.clear();
@@ -399,12 +387,6 @@ public:
     _feedback.lookahead.root = 0;
     _feedback.lookahead.nodes.resize(total_lookahead_nodes * 2);
     _feedback.lookahead_costs.resize(total_lookahead_nodes * 2);
-
-    // std::uint64_t node_id;
-    // for (auto node_to_visit : _goal.selected_branch)
-    // {
-    //   nodes_to_visit.push(node_to_visit);
-    // }
 
     // std::unordered_set<std::uint64_t> visited;
     std::unordered_map<std::uint64_t, std::uint64_t> nodes_ids_map;
@@ -455,95 +437,96 @@ public:
     return node_id;
   }
 
+  template <typename InitialState>
+  void compute_edge_trajectory(const InitialState x0, const Control& u, const double edge_duration)
+  {
+    if (not _plant)
+    {
+      const std::string plant_name{ SystemInterface::plant_name };
+      _plant = prx::system_factory_t::create_system(plant_name, plant_name);
+      _traj = std::make_shared<prx::trajectory_t>(_plant->get_state_space());
+    }
+    prx::space_t* ss{ _plant->get_state_space() };
+    prx::space_t* cs{ _plant->get_control_space() };
+    const std::size_t ss_dim{ ss->size() };
+    Eigen::VectorXd x0p{ Eigen::VectorXd::Zero(ss_dim) };
+    for (int i = 0; i < ss_dim; ++i)  // Needed for removing extra dims (i.e. AORRT's cost)
+    {
+      x0p[i] = x0[i];
+    }
+    ss->copy_from(x0p);
+    cs->copy_from(u);
+    prx::simulation_step = 0.01;
+
+    // DEBUG_VARS(x0p.transpose(), u.transpose());
+    _traj->clear();
+    _traj->copy_onto_back(x0p);
+    for (double ti = 0; ti < edge_duration; ti += prx::simulation_step)
+    {
+      _plant->propagate(prx::simulation_step);
+      // DEBUG_VARS(ss->print_memory(4));
+      // DEBUG_VARS(cs->print_memory(4));
+      _traj->copy_onto_back(ss);
+    }
+    // DEBUG_VARS(*_traj);
+  }
+
+  bool is_closest_in_edge(const Observation& z)
+  {
+    ml4kp_bridge::SpacePoint pt;
+    double min_dist{ 10000 };
+    prx::space_point_t best_state;
+    bool point_in_edge{ false };
+    if (_traj)
+    {
+      const prx::trajectory_t& traj{ *_traj };
+      for (auto state : traj)
+      {
+        ml4kp_bridge::copy(pt, state);
+        const double dist{ SystemInterface::node_distance(pt, z) };
+        if (dist < min_dist)
+        {
+          best_state = state;
+          min_dist = dist;
+        }
+      }
+      point_in_edge = not _plant->get_state_space()->equal_points(best_state, traj.back());
+      // DEBUG_VARS(point_in_edge, min_dist);
+      // DEBUG_VARS(best_state, traj.back(), z);
+    }
+    return point_in_edge;
+  }
+
   void find_closest_nodes()
   {
+    const ros::Time now{ ros::Time::now() };
+    _x0_start_time = _x0_start_time.isZero() ? now : _x0_start_time;
     const bool new_observation{ query_tf() };
-    if (new_observation)
+    const bool header_updated{ _tf.header.stamp > _prev_header.stamp };
+    if (new_observation and header_updated)
     {
-      SystemInterface::copy(_z_new, _tf);
-      const std::size_t node_now{ _x_curr };
-      const std::size_t node_next{ _x_next };
-
-      const double distance{ SystemInterface::node_distance(_tree.nodes[node_now].point, _z_new) };
-      double parent_distance{ distance };
-      double child_distance{ distance };
-      const std::size_t parent_id{ _tree.nodes[node_now].parent };
-
-      const std::size_t best_parent{ search_parents(parent_id, parent_distance) };
-      const std::size_t best_child{ search_children(node_now, child_distance) };
-
-      if (parent_distance < child_distance or best_child == _tree.nodes[best_child].parent)
+      if (not is_closest_in_edge(_z_new))
       {
-        _x_curr = best_parent;
-        _x_next = _tree.nodes[_x_curr].children[0];
+        _local_goal_id++;
+
+        _feedback.current_root = _x_next;
+        _x_curr = _x_next;
+        _x_next = _selected_nodes[_local_goal_id];
+        const std::uint64_t parent_edge{ _tree.nodes[_x_next].parent_edge };
+        const ml4kp_bridge::Plan& plan{ _tree.edges[parent_edge].plan };
+        const double next_duration{ ml4kp_bridge::duration(plan).toSec() };
+        SystemInterface::copy(_u_plan, plan.steps[0].control);  // DBG
+
+        const std::string msg{ "Moving to next edge" };
+        // DEBUG_VARS(msg, _x_curr, _x_next);
+        compute_edge_trajectory(_tree.nodes[_x_curr].point.point, _u_plan, next_duration);
+        _last_local_goal = false;
+
+        const ros::Time finish_time{ _x0_start_time + ros::Duration(next_duration) };
+        _x0_start_time = finish_time;
+        _next_node_time = _x0_start_time + ros::Duration(next_duration);
       }
-      else
-      {
-        _x_curr = _tree.nodes[best_child].parent;
-        _x_next = best_child;
-      }
-      _last_local_goal = false;
-      DEBUG_VARS(_x_curr, _x_next);
     }
-    // prx_models::Node& node{ _tree.nodes[node_id] };
-    // double dist{ SystemInterface::node_distance(node.point, _z_new) };
-    // double dist_min{ std::numeric_limits<double>::max() };
-    // std::size_t min_parent_id{ node_id };
-    // while (dist_min != dist)  // explore the parents
-    // {
-    //   min_parent_id = node.index;
-    //   dist = SystemInterface::node_distance(node.point, _z_new);
-
-    //   dist_min = std::min(dist, dist_min);
-    //   node = _tree.nodes[node.parent];
-    //   DEBUG_VARS(min_parent_id, dist, dist_min);
-    // }
-    // const double min_parent_dist{ dist_min };
-    // dist_min = std::numeric_limits<double>::max();
-    // std::size_t min_child_id{ node_id };
-    // while (dist_min != dist)  // explore the parents
-    // {
-    //   node = _tree.nodes[min_child_id];
-    //   for (auto child : _tree.nodes[node.index].children)
-    //   {
-    //     dist = SystemInterface::node_distance(_tree.nodes[child].point, _z_new);
-    //     min_child_id = dist < dist_min ? node.index : min_child_id;
-
-    //     dist_min = std::min(dist, dist_min);
-    //     DEBUG_VARS(child, min_child_id, dist, dist_min);
-    //   }
-    // }
-    // const double min_child_dist{ dist_min };
-
-    // const std::size_t min_id{ min_parent_dist < min_child_dist ? min_parent_id : min_child_id };
-    // DEBUG_VARS(min_parent_dist, min_child_dist);
-    // DEBUG_VARS(min_parent_id, min_child_id);
-
-    // const std::size_t parent_id{ _tree.nodes[min_id].parent };
-
-    // double dist_child{ std::numeric_limits<double>::max() };
-    // for (auto child : _tree.nodes[min_id].children)
-    // {
-    //   node = _tree.nodes[child];
-    //   dist = SystemInterface::node_distance(node.point, _z_new);
-    //   min_child_id = dist < dist_min ? node.index : min_child_id;
-
-    //   dist_child = std::min(dist, dist_min);
-    // }
-    // const double dist_parent{ SystemInterface::node_distance(_tree.nodes[parent_id].point, _z_new) };
-
-    // if (dist_child < dist_parent)
-    // {
-    //   _x_curr = min_id;
-    //   _x_next = min_child_id;
-    // }
-    // else
-    // {
-    //   _x_curr = parent_id;
-    //   _x_next = min_id;
-    // }
-    // DEBUG_VARS(dist_child, dist_parent);
-    // DEBUG_VARS(_x_curr, _x_next);
   }
 
   // Assuming we are currently somewhere along edge E0: N0--E0-->N1--E2-->N2, check if we need to change to E2
@@ -572,8 +555,7 @@ public:
         const ml4kp_bridge::Plan& plan{ _tree.edges[parent_edge].plan };
         const double next_duration{ ml4kp_bridge::duration(plan).toSec() };
 
-        SystemInterface::copy(_u_plan, plan.steps[0].control);
-        // LOG_VARS(_local_goal_id, _feedback.current_root, _x_next, next_duration);
+        SystemInterface::copy(_u_plan, plan.steps[0].control);  // DBG
 
         _key_dt = SystemInterface::keyT(_x_curr, _x_next);
         // _dt01 = _isam.calculateEstimate<double>(_key_dt);
@@ -663,7 +645,7 @@ public:
 
       try
       {
-        DEBUG_VARS(_x_curr, _x_next);
+        // DEBUG_VARS(_x_curr, _x_next);
         // throw my_exception();
         // _isam2_result = _isam.update(graph_values.first, graph_values.second);
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
@@ -797,6 +779,7 @@ public:
 
     try
     {
+      // dbg_isam(graph_values.first, graph_values.second);
       _isam2_result = _isam.update(graph_values.first, graph_values.second);
     }
     catch (gtsam::IndeterminantLinearSystemException e)
@@ -913,7 +896,16 @@ private:
   inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
   {
     using EstimateType = typename std::tuple_element<I, StateEstimates>::type;
-    std::get<I>(state_estimates) = _isam.calculateEstimate<EstimateType>(keys[I]);
+    try
+    {
+      std::get<I>(state_estimates) = _isam.calculateEstimate<EstimateType>(keys[I]);
+    }
+    catch (std::out_of_range e)
+    {
+      DEBUG_VARS(I, keys[I], SF::formatter(keys[I]));
+      DEBUG_VARS(e.what());
+      throw e;
+    }
     update_estimates<I + 1>(state_estimates, keys);
   }
 
@@ -1099,6 +1091,9 @@ private:
   std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
   visualization_msgs::Marker _obstacles_marker;
 
+  // This is for the distance computation comparison...
   bool _time_based;
+  std::shared_ptr<prx::system_t> _plant;
+  std::shared_ptr<prx::trajectory_t> _traj;
 };
 }  // namespace motion_planning

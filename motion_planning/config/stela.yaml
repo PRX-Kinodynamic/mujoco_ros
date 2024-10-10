@@ -2,4 +2,4 @@ goal:
   radius: 0.2
   # state: [43.5,20,0,0]
   # state: [20,20,0,0]
-  total_solutions: 100
+  total_solutions: 1

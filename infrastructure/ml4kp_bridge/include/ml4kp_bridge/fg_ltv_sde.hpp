@@ -28,6 +28,7 @@ namespace prx
 {
 namespace fg
 {
+class fg_ltv_sde_t;  // fwd declaration
 
 // LTV from CS-BRM: A Probabilistic RoadMap for Consistent Belief Space Planning With Reachability Guarantees
 // https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10404055
@@ -65,6 +66,7 @@ public:
   using ObservationFactor = gtsam::PriorFactor<State>;
 
   using Parameters = Eigen::Vector<double, 1>;
+  using PrxPlant = fg_ltv_sde_t;
 
   template <typename Params>
   static void set_params(const Params& params)
@@ -121,6 +123,7 @@ public:
 
     return std::sqrt(xd * xd + yd * yd);
   }
+
   template <typename Out, typename InPtr>
   static void copy(Out& u, const InPtr msg)
   {
@@ -478,8 +481,7 @@ public:
   static GraphValues leaf_to_fg(const std::size_t parent, const std::size_t leaf,
                                 const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan)
   {
-    GraphValues graph_values;
-    return graph_values;
+    return node_edge_to_fg(parent, leaf, node_state, edge_plan);
   }
 
   static GraphValues root_to_fg(const std::size_t root, const ml4kp_bridge::SpacePoint& node_state,
@@ -713,6 +715,10 @@ public:
 
     return graph_values;
   }
+
+  void forward_propagate(std::vector<State>& traj)
+  {
+  }
 };
 
 class fg_ltv_sde_t : public plant_t
@@ -729,10 +735,10 @@ public:
     : plant_t(path)
     , _x(State::Zero())
     , _u(Control::Zero())
-    , _Gx(Eigen::DiagonalMatrix<double, 2>(5, 8) * 0.01)
-    , _Gxdot(Eigen::DiagonalMatrix<double, 2>(5, 5) * 0.01)
-    , _wx_sigmas(Noise::Ones())
-    , _wxdot_sigmas(Noise::Ones())
+    , _Gx(Eigen::DiagonalMatrix<double, 2>(5, 8) * 0.0)
+    , _Gxdot(Eigen::DiagonalMatrix<double, 2>(5, 5) * 0.0)
+    , _wx_sigmas(Noise::Zero())
+    , _wxdot_sigmas(Noise::Zero())
   {
     state_memory = { &_x[0], &_x[1], &_xdot[0], &_xdot[1] };
     state_space = new space_t("EEEE", state_memory, "state_space");
@@ -777,7 +783,7 @@ public:
 protected:
   virtual void compute_derivative() override final
   {
-    if (not _u.isZero(1e-3))
+    if (not _u.isZero(1e-5))
     {
       _xdot = EulerFactor::integrate(_xdot, _u, prx::simulation_step);
       _xdot += fg::ltv_sde_utils_t::noise(_Gxdot, _wxdot_sigmas);

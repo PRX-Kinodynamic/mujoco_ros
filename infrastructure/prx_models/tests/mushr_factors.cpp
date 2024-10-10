@@ -127,6 +127,174 @@ TEST(TestMushrFactors, testMushrCtrlXddot01Predict)
   ASSERT_TRUE(expectedHparams.isApprox(actualHparams, tolerance));
 }
 
+TEST(TestMushrFactors, testMushrCtrlXddot01EvaluateError)
+{
+  using StateDot = prx_models::mushr_types::StateDot::type;
+  using Control = prx_models::mushr_types::Control::type;
+  using MushrCtrl = prx_models::mushr_u_xddot01_t;
+  using Params = prx_models::mushr_types::Ubar::params;
+
+  const StateDot xd0{ 0.0, 0.0, 0.0 };  // Using Beta=0.2;Vin=0.25; w=0.1
+  const double dt{ 0.5 };
+  const Control u{ .25, 0.5 };
+  const Params params{ 0.8, 0.8, 0.8 };
+  const StateDot xd1{ MushrCtrl::predict(xd0, dt, u, params) };
+  // const StateDot xdotDesired{ 0.4975, 0.0499, 0.15 };  // Using Beta=0.1;Vin=0.5; w=0.1
+
+  // Check jacobians
+  Eigen::MatrixXd actualHxd1, expectedHxd1;
+  Eigen::MatrixXd actualHxd0, expectedHxd0;
+  Eigen::MatrixXd actualHdt, expectedHdt;
+  Eigen::MatrixXd actualHu, expectedHu;
+
+  const MushrCtrl factor(1, 0, 2, 3, params, nullptr);
+
+  std::function<gtsam::Vector(const StateDot&, const StateDot&, const double&, const Control&)> err_proxy =
+      [&factor](const StateDot& xd1, const StateDot& xd0, const double& dt, const Control& u) {
+        return factor.evaluateError(xd1, xd0, dt, u);
+      };
+
+  factor.evaluateError(xd1, xd0, dt, u, actualHxd1, actualHxd0, actualHdt, actualHu);
+  expectedHxd1 = gtsam::numericalDerivative41(err_proxy, xd1, xd0, dt, u);
+  expectedHxd0 = gtsam::numericalDerivative42(err_proxy, xd1, xd0, dt, u);
+  expectedHdt = gtsam::numericalDerivative43(err_proxy, xd1, xd0, dt, u);
+  expectedHu = gtsam::numericalDerivative44(err_proxy, xd1, xd0, dt, u);
+
+  // PRX_DBG_VARS(expectedHxd0);
+  // PRX_DBG_VARS(actualHxd0);
+
+  PRX_DBG_VARS(expectedHdt);
+  PRX_DBG_VARS(actualHdt);
+
+  // PRX_DBG_VARS(expectedHu);
+  // PRX_DBG_VARS(actualHu);
+
+  // PRX_DBG_VARS(expectedHparams);
+  // PRX_DBG_VARS(actualHparams);
+
+  const bool expectedHxd1_isApprox_actualHxd1{ expectedHxd1.isApprox(actualHxd1, tolerance) };
+  const bool expectedHxd0_isApprox_actualHxd0{ expectedHxd0.isApprox(actualHxd0, tolerance) };
+  const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
+  const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
+
+  PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
+  PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+  PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+
+  ASSERT_TRUE(expectedHxd1.isApprox(actualHxd1, tolerance));
+  ASSERT_TRUE(expectedHxd0.isApprox(actualHxd0, tolerance));
+  ASSERT_TRUE(prx::are_matrices_approx_equal(expectedHdt, actualHdt, tolerance));
+  // ASSERT_TRUE(expectedHdt.isApprox(actualHdt, tolerance));
+  ASSERT_TRUE(expectedHu.isApprox(actualHu, tolerance));
+}
+
+TEST(TestMushrFactors, testMushrCtrlAccel)
+{
+  using StateDot = prx_models::mushr_types::StateDot::type;
+  using Control = prx_models::mushr_types::Control::type;
+  using MushrCtrl = prx_models::mushr_CtrlAccel_t;
+  using Params = prx_models::mushr_types::Control::params;
+
+  const StateDot xd0{ 0.0, 0.0, 0.0 };  // Using Beta=0.2;Vin=0.25; w=0.1
+  const double dt{ 0.5 };
+  const Control u{ .25, 0.5 };
+  const Params params{ 0.2, 0.5 };
+  const StateDot xd1{ MushrCtrl::predict(xd0, u, dt, params) };
+  // const StateDot xdotDesired{ 0.4975, 0.0499, 0.15 };  // Using Beta=0.1;Vin=0.5; w=0.1
+
+  // Check jacobians
+  Eigen::MatrixXd actualHxd1, expectedHxd1;
+  Eigen::MatrixXd actualHxd0, expectedHxd0;
+  Eigen::MatrixXd actualHdt, expectedHdt;
+  Eigen::MatrixXd actualHu, expectedHu;
+
+  const MushrCtrl factor(1, 0, 2, 3, nullptr, params);
+
+  std::function<gtsam::Vector(const StateDot&, const StateDot&, const Control&, const double&)> err_proxy =
+      [&factor, &params](const StateDot& xd1, const StateDot& xd0, const Control& u, const double& dt) {
+        return factor.evaluateError(xd1, xd0, u, dt);
+      };
+
+  factor.evaluateError(xd1, xd0, u, dt, actualHxd1, actualHxd0, actualHu, actualHdt);
+  expectedHxd1 = gtsam::numericalDerivative41(err_proxy, xd1, xd0, u, dt);
+  expectedHxd0 = gtsam::numericalDerivative42(err_proxy, xd1, xd0, u, dt);
+  expectedHu = gtsam::numericalDerivative43(err_proxy, xd1, xd0, u, dt);
+  expectedHdt = gtsam::numericalDerivative44(err_proxy, xd1, xd0, u, dt);
+
+  // PRX_DBG_VARS(expectedHxd0);
+  // PRX_DBG_VARS(actualHxd0);
+
+  PRX_DBG_VARS(expectedHdt);
+  PRX_DBG_VARS(actualHdt);
+
+  PRX_DBG_VARS(expectedHu);
+  PRX_DBG_VARS(actualHu);
+
+  // PRX_DBG_VARS(expectedHparams);
+  // PRX_DBG_VARS(actualHparams);
+
+  const bool expectedHxd1_isApprox_actualHxd1{ expectedHxd1.isApprox(actualHxd1, tolerance) };
+  const bool expectedHxd0_isApprox_actualHxd0{ expectedHxd0.isApprox(actualHxd0, tolerance) };
+  const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
+  const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
+
+  PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
+  PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+  PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+
+  ASSERT_TRUE(expectedHxd1.isApprox(actualHxd1, tolerance));
+  ASSERT_TRUE(expectedHxd0.isApprox(actualHxd0, tolerance));
+  ASSERT_TRUE(prx::are_matrices_approx_equal(expectedHdt, actualHdt, tolerance));
+  // ASSERT_TRUE(expectedHdt.isApprox(actualHdt, tolerance));
+  ASSERT_TRUE(expectedHu.isApprox(actualHu, tolerance));
+}
+
+TEST(TestMushrFactors, testMushrNHC)
+{
+  using StateDot = prx_models::mushr_types::StateDot::type;
+  using Control = prx_models::mushr_types::Control::type;
+  using MushrFactor = prx_models::mushr_NHC_t;
+  using Params = prx_models::mushr_types::Control::params;
+
+  const StateDot xd{ 0.049, -0.007, -0.042 };
+  const Control u{ 0.1, -0.5 };
+  const Params params{ 0.01, 0.52 };
+  // const StateDot xdotDesired{ 0.4975, 0.0499, 0.15 };  // Using Beta=0.1;Vin=0.5; w=0.1
+
+  // Check jacobians
+  Eigen::MatrixXd actualHxd, expectedHxd;
+  Eigen::MatrixXd actualHu, expectedHu;
+
+  const MushrFactor factor(1, 0, nullptr, params);
+
+  std::function<gtsam::Vector(const StateDot&, const Control&)> err_proxy =
+      [&factor, &params](const StateDot& xd, const Control& u) { return factor.evaluateError(xd, u); };
+
+  factor.evaluateError(xd, u, actualHxd, actualHu);
+  expectedHxd = gtsam::numericalDerivative21(err_proxy, xd, u);
+  expectedHu = gtsam::numericalDerivative22(err_proxy, xd, u);
+
+  PRX_DBG_VARS(expectedHxd);
+  PRX_DBG_VARS(actualHxd);
+
+  PRX_DBG_VARS(expectedHu);
+  PRX_DBG_VARS(actualHu);
+
+  // PRX_DBG_VARS(expectedHparams);
+  // PRX_DBG_VARS(actualHparams);
+
+  const bool expectedHxd_isApprox_actualHxd{ expectedHxd.isApprox(actualHxd, tolerance) };
+  const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
+
+  PRX_DBG_VARS(expectedHxd_isApprox_actualHxd);
+  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+
+  ASSERT_TRUE(expectedHxd.isApprox(actualHxd, tolerance));
+  ASSERT_TRUE(expectedHu.isApprox(actualHu, tolerance));
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

@@ -68,6 +68,8 @@ constexpr std::size_t max_vel_param{ 2 };
 namespace Control
 {
 using type = Eigen::Vector<double, 2>;
+using params = Eigen::Vector<double, 2>;
+
 constexpr std::size_t accel{ prx_models::mushr_t::control::velocity_idx };
 constexpr std::size_t vel_desired{ prx_models::mushr_t::control::velocity_idx };
 constexpr std::size_t steering{ prx_models::mushr_t::control::steering_idx };
@@ -599,23 +601,25 @@ public:
                                  gtsam::OptionalJacobian<3, 3> Hxdotd = boost::none,
                                  gtsam::OptionalJacobian<3, 1> HK = boost::none)
   {
-    const StateDot xddot{ K * (xdot_d - xd0) / dt };
+    const StateDot xddot{ K * (xdot_d - xd0) };
+    // const StateDot xddot{ K * (xdot_d - xd0) / dt};
 
     if (Hxd0)
     {
-      *Hxd0 = -(K / dt) * Eigen::Matrix3d::Identity();
+      *Hxd0 = -(K)*Eigen::Matrix3d::Identity();
     }
     if (Hdt)
     {
-      *Hdt = -(K / std::pow(dt, 2)) * (xdot_d - xd0);
+      *Hdt = -(0.0) * (xdot_d - xd0);
+      // *Hdt = -(K / std::pow(dt, 2)) * (xdot_d - xd0);
     }
     if (Hxdotd)
     {
-      *Hxdotd = (K / dt) * Eigen::Matrix3d::Identity();
+      *Hxdotd = (K)*Eigen::Matrix3d::Identity();
     }
     if (HK)
     {
-      *HK = (1.0 / dt) * (xdot_d - xd0);
+      *HK = (1.0) * (xdot_d - xd0);
     }
     return xddot;
   }
@@ -708,103 +712,260 @@ private:
   const Params _params;
 };
 
-// class mushr_ubar_u_observation_t
-//   : public prx::fg::noise_model_2factor_t<mushr_types::Ubar::type, mushr_types::Control::type>
-// {
-//   using Base = prx::fg::noise_model_2factor_t<mushr_types::Ubar::type, mushr_types::Control::type>;
+class mushr_CtrlAccel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot::type, mushr_types::StateDot::type,
+                                                          mushr_types::Control::type, double>
+{
+  using State = mushr_types::State::type;
+  using StateDot = mushr_types::StateDot::type;
+  using StateDotDot = mushr_types::StateDot::type;
 
-// public:
-//   using Xdot = mushr_types::StateDot::type;
-//   using Ubar = mushr_types::Ubar::type;
-//   using Params = mushr_types::Ubar::params;
-//   using U = mushr_types::Control::type;
+  using Params = mushr_types::Control::params;
+  using Control = mushr_types::Control::type;
 
-//   mushr_ubar_u_observation_t(gtsam::Key ubar, gtsam::Key u, const Control zu, const double dt0, const double dt1,
-//                              const Params params, const gtsam::noiseModel::Base::shared_ptr& cost_model)
-//     : Base(ubar, u, cost_model, 0.01), _zu(zu), _params{ params }
-//   {
-//   }
+  static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
+  static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
 
-//   virtual Ubar compute_error(const U& u, const Ubar& ubar) const override
-//   {
-//     const Ubar ubar_eps{ mushr_ub_u_xdot_param_t::dynamics(_zu, ubar, _params, dt) };
-//     const Ubar ubar_eps{ mushr_ub_u_xdot_param_t::dynamics(_zu, ubar, _params, dt) };
-//     return predict(u, ubar0, dt) - ubar1;
-//   }
+  using Base = gtsam::NoiseModelFactorN<StateDot, StateDot, Control, double>;
 
-//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
-//   {
-//     const Ubar ubar1{ values.at<Ubar>(key<1>()) };
-//     const U u{ values.at<U>(key<2>()) };
-//     const Ubar Ubar0{ values.at<Ubar>(key<3>()) };
-//     const double dt{ values.at<double>(key<4>()) };
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using Error = Eigen::VectorXd;
 
-//     os << ubar1.transpose() << " ";
-//     os << u.transpose() << " ";
-//     os << Ubar0.transpose() << " ";
-//     os << _params.transpose() << " ";
-//     os << dt << " ";
-//     os << compute_error(ubar1, u, Ubar0, dt).transpose() << " ";
-//     os << "\n";
-//   }
+  using OptDeriv = boost::optional<Eigen::MatrixXd&>;
 
-// private:
-//   const Params _params;
-// };
+  mushr_CtrlAccel_t() = delete;
+  mushr_CtrlAccel_t(const mushr_CtrlAccel_t& other) = delete;
 
-// \dot{x}_1 <- f(\dot{x}_0, u, dt)
-// class mushr_xdot1_xdot0_u_dt_param_t
-//   : public prx::fg::noise_model_4factor_t<mushr_types::StateDot::type, mushr_types::StateDot::type,
-//                                           mushr_types::Control::type, double>
-// {
-//   using Base = prx::fg::noise_model_4factor_t<mushr_types::StateDot::type, mushr_types::StateDot::type,
-//                                               mushr_types::Control::type, double>;
+public:
+  mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
+                    const NoiseModel& cost_model, const Params params)
+    : Base(cost_model, xd1, xd0, u, dt), _params(params)
+  {
+    // PRX_DBG_VARS(_params);
+  }
 
-// public:
-//   using StateDot = mushr_types::StateDot::type;
-//   using Ubar = mushr_types::Ubar::type;
-//   using Params = mushr_types::Ubar::params;
-//   using U = mushr_types::Control::type;
+  ~mushr_CtrlAccel_t() override
+  {
+  }
 
-//   mushr_xdot0_xdot1_u_dt_param_t(gtsam::Key xdot1, gtsam::Key xdot0, gtsam::Key u, gtsam::Key dt,
-//                                  const gtsam::noiseModel::Base::shared_ptr& cost_model, const Params params)
-//     : Base(xdot1, xdot0, u, dt, cost_model, 0.01), _params(params)
-//   {
-//   }
+  template <typename Matrix>
+  static boost::optional<Eigen::MatrixXd&> check_opt_H(const bool check, Matrix& matrix)
+  {
+    if (check)
+      return matrix;
+    return boost::none;
+  }
 
-//   static Ubar dynamics(const U& u, const Ubar& ubar, const double& dt, const Params& params)
-//   {
-//     const Ubar ubar{ mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, params, simulation_step) };
-//     const StateDot xdot{ mushr_xdot_ub_t::dynamics(_ubar) };
-//     return xdot;
-//   }
+  // Vb= Ad(0,0,beta)*[xr/dt;0;th1/dt]*dt;
+  // T(x,y,th)*Exp(Vb(1),Vb(2),Vb(3))
+  static StateDot predict(const StateDot xd0, const Control u, const double dt, const Params& params,
+                          gtsam::OptionalJacobian<3, 3> Hxd0 = boost::none,
+                          gtsam::OptionalJacobian<3, 2> Hu = boost::none,
+                          gtsam::OptionalJacobian<3, 1> Hdt = boost::none,
+                          gtsam::OptionalJacobian<3, 2> Hparams = boost::none)
+  {
+    using StateDDot = Eigen::Vector3d;
+    using Integration = prx::fg::euler_integration_factor_t<StateDot, StateDDot, double>;
 
-//   virtual Ubar predict(const U& u, const Ubar& ubar, const Params& params) const override
-//   {
-//     return dynamics(u, ubar, params, _dt);
-//   }
+    Eigen::MatrixXd xd1_H_xd0, xd1_H_xdd, xd1_H_dt;
+    Eigen::Matrix<double, 3, 3> xdd_H_Tb, xdd_H_stateDD;
+    Eigen::Matrix<double, 1, 1> beta_H_delta;
 
-//   virtual Ubar compute_error(const Ubar& ubar1, const U& u, const Ubar& ubar0, const Params& params) const override
-//   {
-//     return predict(u, ubar0, params) - ubar1;
-//   }
+    const double& L{ mushr_types::Parameters::L };
+    const double& param_AccIn{ params[mushr_types::Control::vel_desired] };
+    const double& param_delta{ params[mushr_types::Control::steering] };
 
-//   void eval_to_stream(gtsam::Values& values, std::ostream& os)
-//   {
-//     const Ubar ubar1{ values.at<Ubar>(key<1>()) };
-//     const U u{ values.at<U>(key<2>()) };
-//     const Ubar Ubar0{ values.at<Ubar>(key<3>()) };
-//     const Params params{ values.at<Params>(key<4>()) };
+    const double AccIn{ u[mushr_types::Control::vel_desired] * param_AccIn };
+    const double delta{ u[mushr_types::Control::steering] * param_delta };
+    Eigen::Matrix<double, 1, 1> accIn_H_paramAccIn{ u[mushr_types::Control::vel_desired] };
+    Eigen::Matrix<double, 1, 1> delta_H_paramDelta{ u[mushr_types::Control::steering] };
+    Eigen::Matrix<double, 1, 1> accIn_H_UaccIn{ param_AccIn };
+    Eigen::Matrix<double, 1, 1> delta_H_Udelta{ param_delta };
 
-//     os << ubar1.transpose() << " ";                                   // 1, 2, 3
-//     os << u.transpose() << " ";                                       // 4, 5, 6
-//     os << Ubar0.transpose() << " ";                                   // 7, 8
-//     os << params.transpose() << " ";                                  // 9
-//     os << compute_error(ubar1, u, Ubar0, params).transpose() << " ";  // 4, 5, 6
-//     os << "\n";
-//   }
+    const double beta{ mushr_types::Control::beta(delta, Hu ? &beta_H_delta : nullptr) };
 
-// private:
-//   const double _dt;
-// };
+    const double omega{ 2.0 * std::sin(beta) / L };
+    const Eigen::Matrix<double, 1, 1> omega_H_beta{ 2.0 * std::cos(beta) / L };
+
+    const State T_beta{ 0.0, 0.0, beta };
+    const Eigen::Vector3d Tb_H_beta{ 0, 0, 1 };
+
+    const StateDotDot xddR{ 1.0, 0.0, omega };
+    const StateDotDot state_dot_dot{ AccIn * xddR };
+    const Eigen::Matrix<double, 3, 1> stateDD_H_omega{ 0.0, 0.0, AccIn };
+    const Eigen::Matrix<double, 3, 1> stateDD_H_AccIn{ xddR };
+
+    const StateDot xdd{ T_beta.adjoint(state_dot_dot, Hu ? &xdd_H_Tb : nullptr, Hu ? &xdd_H_stateDD : nullptr) };
+
+    const StateDot xd1{ Integration::integrate(xd0, xdd, dt, xd1_H_xd0, xd1_H_xdd, xd1_H_dt) };
+
+    if (Hxd0)
+    {
+      *Hxd0 = xd1_H_xd0;
+    }
+    if (Hdt)
+    {
+      *Hdt = xd1_H_dt;
+    }
+    if (Hu)
+    {
+      (*Hu).col(mushr_types::Control::vel_desired) = xd1_H_xdd * xdd_H_stateDD * stateDD_H_AccIn * accIn_H_UaccIn;
+      (*Hu).col(mushr_types::Control::steering) =
+          xd1_H_xdd * xdd_H_Tb * Tb_H_beta * beta_H_delta * delta_H_Udelta +
+          xd1_H_xdd * xdd_H_stateDD * stateDD_H_omega * omega_H_beta * beta_H_delta * delta_H_Udelta;
+    }
+    if (Hparams)
+    {
+      (*Hparams).col(mushr_types::Control::vel_desired) =
+          xd1_H_xdd * xdd_H_stateDD * stateDD_H_AccIn * accIn_H_paramAccIn;
+      (*Hparams).col(mushr_types::Control::steering) =
+          xd1_H_xdd * xdd_H_Tb * Tb_H_beta * beta_H_delta * delta_H_paramDelta +
+          xd1_H_xdd * xdd_H_stateDD * stateDD_H_omega * omega_H_beta * beta_H_delta * delta_H_paramDelta;
+    }
+
+    return xd1;
+  }
+
+  virtual Error evaluateError(const StateDot& xd1, const StateDot& xd0, const Control& u, const double& dt,  // no-lint
+                              OptDeriv Hxd1 = boost::none, OptDeriv Hxd0 = boost::none, OptDeriv Hu = boost::none,
+                              OptDeriv Hdt = boost::none) const override
+  {
+    const StateDot xdp1{ predict(xd0, u, dt, _params, Hxd0, Hu, Hdt) };
+    if (Hxd1)
+    {
+      *Hxd1 = -Eigen::Matrix<double, 3, 3>::Identity();
+    }
+    return xdp1 - xd1;
+  }
+
+private:
+  const Params _params;
+};
+
+// Non-holonomic constraints
+class mushr_NHC_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot::type, mushr_types::Control::type>
+{
+  using State = mushr_types::State::type;
+  using StateDot = mushr_types::StateDot::type;
+  using StateDotDot = mushr_types::StateDot::type;
+
+  using Params = mushr_types::Control::params;
+  using Control = mushr_types::Control::type;
+
+  static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
+  static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
+
+  using Base = gtsam::NoiseModelFactorN<StateDot, Control>;
+
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using Error = Eigen::VectorXd;
+
+  using OptDeriv = boost::optional<Eigen::MatrixXd&>;
+
+  mushr_NHC_t() = delete;
+  mushr_NHC_t(const mushr_NHC_t& other) = delete;
+
+public:
+  mushr_NHC_t(const gtsam::Key xd, const gtsam::Key u, const NoiseModel& cost_model, const Params params)
+    : Base(cost_model, xd, u), _params(params)
+  {
+  }
+
+  ~mushr_NHC_t() override
+  {
+  }
+
+  template <typename Matrix>
+  static boost::optional<Eigen::MatrixXd&> check_opt_H(const bool check, Matrix& matrix)
+  {
+    if (check)
+      return matrix;
+    return boost::none;
+  }
+
+  static double velocity_constraint(const StateDot xd, const double& beta,  // no-lint
+                                    gtsam::OptionalJacobian<1, 3> Hxd = boost::none,
+                                    gtsam::OptionalJacobian<1, 1> Hbeta = boost::none)
+  {
+    const double& xdot{ xd[0] };
+    const double& ydot{ xd[1] };
+    const double tan_beta{ std::tan(beta) };
+    const double error{ ydot / xdot - tan_beta };
+    if (Hxd)
+    {
+      //[-ydot/xdot^2, 1/xdot, 0];
+      (*Hxd)(0, 0) = -ydot / (std::pow(xdot, 2));
+      (*Hxd)(0, 1) = 1.0 / xdot;
+      (*Hxd)(0, 2) = 0.0;
+    }
+    if (Hbeta)
+    {
+      (*Hbeta)(0, 0) = -std::pow(tan_beta, 2) - 1;
+    }
+
+    return error;
+  }
+
+  static double omega_constraint(const StateDot xd, const double& beta,  // no-lint
+                                 gtsam::OptionalJacobian<1, 3> Hxd = boost::none,
+                                 gtsam::OptionalJacobian<1, 1> Hbeta = boost::none)
+  {
+    const double& L{ mushr_types::Parameters::L };
+
+    const double& xdot{ xd[0] };
+    const double& ydot{ xd[1] };
+    const double& thetadot{ xd[2] };
+    const double sBeta{ std::sin(beta) };
+    const double cBeta{ std::cos(beta) };
+    const double error{ 2.0 * (xdot * cBeta + ydot * sBeta) * sBeta / L - thetadot };
+
+    if (Hxd)  // [(2*cos(beta)*sin(beta))/L, (2*sin(beta)^2)/L, -1]
+    {
+      (*Hxd)(0, 0) = (2.0 * cBeta * sBeta) / L;
+      (*Hxd)(0, 1) = (2.0 * std::pow(sBeta, 2)) / L;
+      (*Hxd)(0, 2) = -1.0;
+    }
+    if (Hbeta)
+    {
+      (*Hbeta)(0, 0) = (cBeta * (2.0 * xdot * cBeta + 2.0 * ydot * sBeta)) / L +
+                       (sBeta * (2.0 * ydot * cBeta - 2.0 * xdot * sBeta)) / L;
+    }
+
+    return error;
+  }
+
+  virtual Error evaluateError(const StateDot& xd, const Control& u,  // no-lint
+                              OptDeriv Hxd = boost::none, OptDeriv Hu = boost::none) const override
+  {
+    const double& param_delta{ _params[mushr_types::Control::steering] };
+    const double delta{ u[mushr_types::Control::steering] * param_delta };
+    const Eigen::Matrix<double, 1, 1> delta_H_Udelta{ param_delta };
+    Eigen::Matrix<double, 1, 1> beta_H_delta, Vc_H_beta, Wc_H_beta;
+    Eigen::Matrix<double, 1, 3> Vc_H_xd, Wc_H_xd;
+
+    const double beta{ mushr_types::Control::beta(delta, Hu ? &beta_H_delta : nullptr) };
+
+    const double Vc{ velocity_constraint(xd, beta, Vc_H_xd, Vc_H_beta) };
+    const double Wc{ omega_constraint(xd, beta, Wc_H_xd, Wc_H_beta) };
+
+    const Error error{ Eigen::Vector2d(Vc, Wc) };
+
+    if (Hxd)  // (2x3)
+    {
+      *Hxd = Eigen::Matrix<double, 2, 3>::Zero();
+      *Hxd << Vc_H_xd, Wc_H_xd;
+    }
+    if (Hu)  // (2x2)
+    {
+      *Hu = Eigen::Matrix<double, 2, 2>::Zero();
+      (*Hu).col(mushr_types::Control::steering) << Vc_H_beta * beta_H_delta * delta_H_Udelta,
+          Wc_H_beta * beta_H_delta * delta_H_Udelta;
+    }
+
+    return error;
+  }
+
+private:
+  const Params _params;
+};
+
 }  // namespace prx_models

@@ -9,7 +9,7 @@ control_steps:
   min: 25
   max: 50
 
-start_state: [-12.5,0.0,0,0] # simple_obstacle && forest
+start_state: [0,0.0,0,0] # simple_obstacle && forest
 # start_state: [-3,-3,0,0]
 
 goal:
