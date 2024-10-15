@@ -219,23 +219,24 @@ public:
     }
 
     // void operator()(const Eigen::Vector3d& translation, const State& state, Eigen::MatrixXd& H)
-    void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
+    // void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
+    // {
+    //   const Eigen::Vector2d normalized{ translation.head(2).normalized() };
+    //   H = Eigen::Matrix<double, 1, 3>::Zero();
+    //   H(0, 0) = normalized[0];
+    //   H(0, 1) = normalized[1];
+    // }
+
+    void operator()(const bool collision, const State& state, const Eigen::Vector3d& p1, const Eigen::Vector3d& p2,
+                    Eigen::MatrixXd& H)
     {
-      // H = Eigen::Matrix<double, 2, 3>::Zero();
-      // const Eigen::Vector<double, 1> vec{ state.angle() };
-      // H = Eigen::Matrix<double, 3, 3>::Identity();
-      // const double norm{translation};
-      const Eigen::Vector2d normalized{ translation.head(2).normalized() };
+      // H = Eigen::Matrix<double, 1, 2>::Zero();
       H = Eigen::Matrix<double, 1, 3>::Zero();
-      // H(0, 0) = translation[0];
-      // H(0, 1) = translation[1];
-      H(0, 0) = normalized[0];
-      H(0, 1) = normalized[1];
-      // DEBUG_VARS(state, translation.transpose(), normalized.transpose());
-      // H.diagonal().tail(2) = translation.head(2);
-      // H = gtsam::Pose2::ExpmapDerivative(translation);
-      // H = gtsam::Pose2::ExpmapDerivative(translation);
-      // H.block<2, 2>(0, 0) = Eigen::Rotation2D<double>(state[2]).toRotationMatrix();
+      Eigen::Vector2d vec{ (p2 - p1).head(2) };
+      if (collision)
+        vec = p1.head(2) - state.translation();
+      H(0, 0) = -vec[0];
+      H(0, 1) = -vec[1];
     }
   };
 

@@ -9,13 +9,13 @@ control_steps:
   min: 25
   max: 50
 
-start_state: [0,0.0,0,0] # simple_obstacle && forest
+start_state: [0,5.0,0,0] # simple_obstacle && forest
 # start_state: [-3,-3,0,0]
 
 goal:
   radius: 0.5
   # state: [20,20,0,0]
-  state: [-3,0,0,0]
+  state: [20,20,0,0]
   # state: [43.5,20,0,0]
 
 state_space:

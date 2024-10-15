@@ -101,4 +101,13 @@
     </description>
   </class>
   
+  <class 
+      name="motion_planning/ScateLtvSde" 
+      type="motion_planning::ScateLtvSde" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Scate
+    </description>
+  </class>
+  
 </library>

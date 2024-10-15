@@ -227,6 +227,7 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
 
     const Eigen::Vector2d p0{ ma_nodes[id0] };
     const Eigen::Vector2d p1{ ma_nodes[id1] };
+    Eigen::Vector3d pc{};
 
     std::vector<State> edge;
     bool edge_in_collision = false;
@@ -238,7 +239,7 @@ std::vector<Eigen::Vector2d> setup_medial_axis_sampler(prx::param_loader& params
       for (auto obstacle_info : obstacle_collision_infos)
       {
         edge_in_collision |=
-            ObstacleFactor::in_collision(pt, obstacle_info, robot_collision_ptr, config_from_state, collide_result);
+            ObstacleFactor::in_collision(pt, obstacle_info, robot_collision_ptr, config_from_state, collide_result, pc);
         if (edge_in_collision)
         {
           break;

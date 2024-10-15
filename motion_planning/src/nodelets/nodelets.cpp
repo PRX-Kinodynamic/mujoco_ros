@@ -7,6 +7,7 @@
 #include <motion_planning/sbmp_publisher.hpp>
 #include <motion_planning/tree_to_trajectories.hpp>
 #include <motion_planning/stela.hpp>
+#include <motion_planning/scate.hpp>
 #include <motion_planning/stela_stepper.hpp>
 #include <motion_planning/branch_selector.hpp>
 #include <motion_planning/ltv_controller.hpp>
@@ -34,8 +35,8 @@ using StelaStepper = stela_stepper_t<nodelet::Nodelet>;
 using BranchSelector = branch_selector_t<nodelet::Nodelet>;
 using LtvPositionController = ltv_controller_t<nodelet::Nodelet>;
 using MushrTrajectoryEstimation = trajectory_estimation_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
-
 using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
+using ScateLtvSde = scate_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -50,3 +51,4 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::BranchSelector, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::LtvPositionController, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::MushrTrajectoryEstimation, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::StelaMushr, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::ScateLtvSde, nodelet::Nodelet);

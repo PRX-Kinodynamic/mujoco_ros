@@ -95,4 +95,12 @@
       Subscribe to multiple std_msgs::Bool topics and publish into a single topic
     </description>
   </class>
+  <class 
+      name="utils/StateFromParamPublisher" 
+      type="utils::StateFromParamPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize states from param server
+    </description>
+  </class>
 </library>

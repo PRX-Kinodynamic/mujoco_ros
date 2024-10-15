@@ -1,6 +1,8 @@
 <launch> 
 	<arg name="visualize" value="true"/>
-  <arg name="dbg" value="lldb --"/>
+  <!-- <arg name="dbg" value="lldb "/> -->
+  <arg name="dbg" value=" "/>
+  <arg name="environment" default="environments/simple_obstacle.yaml"/>
   <group ns="STEAP">
   	
     <!-- rosrun motion_planning mp_nodelet_debugging _node_name:=Steap _control_topic:=/stela/sbmp/control _control_frequency:=10 _world_frame:="world" _robot_frame:="robot" 
@@ -31,7 +33,7 @@
       <param name="obstacle_distance_tolerance" value="5"/>
       <param name="lm_iters"   value="100"/>
       <param name="obstacle_sigma"   value="0.1"/>
-      <param name="environment" value="environments/simple_obstacle.yaml"/>
+      <param name="environment" value="$(arg environment)"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="steap_viz_nodelet_manager"  args="manager" output="screen"/>
@@ -41,18 +43,25 @@
       <param name="tree_topic_name" value="/STEAP/steap/tree"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
     </node>
-  	<!-- 
+  	
    	<node pkg="nodelet" type="nodelet" name="mp_nodelet_manager"  args="manager" output="screen"/>
 
    	<node if="$(arg visualize)" 
    		pkg="nodelet" type="nodelet" name="tree_visualizer" 
    		args="load motion_planning/MotionPlanningTreeVizPublisher mp_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/tree"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="mp_tree" 
     	args="load motion_planning/MotionPlanningTree mp_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="/stela/sbmp/sln_tree"/>
     </node>
-  	 -->
-
+  	
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
+      args="load utils/EnvironmentPublisher mp_nodelet_manager" output="screen">
+      <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
+      <param name="environment_file" value="$(arg environment)"/>
+    </node>
   </group>
 </launch>

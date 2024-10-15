@@ -246,14 +246,16 @@ public:
       translation[2] = 0;
     }
 
-    // void operator()(Eigen::MatrixXd& H, const Eigen::Vector3d& translation)
-    void operator()(const State& state, const Eigen::Vector3d& translation, Eigen::MatrixXd& H)
+    void operator()(const bool collision, const State& state, const Eigen::Vector3d& p1, const Eigen::Vector3d& p2,
+                    Eigen::MatrixXd& H)
     {
-      H = Eigen::Matrix<double, 1, 3>::Zero();
-      H(0, 0) = translation[0];
-      H(0, 1) = translation[1];
-      // H = Eigen::Matrix2d::Identity();
-      // H.diagonal() = translation.head(2);
+      H = Eigen::Matrix<double, 1, 2>::Zero();
+      Eigen::Vector2d vec{ (p1 - p2).head(2) };
+      if (collision)
+        vec = -p1.head(2);
+      H(0, 0) = -vec[0];
+      H(0, 1) = -vec[1];
+      H.normalize();
     }
   };
   /**
@@ -484,6 +486,26 @@ public:
     return node_edge_to_fg(parent, leaf, node_state, edge_plan);
   }
 
+  static GraphValues fix_cost(const std::size_t id, const ml4kp_bridge::SpacePoint& node_state, const double sigmas)
+  {
+    GraphValues graph_values;
+
+    const gtsam::Key kx{ keyX(1, id) };
+    const gtsam::Key kxdot{ keyXdot(1, id) };
+
+    NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, sigmas) };
+
+    const State x{ node_state.point[0], node_state.point[1] };
+    const State xdot{ node_state.point[2], node_state.point[3] };
+
+    graph_values.first.addPrior(kx, x, prior_noise);
+    graph_values.first.addPrior(kxdot, xdot, prior_noise);
+    graph_values.second.insert_or_assign(kx, x);
+    graph_values.second.insert_or_assign(kxdot, xdot);
+
+    return graph_values;
+  }
+
   static GraphValues root_to_fg(const std::size_t root, const ml4kp_bridge::SpacePoint& node_state,
                                 const bool estimation = false)
   {
@@ -535,81 +557,57 @@ public:
     return local_factor_graph(update);
   };
 
-  static GraphValues trajectory_to_fg(const std::size_t parent, const std::size_t child,
-                                      const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& plan)
+  static GraphValues scate_fg(const std::size_t parent, const std::size_t child,
+                              const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& plan,
+                              const bool time_factor)
   {
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
-
+    using EulerStateStateDotTimeFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
+    using EulerStateDotControlTimeFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
     const ml4kp_bridge::SpacePoint& edge_control{ plan.steps[0].control };
 
     GraphValues graph_values;
 
-    const gtsam::Key x0{ keyX(1, parent) };
-    const gtsam::Key x1{ keyX(1, child) };
-    const gtsam::Key xdot0{ keyXdot(1, parent) };
-    const gtsam::Key xdot1{ keyXdot(1, child) };
-    const gtsam::Key u01{ keyU(parent, child) };
-
-    // DEBUG_VARS(SF::formatter(x0), x0);
-    // DEBUG_VARS(SF::formatter(x1), x1);
-    // DEBUG_VARS(SF::formatter(xdot0), xdot0);
-    // DEBUG_VARS(SF::formatter(xdot1), xdot1);
-    // DEBUG_VARS(SF::formatter(u01), u01);
+    const gtsam::Key k_x0{ keyX(1, parent) };
+    const gtsam::Key k_x1{ keyX(1, child) };
+    const gtsam::Key k_xdot0{ keyXdot(1, parent) };
+    const gtsam::Key k_xdot1{ keyXdot(1, child) };
+    const gtsam::Key k_u01{ keyU(parent, child) };
+    const gtsam::Key k_t01{ keyT(parent, child) };
 
     const Control control(edge_control.point[0], edge_control.point[1]);
-    const State x(node_state.point[0], node_state.point[1]);
-    // const StateDot xdot(node_state.point[2], node_state.point[3]);
-    const StateDot xdot(0, 0);
-
-    // DEBUG_VARS(control.transpose());
-    // DEBUG_VARS(x.transpose());
-    // DEBUG_VARS(xdot.transpose());
+    const State x1(node_state.point[0], node_state.point[1]);
+    const StateDot xdot1(node_state.point[2], node_state.point[3]);
 
     const double duration{ plan.steps[0].duration.data.toSec() };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, duration) };
     NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, duration) };
-    NoiseModel quadratic_cost_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1) };
+    NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1) };
 
-    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, duration, "EulerX");
-    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, duration,
-                                                                  "EulerXdot");
+    if (time_factor)
+    {
+      graph_values.first.emplace_shared<EulerStateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
+      graph_values.first.emplace_shared<EulerStateDotControlTimeFactor>(k_xdot1, k_xdot0, k_u01, k_t01, dynamic_noise);
+      graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
 
-    // quadratic_cost_factor_t(const gtsam::Key& key, const Matrix cost, const NoiseModel& cost_model)
+      // graph_values.first.addPrior(k_t01, duration, dt_noise);
+      graph_values.second.insert(k_t01, duration);
+    }
+    else
+    {
+      graph_values.first.emplace_shared<EulerStateStateDotFactor>(k_x1, k_x0, k_xdot0, integration_noise, duration);
+      graph_values.first.emplace_shared<EulerStateDotControlFactor>(k_xdot1, k_xdot0, k_u01, dynamic_noise, duration);
+    }
+    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(u01, Control(0.2, 0.2));
+    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(xdot1, Control(0.5, 0.5));
 
-    const Eigen::Matrix2d qcost{ Eigen::Matrix2d::Identity() };
-    const Eigen::Vector2d goal(20, 20);
-    // graph_values.first.emplace_shared<prx::fg::quadratic_cost_factor_t<State>>(x1, qcost, goal, nullptr);
-    graph_values.first.emplace_shared<prx::fg::quadratic_cost_factor_t<StateDot>>(xdot1, qcost, quadratic_cost_noise);
-    graph_values.first.emplace_shared<prx::fg::quadratic_cost_factor_t<Control>>(u01, qcost, quadratic_cost_noise);
-    // graph_values.first.addPrior(xdot1, xdot);
-    // graph_values.first.addPrior(u01, control);
+    // graph_values.first.addPrior(k_x1, x1);
+    // graph_values.first.addPrior(k_xdot1, xdot1);
 
-    graph_values.second.insert(x1, x);
-    graph_values.second.insert(xdot1, xdot);
-    graph_values.second.insert(u01, control);
-    return graph_values;
-  }
-
-  static GraphValues add_fix_cost(const std::size_t goal_id, const ml4kp_bridge::SpacePoint& node_state)
-  {
-    const gtsam::Key xF{ keyX(1, goal_id) };
-    const gtsam::Key xdotF{ keyXdot(1, goal_id) };
-
-    const State x(node_state.point[0], node_state.point[1]);
-    const StateDot xdot(node_state.point[2], node_state.point[3]);
-    // const StateDot xdot(0.5, 0.5);
-
-    // DEBUG_VARS(SF::formatter(xF), xF);
-    // DEBUG_VARS(SF::formatter(xdotF), xdotF);
-    gtsam::noiseModel::Base::shared_ptr goal_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e-5) };
-    GraphValues graph_values;
-
-    const Eigen::Matrix2d qcost{ Eigen::Matrix2d::Identity() * 100 };
-    graph_values.first.emplace_shared<prx::fg::quadratic_cost_factor_t<State>>(xF, qcost, x, nullptr);
-    graph_values.first.emplace_shared<prx::fg::quadratic_cost_factor_t<State>>(xdotF, qcost, xdot, nullptr);
-    // graph_values.first.addPrior(xF, x, goal_noise);
-    // graph_values.first.addPrior(xdotF, xdot, goal_noise);
+    graph_values.second.insert(k_x1, x1);
+    graph_values.second.insert(k_xdot1, xdot1);
+    graph_values.second.insert(k_u01, control);
     return graph_values;
   }
 
