@@ -4,6 +4,7 @@
   <arg name="Stepper" default="Stela"/>
 	<arg name="Plant" default="ltv_sde"/>
   <arg name="plant_file" default="$(find motion_planning)/config/$(arg Plant).yaml"/>
+  <arg name="total_states" default="100"/>
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
@@ -260,8 +261,9 @@ launch-prefix="gdb --args">
       <param name="naive_guess"     value="true"/>
       <param name="environment" value="$(arg environment)"/>
       <param name="plant_file" value="$(arg plant_file)"/>
-      <param name="total_states"    value="100"/>
+      <param name="total_states" value="$(arg total_states)"/>
       <param name="init_ctrl"  type="yaml" value="[0.5,0.5]"/>
+      <param name="output_dir" value="$(arg data_dir)"/>
       <param name="init_duration"   value="0.1"/>
       <param name="time_factor" value="false"/>
       <param name="fg_iterations" value="100"/>

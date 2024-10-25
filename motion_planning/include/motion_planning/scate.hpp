@@ -42,6 +42,8 @@ public:
     , _current_node(0)
     , _fix_sigmas(1.0)
     , _obstacle_activation_distance(1.0)
+    , _files_created(false)
+    , _experiment_id("test")
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters()) {};
 
   virtual void onInit()
@@ -56,12 +58,14 @@ public:
     double& fix_sigmas{ _fix_sigmas };
     double& obstacle_sigma{ _obstacle_sigma };
     std::string environment, solution_tree_topic;
-    bool time_factor{ _time_factor };
+    bool& time_factor{ _time_factor };
     bool naive_guess{ false };
     int fg_iterations{ 100 };
     std::string& world_frame{ _world_frame };
     std::string& robot_frame{ _robot_frame };
     std::string& obstacle_mode{ _obstacle_mode };
+    std::string& output_dir{ _output_dir };
+    std::string& experiment_id{ _experiment_id };
 
     PARAM_SETUP(private_nh, solution_tree_topic);
     PARAM_SETUP(private_nh, control_topic);
@@ -72,9 +76,11 @@ public:
     PARAM_SETUP(private_nh, obstacle_activation_distance)
     PARAM_SETUP(private_nh, environment);
     PARAM_SETUP(private_nh, time_factor);
+    PARAM_SETUP(private_nh, output_dir)
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations)
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fix_sigmas, fix_sigmas);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id);
 
     _lm_params.setUseFixedLambdaFactor(true);
     _lm_params.setMaxIterations(fg_iterations);
@@ -124,14 +130,29 @@ public:
 
   void action_function(const ros::TimerEvent& event)
   {
+    update_current_node(event);
+
     if (_isam_initialized)
     {
       publish_tree();
+      _start_time = ros::Time::now();
     }
     else
     {
       init_from_naive_guess();
       _isam_initialized = true;
+      // _current_estimate.print("Initial estimate: ", SF::formatter);
+      // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+        // printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 1.0; };
+      // _factor_graph.printErrors(_current_estimate, "isam graph: ", SF::formatter, printCondition);
+
+    }
+
+    // DEBUG_VARS("Starting Publishing Control", _current_node);
+    if (_current_node < _total_states && add_observations())
+    {
+      // DEBUG_VARS("Publishing Control", _current_node);
+      publish_control();
     }
   }
 
@@ -148,22 +169,156 @@ public:
     return false;
   }
 
+  void to_file(const bool collision = false, const bool raised_exception = false)
+  {
+    // if (_files_created)
+    //   return;
+
+    // const std::string filename{ _output_dir + "/scate_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
+    // const std::string filename_branch_gt{ _output_dir + "/scate_branch_gt_" + _experiment_id + "_" +
+    //                                       utils::timestamp() + ".txt" };
+    // const std::string filename_data{ _output_dir + "/scate_data_" + _experiment_id + "_" + utils::timestamp() +
+    //                                  ".txt" };
+
+    // // DEBUG_VARS(filename);
+    // // DEBUG_VARS(filename_branch_gt);
+    // // DEBUG_VARS(filename_data);
+    // std::ofstream ofs(filename);
+    // std::ofstream ofs_branch(filename_branch_gt);
+    // std::ofstream ofs_data(filename_data);
+    // const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
+    // ofs_data << "ElapsedTime: " << elapsed_time << "\n";
+    // ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
+    // ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
+    // ofs_data << "ExceptionRaised: " << (raised_exception ? "true" : "false") << "\n";
+
+    // gtsam::Values estimate{ _isam.calculateEstimate() };
+    // ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
+    // ofs_branch << "# id point[...]\n";
+    // for (int node_id = 0; i< _total_states; ++node_id)
+    // {
+    //   ofs << node_id << " ";
+    //   const StateKeys keys{ SystemInterface::keyState(1, node_id) };
+    //   estimates_to_file<0>(ofs, _current_estimate, keys);
+    //   // const ml4kp_bridge::SpacePoint& {};
+    //   ofs_branch << node_id << " ";
+    //   ofs_branch << "\n";
+    // }
+
+    // ofs.close();
+    // ofs_branch.close();
+    // ofs_data.close();
+
+    // _files_created = true;
+
+    // std_msgs::Bool msg;
+    // msg.data = true;
+    // _finish_publisher.publish(msg);
+    // _tree_recevied = false;
+
+    // PRX_DBG_VARS(collision);
+
+    // ros::Rate rate(1);
+    // rate.sleep();
+    // ros::shutdown();
+  }
+
+  void update_current_node(const ros::TimerEvent& event)
+  {
+    if (!_isam_initialized)
+    {
+      _next_node_time_stamp = event.current_expected + ros::Duration(_init_duration);
+      _current_node = 0;
+      return;
+    }
+
+    if (_current_node >= _total_states){
+      ROS_WARN("Finished! Creating file");
+      to_file();
+      return;
+    }
+
+    if (event.current_real > _next_node_time_stamp)
+    {
+     std::cout << "Missed node update" << std::endl;
+    }
+
+    if (event.current_real == _next_node_time_stamp)
+    {
+      std::cout << "Exact node update" << std::endl;
+    }
+
+    if (event.current_real < _next_node_time_stamp)
+    {
+      std::cout << "Early node update" << std::endl;
+    }
+
+    if (event.current_real >= _next_node_time_stamp)
+    {
+      _current_node++;
+      _next_node_time_stamp += ros::Duration(_init_duration);
+      std::cout << "Updated current node: " << _current_node << std::endl;
+    }
+    
+  }
+
+  bool add_observations()
+  {
+    const bool new_observation{ query_tf() };
+    const bool header_updated{ _tf.header.stamp > _prev_header.stamp };
+    if (new_observation and header_updated)
+    {
+      _prev_header = _tf.header;
+
+      Observation z_new;
+      SystemInterface::copy(z_new, _tf);
+      int prev_node, current_node;
+
+      if (_current_node == 0) {
+        prev_node = 0;
+        current_node = 1;
+      }
+      else {
+        prev_node = _current_node - 1;
+        current_node = _current_node;
+      }
+
+      const GraphValues graph_values_z{ SystemInterface::add_observation_factor(prev_node, current_node, z_new, _init_duration, 0.01) };
+
+      _factor_graph += graph_values_z.first;
+      _current_estimate.insert(graph_values_z.second);
+
+      gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
+
+      _current_estimate = optimizer.optimize();
+      return true;
+    }
+    return false;
+  }
+
   void publish_control()
   {
+    const gtsam::Key uKey{ SystemInterface::keyU(_current_node, _current_node + 1) };
+
+    const Control u{ _current_estimate.at<Control>(uKey) };
+
+    ml4kp_bridge::copy(_control_stamped.space_point, u);
+
+    _control_stamped.header.seq++;
+    _control_stamped.header.stamp = ros::Time::now();
+
+    _stamped_control_publisher.publish(_control_stamped);
   }
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, const int x_id)
   {
     const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-    // SystemInterface::state(_state, point);
-    DEBUG_PRINT;
+
     for (auto obstacle_info : _obstacle_collision_infos)
     {
-      DEBUG_PRINT;
       _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
                                                      _obstacle_activation_distance, 0.1, _obstacle_noise);
     }
-    DEBUG_PRINT;
   }
 
   void init_from_naive_guess()
@@ -203,8 +358,6 @@ public:
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
-    SF::symbols_to_file("/Users/Gary/pracsys/catkin_ws/symbols.txt");
-    DEBUG_PRINT;
     gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
 
     _current_estimate = optimizer.optimize();
@@ -271,6 +424,11 @@ private:
   motion_planning::tree_manager_t _tree_manager;
   int _current_node;
 
+  // File/output
+  bool _files_created;
+  std::string _output_dir;
+  std::string _experiment_id;
+
   std::shared_ptr<prx::fg::collision_info_t> _robot_collision_ptr;
   std::vector<std::shared_ptr<prx::movable_object_t>> _obstacle_list;
   std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
@@ -285,6 +443,9 @@ private:
   std::vector<double> _goal_state;
   std::vector<double> _init_ctrl;
   double _init_duration;
+  ros::Time _next_node_time_stamp;
+  ros::Time _start_time;
+  
   bool _time_factor;
   double _fix_sigmas;
 

@@ -441,6 +441,43 @@ public:
   }
 
   static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id,
+                                            const Observation& z, const double dt, const double z_noise)
+  {
+    using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
+    using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
+    using ObservationFactor = gtsam::PriorFactor<State>;
+    using EulerObservation = prx::fg::euler_observation_factor_t<State, StateDot>;
+
+    GraphValues graph_values;
+
+    const gtsam::Key x0{ keyX(1, prev_id) };
+    const gtsam::Key x1{ keyX(1, curr_id) };
+    const gtsam::Key xdot0{ keyXdot(1, prev_id) };
+    const gtsam::Key xdot1{ keyXdot(1, curr_id) };
+    const gtsam::Key u01{ keyU(prev_id, curr_id) };
+
+    NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
+    NoiseModel dynamic_noise{ gtsam::noiseModel::Isotropic::Sigma(2, dt) };
+    NoiseModel observation_noise{ gtsam::noiseModel::Isotropic::Sigma(2, z_noise) };
+
+    // graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, integration_noise, dt);
+    // graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, dynamic_noise, dt);
+    graph_values.first.emplace_shared<EulerObservation>(x0, xdot0, observation_noise, z, dt);
+    // graph_values.first.emplace_shared<ObservationFactor>(x1, z, observation_noise);
+
+    // graph_values.first.addPrior(u01, u_prev);
+    // graph_values.first.addPrior(x1, u_prev);
+
+    // const StateDot p_xdot1{ EulerStateDotControlFactor::predict(xdot0_value, u_prev, dt) };
+    // const StateDot p_x1{ EulerStateStateDotFactor::predict(x0_value, xdot0_value, dt) };
+
+    // graph_values.second.insert(u01, u_prev);
+    // graph_values.second.insert(xdot1, p_xdot1);
+    // graph_values.second.insert(x1, p_x1);
+    return graph_values;
+  }
+
+  static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id,
                                             const StateEstimates& estimates, const Control u_prev, const Observation& z,
                                             const double dt, const double z_noise)
   {
