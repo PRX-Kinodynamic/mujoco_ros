@@ -313,7 +313,6 @@ public:
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, const int x_id)
   {
     const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-
     for (auto obstacle_info : _obstacle_collision_infos)
     {
       _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,

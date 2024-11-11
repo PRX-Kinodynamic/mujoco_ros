@@ -46,7 +46,9 @@ public:
         const std::string topic_name{ param_name + "/viz" };
         _viz_state_publisher.push_back(private_nh.advertise<visualization_msgs::Marker>(topic_name, 1, true));
 
-        const visualization_msgs::Marker marker{ create_marker(state, colors.front(), radius.front()) };
+        const double rad{ radius.front() };
+
+        const visualization_msgs::Marker marker{ create_marker(state, colors.front(), rad) };
         colors.erase(colors.begin());
         radius.erase(radius.begin());
         _viz_state_publisher.back().publish(marker);

@@ -53,6 +53,7 @@ public:
   using StateEstimates = std::tuple<State, StateDot>;
   using ControlEstimates = std::tuple<Control>;
 
+  using Poly = mushr_types::Control::Poly;
   using Parameters = mushr_types::Control::params;
   using PrxPlant = mushrFG_t;
 
@@ -198,7 +199,10 @@ public:
     // Control u(msg.point[0], msg.point[1]);
     // u.normalize();
     // DEBUG_VARS(msg.point);
-    const Eigen::Rotation2D<double> R(msg.point[mushr_types::Control::steering]);
+    // msg.point[mushr_types::Control::steering]
+    const double& param_delta{ default_params[mushr_types::Control::steering] };
+    const double delta{ msg.point[mushr_types::Control::steering] * param_delta };
+    const Eigen::Rotation2D<double> R(delta);
     const Eigen::Vector2d u{ R * Eigen::Vector2d(0.25 + mushr_types::Control::vel_desired, 0) };
     // DEBUG_VARS(R.toRotationMatrix());
     // DEBUG_VARS(u.transpose());
@@ -230,13 +234,15 @@ public:
     void operator()(const bool collision, const State& state, const Eigen::Vector3d& p1, const Eigen::Vector3d& p2,
                     Eigen::MatrixXd& H)
     {
-      // H = Eigen::Matrix<double, 1, 2>::Zero();
       H = Eigen::Matrix<double, 1, 3>::Zero();
-      Eigen::Vector2d vec{ (p2 - p1).head(2) };
+      Eigen::Vector2d vec{ (p1 - p2).head(2) };
       if (collision)
-        vec = p1.head(2) - state.translation();
+        vec = -p1.head(2);
+      vec.normalize();
       H(0, 0) = -vec[0];
       H(0, 1) = -vec[1];
+
+      // H(0,2) = -(−vec[0](ax std::sin(state[2])+ay std::cos(state[2]))+ fy(ax cosθ−ay sinθ)
     }
   };
 
@@ -290,17 +296,24 @@ public:
     graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, observation_noise, zx, dt);
     // graph_values.first.emplace_shared<MushrObservationFactor>(x0, ubar0, zx, u_prev, dt, default_params,
     // observation_noise);
-    if (first == prev_id)
-    {
-      // first = false;
-      graph_values.first.addPrior(u01, u_prev, control_noise);
-    }
-    else
-    {
-      first = prev_id;
-    }
+    // if (first == prev_id)
+    // {
+    //   // first = false;
+    //   graph_values.first.addPrior(u01, u_prev, control_noise);
+    // }
+    // else
+    // {
+    //   first = prev_id;
+    // }
 
     return graph_values;
+  }
+
+  template <typename Value>
+  static void print_variable(const gtsam::Key& k, const Value& val)
+  {
+    const std::string key{ SF::formatter(k) };
+    LOG_VARS(key, val);
   }
 
   // Create a FG that goes from N0 to N1 with plan P01
@@ -345,6 +358,10 @@ public:
     const gtsam::Key k_u01{ keyU(parent, child) };
     const gtsam::Key k_t01{ keyT(parent, child) };
 
+    print_variable(k_u01, u01.transpose());
+    print_variable(k_x1, x1);
+    print_variable(k_xdot1, xdot1.transpose());
+
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
@@ -354,8 +371,11 @@ public:
     graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
     aux_graph.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
-                                                          default_params);
-    aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
+                                                          default_params, default_poly);
+    // aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
+
+    // using StateStateDotFactor = prx_models::mushr_x_xdot_t;
+    // StateStateDotFactor::predict();
     // graph_values.first.emplace_shared<mushr_u_xddot01_t>(k_xdot1, k_xdot0, k_t01, k_u01, default_params, nullptr);
 
     // _state_dot = mushr_u_xddot01_t::predict(_state_dot, simulation_step, _ctrl, _params_ubar_u);
@@ -370,17 +390,10 @@ public:
     graph_values.second.insert(k_x1, x1);
     graph_values.second.insert(k_t01, dt);
 
-    aux_graph.first.addPrior(k_u01, u01, u_prior_noise);
+    // aux_graph.first.addPrior(k_u01, u01, u_prior_noise);
+    aux_graph.first.addPrior(k_xdot1, xdot1);
     aux_graph.second.insert(k_xdot1, xdot1);
     aux_graph.second.insert(k_u01, u01);
-
-    // graph_values.second.insert(k_xdot1, xdot1);
-    // graph_values.second.insert(k_u01, u01);
-
-    // aux_graph.first.addPrior(k_xdot1, xdot1);
-
-    // aux_graph.second.insert(k_xdot1, xdot1);
-    // aux_graph.second.insert(k_u01, u01);
 
     return graph_values;
   };
@@ -430,7 +443,7 @@ public:
     graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
     graph_values.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
-                                                             default_params);
+                                                             default_params, default_poly);
     // graph_values.first.emplace_shared<mushr_u_xddot01_t>(k_xdot1, k_xdot0, k_t01, k_u01, default_params, nullptr);
     // graph_values.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
     // graph_values.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
@@ -471,7 +484,7 @@ public:
     // NoiseModel ubar_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(prx_models::mushr_types::Ubar::Dim, 1e0) };
 
     graph_values.first.addPrior(k_x, x, x_prior_noise);
-    // graph_values.first.addPrior(k_xdot, xdot, x_prior_noise);
+    graph_values.first.addPrior(k_xdot, xdot, xdot_prior_noise);
     // graph_values.first.addPrior(k_xdot, xdot, x_prior_noise);
     // graph_values.first.addPrior(k_ubar, ubar, ubar_prior_noise);
 
@@ -499,8 +512,19 @@ public:
     DEBUG_VARS(mushr_parameters);
   }
 
+  // Polynomial Curve Fit (poly3)
+  // f(x) = p1*x^3 + p2*x^2 + p3*x + p4
+
+  // Coefficients and 95% Confidence Bounds
+  //       Value     Lower     Upper
+  // p1    0.1045    0.0814    0.1275
+  // p2    0.0212    0.0094    0.0330
+  // p3    0.2357    0.2171    0.2543
+  // p4    0.0486    0.0421    0.0551
+
   // static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
-  static inline Parameters default_params{ 0.010, 0.52 };
+  static inline Parameters default_params{ 0.010, 0.52, 0.9, 0.0, 1.0 };
+  static inline Poly default_poly{ 0.1045, 0.0212, 0.2357, 0.0486 };
 
 private:
   static inline GraphValues aux_graph;
@@ -520,6 +544,7 @@ public:
     , _params_u(mushr_utils_t::default_params)
     , _ubar(mushr_types::Ubar::type::Zero())
     , _state_dot_noise(mushr_types::StateDot::type::Zero())
+    , _delta_poly(mushr_utils_t::default_poly)
   {
     // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
     state_memory = { &_state[0],     &_state[1],     &_state[2],  // no-lint
@@ -530,14 +555,25 @@ public:
 
     control_memory = { &_ctrl[mushr_types::Control::vel_desired], &_ctrl[mushr_types::Control::steering] };
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
-    input_control_space->set_bounds({ -prx::constants::pi / 2.0, -10 }, { prx::constants::pi / 2.0, 10 });
+    input_control_space->set_bounds({ -100, -100 }, { 100, 100 });
 
     derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
     derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
 
-    parameter_memory = { &_params_u[0], &_params_u[1],  // no-lint
-                         &_state_dot_noise[0], &_state_dot_noise[1], &_state_dot_noise[2] };
-    parameter_space = new prx::space_t("EEEEE", parameter_memory, "mushr_params");
+    parameter_memory = { &_params_u[mushr_types::Control::vel_desired],
+                         &_params_u[mushr_types::Control::steering],      // no-lint
+                         &_params_u[mushr_types::Control::friction],      // no-lint
+                         &_params_u[mushr_types::Control::delta_offset],  // no-lint
+                         &_params_u[mushr_types::Control::delta_gain],    // no-lint
+                         &_delta_poly[0],
+                         &_delta_poly[1],
+                         &_delta_poly[2],
+                         &_delta_poly[3],
+                         &_state_dot_noise[0],
+                         &_state_dot_noise[1],
+                         &_state_dot_noise[2] };
+    const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
+    parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
@@ -551,22 +587,13 @@ public:
 
   virtual void propagate(const double simulation_step) override final
   {
-    // DEBUG_VARS("--------------")
-    // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
-    // _ubar = mushr_ub_u_xdot_param_t::dynamics(_ctrl, _ubar, _params_ubar_u, simulation_step);
-    // _state_dot = mushr_xdot_ub_t::dynamics(_ubar);
-    // _state_dot_dot[0] = _ctrl[mushr_types::Control::vel_desired];
-    // _state_dot_dot[1] = 0;
-    // _state_dot_dot[2] = _ctrl[mushr_types::Control::steering];
-    // _state_dot = EulerFactor::integrate(_state_dot, _state_dot_dot, prx::simulation_step);
-    // _state_dot = mushr_u_xddot01_t::predict(_state_dot, simulation_step, _ctrl, _params_ubar_u);
-    _state_dot = mushr_CtrlAccel_t::predict(_state_dot, _ctrl, prx::simulation_step, _params_u);
+    _state_dot = mushr_CtrlAccel_t::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
     const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
                              prx::gaussian_random(0.0, _state_dot_noise[1]),
                              prx::gaussian_random(0.0, _state_dot_noise[2]) };
     _state_dot += w;
 
-    _state = mushr_x_xdot_t::predict(_state, _state_dot, simulation_step);
+    _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
     // state_space->enforce_bounds();
   }
@@ -590,6 +617,7 @@ protected:
   mushr_types::Ubar::type _ubar;
   mushr_types::Control::params _params_u;
   mushr_types::StateDot::type _state_dot_noise;
+  mushr_types::Control::Poly _delta_poly;
 
   double _idle;
 };

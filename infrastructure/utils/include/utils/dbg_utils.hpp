@@ -39,6 +39,7 @@ inline void print_value(std::ostream& stream, const Value& value)
   {
     print_value(stream, e);
   }
+  // stream << "\n";
 }
 
 template <typename Var0, class... Vars>
@@ -75,3 +76,4 @@ inline void log_variables(std::string name, Vars... vars)
 }  // namespace dbg
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_VARS(...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
+// #define LOG_VARS_FILE(ofs, ...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);

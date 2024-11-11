@@ -61,7 +61,7 @@
             <param name="visualize" value="$(arg visualize)" />
             <param name="save_trajectory" value="$(arg save_trajectory)" />
             <param name="control_topic" value="$(arg mj_control_topic)" />
-            <param name="publish_ground_truth_pose" value="false" />
+            <param name="publish_ground_truth_pose" value="true" />
             <param name="camera_topic" value="$(arg rgb_topic)" />
             <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->
         </node>

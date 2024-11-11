@@ -29,7 +29,7 @@ using State = prx_models::mushr_types::State::type;
 using StateDot = prx_models::mushr_types::StateDot::type;
 using Control = prx_models::mushr_types::Control::type;
 using Ubar = prx_models::mushr_types::Ubar::type;
-using Params = prx_models::mushr_types::Ubar::params;
+using Params = prx_models::mushr_types::Control::params;
 
 using Trajectory = std::vector<std::pair<State, double>>;
 using Plan = std::vector<Control>;
@@ -144,7 +144,7 @@ int main(int argc, char** argv)
   std::vector<Trajectory> trajectories;
 
   const gtsam::Key paramskey{ prx_models::mushr_utils_t::keyParams(0, 0) };
-  Params params(params_init[0], params_init[1], params_init[2]);
+  Params params(params_init[0], params_init[1], params_init[2], params_init[3], 0.0);
   values.insert(paramskey, params);
 
   ps->copy_from(params);

@@ -26,8 +26,8 @@
   <arg name="random_seed" default="390489"/>
   <arg name="experiment_name" default="test"/>
   <arg name="obstacle_mode" default="None"/>
-  <arg name="obstacle_distance_tolerance" default="1.0"/>
-  <arg name="obstacle_factor_include_distance" default="1.0"/>
+  <arg name="obstacle_distance_tolerance" default="0.5"/>
+  <arg name="obstacle_factor_include_distance" default="0.5"/>
   <arg name="obstacle_sigma" default="1.0"/>
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="robot"/>
@@ -292,12 +292,12 @@ launch-prefix="gdb --args">
       <arg name="num_workers" default="$(arg num_workers)"/>
     </include>
 
-    <!-- <include if="$(eval arg('Plant') == 'mushr' and arg('mujoco'))" 
+    <include if="$(eval arg('Plant') == 'MjMushr' and arg('mujoco'))" 
              file="$(find mujoco_ros)/launch/mushr.launch" 
             >
       <arg name="visualize" default="$(arg visualize)"/>
       <arg name="control_topic" default="$(arg control_topic)"/> 
-    </include> -->
+    </include>
 
     <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
         args="0 0 0 0 0 0 1 world map" />
@@ -379,6 +379,16 @@ launch-prefix="gdb --args">
       <param name="directory" value="$(arg data_dir)"/>
       <param name="fileprefix" value="collision_$(arg experiment_id)"/>
       <param name="topic_name" value="$(arg collision_topic)"/>
+      <param name="reset_topic" value="$(arg reset_topic)"/>
+      <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
+    </node>
+
+    <node if="$(eval arg('collect_data') and arg('mujoco'))" 
+      pkg="nodelet" type="nodelet" name="SensorDataStampedToFile" output="screen"
+      args="standalone interface/SensorDataStampedToFile collision_nodelet_manager" >
+      <param name="directory" value="$(arg data_dir)"/>
+      <param name="fileprefix" value="mj_sensor_$(arg experiment_id)"/>
+      <param name="topic_name" value="/simulator/mushr/sensordata"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
       <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
     </node>

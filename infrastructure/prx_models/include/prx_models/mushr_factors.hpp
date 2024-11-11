@@ -30,8 +30,8 @@ namespace mushr_types
 namespace Parameters
 {
 constexpr double L{ 0.31 };
-
-}
+constexpr double mass{ 3.5 };
+}  // namespace Parameters
 namespace State
 {
 using type = prx::fg::SE2_t;
@@ -67,12 +67,20 @@ constexpr std::size_t max_vel_param{ 2 };
 
 namespace Control
 {
+
+constexpr std::size_t ParamsDim{ 5 };
+constexpr std::size_t PolyDeg{ 3 };
+
 using type = Eigen::Vector<double, 2>;
-using params = Eigen::Vector<double, 2>;
+using params = Eigen::Vector<double, ParamsDim>;
+using Poly = Eigen::Vector<double, PolyDeg + 1>;
 
 constexpr std::size_t accel{ prx_models::mushr_t::control::velocity_idx };
 constexpr std::size_t vel_desired{ prx_models::mushr_t::control::velocity_idx };
 constexpr std::size_t steering{ prx_models::mushr_t::control::steering_idx };
+constexpr std::size_t friction{ 2 };
+constexpr std::size_t delta_offset{ 3 };
+constexpr std::size_t delta_gain{ 4 };
 
 double beta(const double& delta, gtsam::OptionalJacobian<1, 1> Hd = boost::none)
 {
@@ -84,6 +92,42 @@ double beta(const double& delta, gtsam::OptionalJacobian<1, 1> Hd = boost::none)
   return std::atan(0.5 * std::tan(delta));
 }
 
+// f(x) = c0 x^n + c1 x^{n-1} + ... + c_{n-1} x^{n-n+1} + c_{n}
+template <Eigen::Index I, std::enable_if_t<(I == 0), bool> = true>
+inline double poly_eval(const Poly& poly, const double& x, gtsam::OptionalJacobian<1, 1> Hx = boost::none)
+{
+  // Given ax^n, this does ax^{n-1} ( avoid recomputing this for H)
+  const double xaux{ poly[I] * std::pow(x, PolyDeg - 1) };
+
+  if (Hx)
+  {
+    (*Hx)(0, 0) = (*Hx)(0, 0) + xaux * PolyDeg;
+  }
+  return xaux * x;
+}
+
+template <Eigen::Index I, std::enable_if_t<(I > 0), bool> = true>
+inline double poly_eval(const Poly& poly, const double& x, gtsam::OptionalJacobian<1, 1> Hx = boost::none)
+{
+  constexpr int deg{ PolyDeg - I };
+  const double xaux{ poly[I] * std::pow(x, deg - 1) };
+
+  if (Hx)
+  {
+    (*Hx)(0, 0) = (*Hx)(0, 0) + xaux * deg;
+  }
+
+  return xaux * x + poly_eval<I - 1>(poly, x, Hx);
+}
+
+inline double evaluate_polynomial(const Poly& poly, const double& x, gtsam::OptionalJacobian<1, 1> Hx = boost::none)
+{
+  if (Hx)
+  {
+    *Hx = Eigen::Matrix<double, 1, 1>::Zero();
+  }
+  return poly[PolyDeg] + poly_eval<PolyDeg - 1>(poly, x, Hx);
+}
 }  // namespace Control
 
 }  // namespace mushr_types
@@ -721,9 +765,12 @@ class mushr_CtrlAccel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot:
 
   using Params = mushr_types::Control::params;
   using Control = mushr_types::Control::type;
+  using Polynomial = mushr_types::Control::Poly;
 
   static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
+
+  static constexpr Eigen::Index DimParams{ mushr_types::Control::ParamsDim };
 
   using Base = gtsam::NoiseModelFactorN<StateDot, StateDot, Control, double>;
 
@@ -737,8 +784,8 @@ class mushr_CtrlAccel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot:
 
 public:
   mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
-                    const NoiseModel& cost_model, const Params params)
-    : Base(cost_model, xd1, xd0, u, dt), _params(params)
+                    const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
+    : Base(cost_model, xd1, xd0, u, dt), _params(params), _steering_poly(steering_poly)
   {
     // PRX_DBG_VARS(_params);
   }
@@ -757,69 +804,149 @@ public:
 
   // Vb= Ad(0,0,beta)*[xr/dt;0;th1/dt]*dt;
   // T(x,y,th)*Exp(Vb(1),Vb(2),Vb(3))
-  static StateDot predict(const StateDot xd0, const Control u, const double dt, const Params& params,
+  static StateDot predict(const StateDot xd0, const Control u, const double dt,  // no-lint
+                          const Params& params, const Polynomial steering_poly,  // no-lint
                           gtsam::OptionalJacobian<3, 3> Hxd0 = boost::none,
                           gtsam::OptionalJacobian<3, 2> Hu = boost::none,
                           gtsam::OptionalJacobian<3, 1> Hdt = boost::none,
-                          gtsam::OptionalJacobian<3, 2> Hparams = boost::none)
+                          gtsam::OptionalJacobian<3, DimParams> Hparams = boost::none)
   {
     using StateDDot = Eigen::Vector3d;
     using Integration = prx::fg::euler_integration_factor_t<StateDot, StateDDot, double>;
 
-    Eigen::MatrixXd xd1_H_xd0, xd1_H_xdd, xd1_H_dt;
+    Eigen::MatrixXd xd1Z_H_qd0, xd1Zero_H_qdd, xd1Zero_H_dt;
     Eigen::Matrix<double, 3, 3> xdd_H_Tb, xdd_H_stateDD;
+    Eigen::Matrix<double, 3, 3> qd0_H_Tbpinv, qd0_H_xd0;
+    Eigen::Matrix<double, 3, 3> Tpbinv_H_Tbprev;
     Eigen::Matrix<double, 1, 1> beta_H_delta;
+    Eigen::Matrix<double, 3, 3> xd1Adj_H_xd1Z, xd1Adj_H_Tbeta;
+    Eigen::Matrix<double, 1, 1> delta_H_deltaIn;
 
     const double& L{ mushr_types::Parameters::L };
+    const double& mass{ mushr_types::Parameters::mass };
     const double& param_AccIn{ params[mushr_types::Control::vel_desired] };
-    const double& param_delta{ params[mushr_types::Control::steering] };
+    const double& friction{ params[mushr_types::Control::friction] };
 
-    const double AccIn{ u[mushr_types::Control::vel_desired] * param_AccIn };
-    const double delta{ u[mushr_types::Control::steering] * param_delta };
-    Eigen::Matrix<double, 1, 1> accIn_H_paramAccIn{ u[mushr_types::Control::vel_desired] };
+    const double& deltaIn{ u[mushr_types::Control::steering] };
+    const double delta{ mushr_types::Control::evaluate_polynomial(steering_poly, deltaIn, delta_H_deltaIn) };
+    // const double delta_offset{ std::copysign(params[mushr_types::Control::delta_offset], deltaIn) };
+    // const double& delta_offset{ params[mushr_types::Control::delta_offset] };
+    // const double& delta_gain{ params[mushr_types::Control::delta_gain] };
+
+    const double Vprev{ xd0.head(2).norm() };
+    const Eigen::RowVector3d Vprev_H_xd0{ Vprev < 1e-8 ? Eigen::RowVector3d::Zero() :
+                                                         Eigen::RowVector3d(xd0[0] / Vprev, xd0[1] / Vprev, 0.0) };
+
+    // const double sigmoid_param{ sigmoid(const double& x) };
+    // const double fit_param{ fit(Vprev) };
+    // const double fric{ 1.0 - Vprev * friction };
+    // const double Ufriction{ u[mushr_types::Control::vel_desired] };
+
+    const double Uaccel{ u[mushr_types::Control::vel_desired] };
+    const double AccIn{ Uaccel * param_AccIn };
+    // double AccIn{ 0.0 };
+
+    // if (Vprev < 0.05)
+    // {
+    //   AccIn = Uaccel * friction;
+    // }
+    // else
+    // {
+    //   AccIn = Uaccel * param_AccIn;
+    // }
+    // const double AccIn{ fit(Vprev) };
+    // PRX_DBG_VARS(Uaccel, AccIn);
+    // const double delta{ delta_gain * deltaIn + delta_offset };
+    //
+    Eigen::Matrix<double, 1, 1> accIn_H_paramAccIn{ Uaccel };
     Eigen::Matrix<double, 1, 1> delta_H_paramDelta{ u[mushr_types::Control::steering] };
     Eigen::Matrix<double, 1, 1> accIn_H_UaccIn{ param_AccIn };
-    Eigen::Matrix<double, 1, 1> delta_H_Udelta{ param_delta };
+    // Eigen::Matrix<double, 1, 1> delta_H_Udelta{ param_delta };
 
     const double beta{ mushr_types::Control::beta(delta, Hu ? &beta_H_delta : nullptr) };
+    const double beta_prev{ std::atan2(xd0[1], xd0[0]) };
+    const double norm2{ xd0.head(2).squaredNorm() };
+    const Eigen::RowVector3d bprev_H_xd0{ -xd0[1] / norm2, xd0[0] / norm2, 0.0 };
+    // [-y/(x^2 + y^2), x/(x^2 + y^2)]
 
     const double omega{ 2.0 * std::sin(beta) / L };
+    const double omega_prev{ 2.0 * std::sin(beta_prev) / L };
     const Eigen::Matrix<double, 1, 1> omega_H_beta{ 2.0 * std::cos(beta) / L };
+    const Eigen::Matrix<double, 1, 1> omegaPrev_H_bPrev{ 2.0 * std::cos(beta_prev) / L };
 
     const State T_beta{ 0.0, 0.0, beta };
+    const State T_beta_prev{ 0.0, 0.0, beta_prev };
     const Eigen::Vector3d Tb_H_beta{ 0, 0, 1 };
+    const Eigen::Vector3d Tbprev_H_bprev{ 0, 0, 1 };
 
-    const StateDotDot xddR{ 1.0, 0.0, omega };
-    const StateDotDot state_dot_dot{ AccIn * xddR };
-    const Eigen::Matrix<double, 3, 1> stateDD_H_omega{ 0.0, 0.0, AccIn };
-    const Eigen::Matrix<double, 3, 1> stateDD_H_AccIn{ xddR };
+    const State Tbpinv{ T_beta_prev.inverse(Tpbinv_H_Tbprev) };
+    const StateDot qd0{ Tbpinv.adjoint(xd0, Hu ? &qd0_H_Tbpinv : nullptr, Hxd0 ? &qd0_H_xd0 : nullptr) };
+    const StateDotDot qdd{ AccIn, 0.0, 0.0 };
+    const StateDot xd1_zero{ Integration::integrate(qd0, qdd, dt, xd1Z_H_qd0, xd1Zero_H_qdd, xd1Zero_H_dt) };
+    const Eigen::Matrix<double, 3, 1> qdd_H_AccIn{ 1.0, 0.0, 0.0 };
+    // PRX_DBG_VARS(AccIn, qdd.transpose());
+    // PRX_DBG_VARS(qd0.transpose(), xd1_zero.transpose())
 
-    const StateDot xdd{ T_beta.adjoint(state_dot_dot, Hu ? &xdd_H_Tb : nullptr, Hu ? &xdd_H_stateDD : nullptr) };
+    const double Vcurr{ xd1_zero.head(2).norm() };
+    const Eigen::RowVector3d VCurr_H_xd1Zero{ Vcurr < 1e-8 ?
+                                                  Eigen::RowVector3d::Zero() :
+                                                  Eigen::RowVector3d(xd1_zero[0] / Vcurr, xd1_zero[1] / Vcurr, 0.0) };
 
-    const StateDot xd1{ Integration::integrate(xd0, xdd, dt, xd1_H_xd0, xd1_H_xdd, xd1_H_dt) };
+    const double thd_prev{ omega_prev * Vprev };
+    const double thd_curr{ omega * Vcurr };
+    const StateDot w_new{ 0, 0, (thd_curr - thd_prev) * friction };
+    const StateDot xd1Adj{ T_beta.adjoint(xd1_zero, xd1Adj_H_Tbeta, xd1Adj_H_xd1Z) };
+    const StateDot xd1{ xd1Adj + w_new };
+    // PRX_DBG_VARS(xd1Adj.transpose(), w_new.transpose());
+    // PRX_DBG_VARS(xd1.transpose());
 
+    const double thdPrev_H_omegaPrev{ Vprev };
+    const double thdPrev_H_Vprev{ omega_prev };
+
+    const double thdCurr_H_omega{ Vcurr };
+    const double thdCurr_H_Vcurr{ omega };
+
+    const Eigen::Matrix<double, 3, 1> wNew_H_thdCurr{ 0.0, 0.0, 1.0 };
+    const Eigen::Matrix<double, 3, 1> wNew_H_thdPrev{ 0.0, 0.0, -1.0 };
+    const Eigen::Matrix3d xd1_H_xd1Adj{ Eigen::Matrix3d::Identity() };
+    const Eigen::Matrix3d xd1_H_wNew{ Eigen::Matrix3d::Identity() };
     if (Hxd0)
     {
-      *Hxd0 = xd1_H_xd0;
+      const Eigen::Matrix3d xd1Zero_H_xd0{ xd1Z_H_qd0 * (qd0_H_xd0 + qd0_H_Tbpinv * Tpbinv_H_Tbprev * Tbprev_H_bprev *
+                                                                         bprev_H_xd0) };
+      *Hxd0 =                            // no-lint
+          (xd1_H_xd1Adj * xd1Adj_H_xd1Z  // no-lint
+           + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero) *
+              xd1Zero_H_xd0                // no-lint
+          + xd1_H_wNew * wNew_H_thdPrev *  // no-lint
+                (thdPrev_H_Vprev * Vprev_H_xd0 + thdPrev_H_omegaPrev * omegaPrev_H_bPrev * bprev_H_xd0);
     }
     if (Hdt)
     {
-      *Hdt = xd1_H_dt;
+      *Hdt = xd1_H_xd1Adj * xd1Adj_H_xd1Z * xd1Zero_H_dt  // no-lint
+             + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero * xd1Zero_H_dt;
     }
     if (Hu)
     {
-      (*Hu).col(mushr_types::Control::vel_desired) = xd1_H_xdd * xdd_H_stateDD * stateDD_H_AccIn * accIn_H_UaccIn;
-      (*Hu).col(mushr_types::Control::steering) =
-          xd1_H_xdd * xdd_H_Tb * Tb_H_beta * beta_H_delta * delta_H_Udelta +
-          xd1_H_xdd * xdd_H_stateDD * stateDD_H_omega * omega_H_beta * beta_H_delta * delta_H_Udelta;
+      const Eigen::Matrix<double, 3, 1> xd1Z_H_acc{ xd1Zero_H_qdd * qdd_H_AccIn * accIn_H_UaccIn };
+
+      (*Hu).col(mushr_types::Control::vel_desired) =  // no-lint
+          (xd1_H_xd1Adj * xd1Adj_H_xd1Z               // no-lint
+           + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero) *
+          xd1Z_H_acc;
+      (*Hu).col(mushr_types::Control::steering) =     // no-lint
+          (xd1_H_xd1Adj * xd1Adj_H_Tbeta * Tb_H_beta  // no-lint
+           + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_omega * omega_H_beta) *
+          beta_H_delta * delta_H_deltaIn;  // no-lint
     }
     if (Hparams)
     {
       (*Hparams).col(mushr_types::Control::vel_desired) =
-          xd1_H_xdd * xdd_H_stateDD * stateDD_H_AccIn * accIn_H_paramAccIn;
-      (*Hparams).col(mushr_types::Control::steering) =
-          xd1_H_xdd * xdd_H_Tb * Tb_H_beta * beta_H_delta * delta_H_paramDelta +
-          xd1_H_xdd * xdd_H_stateDD * stateDD_H_omega * omega_H_beta * beta_H_delta * delta_H_paramDelta;
+          xd1_H_xd1Adj * xd1Adj_H_xd1Z * xd1Zero_H_qdd * qdd_H_AccIn * accIn_H_paramAccIn  // no-lint
+          + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero * xd1Zero_H_qdd * qdd_H_AccIn *
+                accIn_H_paramAccIn;
+      (*Hparams).col(mushr_types::Control::steering) = Eigen::Vector3d::Zero();
+      (*Hparams).col(mushr_types::Control::friction) = Eigen::Vector3d::Zero();  // xd1_H_xddF * xddF_H_F;
     }
 
     return xd1;
@@ -829,15 +956,18 @@ public:
                               OptDeriv Hxd1 = boost::none, OptDeriv Hxd0 = boost::none, OptDeriv Hu = boost::none,
                               OptDeriv Hdt = boost::none) const override
   {
-    const StateDot xdp1{ predict(xd0, u, dt, _params, Hxd0, Hu, Hdt) };
+    const StateDot xdp1{ predict(xd0, u, dt, _params, _steering_poly, Hxd0, Hu, Hdt) };
     if (Hxd1)
     {
       *Hxd1 = -Eigen::Matrix<double, 3, 3>::Identity();
     }
+    // PRX_DBG_VARS(xd1.transpose());
+
     return xdp1 - xd1;
   }
 
 private:
+  const Polynomial _steering_poly;
   const Params _params;
 };
 

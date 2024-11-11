@@ -14,6 +14,7 @@ public:
     const std::string root{ ros::this_node::getNamespace() };
     const std::string topic_name{ root + "/sensordata" };
     _publisher = nh.advertise<interface::SensorDataStamped>(topic_name, 1000, true);
+    _message.header.frame_id = root;
   }
 
   void run()

@@ -220,9 +220,6 @@ public:
     ofs_data << "ObstacleMode: " << _mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
 
-    // for (int i = 0; i < _id_x_hat; ++i)
-    // {
-    // }
     gtsam::Values estimate{ _isam.calculateEstimate() };
     ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     ofs_branch << "# id point[...]\n";
@@ -703,7 +700,6 @@ public:
   {
     // _u01 = _isam.calculateEstimate<Control>(_key_u01);
     // _dt01 = _isam.calculateEstimate<double>(_key_dt);
-    // LOG_VARS(_u01.transpose(), _dt01);
     const ControlTranspose u_fg{ _u01.transpose() };
     const ControlTranspose u_plan{ _u_plan.transpose() };
     // DEBUG_VARS(u_fg, u_plan, _dt01);
@@ -714,6 +710,11 @@ public:
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
     _stamped_control_publisher.publish(_control_stamped);
+
+    gtsam::Values estimate{ _isam.calculateEstimate() };
+    const StateKeys state_keys{ SystemInterface::keyState(1, _x_curr) };
+    LOG_VARS(_x_curr, _u01.transpose(), _dt01);
+    estimates_to_file<0>(dbg::variables::ofs_log, estimate, state_keys, false);
   }
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, int x_id)
@@ -781,6 +782,46 @@ public:
     {
       // dbg_isam(graph_values.first, graph_values.second);
       _isam2_result = _isam.update(graph_values.first, graph_values.second);
+
+      // _key_u01 = SystemInterface::keyU(edge_id - 1, edge_id);
+      // _key_dt = SystemInterface::keyT(edge_id - 1, edge_id);
+      // _u01 = _isam.calculateEstimate<Control>(_key_u01);
+      // _dt01 = _isam.calculateEstimate<double>(_key_dt);
+
+      if constexpr (std::is_same_v<State, typename prx::fg::SE2_t>)
+      {
+        // LOG_VARS(edge.source);
+        // std::streambuf* coutbuf = std::cout.rdbuf();       // save old buf
+        // std::cout.rdbuf(dbg::variables::ofs_log.rdbuf());  // redirect std::cout to out.txt!
+
+        // DEBUG_VARS(node_parent.index, node_current.index);
+        // gtsam::Values estimate{ _isam.calculateEstimate() };
+        // estimate.print("Local values", SF::formatter);
+        // gtsam::NonlinearFactorGraph fg{ _isam.getFactorsUnsafe() };
+        // fg.printErrors(estimate, "Local FG", SF::formatter);
+        // std::cout.rdbuf(coutbuf);
+        // gtsam::Values estimate{ _isam.calculateEstimate() };
+        // const ControlTranspose u_fg{ _u01.transpose() };
+        // const ControlTranspose u_plan{ _u_plan.transpose() };
+        // const StateKeys state_keys{ SystemInterface::keyState(1, edge.source) };
+
+        // using StateDot = typename SystemInterface::StateDot;
+        // using StateStateDotFactor = prx_models::mushr_x_xdot_t;
+        // const gtsam::Key k_x0{ SystemInterface::keyX(1, edge.source) };
+        // const gtsam::Key k_xdot0{ SystemInterface::keyXdot(1, edge.source) };
+        // const gtsam::Key k_t01{ SystemInterface::keyT(edge.source, edge.target) };
+        // const State x0{ estimate.at<State>(k_x0) };
+        // const StateDot xdot0{ estimate.at<StateDot>(k_xdot0) };
+        // const double t01{ estimate.at<double>(k_t01) };
+        // const State x1p{ StateStateDotFactor::predict(x0, xdot0, t01) };
+        // State x1{};
+        // SystemInterface::state(x1, node_current.point);
+
+        // LOG_VARS(x0, xdot0.transpose(), t01);
+        // LOG_VARS(x1, x1p);
+        // LOG_VARS(edge.source, _u01.transpose(), _dt01);
+        // estimates_to_file<0>(dbg::variables::ofs_log, estimate, state_keys, false);
+      }
     }
     catch (gtsam::IndeterminantLinearSystemException e)
     {

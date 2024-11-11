@@ -8,17 +8,19 @@
   <default>
     <default class="buddy_wheel">
       <!-- <geom  type="cylinder" friction="0 0. 0.0" contype="1" conaffinity="1" size=".05 0.02" euler="1.57 0 0" mass="0.498952" condim="3"/> -->
-      <geom type="ellipsoid"  size="0.05 0.03 0.05"  friction="0 0. 0.0" condim="6" contype="1" conaffinity="0" mass="0.498952" solimp="0 0.95 0.001 0.5 2" solref="0.02 1" margin="0"/>
+      <geom type="ellipsoid"  size="0.05 0.03 0.05"  friction="0 0. 0.0" condim="6" contype="1" conaffinity="0" mass="0.1" solimp="0 0.95 0.001 0.5 2" solref="0.02 1" margin="0"/>
     </default>
     <default class="buddy_steering">
       <joint type="hinge" axis="0 0 1" limited="true" frictionloss="0.01" damping="0.001" armature="0.0002" range="-0.38 0.38"/>
     </default>
     <default class="buddy_throttle">
-      <joint type="hinge" axis="0 1 0" frictionloss="0.001" damping="0.01" armature="0.01" limited="false"/>
+      <joint type="hinge" axis="0 1 0" frictionloss="0.001" damping="0.01" armature="0.01" limited="false" />
     </default>
     <default class="buddy_suspension">
-        <joint type="slide" axis="0 0 1" frictionloss="0.001" stiffness="500.0" springref="-0.05" damping="12.5" armature="0.01" limited="false"/>
-      </default>
+      <joint type="slide" axis="0 0 1" frictionloss="0.001" stiffness="500.0" springref="-0.05" damping="12.5" armature="0.01" limited="false"/>
+    </default>
+    <!-- <default class="buddy_accel_act"> -->
+    <!-- </default> -->
   </default>
   <worldbody>
     <!-- <body name="buddy" pos="2.0 1.0 0.25" euler="0 0 1.5707963268"> -->
@@ -71,7 +73,10 @@
     </body>
   </worldbody>
   <actuator>
-    <motor gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity" tendon="buddy_throttle"/>
+    <general name="buddy_throttle_velocity" tendon="buddy_throttle" actlimited="false" dyntype="integrator" gaintype="affine"  gainprm="1 0 0" biastype="affine" biasprm="0 0 0"/>
+
+    <!-- <intvelocity actrange="-1 1" gear="1" name="buddy_throttle_velocity" tendon="buddy_throttle" ctrllimited="false" kp="1" /> -->
+    <!-- <motor gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity" tendon="buddy_throttle"/> -->
     <position class="buddy_steering" kp="25.0" name="buddy_steering_pos" joint="buddy_steering_wheel"/>
   </actuator>
   <equality>
@@ -83,16 +88,16 @@
   </equality>
   <tendon>
     <fixed name="buddy_throttle">
-      <joint joint="buddy_wheel_fl_throttle" coef="0.25"/>
-      <joint joint="buddy_wheel_fr_throttle" coef="0.25"/>
-      <joint joint="buddy_wheel_bl_throttle" coef="0.25"/>
-      <joint joint="buddy_wheel_br_throttle" coef="0.25"/>
+      <joint joint="buddy_wheel_fl_throttle" coef="1.0"/>
+      <joint joint="buddy_wheel_fr_throttle" coef="1.0"/>
+      <joint joint="buddy_wheel_bl_throttle" coef="1.0"/>
+      <joint joint="buddy_wheel_br_throttle" coef="1.0"/>
     </fixed>
   </tendon>
   <sensor>
    <!-- Frame position-->
-    <!-- <framepos name="global_position" objtype="xbody" objname="buddy"/> -->
-    <!-- <framequat name="global_orientation" objtype="xbody" objname="buddy"/> -->
-    <velocimeter name="velocimeter" site="buddy_imu"/>
+    <framepos name="global_position" objtype="xbody" objname="buddy"/>
+    <framequat name="global_orientation" objtype="xbody" objname="buddy"/>
+    <!-- <velocimeter name="velocimeter" site="buddy_imu"/> -->
   </sensor>
 </mujoco>
