@@ -854,10 +854,7 @@ public:
     // {
     //   AccIn = Uaccel * param_AccIn;
     // }
-    // const double AccIn{ fit(Vprev) };
-    // PRX_DBG_VARS(Uaccel, AccIn);
-    // const double delta{ delta_gain * deltaIn + delta_offset };
-    //
+
     Eigen::Matrix<double, 1, 1> accIn_H_paramAccIn{ Uaccel };
     Eigen::Matrix<double, 1, 1> delta_H_paramDelta{ u[mushr_types::Control::steering] };
     Eigen::Matrix<double, 1, 1> accIn_H_UaccIn{ param_AccIn };
@@ -866,7 +863,8 @@ public:
     const double beta{ mushr_types::Control::beta(delta, Hu ? &beta_H_delta : nullptr) };
     const double beta_prev{ std::atan2(xd0[1], xd0[0]) };
     const double norm2{ xd0.head(2).squaredNorm() };
-    const Eigen::RowVector3d bprev_H_xd0{ -xd0[1] / norm2, xd0[0] / norm2, 0.0 };
+    const Eigen::RowVector3d bprev_H_xd0{ norm2 < 1e-6 ? Eigen::RowVector3d::Zero() :
+                                                         Eigen::RowVector3d(-xd0[1] / norm2, xd0[0] / norm2, 0.0) };
     // [-y/(x^2 + y^2), x/(x^2 + y^2)]
 
     const double omega{ 2.0 * std::sin(beta) / L };
@@ -898,7 +896,6 @@ public:
     const StateDot xd1Adj{ T_beta.adjoint(xd1_zero, xd1Adj_H_Tbeta, xd1Adj_H_xd1Z) };
     const StateDot xd1{ xd1Adj + w_new };
     // PRX_DBG_VARS(xd1Adj.transpose(), w_new.transpose());
-    // PRX_DBG_VARS(xd1.transpose());
 
     const double thdPrev_H_omegaPrev{ Vprev };
     const double thdPrev_H_Vprev{ omega_prev };
@@ -906,8 +903,9 @@ public:
     const double thdCurr_H_omega{ Vcurr };
     const double thdCurr_H_Vcurr{ omega };
 
-    const Eigen::Matrix<double, 3, 1> wNew_H_thdCurr{ 0.0, 0.0, 1.0 };
-    const Eigen::Matrix<double, 3, 1> wNew_H_thdPrev{ 0.0, 0.0, -1.0 };
+    const Eigen::Matrix<double, 3, 1> wNew_H_friction{ 0.0, 0.0, (thd_curr - thd_prev) };
+    const Eigen::Matrix<double, 3, 1> wNew_H_thdCurr{ 0.0, 0.0, friction };
+    const Eigen::Matrix<double, 3, 1> wNew_H_thdPrev{ 0.0, 0.0, -friction };
     const Eigen::Matrix3d xd1_H_xd1Adj{ Eigen::Matrix3d::Identity() };
     const Eigen::Matrix3d xd1_H_wNew{ Eigen::Matrix3d::Identity() };
     if (Hxd0)
@@ -920,6 +918,7 @@ public:
               xd1Zero_H_xd0                // no-lint
           + xd1_H_wNew * wNew_H_thdPrev *  // no-lint
                 (thdPrev_H_Vprev * Vprev_H_xd0 + thdPrev_H_omegaPrev * omegaPrev_H_bPrev * bprev_H_xd0);
+      // PRX_DBG_VARS(*Hxd0);
     }
     if (Hdt)
     {

@@ -21,11 +21,15 @@ checker_value: 300
 # cost_multiplier: 2.5
 cost_multiplier: 1.0
 
-max_edge_duration: 0.5
+max_edge_duration: 0.1
+
+publish:
+  sln_tree: true
+  full_tree: false
 
 medial_axis:
-  # use: true
-  use: false
+  use: true
+  # use: false
   rate: 0.1
   directory: "${ML4KP_ROS}/data/medial_axis/"
   # filename: "${ML4KP_ROS}/data/medial_axis/simple_obstacle.txt"
