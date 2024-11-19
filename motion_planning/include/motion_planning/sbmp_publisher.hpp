@@ -26,6 +26,7 @@ namespace motion_planning
 template <class Planner, class PlannerSpecification, class PlannerQuery, class Base>
 class sbmp_publisher_t : public Base
 {
+  using Edge = typename Planner::Edge;
   using Derived = sbmp_publisher_t<Planner, PlannerSpecification, PlannerQuery, Base>;
 
 public:
@@ -174,10 +175,18 @@ protected:
   void publish_tree()
   {
     // DEBUG_VARS(_planner->tree().size(), _planner->tree().num_edges());
+    // _planner->tree().to_file("/Users/Gary/pracsys/catkin_ws/tree_original.txt");
+    // _planner->tree().template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_original.txt");
 
     prx::planning::discretize_tree(_planner->tree(), *_planner, _params["/planner/max_edge_duration"].as<double>());
-    copy<typename Planner::Node, typename Planner::Edge>(_tree, _planner->tree());
-    _tree_publisher.publish(_tree);
+    // _planner->tree().to_file("/Users/Gary/pracsys/catkin_ws/tree_discreet.txt");
+    // _planner->tree().template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_discreet.txt");
+
+    if (_params["/planner/publish/full_tree"].as<bool>())
+    {
+      copy<typename Planner::Node, Edge>(_tree, _planner->tree());
+      _tree_publisher.publish(_tree);
+    }
 
     // DEBUG_VARS(_planner->tree().size(), _planner->tree().num_edges());
     if (_params.exists("stela"))
@@ -185,11 +194,15 @@ protected:
       const prx::param_loader params_stela{ _params["stela"] };
       auto sln_tree = fulfill_stela_query(params_stela, _planner, _query);
       DEBUG_VARS(sln_tree->size(), sln_tree->num_edges());
-      sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree.txt");
+      // sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree_sln.txt");
+      // sln_tree->template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_sln.txt");
 
-      prx_models::Tree sln_ros_tree;
-      copy<typename Planner::Node, typename Planner::Edge>(sln_ros_tree, *sln_tree);
-      _sln_tree_publisher.publish(sln_ros_tree);
+      if (_params["/planner/publish/sln_tree"].as<bool>())
+      {
+        prx_models::Tree sln_ros_tree;
+        copy<typename Planner::Node, typename Planner::Edge>(sln_ros_tree, *sln_tree);
+        _sln_tree_publisher.publish(sln_ros_tree);
+      }
     }
     viz_tree();
   }
