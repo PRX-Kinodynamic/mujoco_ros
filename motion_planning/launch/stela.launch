@@ -8,6 +8,7 @@
   <arg name="stela_file" default="$(find motion_planning)/config/stela.yaml"/>
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
+  <arg name="naive_guess" default="false"/>
   <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <!-- <arg name="environment" default="environments/forest.yaml"/> -->
@@ -19,9 +20,9 @@
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
-  <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
+  <arg name="data_dir" default="/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data"/>
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/tunning"/> -->
-  <arg name="simulation_step" default="0.01"/>
+  <arg name="simulation_step" default="0.1"/>
   <arg name="collect_data" default="true"/>
   <arg name="sim_clock" default="false"/>
   <arg name="random_seed" default="390489"/>
@@ -51,6 +52,8 @@
   <arg name="num_workers" default="8"/>
   <arg name="feedback_lookahead" default="3"/>
   <arg name="stela_time_based" default="true"/>
+  <arg name="limit_ctrl" default="false"/>
+  <arg name="no_opt" default="false"/>
   <arg name="sln_tree" default="/stela/sbmp/sln_tree"/>
   <arg name="control_frequency" default="30"/>
   <arg name="report_control_frequency" default="true"/>
@@ -293,6 +296,7 @@ launch-prefix="gdb --args">
     <node if="$(eval arg('planner') == 'Scate')" pkg="nodelet" type="nodelet" 
       name="scate" args="load motion_planning/ScateLtvSde stela_nodelet_manager" output="screen" >
       <param name="solution_tree_topic" value="$(arg sln_tree)"/>
+      <param name="sbmp_tree_topic" value="/scate/sbmp/sln_tree"/>
       <param name="control_topic" value="$(arg control_topic)"/> 
       <param name="control_frequency" value="30"/>
       <param name="world_frame" value="$(arg world_frame)"/>
@@ -300,11 +304,17 @@ launch-prefix="gdb --args">
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="obstacle_activation_distance" value="$(arg obstacle_distance_tolerance)"/>
       <param name="fg_iterations"  value="100"/>
-      <param name="naive_guess"     value="true"/>
+      <param name="naive_guess" value="$(arg naive_guess)"/>
       <param name="environment" value="$(arg environment)"/>
       <param name="plant_file" value="$(arg plant_file)"/>
       <param name="total_states" value="$(arg total_states)"/>
-      <param name="init_ctrl"  type="yaml" value="[0.5,0.5]"/>
+      <param name="init_ctrl"  type="yaml" value="[0.0,0.0]"/>
+      <param name="limit_ctrl" value="$(arg limit_ctrl)"/>
+      <param name="min_control_limit" type="yaml" value="[-0.2, -0.2]" />
+      <param name="max_control_limit" type="yaml" value="[0.2, 0.2]" />
+      <!-- <param name="min_control_limit" type="yaml" value="[-200, -200]" />
+      <param name="max_control_limit" type="yaml" value="[200, 200]" /> -->
+      <param name="collision_topic" value="$(arg collision_topic)"/>
       <param name="output_dir" value="$(arg data_dir)"/>
       <param name="init_duration"   value="0.1"/>
       <param name="time_factor" value="false"/>

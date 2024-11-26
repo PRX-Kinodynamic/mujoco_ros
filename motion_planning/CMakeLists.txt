@@ -80,11 +80,11 @@ find_package(iceoryx_hoofs CONFIG REQUIRED)
 #   FILES
 #   MushrPlanner.srv
 # )
-if(GTSAM_USE_TBB)
-  message(STATUS "GTSAM is using TBB")
-  find_package(TBB 4.4 COMPONENTS tbb tbbmalloc)
+# if(GTSAM_USE_TBB)
+#   message(STATUS "GTSAM is using TBB")
+#   find_package(TBB 4.4 COMPONENTS tbb tbbmalloc)
 
-endif()
+# endif()
 
 set(BUILD_FLAGS "-O3")
 if (UNIX AND NOT APPLE)

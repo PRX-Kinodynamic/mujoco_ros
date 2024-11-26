@@ -25,7 +25,14 @@ class scate_t : public Base
   using State = typename SystemInterface::State;
   using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
+  using StateKeys = typename SystemInterface::StateKeys;\
+  using StateEstimates = typename SystemInterface::StateEstimates;
   using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
+  using LessThanCmp = prx::fg::VectorLessThanCmp<Control>;
+  using GreaterThanCmp = prx::fg::VectorGreaterThanCmp<Control>;
+  using MaxControlLimitFactor = prx::fg::constraint_factor_t<Control, GreaterThanCmp>;
+  using MinControlLimitFactor = prx::fg::constraint_factor_t<Control, LessThanCmp>;
+
   using SF = prx::fg::symbol_factory_t;
 
 public:
@@ -39,26 +46,29 @@ public:
     , _tf_listener(_tf_buffer)
     , _isam(_isam_params)
     , _isam_initialized(false)
-    , _current_node(0)
+    , _current_node(-1)
     , _fix_sigmas(1.0)
     , _obstacle_activation_distance(1.0)
     , _files_created(false)
     , _experiment_id("test")
-    , _lm_params(prx::fg::default_levenberg_marquardt_parameters()) {};
+    , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
+    , _tree_received(false)  {};
 
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
-
-    std::string tree_topic_name;
     std::string graph_topic_name{ "" };
     std::string control_topic;
+    std::string collision_topic;
     double control_frequency;
     double& obstacle_activation_distance{ _obstacle_activation_distance };
     double& fix_sigmas{ _fix_sigmas };
     double& obstacle_sigma{ _obstacle_sigma };
-    std::string environment, solution_tree_topic;
+    std::vector<double> min_control_limit;
+    std::vector<double> max_control_limit;
+    std::string environment, solution_tree_topic, sbmp_tree_topic;
     bool& time_factor{ _time_factor };
+    bool& limit_ctrl{ _limit_controls };
     bool naive_guess{ false };
     int fg_iterations{ 100 };
     std::string& world_frame{ _world_frame };
@@ -68,6 +78,7 @@ public:
     std::string& experiment_id{ _experiment_id };
 
     PARAM_SETUP(private_nh, solution_tree_topic);
+    PARAM_SETUP(private_nh, sbmp_tree_topic);
     PARAM_SETUP(private_nh, control_topic);
     PARAM_SETUP(private_nh, control_frequency);
     PARAM_SETUP(private_nh, world_frame);
@@ -76,26 +87,42 @@ public:
     PARAM_SETUP(private_nh, obstacle_activation_distance)
     PARAM_SETUP(private_nh, environment);
     PARAM_SETUP(private_nh, time_factor);
-    PARAM_SETUP(private_nh, output_dir)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations)
+    PARAM_SETUP(private_nh, collision_topic)
+    PARAM_SETUP(private_nh, limit_ctrl);
+    PARAM_SETUP(private_nh, output_dir);
+    PARAM_SETUP(private_nh, min_control_limit);
+    PARAM_SETUP(private_nh, max_control_limit);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fix_sigmas, fix_sigmas);
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id);
+
+    _is_sbmp_init = !naive_guess;
+
+    DEBUG_VARS(_is_sbmp_init);
+
+    _min_control_limit = Eigen::Map<Control>(min_control_limit.data(), min_control_limit.size());
+    _max_control_limit = Eigen::Map<Control>(max_control_limit.data(), max_control_limit.size());
 
     _lm_params.setUseFixedLambdaFactor(true);
     _lm_params.setMaxIterations(fg_iterations);
     _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
 
-    // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
     const std::string stamped_control_topic{ control_topic + "_stamped" };
-
-    // _ol_timer = private_nh.createTimer(control_timer, &Derived::control_timer_callback, this);
+    const std::string finish_topic{ ros::this_node::getNamespace() + "/finished" };
 
     _control_publisher = private_nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1, true);
+    _finish_publisher = private_nh.advertise<std_msgs::Bool>(finish_topic, 1, true);
     _stamped_control_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
 
-    // const std::string scate_tree_topic_name{ ros::this_node::getNamespace() + "/scate/tree" };
     _tree_publisher = private_nh.advertise<prx_models::Tree>(solution_tree_topic, 1, true);
+
+    if (_is_sbmp_init) {
+      DEBUG_VARS(sbmp_tree_topic);
+      _tree_subscriber = private_nh.subscribe(sbmp_tree_topic, 1, &Derived::init_from_sbmp, this);
+    }
+      
+    _collision_subscriber = private_nh.subscribe(collision_topic, 1, &Derived::collision_callback, this);
 
     _control_stamped.header.seq = 0;
     _control_stamped.header.stamp = ros::Time::now();
@@ -105,53 +132,65 @@ public:
 
     auto obstacles = prx::load_obstacles(environment);
     _obstacle_list = obstacles.second;
-    DEBUG_VARS(environment, _obstacle_list.size());
+    // DEBUG_VARS(environment, _obstacle_list.size());
 
     const std::string plant_name{ SystemInterface::plant_name };
     _plant = prx::system_factory_t::create_system(plant_name, plant_name);
     _robot_collision_ptr = SystemInterface::collision_geometry();
     _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
+    double& init_duration{ _init_duration };
+    PARAM_SETUP(private_nh, init_duration);
+
+    utils::get_param_and_check(private_nh, "/Plant/start_state", _start_state);
+    DEBUG_VARS("Start state: ", _start_state);
+    
+    utils::get_param_and_check(private_nh, "/Plant/goal/state", _goal_state);
+    DEBUG_VARS("Goal state: ", _goal_state);
+    
     if (naive_guess)
     {
       int& total_states{ _total_states };
       std::vector<double>& init_ctrl{ _init_ctrl };
-      double& init_duration{ _init_duration };
-      utils::get_param_and_check(private_nh, "/Plant/start_state", _start_state);
-      utils::get_param_and_check(private_nh, "/Plant/goal/state", _goal_state);
       PARAM_SETUP(private_nh, total_states);
       PARAM_SETUP(private_nh, init_ctrl);
-      PARAM_SETUP(private_nh, init_duration);
     }
 
+    DEBUG_VARS(control_frequency);
     const ros::Duration control_timer(1.0 / control_frequency);
     _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);
   }
 
+  void collision_callback(const std_msgs::BoolConstPtr& msg)
+  {
+    if (msg->data)
+    {
+      to_file(true);
+    }
+  }
+
   void action_function(const ros::TimerEvent& event)
   {
-    update_current_node(event);
+    // std::cout << "Action function" << std::endl;
 
-    if (_isam_initialized)
+    if (!is_initialized())
     {
-      publish_tree();
-      _start_time = ros::Time::now();
+      if (_is_sbmp_init){
+        return;
+      }
+      else {
+        init_from_naive_guess();
+        _isam_initialized = true;
+      }
     }
-    else
-    {
-      init_from_naive_guess();
-      _isam_initialized = true;
-      // _current_estimate.print("Initial estimate: ", SF::formatter);
-      // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
-        // printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 1.0; };
-      // _factor_graph.printErrors(_current_estimate, "isam graph: ", SF::formatter, printCondition);
+    
+    bool is_node_updated = update_current_node(event);
+    bool added_observations = false;
+    // bool added_observations = add_observations();
 
-    }
+    publish_tree();
 
-    // DEBUG_VARS("Starting Publishing Control", _current_node);
-    if (_current_node < _total_states && add_observations())
-    {
-      // DEBUG_VARS("Publishing Control", _current_node);
+    if (_current_node < _total_states and (added_observations or is_node_updated)){
       publish_control();
     }
   }
@@ -169,8 +208,38 @@ public:
     return false;
   }
 
+  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    using StateType = typename std::tuple_element<I, StateEstimates>::type;
+    const gtsam::Key key{ keys[I] };
+    const StateType state{ estimate.at<StateType>(key) };
+    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    const Eigen::VectorXd diagonal{ cov.diagonal() };
+
+    // ofs << i << " ";
+    ofs << SF::formatter(key) << " ";
+    for (int i = 0; i < diagonal.size(); ++i)
+    {
+      ofs << state[i] << " ";
+    }
+    for (int i = 0; i < diagonal.size(); ++i)
+    {
+      ofs << diagonal[i] << " ";
+    }
+    estimates_to_file<I + 1>(ofs, estimate, keys);
+    // ofs << "\n";
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    ofs << "\n";
+  }
+
   void to_file(const bool collision = false, const bool raised_exception = false)
   {
+    SF::symbols_to_file("/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/symbols.txt");
     // if (_files_created)
     //   return;
 
@@ -195,7 +264,7 @@ public:
     // gtsam::Values estimate{ _isam.calculateEstimate() };
     // ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
     // ofs_branch << "# id point[...]\n";
-    // for (int node_id = 0; i< _total_states; ++node_id)
+    // for (int node_id = 0; node_id< _total_states; ++node_id)
     // {
     //   ofs << node_id << " ";
     //   const StateKeys keys{ SystemInterface::keyState(1, node_id) };
@@ -211,55 +280,51 @@ public:
 
     // _files_created = true;
 
+    
+    // const Control u {Control::Zero() };
+    
+    // ml4kp_bridge::copy(_control_stamped.space_point, u);
+
+    // _control_stamped.header.seq++;
+    // _control_stamped.header.stamp = ros::Time::now();
+
+    // _stamped_control_publisher.publish(_control_stamped);
+
     // std_msgs::Bool msg;
     // msg.data = true;
     // _finish_publisher.publish(msg);
-    // _tree_recevied = false;
 
     // PRX_DBG_VARS(collision);
 
-    // ros::Rate rate(1);
-    // rate.sleep();
-    // ros::shutdown();
+    ros::Rate rate(1);
+    rate.sleep();
+    ros::shutdown();
   }
 
-  void update_current_node(const ros::TimerEvent& event)
-  {
-    if (!_isam_initialized)
-    {
-      _next_node_time_stamp = event.current_expected + ros::Duration(_init_duration);
-      _current_node = 0;
-      return;
-    }
+  bool is_initialized() const { return _is_sbmp_init ? _tree_received : _isam_initialized; }
 
-    if (_current_node >= _total_states){
+  bool update_current_node(const ros::TimerEvent& event)
+  {
+    if (_current_node == -1)
+    {
+      _next_node_time_stamp = event.current_real + ros::Duration(_init_duration);
+      _current_node = 0;
+      return true;
+    }
+    else if (_current_node >= _total_states){
       ROS_WARN("Finished! Creating file");
       to_file();
-      return;
-    }
-
-    if (event.current_real > _next_node_time_stamp)
-    {
-     std::cout << "Missed node update" << std::endl;
-    }
-
-    if (event.current_real == _next_node_time_stamp)
-    {
-      std::cout << "Exact node update" << std::endl;
-    }
-
-    if (event.current_real < _next_node_time_stamp)
-    {
-      std::cout << "Early node update" << std::endl;
+      return false;
     }
 
     if (event.current_real >= _next_node_time_stamp)
     {
       _current_node++;
       _next_node_time_stamp += ros::Duration(_init_duration);
-      std::cout << "Updated current node: " << _current_node << std::endl;
+      return true;
     }
-    
+
+    return false;
   }
 
   bool add_observations()
@@ -283,7 +348,21 @@ public:
         current_node = _current_node;
       }
 
-      const GraphValues graph_values_z{ SystemInterface::add_observation_factor(prev_node, current_node, z_new, _init_duration, 0.01) };
+      // if (_current_node == _total_states-1) {
+      //   prev_node = _current_node - 1;
+      //   current_node = _current_node;
+      // }
+      // else {
+      //   prev_node = _current_node;
+      //   current_node = _current_node + 1;
+      // }
+
+      // double duration = (_tf.header.stamp - _next_node_time_stamp + ros::Duration(_init_duration)).toSec();
+      double duration = _init_duration;
+
+      DEBUG_VARS(duration);
+
+      const GraphValues graph_values_z{ SystemInterface::add_observation_factor(prev_node, current_node, z_new, duration, 0.01) };
 
       _factor_graph += graph_values_z.first;
       _current_estimate.insert(graph_values_z.second);
@@ -299,8 +378,18 @@ public:
   void publish_control()
   {
     const gtsam::Key uKey{ SystemInterface::keyU(_current_node, _current_node + 1) };
+    const gtsam::Key xkey{ SystemInterface::keyX(1, _current_node) };
+    const gtsam::Key xDotKey{ SystemInterface::keyXdot(1, _current_node) };
+  
 
     const Control u{ _current_estimate.at<Control>(uKey) };
+    
+    
+    const State x{ _current_estimate.at<State>(xkey) };
+    const State xdot{ _current_estimate.at<StateDot>(xDotKey) };
+
+  // const std::string xstr{SF::formatter(xkey)};
+    // DEBUG_VARS(u.transpose());
 
     ml4kp_bridge::copy(_control_stamped.space_point, u);
 
@@ -320,6 +409,116 @@ public:
     }
   }
 
+  void control_limit_factors(int i)
+  {
+    const gtsam::Key uKey{ SystemInterface::keyU(i, i + 1) };
+    _control_limit_graph.emplace_shared<MinControlLimitFactor>(uKey, _min_control_limit);
+    _control_limit_graph.emplace_shared<MaxControlLimitFactor>(uKey, _max_control_limit);
+  }
+
+  void init_from_sbmp(const prx_models::TreeConstPtr& msg)
+  {
+    std::cout << "Received tree" << std::endl;
+
+    const ros::Time start{ ros::Time::now() };
+    const std::size_t total_tree_nodes{ msg->nodes.size() };
+
+    const prx_models::Node& root_node{ msg->nodes[msg->root] };
+    _values = gtsam::Values();
+
+    GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, root_node.point) };
+
+    DEBUG_VARS(msg->root);
+
+    auto child_id = root_node.children[0];
+    int idx = 0;
+
+    while (child_id == msg->root and idx < root_node.children.size()) {
+      child_id = root_node.children[++idx];
+    }
+
+    if (child_id == msg->root) {
+      throw std::runtime_error("Root node has no children");
+    }
+
+    // Start and goal states do not count as states in the FG
+    _total_states = 1;
+
+    const prx_models::Node& node_child{ msg->nodes[child_id] };
+    std::uint64_t edge_id = node_child.parent_edge;
+
+    while(true) {
+      _total_states++;
+      const prx_models::Edge& edge{ msg->edges[edge_id] };
+      const prx_models::Node& node_parent{ msg->nodes[edge.source] };
+      const prx_models::Node& node_current{ msg->nodes[edge.target] };
+
+      const std::size_t total_children{ node_current.children.size() };
+
+      GraphValues graph_values;
+
+      if (total_children == 0)  // Is a leaf
+      {
+        graph_values = SystemInterface::leaf_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+      }
+      else
+      {
+        // Create a FG that goes from N0 to N1 with plan P01
+        graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+        // DEBUG_VARS(edge.plan);
+      }
+
+      if (msg->root != node_current.index)
+      {
+        obstacle_factors(node_current.point, edge.target);
+
+        if (_limit_controls) control_limit_factors(edge.target);
+      }
+
+      root_graph_values.first += graph_values.first;
+      root_graph_values.second.insert(graph_values.second);
+
+      if (total_children == 0) {
+        break;
+      }
+
+      const prx_models::Node& next_node_child{ msg->nodes[node_current.children[0]] };
+      edge_id = next_node_child.parent_edge;
+    }
+
+    std::cout << "Total states: " << _total_states << std::endl;
+
+    // Adding goal state
+    prx::space_t* ss{ _plant->get_state_space() };
+    ml4kp_bridge::SpacePoint goal_state{};
+    goal_state.point = _goal_state;
+    GraphValues graph_values{ SystemInterface::fix_cost(_total_states, goal_state, _fix_sigmas) };
+    root_graph_values.first += graph_values.first;
+    root_graph_values.second.insert(graph_values.second);
+
+    // Updating with obstacle and control limit factors
+    // root_graph_values.first += _obstacle_graph;
+    // root_graph_values.first += _control_limit_graph;
+
+    _factor_graph = root_graph_values.first;
+    _current_estimate = root_graph_values.second;
+
+    SF::symbols_to_file("/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/symbols.txt");
+
+    gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
+    _current_estimate = optimizer.optimize();
+    std::cout << "Optimization done" << std::endl;
+
+    const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+        printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 0.1; };
+
+    // _current_estimate.print("Initial estimate: ", SF::formatter);
+
+    // _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
+
+    _tree_received = true;
+  }
+
   void init_from_naive_guess()
   {
     prx::space_t* ss{ _plant->get_state_space() };
@@ -332,7 +531,7 @@ public:
 
     state.point = _start_state;
     GraphValues root_graph_values{ SystemInterface::fix_cost(0, state, _fix_sigmas) };
-    obstacle_factors(state, 0);
+    if (_limit_controls) control_limit_factors(0);
 
     for (int i = 1; i <= _total_states; ++i)
     {
@@ -346,20 +545,30 @@ public:
       root_graph_values.first += graph_values.first;
       root_graph_values.second.insert(graph_values.second);
       obstacle_factors(state, i);
+      if (_limit_controls) control_limit_factors(i);
     }
 
     ss->copy(state.point, _goal_state);
-    DEBUG_VARS(_total_states);
+    // DEBUG_VARS(_total_states);
     GraphValues graph_values{ SystemInterface::fix_cost(_total_states, state, _fix_sigmas) };
     root_graph_values.first += graph_values.first;
     root_graph_values.first += _obstacle_graph;
+    root_graph_values.first += _control_limit_graph;
 
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
+    std::cout << "Starting optimization" << std::endl;
     gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
-
     _current_estimate = optimizer.optimize();
+    std::cout << "Optimization done" << std::endl;
+
+    const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+        printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 0.1; };
+
+    _current_estimate.print("Initial estimate: ", SF::formatter);
+
+    _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
   }
 
   void publish_tree()
@@ -396,7 +605,7 @@ public:
 
 private:
   Values _values;
-  FactorGraph _factor_graph, _obstacle_graph;
+  FactorGraph _factor_graph, _obstacle_graph, _control_limit_graph;
 
   // gtsam
   gtsam::ISAM2Params _isam_params;
@@ -409,6 +618,9 @@ private:
   ros::Publisher _control_publisher;
   ros::Publisher _stamped_control_publisher;
   ros::Publisher _tree_publisher;
+  ros::Publisher _finish_publisher;
+  ros::Subscriber _tree_subscriber;
+  ros::Subscriber _collision_subscriber;
 
   ros::Timer _control_timer;
 
@@ -420,6 +632,8 @@ private:
   std_msgs::Header _prev_header;
 
   bool _isam_initialized;
+  bool _is_sbmp_init;
+  bool _tree_received;
   motion_planning::tree_manager_t _tree_manager;
   int _current_node;
 
@@ -434,6 +648,9 @@ private:
 
   double _obstacle_sigma;
   double _obstacle_activation_distance;
+  bool _limit_controls;
+  Control _min_control_limit;
+  Control _max_control_limit;
   gtsam::Values _current_estimate;
   gtsam::LevenbergMarquardtParams _lm_params;
 

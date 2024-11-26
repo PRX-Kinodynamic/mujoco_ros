@@ -88,7 +88,7 @@ protected:
     std::cout << "Plant: " << (*_plant) << std::endl;
 
     _start_state = _state_space->make_point();
-    _state_space->copy(_start_state, _params["/plant/start_state"].as<std::vector<double>>());
+    _state_space->copy(_start_state, _params["/plant/start_state"].template as<std::vector<double>>());
     _state_space->copy_from(_start_state);
 
     DEBUG_VARS(*_start_state);
@@ -136,8 +136,8 @@ protected:
     {
       _state_space->copy_from(_start_state);
     }
-    const std::string msg{ "New state" };
-    DEBUG_VARS(msg, *_state_space);
+    // const std::string msg{ "New state" };
+    // DEBUG_VARS(msg, *_state_space);
   }
 
   inline void control_callback(const ml4kp_bridge::SpacePointConstPtr message)
@@ -148,6 +148,7 @@ protected:
   inline void stamped_control_callback(const ml4kp_bridge::SpacePointStampedConstPtr message)
   {
     _control_space->copy_from(message->space_point.point);
+    // DEBUG_VARS(*_control_space);
   }
 
   void add_tf_noise(geometry_msgs::Transform& tf) const
@@ -165,6 +166,8 @@ protected:
     _state_msg.header.stamp = ros::Time::now();
     _state_space->copy_to(_state_msg.space_point.point);
     _state_publisher.publish(_state_msg);
+
+    // DEBUG_VARS(_state_msg.space_point.point);
 
     _tf_gt.header.stamp = ros::Time::now();
     _tf_noise.header.stamp = ros::Time::now();

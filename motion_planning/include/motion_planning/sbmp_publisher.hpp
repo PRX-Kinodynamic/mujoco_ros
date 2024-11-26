@@ -67,9 +67,9 @@ protected:
     }
     _params["planner/environment"] = environment;
 
-    prx::simulation_step = _params["/planner/simulation_step"].as<double>();
+    prx::simulation_step = _params["/planner/simulation_step"].template as<double>();
 
-    int random_seed{ _params["/planner/random_seed"].as<int>() };
+    int random_seed{ _params["/planner/random_seed"].template as<int>() };
     PARAM_SETUP_WITH_DEFAULT(private_nh, random_seed, random_seed);
     DEBUG_VARS(random_seed);
     prx::init_random(random_seed);
@@ -104,7 +104,7 @@ protected:
       DEBUG_VARS(use_medial_axis);
       if (use_medial_axis)
       {
-        ma_params["environment"] = _params["planner/environment"].as<>();
+        ma_params["environment"] = _params["planner/environment"].template as<>();
         _medial_axis = setup_medial_axis_sampler(ma_params, _query->start_state, _query->goal_state);
         // std::ofstream ofs("/common/home/eg585/prx_ros_ws/data/medial_axis_out.txt");
         // ofs.close();
@@ -178,11 +178,11 @@ protected:
     // _planner->tree().to_file("/Users/Gary/pracsys/catkin_ws/tree_original.txt");
     // _planner->tree().template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_original.txt");
 
-    prx::planning::discretize_tree(_planner->tree(), *_planner, _params["/planner/max_edge_duration"].as<double>());
+    prx::planning::discretize_tree(_planner->tree(), *_planner, _params["/planner/max_edge_duration"].template as<double>());
     // _planner->tree().to_file("/Users/Gary/pracsys/catkin_ws/tree_discreet.txt");
     // _planner->tree().template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_discreet.txt");
 
-    if (_params["/planner/publish/full_tree"].as<bool>())
+    if (_params["/planner/publish/full_tree"].template as<bool>())
     {
       copy<typename Planner::Node, Edge>(_tree, _planner->tree());
       _tree_publisher.publish(_tree);
@@ -197,7 +197,7 @@ protected:
       // sln_tree->to_file("/Users/Gary/pracsys/catkin_ws/tree_sln.txt");
       // sln_tree->template edges_to_file<Edge>("/Users/Gary/pracsys/catkin_ws/tree_edges_sln.txt");
 
-      if (_params["/planner/publish/sln_tree"].as<bool>())
+      if (_params["/planner/publish/sln_tree"].template as<bool>())
       {
         prx_models::Tree sln_ros_tree;
         copy<typename Planner::Node, typename Planner::Edge>(sln_ros_tree, *sln_tree);
@@ -209,11 +209,11 @@ protected:
 
   void viz_tree()
   {
-    if (_params["/planner/visualize"].as<bool>())
+    if (_params["/planner/visualize"].template as<bool>())
     {
       // _vis_group = std::make_unique<prx::three_js_group_t>(_plant, _obstacles.second);
       _vis_group.reset(new prx::three_js_group_t({ _plant }, { _obstacles.second }));
-      const std::string body_name{ _params["/plant/name"].as<>() + "/" + _params["/plant/vis_body"].as<>() };
+      const std::string body_name{ _params["/plant/name"].template as<>() + "/" + _params["/plant/vis_body"].template as<>() };
       auto ss = _system_group->get_state_space();
 
       _vis_group->add_vis_infos(prx::info_geometry_t::LINE, _query->tree_visualization, body_name, ss);

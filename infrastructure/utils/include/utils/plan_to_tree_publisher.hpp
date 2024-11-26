@@ -42,12 +42,12 @@ public:
 
     _plant_params = prx::param_loader(plant_ml4kp_params, "");
 
-    const std::string plant_name{ _plant_params["name"].as<>() };
+    const std::string plant_name{ _plant_params["name"].template as<>() };
     _plant = prx::system_factory_t::create_system(plant_name, plant_name);
     prx_assert(_plant != nullptr, "Plant is nullptr!");
     _plant->init(_plant_params);
     // DEBUG_VARS("Plan to traj", _plant)
-    prx::simulation_step = _plant_params["simulation_step"].as<double>();
+    prx::simulation_step = _plant_params["simulation_step"].template as<double>();
     _world_model.reset(new prx::world_model_t({ _plant }, {}));
     _world_model->create_context("sim_context", { plant_name }, {});
     auto context = _world_model->get_context("sim_context");
@@ -59,7 +59,7 @@ public:
     _plan = std::make_shared<prx::plan_t>(_system_group->get_control_space());
     // subscribers
     _plan_subscriber = private_nh.subscribe(plan_topic_name, 1, &Derived::plan_callback, this);
-    ss->copy(_start_state, _plant_params["start_state"].as<std::vector<double>>());
+    ss->copy(_start_state, _plant_params["start_state"].template as<std::vector<double>>());
 
     // publishers
     _tree_publisher = private_nh.advertise<prx_models::Tree>(tree_topic_name, 1, true);

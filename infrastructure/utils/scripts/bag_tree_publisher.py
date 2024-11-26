@@ -10,36 +10,42 @@ import random
 import rosbag
 import argparse
 
-ros_dir="/Users/Gary/pracsys/catkin_ws/"
-bag_dir=ros_dir+"bags/"
-bag_file="simple_obstacle_aorrt_003.bag"
-# bag_file="test_cost_aorrt_v2.bag"
+# ros_dir = "/Users/Gary/pracsys/catkin_ws/"
+# bag_dir = ros_dir + "bags/"
+# bag_file = "simple_obstacle_aorrt_003.bag"
+bag_file_path = "/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/bags/ltv_sde_forest_aorrt_30s_0p1_000.bag"
+
+publishing_topic = "/stela/sbmp/sln_tree"
+tree_topic = "/scate/sbmp/sln_tree"
+node_name = "bag_tree_publisher"
 
 
-tree_topic="/stela/sbmp/sln_tree"
-node_name="bag_tree_publisher"
-
-class launcher: 
+class launcher:
     def bag_publisher(self):
         # bag = rosbag.Bag(bag_dir + bag_file)
         bag = rosbag.Bag(self.bagfile)
-        for topic, msg, t in bag.read_messages(topics=[tree_topic]):
+        print("Publishing tree from bagfile:", self.bagfile)
+        print("Publishing from topic:", publishing_topic)
+        print("Publishing to topic:", tree_topic)
+        for topic, msg, t in bag.read_messages(topics=[publishing_topic]):
             self.tree_pub.publish(msg)
             # print(msg)
         bag.close()
 
     def __init__(self):
         rospy.init_node(node_name, anonymous=False)
-        # private_param = 
-        self.bagfile = rospy.get_param('~bagfile')
+        # private_param =
+        self.bagfile = bag_file_path
+        # self.bagfile = rospy.get_param("~bagfile")
         print("Using bagfile:", self.bagfile)
-        self.tree_pub = rospy.Publisher(tree_topic, Tree, queue_size=1,latch=True)
-        
+        self.tree_pub = rospy.Publisher(tree_topic, Tree, queue_size=1, latch=True)
+
         time.sleep(5)
-        self.bag_publisher();
+        self.bag_publisher()
         rospy.spin()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
     #                 prog='bag_tree_publisher',
     #                 description='What the program does',
