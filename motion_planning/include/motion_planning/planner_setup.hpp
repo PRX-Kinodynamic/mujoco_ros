@@ -97,30 +97,21 @@ void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::rrt_specif
       return x_cost + u_cost;
     };
   }
-  if (params["plant/name"].as<>() == "mushrFG")
-  {
-    // Q(3, 3) = 10;
-    // Q(4, 4) = 10;
-    // Q(5, 5) = 10;
-    spec->cost_function = [](const prx::trajectory_t& traj, const prx::plan_t& plan) {
-      double x_cost{ 0.0 };
-      double u_cost{ 0.0 };
-      const Eigen::Matrix<double, 6, 6> Q{ Eigen::DiagonalMatrix<double, 6>(0, 0, 0, 10, 10, 10) };
-      for (auto state : traj)
-      {
-        const Eigen::Vector<double, 6> xdot{ Vec(state) };
-        x_cost += xdot.transpose() * Q * xdot;
-        // x_cost += std::pow(state->at(3), 2) * 0.1;
-      }
-      // for (auto step : plan)
-      // {
-      // const Eigen::Vector2d u{ Vec(step.control) };
-      // u_cost += std::pow(u[0], 2);
-      // u_cost += u.transpose() * C * u;
-      // }
-      return x_cost + u_cost;
-    };
-  }
+  // if (params["plant/name"].as<>() == "mushrFG")
+  // {
+  //   std::vector<double> goal_vec{ params["plant/goal/state"].as<std::vector<double>>() };
+  //   const Eigen::Vector<double, 6> goal{ goal_vec[0], goal_vec[1], goal_vec[2], goal_vec[3], goal_vec[4], goal_vec[5]
+  //   }; DEBUG_VARS(goal.transpose());
+
+  //   spec->cost_function = [=](const prx::trajectory_t& traj, const prx::plan_t& plan) {
+  //     double x_cost{ 0.0 };
+  //     double u_cost{ 0.0 };
+  //     const Eigen::Matrix<double, 6, 6> Q{ Eigen::DiagonalMatrix<double, 6>(1, 1, 1, 2, 2, 2) };
+  //     const Eigen::Vector<double, 6> xp{ Vec(traj.front()) - goal };
+  //     x_cost += xp.transpose() * Q * xp;
+  //     return x_cost + u_cost;
+  //   };
+  // }
 }
 
 void setup_spec(const prx::param_loader& params, std::shared_ptr<prx::dirt_specification_t>& spec)

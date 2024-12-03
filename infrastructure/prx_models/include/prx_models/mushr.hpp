@@ -277,8 +277,8 @@ public:
     using ObservationFactor = prx::fg::lie_ode_observation_factor_t<State, StateDot>;
     // using ControlObservationFactor = prx::fg::lie_ode_observation_factor_t<Ubar, Control>;
     // using MushrObservationFactor = prx_models::mushr_observation_factor_t;
-    const State& x0_value{ std::get<0>(estimates) };
-    const StateDot& xdot0_value{ std::get<1>(estimates) };
+    // const State& x0_value{ std::get<0>(estimates) };
+    // const StateDot& xdot0_value{ std::get<1>(estimates) };
     // const Ubar& ubar0_value{ std::get<2>(estimates) };
     GraphValues graph_values;
 
@@ -373,8 +373,8 @@ public:
 
     graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
-    aux_graph.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
-                                                          default_params, default_poly);
+    graph_values.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
+                                                             default_params, default_poly);
     // aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
 
     // using StateStateDotFactor = prx_models::mushr_x_xdot_t;
@@ -394,9 +394,9 @@ public:
     graph_values.second.insert(k_t01, dt);
 
     // aux_graph.first.addPrior(k_u01, u01, u_prior_noise);
-    aux_graph.first.addPrior(k_xdot1, xdot1);
-    aux_graph.second.insert(k_xdot1, xdot1);
-    aux_graph.second.insert(k_u01, u01);
+    graph_values.first.addPrior(k_xdot1, xdot1);
+    graph_values.second.insert(k_xdot1, xdot1);
+    graph_values.second.insert(k_u01, u01);
 
     return graph_values;
   };
@@ -521,16 +521,6 @@ public:
     DEBUG_VARS(mushr_parameters);
   }
 
-  // Polynomial Curve Fit (poly3)
-  // f(x) = p1*x^3 + p2*x^2 + p3*x + p4
-
-  // Coefficients and 95% Confidence Bounds
-  //       Value     Lower     Upper
-  // p1    0.1045    0.0814    0.1275
-  // p2    0.0212    0.0094    0.0330
-  // p3    0.2357    0.2171    0.2543
-  // p4    0.0486    0.0421    0.0551
-
   // static inline mushr_types::Ubar::params default_params{ 0.929102, 0.752216, 0.398495 };
   static inline Parameters default_params{ 1.50000, 0.20000, 0.90000, 0.90000, 1.05000 };
   static inline Poly default_poly{ 0.1045, 0.0212, 0.2357, 0.0486 };
@@ -586,7 +576,6 @@ public:
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
-    // geometries["body"]->initialize_geometry({ 0.01, 0.01, 0.25 });
     geometries["body"]->generate_collision_geometry();
     geometries["body"]->set_visualization_color("0x00ff00");
     configurations["body"] = std::make_shared<prx::transform_t>();
@@ -600,7 +589,12 @@ public:
     const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
                              prx::gaussian_random(0.0, _state_dot_noise[1]),
                              prx::gaussian_random(0.0, _state_dot_noise[2]) };
-    _state_dot += w;
+    if (not _ctrl.isZero(1e-5))
+
+    {
+      // _ctrl += w.head;
+      _state_dot += w;
+    }
 
     _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);

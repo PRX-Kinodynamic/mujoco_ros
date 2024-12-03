@@ -76,4 +76,16 @@ inline void log_variables(std::string name, Vars... vars)
 }  // namespace dbg
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_VARS(...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
+#define PRINT_MSG(MSG)                                                                                                 \
+  {                                                                                                                    \
+    const std::string msg{ MSG };                                                                                      \
+    PRX_DBG_VARS(msg)                                                                                                  \
+  };
+
+#define PRINT_KEY(KEY)                                                                                                 \
+  {                                                                                                                    \
+    const std::string key{ SF::formatter(KEY) };                                                                       \
+    dbg::print_variables(std::cout, #KEY, key);                                                                        \
+  };
+
 // #define LOG_VARS_FILE(ofs, ...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);

@@ -20,7 +20,7 @@ template <typename Base>
 class simulator_t : public Base
 {
 public:
-  simulator_t() : _set_state_topic_name("/ml4kp/simulator/set_state"){};
+  simulator_t() : _set_state_topic_name("/ml4kp/simulator/set_state") {};
 
   virtual ~simulator_t()
   {
@@ -63,6 +63,7 @@ protected:
     prx::param_loader plant_params(plant_ml4kp_params, "");
     ml4kp_bridge::check_for_ros_params(plant_params, private_nh);
     _params["plant"] = plant_params;
+    plant_params.print();
 
     auto obstacles = prx::load_obstacles(environment);
     _obstacle_list = obstacles.second;

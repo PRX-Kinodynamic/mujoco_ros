@@ -1,0 +1,65 @@
+<launch> 
+    <arg name="control_topic" default="/stela/sbmp/control"/> 
+    <arg name="planner" default="StelaWindowed"/>
+    <arg name="Plant" default="ltv_sde"/>
+    <arg name="control_frequency" default="30"/>
+    <arg name="world_frame" default="world"/>
+    <arg name="robot_frame" default="robot"/>
+    <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
+    <arg name="collision_topic" default="/simulator/collision"/>
+    <arg name="environment" default="environments/simple_obstacle.yaml"/>
+    <arg name="obstacle_mode" default="distance"/>
+    <arg name="obstacle_distance_tolerance" default="0.5"/>
+    <arg name="obstacle_factor_include_distance" default="0.5"/>
+    <arg name="obstacle_sigma" default="1.0"/>
+    <arg name="experiment_id" default="test"/>
+    <arg name="tree_topic_name" default="/stela/sbmp/sln_tree"/>
+    <arg name="report_control_frequency" default="true"/>
+    <arg name="visualize" default="true"/>
+    <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
+
+    <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'ltv_sde')" 
+        pkg="nodelet" type="nodelet" name="StelaWindowedLtvSde" 
+        args="load motion_planning/StelaWindowedLtvSde stela_nodelet_manager" 
+        output="screen">
+        <param name="tree_topic_name" value="$(arg tree_topic_name)"/>
+        <param name="control_topic" value="$(arg control_topic)"/> 
+        <param name="control_frequency" value="$(arg control_frequency)"/>
+        <param name="world_frame" value="$(arg world_frame)"/>
+        <param name="robot_frame" value="$(arg robot_frame)"/>
+        <param name="output_dir" value="$(arg data_dir)"/>
+        <param name="collision_topic" value="$(arg collision_topic)"/>
+        <param name="environment" value="$(arg environment)"/>
+        <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+        <param name="obstacle_distance_tolerance" value="$(arg    obstacle_distance_tolerance)"/>
+        <param name="obstacle_factor_include_distance" value="$(arg   obstacle_factor_include_distance)"/>
+        <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+        <param name="experiment_id" value="$(arg experiment_id)"/>
+        <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
+        <param name="visualize" value="$(arg visualize)"/>
+        <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+    </node> 
+
+    <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
+        pkg="nodelet" type="nodelet" name="StelaWindowedMushr" 
+        args="load motion_planning/StelaWindowedMushr stela_nodelet_manager" 
+        output="screen">
+        <param name="tree_topic_name" value="$(arg tree_topic_name)"/>
+        <param name="control_topic" value="$(arg control_topic)"/> 
+        <param name="control_frequency" value="$(arg control_frequency)"/>
+        <param name="world_frame" value="$(arg world_frame)"/>
+        <param name="robot_frame" value="$(arg robot_frame)"/>
+        <param name="output_dir" value="$(arg data_dir)"/>
+        <param name="collision_topic" value="$(arg collision_topic)"/>
+        <param name="environment" value="$(arg environment)"/>
+        <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+        <param name="obstacle_distance_tolerance" value="$(arg    obstacle_distance_tolerance)"/>
+        <param name="obstacle_factor_include_distance" value="$(arg   obstacle_factor_include_distance)"/>
+        <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+        <param name="experiment_id" value="$(arg experiment_id)"/>
+        <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
+        <param name="visualize" value="$(arg visualize)"/>
+        <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+    </node> 
+
+</launch>

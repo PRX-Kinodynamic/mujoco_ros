@@ -12,15 +12,13 @@
 #include <motion_planning/branch_selector.hpp>
 #include <motion_planning/ltv_controller.hpp>
 #include <motion_planning/trajectory_estimation.hpp>
+#include <motion_planning/stela_sliding_window.hpp>
 #include <prx_models/mushr.hpp>
 
 #include <prx/planning/planners/planner.hpp>
 #include <prx/planning/planners/rrt.hpp>
 #include <prx/planning/planners/dirt.hpp>
 #include <prx/planning/planners/aorrt.hpp>
-
-#include <prx_models/mushr.hpp>
-
 namespace motion_planning
 {
 
@@ -37,6 +35,8 @@ using LtvPositionController = ltv_controller_t<nodelet::Nodelet>;
 using MushrTrajectoryEstimation = trajectory_estimation_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 using ScateLtvSde = scate_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
+using StelaWindowedLtvSde = stela_windowed_t<prx::fg::ltv_sde_utils_t, nodelet::Nodelet>;
+using StelaWindowedMushr = stela_windowed_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 
 }  // namespace motion_planning
 PLUGINLIB_EXPORT_CLASS(motion_planning::TreeToTrajectories, nodelet::Nodelet);
@@ -52,3 +52,5 @@ PLUGINLIB_EXPORT_CLASS(motion_planning::LtvPositionController, nodelet::Nodelet)
 PLUGINLIB_EXPORT_CLASS(motion_planning::MushrTrajectoryEstimation, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::StelaMushr, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(motion_planning::ScateLtvSde, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::StelaWindowedLtvSde, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(motion_planning::StelaWindowedMushr, nodelet::Nodelet);

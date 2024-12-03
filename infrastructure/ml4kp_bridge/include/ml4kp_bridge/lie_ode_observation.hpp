@@ -56,6 +56,7 @@ public:
   virtual bool active(const gtsam::Values& values) const override
   {
     const bool activated{ _dt > 0 };
+    // DEBUG_VARS(activated);
     return activated;
   }
 
@@ -63,6 +64,7 @@ public:
   virtual Eigen::VectorXd evaluateError(const X& x, const Xdot& xdot,  // no-lint
                                         OptDeriv Hx = boost::none, OptDeriv Hxdot = boost::none) const override
   {
+    // DEBUG_VARS(x);
     Eigen::Matrix<double, DimX, DimX> err_H_b;      // Deriv error wrt between
     Eigen::Matrix<double, DimX, DimX> b_H_z;        // Deriv between wrt z
     Eigen::Matrix<double, DimX, DimX> b_H_p;        // Deriv between wrt predicted
@@ -86,32 +88,8 @@ public:
     {
       *Hxdot = err_H_b * b_H_p * p_H_xdot;
     }
-    // PRX_DBG_VARS(_xte);
-    // PRX_DBG_VARS(x);
-    // PRX_DBG_VARS(error.transpose());
-    // // Derivatives of q1p with respect to q/qdot
-    // Eigen::Matrix<double, DimX, DimX> q1p_H_q0;
-    // Eigen::Matrix<double, DimX, DimXdot> q1p_H_qdot;
-    // // Derivative of between with respect to q1p
-    // Eigen::Matrix<double, DimX, DimXdot> c_H_q1p;
-    // OptDeriv c_H_q1p{ (Hxt or Hxdot) ? Eigen::MatrixXd::Zero(DimX, DimX) : nullptr };
-    // // Derivative of Err with respect to C
-    // OptDeriv err_H_c{ (Hxt or Hxdot) ? Eigen::MatrixXd::Zero(DimX, DimX) : nullptr };
+    // DEBUG_VARS(error.transpose());
 
-    // // Predict q1
-    // const X q1p{ predict(xt, xdot, _dt, q1p_H_q0, q1p_H_qdotdt) };
-
-    // const X between{ gtsam::traits<X>::Between(_xte, prediction.inverse(), nullptr, c_H_q1p) };
-    // const X error{ X::Logmap(composition, err_H_c) };
-
-    // if (Hxt)
-    // {
-    //   *Hxt = err_H_c * c_H_q1p * q1p_H_q0;
-    // }
-    // if (Hxdot)
-    // {
-    //   *Hxdot = err_H_c * c_H_q1p * q1p_H_qdotdt;
-    // }
     return error;
   }
 

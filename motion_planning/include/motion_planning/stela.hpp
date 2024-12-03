@@ -14,6 +14,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
+#include <motion_planning/utils.hpp>
 
 namespace motion_planning
 {
@@ -64,6 +65,9 @@ public:
     , _experiment_id("test")
     , _files_created(false)
     , _time_based(true)
+    , _freq_counter(0)
+    , _freq_total(0)
+    , _freq_accum(0.0)
   {
     for (int i = 0; i < 36; ++i)
     {
@@ -94,9 +98,9 @@ public:
     std::vector<double> plant_parameters{};
 
     bool& time_based{ _time_based };
+    bool report_control_frequency{ true };
     // ROS_PARAM_SETUP(private_nh, random_seed);
     // ROS_PARAM_SETUP(private_nh, plant_config_file);
-    // ROS_PARAM_SETUP(private_nh, planner_config_file);
     PARAM_SETUP(private_nh, tree_topic_name);
     PARAM_SETUP(private_nh, control_topic);
     PARAM_SETUP(private_nh, control_frequency);
@@ -112,6 +116,7 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id)
     PARAM_SETUP_WITH_DEFAULT(private_nh, plant_parameters, plant_parameters)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, report_control_frequency, report_control_frequency)
 
     DEBUG_VARS(time_based);
     if (plant_parameters.size() > 0)
@@ -127,6 +132,12 @@ public:
 
     const ros::Duration control_timer(1.0 / control_frequency);
     _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);
+
+    if (report_control_frequency)
+    {
+      const ros::Duration control_freq_timer(1.0);
+      _control_frequency_timer = private_nh.createTimer(control_freq_timer, &Derived::check_frequency, this);
+    }
     // _ol_timer = private_nh.createTimer(control_timer, &Derived::control_timer_callback, this);
 
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::tree_callback, this);
@@ -227,7 +238,7 @@ public:
     {
       ofs << node_id << " ";
       const StateKeys keys{ SystemInterface::keyState(1, node_id) };
-      estimates_to_file<0>(ofs, estimate, keys);
+      estimates_to_file<StateEstimates, 0>(ofs, estimate, keys, _isam);
       // const ml4kp_bridge::SpacePoint& {};
       ofs_branch << node_id << " ";
       ml4kp_bridge::to_file(_tree.nodes[node_id].point, ofs_branch);
@@ -260,6 +271,21 @@ public:
     ofs << "STELA failure: " << msg << "\n";
     ofs.close();
     to_file(false, true);
+  }
+
+  void check_frequency(const ros::TimerEvent& event)
+  {
+    if (_tree_recevied)
+    {
+      const double dt{ (event.current_real - event.last_real).toSec() };
+      const double stela_frequency{ _freq_counter / dt };
+      _freq_accum += stela_frequency;
+      _freq_total++;
+      const double avg_frequency{ _freq_accum / static_cast<double>(_freq_total) };
+
+      DEBUG_VARS(stela_frequency, avg_frequency);
+      _freq_counter = 0;
+    }
   }
 
   void action_function(const ros::TimerEvent& event)
@@ -325,6 +351,7 @@ public:
 
       // _feedback.current_root = _x_next;
       _stela_action_server->publishFeedback(_feedback);
+      _freq_counter++;
     }
   }
 
@@ -338,12 +365,12 @@ public:
     }
 
     const StateKeys node_keys{ SystemInterface::keyState(1, node_id) };
-    update_estimates<0>(_node_estimates, node_keys);
+    update_estimates<0>(_node_estimates, _isam, node_keys);
 
     prx_models::Node new_node{ std::move(_tree_manager.create_node()) };
     SystemInterface::copy(new_node.point, _node_estimates);
 
-    const double updated_cost{ compute_error<0>(node_keys) };
+    const double updated_cost{ compute_error<0>(_node_estimates, node_keys, _isam, _values) };
 
     nodes_ids_map[node_id] = new_node.index;
 
@@ -535,6 +562,10 @@ public:
 
     const double nowdt{ (now - _start_time).toSec() };
     const double finishdt{ (finish_time - _start_time).toSec() };
+
+    const std::string now_str{ utils::time_to_string(now) };
+    const std::string finish_time_str{ utils::time_to_string(finish_time) };
+    DEBUG_VARS(finish_time_str, now_str);
     if (query_tf() and now >= finish_time)
     {
       if (_local_goal_id < _selected_nodes.size() - 1)
@@ -628,8 +659,8 @@ public:
       _prev_header = _tf.header;
       // const double dt{ (_tf.header.stamp - _prev_header.stamp).toSec() };
       const double dt{ (_tf.header.stamp - _x0_start_time).toSec() };
-      // if (dt < 0)
-      //   return;
+      if (dt < 0)
+        return;
 
       SystemInterface::copy(_z_new, _tf);
       _time_remaining = (_next_node_time - ros::Time::now()).toSec();
@@ -639,16 +670,23 @@ public:
                                                                                 _x_next,                 // no-lint
                                                                                 _state_estimates, _u01,  // no-lint
                                                                                 _z_new, dt, 0.01) };
-
       try
       {
-        // DEBUG_VARS(_x_curr, _x_next);
+        const std::string tf_header{ utils::time_to_string(_tf.header.stamp) };
+        const std::string x0_start_time{ utils::time_to_string(_x0_start_time) };
+        DEBUG_VARS(tf_header, x0_start_time);
+        DEBUG_VARS(_x_curr, _x_next, dt, _u01.transpose());
+        // estimate_to_stream(std::cout, const gtsam::Key& key, const StateType& state);
+
+        graph_values_z.first.printErrors(_values, "Graph", SF::formatter);
+        graph_values_z.second.print("Values", SF::formatter);
         // throw my_exception();
         // _isam2_result = _isam.update(graph_values.first, graph_values.second);
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
         _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
         _key_dt = SystemInterface::keyT(_x_curr, _x_next);
 
+        // DEBUG_PRINT
         _u01 = _isam.calculateEstimate<Control>(_key_u01);
         _dt01 = _isam.calculateEstimate<double>(_key_dt);
       }
@@ -663,12 +701,6 @@ public:
         // const StateKeys keys_next{ SystemInterface::keyState(1, _x_next) };
         // estimate_to_stream(std::cout, keys_curr, const StateType& state);
 
-        // estimates_to_file<0>(std::cout, current_estimate, keys_curr, false);
-        // estimates_to_file<0>(std::cout, current_estimate, keys_next, false);
-
-        // _isam.saveGraph("/Users/Gary/pracsys/catkin_ws/fg.dot", SF::formatter);
-        // dbg_print_cluster(_x_curr);
-        // dbg_print_cluster(_x_next);
         const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(e.nearbyVariable()) + "\n" };
         failure_to_file(msg + e.what());
         std::cout << msg << std::string(e.what()) << std::endl;
@@ -682,7 +714,7 @@ public:
       // _id_x_hat++;
 
       const StateKeys state_keys{ SystemInterface::keyState(1, _x_curr) };
-      update_estimates<0>(_state_estimates, state_keys);
+      update_estimates<0>(_state_estimates, _isam, state_keys);
 
       SystemInterface::copy(_feedback.xhat, _state_estimates);
 
@@ -702,7 +734,7 @@ public:
     // _dt01 = _isam.calculateEstimate<double>(_key_dt);
     const ControlTranspose u_fg{ _u01.transpose() };
     const ControlTranspose u_plan{ _u_plan.transpose() };
-    // DEBUG_VARS(u_fg, u_plan, _dt01);
+    DEBUG_VARS(u_fg, u_plan, _dt01);
 
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
@@ -714,7 +746,7 @@ public:
     gtsam::Values estimate{ _isam.calculateEstimate() };
     const StateKeys state_keys{ SystemInterface::keyState(1, _x_curr) };
     LOG_VARS(_x_curr, _u01.transpose(), _dt01);
-    estimates_to_file<0>(dbg::variables::ofs_log, estimate, state_keys, false);
+    estimates_to_file<StateEstimates, 0>(dbg::variables::ofs_log, estimate, state_keys, _isam, false);
   }
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, int x_id)
@@ -759,6 +791,7 @@ public:
     const prx_models::Node& node_current{ msg->nodes[edge.target] };
     const std::size_t total_children{ node_current.children.size() };
 
+    // DEBUG_VARS(node_parent.index, node_current.index, total_children);
     GraphValues graph_values;
     if (total_children == 0)  // Is a leaf
     {
@@ -768,19 +801,22 @@ public:
     {
       // Create a FG that goes from N0 to N1 with plan P01
       graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+      // DEBUG_VARS(edge.plan);
     }
-    // SF::symbols_to_file();
 
     if (msg->root != node_current.index)
     {
       obstacle_factors(node_current.point, edge.target);
     }
-
     _values.insert(graph_values.second);
 
     try
     {
-      // dbg_isam(graph_values.first, graph_values.second);
+      // if (node_parent.index == 804 or node_parent.index == 729)
+      // {
+      //   graph_values.first.print("graph", SF::formatter);
+      //   graph_values.second.print("Values", SF::formatter);
+      // }
       _isam2_result = _isam.update(graph_values.first, graph_values.second);
 
       // _key_u01 = SystemInterface::keyU(edge_id - 1, edge_id);
@@ -874,7 +910,7 @@ public:
   {
     const ros::Time start{ ros::Time::now() };
     const std::size_t total_tree_nodes{ msg->nodes.size() };
-    DEBUG_VARS(total_tree_nodes);
+    // DEBUG_VARS(total_tree_nodes);
     _isam.clear();
     _values = gtsam::Values();
     const prx_models::Node& node{ msg->nodes[msg->root] };
@@ -882,6 +918,7 @@ public:
     const GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, node.point) };
     _values.insert(root_graph_values.second);
 
+    DEBUG_VARS(msg->root);
     // root_graph_values.first.print("Errors", SF::formatter);
     _isam2_result = _isam.update(root_graph_values.first, root_graph_values.second);
     for (auto child_id : node.children)
@@ -890,6 +927,7 @@ public:
         continue;
       const prx_models::Node& node_child{ msg->nodes[child_id] };
 
+      DEBUG_VARS(child_id);
       branch_to_traj(msg, node_child.parent_edge);
     }
 
@@ -907,7 +945,7 @@ public:
     // _isam2_result = _isam.update(graph_values.first, graph_values.second);
 
     const StateKeys state_keys{ SystemInterface::keyState(1, msg->root) };
-    update_estimates<0>(_state_estimates, state_keys);
+    update_estimates<0>(_state_estimates, _isam, state_keys);
 
     const Values estimated_values{ _isam.calculateBestEstimate() };
     const double isam_error{ _isam.getFactorsUnsafe().error(estimated_values) };
@@ -933,113 +971,27 @@ public:
 
 private:
   // template <std::size_t I = 0, typename FuncT, typename... Tp>
-  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
-  {
-    using EstimateType = typename std::tuple_element<I, StateEstimates>::type;
-    try
-    {
-      std::get<I>(state_estimates) = _isam.calculateEstimate<EstimateType>(keys[I]);
-    }
-    catch (std::out_of_range e)
-    {
-      DEBUG_VARS(I, keys[I], SF::formatter(keys[I]));
-      DEBUG_VARS(e.what());
-      throw e;
-    }
-    update_estimates<I + 1>(state_estimates, keys);
-  }
+  // template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  // inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
+  // {
+  //   using EstimateType = typename std::tuple_element<I, StateEstimates>::type;
+  //   try
+  //   {
+  //     std::get<I>(state_estimates) = _isam.calculateEstimate<EstimateType>(keys[I]);
+  //   }
+  //   catch (std::out_of_range e)
+  //   {
+  //     DEBUG_VARS(I, keys[I], SF::formatter(keys[I]));
+  //     DEBUG_VARS(e.what());
+  //     throw e;
+  //   }
+  //   update_estimates<I + 1>(state_estimates, keys);
+  // }
 
-  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>
-  inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
-  {
-  }
-
-  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  double compute_error(const StateKeys& keys)
-  {
-    using StateType = typename std::tuple_element<I, StateEstimates>::type;
-    static constexpr Eigen::Index N{ gtsam::traits<StateType>::dimension };
-
-    const gtsam::Key& key{ keys[I] };
-    const StateType& x{ std::get<I>(_node_estimates) };
-    const StateType x_sbmp{ _values.at<StateType>(key) };
-
-    // DEBUG_VARS(__LINE__, ros::Time::now());
-    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    // DEBUG_VARS(__LINE__, ros::Time::now());
-    const Eigen::MatrixXd S{ cov.inverse() };
-    // DEBUG_VARS(__LINE__, ros::Time::now());
-    // DEBUG_VARS(cov);
-    // DEBUG_VARS(S);
-
-    // const StateType diff{ x - x_sbmp };
-    const StateType between{ gtsam::traits<StateType>::Between(x, x_sbmp) };  //
-    const Eigen::VectorXd diff{ gtsam::traits<StateType>::Logmap(between) };
-    // const Eigen::VectorXd diff{ StateType::Logmap(between) };
-
-    const Eigen::VectorXd cost{ diff.transpose() * S * diff };
-    return cost[0] + compute_error<I + 1>(keys);
-  }
-
-  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  double compute_error(const StateKeys& keys)
-  {
-    return 0;
-  }
-
-  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ostream& ofs, const gtsam::Values& estimate, const StateKeys& keys,
-                         const bool with_covariance = true)
-  {
-    using StateType = typename std::tuple_element<I, StateEstimates>::type;
-    const gtsam::Key key{ keys[I] };
-    const StateType state{ estimate.at<StateType>(key) };
-    // const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    // const Eigen::VectorXd diagonal{ cov.diagonal() };
-
-    // ofs << i << " ";
-    // ofs << SF::formatter(key) << " ";
-    // for (int i = 0; i < state.size(); ++i)
-    // {
-    //   ofs << state[i] << " ";
-    // }
-    // for (auto e : diagonal)
-    // {
-    //   ofs << e << " ";
-    // }
-    estimate_to_stream(ofs, key, state);
-    if (with_covariance)
-      covariance_diagonal_to_stream(ofs, key);
-
-    estimates_to_file<I + 1>(ofs, estimate, keys, with_covariance);
-  }
-
-  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ostream& ofs, const gtsam::Values& estimate, const StateKeys& keys,
-                         const bool with_covariance)
-  {
-    ofs << "\n";
-  }
-
-  template <typename StateType>
-  void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
-  {
-    ofs << SF::formatter(key) << " ";
-    for (int i = 0; i < state.size(); ++i)
-    {
-      ofs << state[i] << " ";
-    }
-  }
-  void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key)
-  {
-    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    const Eigen::VectorXd diagonal{ cov.diagonal() };
-    for (auto e : diagonal)
-    {
-      ofs << e << " ";
-    }
-  }
+  // template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>
+  // inline void update_estimates(StateEstimates& state_estimates, const StateKeys& keys)
+  // {
+  // }
 
   Values _values;
   // FactorGraph _factor_graph;
@@ -1073,6 +1025,7 @@ private:
   geometry_msgs::PoseWithCovarianceStamped _pose_with_cov;
 
   ros::Timer _control_timer;
+  ros::Timer _control_frequency_timer;
 
   std::unique_ptr<StelaActionServer> _stela_action_server;
 
@@ -1136,5 +1089,9 @@ private:
   bool _time_based;
   std::shared_ptr<prx::system_t> _plant;
   std::shared_ptr<prx::trajectory_t> _traj;
+
+  std::size_t _freq_counter;
+  std::size_t _freq_total;
+  double _freq_accum;
 };
 }  // namespace motion_planning

@@ -2,6 +2,7 @@
 #include <ros/callback_queue.h>
 #include <utils/nodelet_as_node.hpp>
 #include <utils/dbg_utils.hpp>
+#include <prx_models/mushr.hpp>
 
 #include <motion_planning/motion_planning_tree.hpp>
 #include <motion_planning/tree_viz_publisher.hpp>
@@ -54,7 +55,8 @@ int main(int argc, char** argv)
   }
   else if (node_name == "Stela")
   {
-    node = std::make_unique<motion_planning::stela_t<prx::fg::ltv_sde_utils_t, utils::nodelet_as_node_t>>();
+    // using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
+    node = std::make_unique<motion_planning::stela_t<prx_models::mushr_utils_t, utils::nodelet_as_node_t>>();
   }
   else if (node_name == "StelaStepper")
   {

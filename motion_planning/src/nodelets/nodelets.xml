@@ -110,4 +110,22 @@
     </description>
   </class>
   
+  <class 
+      name="motion_planning/StelaWindowedLtvSde" 
+      type="motion_planning::StelaWindowedLtvSde" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Scate
+    </description>
+  </class>
+
+  <class 
+      name="motion_planning/StelaWindowedMushr" 
+      type="motion_planning::StelaWindowedMushr" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Scate
+    </description>
+  </class>
+  
 </library>

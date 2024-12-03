@@ -440,8 +440,8 @@ public:
     return graph_values;
   }
 
-  static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id,
-                                            const Observation& z, const double dt, const double z_noise)
+  static GraphValues add_observation_factor(const std::size_t prev_id, const std::size_t curr_id, const Observation& z,
+                                            const double dt, const double z_noise)
   {
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control>;
@@ -486,8 +486,8 @@ public:
     using ObservationFactor = gtsam::PriorFactor<State>;
     using EulerObservation = prx::fg::euler_observation_factor_t<State, StateDot>;
 
-    const State& x0_value{ std::get<0>(estimates) };
-    const StateDot& xdot0_value{ std::get<1>(estimates) };
+    // const State& x0_value{ std::get<0>(estimates) };
+    // const StateDot& xdot0_value{ std::get<1>(estimates) };
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(1, prev_id) };

@@ -51,4 +51,11 @@ void shutdown_callback(const TopicConstPtr& msg)
   ros::shutdown();
 }
 
+std::string time_to_string(const ros::Time& time)
+{
+  using prx::utilities::convert_to;
+  const std::string ti{ convert_to<std::string>(time.toSec()) };
+  return ti;
+}
+
 }  // namespace utils
