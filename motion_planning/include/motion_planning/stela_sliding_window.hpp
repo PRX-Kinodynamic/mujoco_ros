@@ -235,6 +235,7 @@ public:
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
     ofs_data << "ObstacleMode: " << _mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
+
     ofs_data.close();
 
     // PRINT_MSG("[TODO] Data files for STELA_SW not implemented.");
@@ -303,20 +304,17 @@ public:
   {
     if (_tree_recevied)
     {
-      // print_covariance(20, "Before update_next_goal");
       update_next_goal();
-      // print_covariance(20, "Before add_observations");
       const bool valid_observations{ add_observations() };
       if (not _goal_reached and valid_observations)
       {
-        // print_covariance(20, "Before publish_control");
         publish_control();
       }
       if (_visualize)
       {
-        // print_covariance(20, "Before update_estimated_tree");
         update_estimated_tree();
         _estimated_tree_publisher.publish(_estimated_tree);
+        _viz_obstacles_publisher.publish(_obstacles_marker);
       }
     }
     _freq_counter++;
@@ -451,7 +449,7 @@ public:
 
   void print_covariance(const std::size_t id, const std::string message)
   {
-    if (_x_curr < 11 or _x_curr > 32)
+    if (_x_curr < 11 or _x_curr > 30)
     {
       return;
     }
@@ -497,8 +495,9 @@ public:
       try
       {
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
-        _inserted_factors[_x_curr].insert(_inserted_factors[_x_curr].end(),  // no-lint
-                                          _isam2_result.newFactorsIndices.begin(),
+
+        _inserted_factors[_x_curr].insert(_inserted_factors[_x_curr].end(),
+                                          _isam2_result.newFactorsIndices.begin(),  // no-lint
                                           _isam2_result.newFactorsIndices.end());
 
         _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
@@ -525,19 +524,71 @@ public:
 
   void publish_control()
   {
-    const ControlTranspose u_fg{ _u01.transpose() };
-    const ControlTranspose u_plan{ _u_plan.transpose() };
-    // DEBUG_VARS(u_fg, u_plan, _dt01);
-
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
     _stamped_control_publisher.publish(_control_stamped);
+
+    // print_segment();
+    // update_estimates<0>(_state_estimates, state_keys);
+    // update_estimates<0>(_node_estimates, _isam, state_keys);
   }
 
-  void obstacle_factors(const ml4kp_bridge::SpacePoint& point, int x_id)
+  void print_segment()
+  {
+    const int segment{ 3 };
+    std::list<std::size_t> nodes_to_print;
+
+    nodes_to_print.push_back(_x_curr);
+
+    for (int i = 0; i < segment; ++i)
+    {
+      const std::size_t parent{ _tree.nodes[nodes_to_print.front()].parent };
+      nodes_to_print.push_front(parent);
+    }
+    for (int i = 0; i < segment; ++i)
+    {
+      const std::size_t child{ _tree.nodes[nodes_to_print.back()].children[0] };
+      nodes_to_print.push_back(child);
+    }
+    StateEstimates estimates;
+    PRINT_MSG("-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~");
+    const gtsam::Values current_estimate{ _isam.calculateBestEstimate() };
+
+    for (auto id : nodes_to_print)
+    {
+      if (_tree.nodes[id].parent != id)
+      {
+        const StateKeys state_keys{ SystemInterface::keyState(1, id) };
+        update_estimates<0>(estimates, _isam, state_keys);
+        const State x{ std::get<0>(estimates) };
+        const Eigen::RowVectorXd xdot{ std::get<1>(estimates).transpose() };
+        const gtsam::Key ku{ SystemInterface::keyU(_tree.nodes[id].parent, id) };
+        const ControlTranspose u_fg{ _isam.calculateEstimate<Control>(ku).transpose() };
+
+        const std::uint64_t parent_edge{ _tree.nodes[id].parent_edge };
+        const ml4kp_bridge::Plan& plan{ _tree.edges[parent_edge].plan };
+        auto u_plan = plan.steps[0].control.point;
+        auto sbmp_node = _tree.nodes[id].point.point;
+
+        PRINT_MSG("---");
+        DEBUG_VARS(id, x, xdot);
+        DEBUG_VARS(sbmp_node);
+        DEBUG_VARS(u_fg, u_plan);
+
+        for (auto factor_id : _inserted_factors[id])
+        {
+          const double error{ _isam.getFactorsUnsafe()[factor_id]->error(current_estimate) };
+          _isam.getFactorsUnsafe()[factor_id]->print("Factor", SF::formatter);
+          DEBUG_VARS(error);
+        }
+      }
+    }
+  }
+
+  void obstacle_factors(gtsam::NonlinearFactorGraph& graph, const ml4kp_bridge::SpacePoint& point, int x_id)
   {
     if (_obstacle_mode == "distance" or _obstacle_mode == "all")
     {
@@ -552,8 +603,8 @@ public:
             ObstacleFactor::close_enough(_state, _obstacle_factor_include_distance, obstacle_info, _robot_collision_ptr,
                                          _config_from_state, _obstacle_tolerance_result))
         {
-          _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
-                                                         _obstacle_distance_tolerance, 0.1, _obstacle_noise);
+          graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX, _obstacle_distance_tolerance,
+                                               0.1, _obstacle_noise);
 
           _obstacles_marker.points.emplace_back();
           _obstacles_marker.points.back().x = _state[0];
@@ -608,6 +659,36 @@ public:
     set_next_node();
   }
 
+  void insert_factors(const std::size_t id0, const std::size_t id1)
+  {
+    const StateKeys keys0{ SystemInterface::keyState(1, id0) };
+    const StateKeys keys1{ SystemInterface::keyState(1, id1) };
+
+    // PRINT_KEYS(keys0);
+    // PRINT_KEYS(keys1);
+    for (auto iter = _isam2_result.newFactorsIndices.begin(); iter != _isam2_result.newFactorsIndices.end(); iter++)
+    {
+      const std::size_t factor_id{ *iter };
+      const gtsam::KeyVector& factor_keys{ _isam.getFactorsUnsafe()[factor_id]->keys() };
+
+      std::size_t id_to_insert{ id1 };
+      for (auto key : factor_keys)
+      {
+        auto k0_res = std::find(keys0.begin(), keys0.end(), key);
+        // auto k1_res = std::find(keys1.begin(), keys1.end(), key);
+        if (k0_res != keys0.end())
+        {
+          id_to_insert = id0;
+          break;
+        }
+      }
+      // PRINT_KEYS(factor_keys);
+      // DEBUG_VARS(factor_id, id_to_insert);
+      _inserted_factors[id_to_insert].insert(_inserted_factors[id_to_insert].end(), factor_id);
+    }
+    // _isam.getFactorsUnsafe().print("Current Graph", SF::formatter);
+  }
+
   void add_tree_node()
   {
     const prx_models::Edge& edge{ _tree.edges[_next_tree_edge] };
@@ -625,6 +706,8 @@ public:
 
     GraphValues graph_values;
     graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+    obstacle_factors(graph_values.first, node_current.point, edge.target);
+    // graph_values.first += _obstacle_graph;
 
     _values.insert(graph_values.second);
 
@@ -634,9 +717,11 @@ public:
       _isam2_result = _isam.update(graph_values.first, graph_values.second, _isam2_update_params);
 
       _factors_queue.push(edge.source);
-      _inserted_factors[edge.source].insert(_inserted_factors[edge.source].end(),
-                                            _isam2_result.newFactorsIndices.begin(),
-                                            _isam2_result.newFactorsIndices.end());
+      insert_factors(edge.source, edge.target);
+
+      // _inserted_factors[edge.source].insert(_inserted_factors[edge.source].end(),
+      //                                       _isam2_result.newFactorsIndices.begin(),
+      //                                       _isam2_result.newFactorsIndices.end());
     }
     catch (gtsam::IndeterminantLinearSystemException e)
     {
@@ -810,7 +895,7 @@ private:
 
   // Obstacle-relates stuff
   std::string _obstacle_mode, _mode;
-  gtsam::NonlinearFactorGraph _obstacle_graph;
+  // gtsam::NonlinearFactorGraph _obstacle_graph;
   double _obstacle_distance_tolerance;
   double _obstacle_factor_include_distance;
 

@@ -82,10 +82,26 @@ inline void log_variables(std::string name, Vars... vars)
     PRX_DBG_VARS(msg)                                                                                                  \
   };
 
+#define PRINT_MSG_VARS(MSG, ...)                                                                                       \
+  {                                                                                                                    \
+    const std::string msg{ MSG };                                                                                      \
+    dbg::print_variables(std::cout, "msg", msg, #__VA_ARGS__, __VA_ARGS__);                                            \
+  };
+
 #define PRINT_KEY(KEY)                                                                                                 \
   {                                                                                                                    \
     const std::string key{ SF::formatter(KEY) };                                                                       \
     dbg::print_variables(std::cout, #KEY, key);                                                                        \
+  };
+#define PRINT_KEYS(KEYS)                                                                                               \
+  {                                                                                                                    \
+    std::cout << prx::constants::color::yellow << #KEYS << ": " << prx::constants::color::normal;                      \
+    for (auto key : KEYS)                                                                                              \
+    {                                                                                                                  \
+      const std::string key_str{ SF::formatter(key) };                                                                 \
+      dbg::print_value(std::cout, key_str);                                                                            \
+    }                                                                                                                  \
+    dbg::print_variables(std::cout, "");                                                                               \
   };
 
 // #define LOG_VARS_FILE(ofs, ...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);

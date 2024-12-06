@@ -103,15 +103,25 @@ double compute_error(const StateEstimates& estimates, const StateKeys& keys, gts
 
 void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key, gtsam::ISAM2& isam)
 {
-  const Eigen::MatrixXd cov{ isam.marginalCovariance(key) };
-  // DEBUG_VARS(SF::formatter(key), cov);
-  // const Eigen::VectorXd diagonal{ cov.diagonal() };
-  for (auto row : cov.rowwise())
+  try
   {
-    for (auto e : row)
+    // DEBUG_VARS(SF::formatter(key));
+    const Eigen::MatrixXd cov{ isam.marginalCovariance(key) };
+    // DEBUG_VARS(cov);
+    // const Eigen::VectorXd diagonal{ cov.diagonal() };
+    for (auto row : cov.rowwise())
     {
-      ofs << e << " ";
+      for (auto e : row)
+      {
+        ofs << e << " ";
+      }
     }
+  }
+  catch (std::out_of_range e)
+  {
+    const std::string problem_key{ SF::formatter(key) };
+    PRINT_MSG_VARS("Can't compute covariance", problem_key);
+    DEBUG_VARS(e.what());
   }
 }
 
