@@ -15,8 +15,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  prx::param_loader params{};
-  SDF::parameters(params);
+  prx::param_loader params{ SDF::default_parameters() };
 
   std::string filename{ "" };
   PARAM_SETUP_WITH_DEFAULT(nh, filename, filename)

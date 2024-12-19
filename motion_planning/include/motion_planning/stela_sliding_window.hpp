@@ -140,10 +140,11 @@ public:
       if (sdf_params == "")
         prx_throw("No SDF params!");
       prx::param_loader sdf_param_loader{};
+      sdf_param_loader = Sdf::default_parameters();
       sdf_param_loader.add_file(sdf_params);
-      sdf_param_loader["sdf"] = sdf_param_loader;
-      ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
-      _sdf = Sdf::create(sdf_param_loader["sdf"]);
+      sdf_param_loader["environment"].set(environment);
+      // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
+      _sdf = Sdf::create(sdf_param_loader);
     }
     SystemInterface::print_params();
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);

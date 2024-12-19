@@ -40,6 +40,7 @@
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
+        <param name="sdf/environment" value="$(arg environment)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -63,6 +64,7 @@
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
+        <param name="sdf/environment" value="$(arg environment)"/>
     </node> 
 
 </launch>

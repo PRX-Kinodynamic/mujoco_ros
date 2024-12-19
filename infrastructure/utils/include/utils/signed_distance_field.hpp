@@ -50,6 +50,8 @@ class signed_distance_field_t
     bool success{ false };
     if (std::filesystem::exists(_file))
     {
+      PRINT_MSG("SDF using file: " + _file);
+
       csv_reader_t reader(_file, ' ');
       // First line has the parameters
       auto line = reader.next_line();
@@ -274,14 +276,16 @@ public:
 
   virtual ~signed_distance_field_t() {};
 
-  static void parameters(prx::param_loader& params)
+  static prx::param_loader default_parameters()
   {
+    // prx::param_loader& params
     // params["geometry"].set("SPHERE");
-    prx::param_loader p_geom{ CollisionInfo::default_parameters() };
-    params["geometry"] = p_geom;
+    prx::param_loader params;
+    params["geometry"] = CollisionInfo::default_parameters();
     params["resolution"].set(0.1);
     params["environment"].set("environments/empty.yaml");
     params["directory"].set("/tmp");
+    return params;
   }
 
   double distance(const double& x, const double& y) const
