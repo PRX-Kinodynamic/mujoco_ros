@@ -6,7 +6,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <gtsam/nonlinear/ISAM2.h>
 #include <actionlib/server/simple_action_server.h>
@@ -277,6 +277,7 @@ public:
   {
     if (_tree_recevied)
     {
+      // const double current_error{ _isam.error(_isam.calculateBestEstimate()) };
       const double dt{ (event.current_real - event.last_real).toSec() };
       const double stela_frequency{ _freq_counter / dt };
       _freq_accum += stela_frequency;

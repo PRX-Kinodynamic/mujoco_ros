@@ -42,6 +42,12 @@ static std::string timestamp()
   return strstr.str();
 }
 
+void update_header(std_msgs::Header& msg)
+{
+  msg.seq++;
+  msg.stamp = ros::Time::now();
+}
+
 template <typename TopicConstPtr>
 void shutdown_callback(const TopicConstPtr& msg)
 {

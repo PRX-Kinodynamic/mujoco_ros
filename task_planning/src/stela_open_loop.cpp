@@ -6,7 +6,7 @@
 #include <motion_planning/single_shot_planner_service.hpp>
 #include <motion_planning/planner_client.hpp>
 
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 

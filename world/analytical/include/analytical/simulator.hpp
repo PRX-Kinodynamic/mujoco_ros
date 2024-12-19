@@ -7,7 +7,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
