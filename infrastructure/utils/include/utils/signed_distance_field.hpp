@@ -277,8 +277,7 @@ public:
   static void parameters(prx::param_loader& params)
   {
     // params["geometry"].set("SPHERE");
-    auto p_geom = prx::param_loader();
-    CollisionInfo::parameters(p_geom);
+    prx::param_loader p_geom{ CollisionInfo::default_parameters() };
     params["geometry"] = p_geom;
     params["resolution"].set(0.1);
     params["environment"].set("environments/empty.yaml");
