@@ -3,4 +3,4 @@ geometry:
   parameters: [ 0.01 ]
 resolution: 0.1
 environment: "environments/forest.yaml"
-file: "${ML4KP_ROS}/data/sdfs/forest.txt"
+directory: "${ML4KP_ROS}/data/sdfs/"

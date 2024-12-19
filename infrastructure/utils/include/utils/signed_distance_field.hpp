@@ -100,9 +100,11 @@ class signed_distance_field_t
     _resolution = params.exists("resolution") ? params["resolution"].as<double>() : 0.0;
     _environment = params.exists("environment") ? params["environment"].as<std::string>() : "None";
 
-    if (params.exists("file"))
+    if (params.exists("directory"))
     {
-      _file = params.exists("file") ? params["file"].as<std::string>() : "None";
+      const std::string dir{ params.exists("directory") ? params["directory"].as<std::string>() : "None" };
+      std::filesystem::path path(_environment);
+      _file = dir + "/" + path.stem().string() + ".txt";
       initialized = from_file();
     }
     if (not initialized)
@@ -280,7 +282,7 @@ public:
     params["geometry"] = p_geom;
     params["resolution"].set(0.1);
     params["environment"].set("environments/empty.yaml");
-    params["file"].set("sdf.txt");
+    params["directory"].set("/tmp");
   }
 
   double distance(const double& x, const double& y) const

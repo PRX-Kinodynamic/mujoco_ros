@@ -14,6 +14,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 #include <motion_planning/utils.hpp>
+#include <motion_planning/sdf_factor.hpp>
 
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 #include <gtsam/nonlinear/ISAM2Params.h>
@@ -43,6 +44,10 @@ class stela_windowed_t : public Base
 
   using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState,
                                                     prx::fg::collision_info_t::CollisionErrorType::STEP>;
+
+  using Sdf = utils::signed_distance_field_t;
+  using SdfPtr = std::shared_ptr<Sdf>;
+  using SdfFactor = motion_planning::sdf_factor_t<State, typename SystemInterface::ConfigFromState>;
 
   static constexpr Eigen::Index XDim{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index UDim{ gtsam::traits<Control>::dimension };
@@ -89,6 +94,7 @@ public:
     double& obstacle_distance_tolerance{ _obstacle_distance_tolerance };
     double& obstacle_factor_include_distance{ _obstacle_factor_include_distance };
 
+    std::string sdf_params;
     std::string& world_frame{ _world_frame };
     std::string& robot_frame{ _robot_frame };
     std::string& output_dir{ _output_dir };
@@ -123,10 +129,21 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, report_control_frequency, report_control_frequency)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_future_nodes, total_future_nodes)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_past_nodes, total_past_nodes)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
 
     if (plant_parameters.size() > 0)
     {
       SystemInterface::set_params(plant_parameters);
+    }
+    if (obstacle_mode == "sdf")
+    {
+      if (sdf_params == "")
+        prx_throw("No SDF params!");
+      prx::param_loader sdf_param_loader{};
+      sdf_param_loader.add_file(sdf_params);
+      sdf_param_loader["sdf"] = sdf_param_loader;
+      ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
+      _sdf = Sdf::create(sdf_param_loader["sdf"]);
     }
     SystemInterface::print_params();
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
@@ -617,6 +634,13 @@ public:
         }
       }
     }
+    if (_obstacle_mode == "sdf")
+    {
+      PRINT_MSG_ONCE("Using SDF Factors")
+      const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+      SystemInterface::state(_state, point);
+      graph.emplace_shared<SdfFactor>(keyX, _obstacle_distance_tolerance, _sdf, _obstacle_noise);
+    }
   }
 
   void set_next_node()
@@ -898,6 +922,7 @@ private:
   // gtsam::NonlinearFactorGraph _obstacle_graph;
   double _obstacle_distance_tolerance;
   double _obstacle_factor_include_distance;
+  SdfPtr _sdf;
 
   typename SystemInterface::ConfigFromState _config_from_state;
   std::shared_ptr<prx::fg::collision_info_t> _robot_collision_ptr;

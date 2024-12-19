@@ -41,7 +41,7 @@
   <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
   <arg name="mujoco" default="false" />
   <arg name="tf_noise_sigmas" default="[0.0,0.0,0.0]"/>
-  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.00,0.000,0.000]"/>
+  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/>
   <arg name="experiment_id" default="test"/>
   <arg name="num_workers" default="8"/>
   <arg name="feedback_lookahead" default="3"/>
@@ -181,6 +181,7 @@ launch-prefix="gdb --args">
       <arg name="report_control_frequency" default="$(arg report_control_frequency)"/>
       <arg name="visualize" value="$(arg visualize)"/>
       <arg name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+      <arg name="sdf_params" value="$(find utils)/config/sdf.yaml"/>
     </include>
 
     <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'ltv_sde')" 

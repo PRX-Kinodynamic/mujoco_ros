@@ -104,4 +104,9 @@ inline void log_variables(std::string name, Vars... vars)
     dbg::print_variables(std::cout, "");                                                                               \
   };
 
-// #define LOG_VARS_FILE(ofs, ...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
+#define PRINT_MSG_ONCE(MSG)                                                                                            \
+  static bool deprecated_print_once = []() {                                                                           \
+    const std::string msg{ MSG };                                                                                      \
+    PRX_DBG_VARS(msg)                                                                                                  \
+    return true;                                                                                                       \
+  }();

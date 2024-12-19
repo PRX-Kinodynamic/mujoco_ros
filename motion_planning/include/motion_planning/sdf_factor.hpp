@@ -73,13 +73,10 @@ public:
 
     const double activated_dist{ -dist + _eps_distance };
 
-    DEBUG_VARS(x0[0], x0[1], dist, activated_dist);
     const Eigen::VectorXd error{ Eigen::Vector<double, 1>(activated_dist) };
     if (H0)
     {
       _config_from_state.jacobian(x0, -_Hconfig, *H0);
-      DEBUG_VARS(_Hconfig);
-      DEBUG_VARS(*H0);
     }
 
     return error;

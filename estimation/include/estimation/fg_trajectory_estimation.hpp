@@ -1,3 +1,4 @@
+#pragma once
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 
 namespace estimation

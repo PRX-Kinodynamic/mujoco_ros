@@ -17,6 +17,7 @@
     <arg name="report_control_frequency" default="true"/>
     <arg name="visualize" default="true"/>
     <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
+    <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'ltv_sde')" 
         pkg="nodelet" type="nodelet" name="StelaWindowedLtvSde" 
@@ -38,6 +39,7 @@
         <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+        <param name="sdf_params" value="$(arg sdf_params)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -53,13 +55,14 @@
         <param name="collision_topic" value="$(arg collision_topic)"/>
         <param name="environment" value="$(arg environment)"/>
         <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
-        <param name="obstacle_distance_tolerance" value="$(arg    obstacle_distance_tolerance)"/>
-        <param name="obstacle_factor_include_distance" value="$(arg   obstacle_factor_include_distance)"/>
+        <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
+        <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
         <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
         <param name="experiment_id" value="$(arg experiment_id)"/>
         <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+        <param name="sdf_params" value="$(arg sdf_params)"/>
     </node> 
 
 </launch>
