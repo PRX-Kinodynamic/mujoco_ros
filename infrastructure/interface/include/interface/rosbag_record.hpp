@@ -1,6 +1,6 @@
 #pragma once
 #include <any>
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/execution_status.hpp>
 
@@ -26,7 +26,7 @@ class queued_callback_t
 {
 public:
   using TupleQueue = std::queue<std::tuple<std::string, ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()){};
+  queued_callback_t() : _t0(ros::Time::now()) {};
   queued_callback_t(const std::string topic_name) : _topic_name(topic_name)
   {
     std::cout << "topic_name: " << _topic_name << std::endl;
@@ -54,7 +54,7 @@ class queues_base_t
   using Subscribers = std::vector<ros::Subscriber>;
 
 public:
-  queues_base_t(){};
+  queues_base_t() {};
   virtual bool register_topic(const std::string& topic_name, const std::string topic_type,
                               const std::string expected_type, Subscribers& subscribers, ros::NodeHandle& nh) = 0;
   virtual std::size_t size() const = 0;

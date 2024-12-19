@@ -257,6 +257,17 @@ public:
       H(0, 1) = -vec[1];
       H.normalize();
     }
+
+    void configuration(Eigen::Vector2d& pt, const State& x)
+    {
+      pt[0] = x[0];
+      pt[1] = x[1];
+    }
+
+    void jacobian(const State& x0, const Eigen::Matrix<double, 1, 2>& Hconfig, Eigen::MatrixXd& H0) const
+    {
+      H0 = Hconfig;
+    }
   };
   /**
    * @brief compute the noise for the state from the matrix and a vector of sigmas
