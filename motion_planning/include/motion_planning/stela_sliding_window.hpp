@@ -608,17 +608,14 @@ public:
 
   void obstacle_factors(gtsam::NonlinearFactorGraph& graph, const ml4kp_bridge::SpacePoint& point, int x_id)
   {
-    if (_obstacle_mode == "distance" or _obstacle_mode == "all")
+    if (_obstacle_mode == "distance")
     {
       _mode = "distance";
-      // Eigen::Vector3d p1, p2;
       const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-      // DEBUG_VARS(SF::formatter(keyX));
       SystemInterface::state(_state, point);
       for (auto obstacle_info : _obstacle_collision_infos)
       {
-        if (_obstacle_mode == "all" or
-            ObstacleFactor::close_enough(_state, _obstacle_factor_include_distance, obstacle_info, _robot_collision_ptr,
+        if (ObstacleFactor::close_enough(_state, _obstacle_factor_include_distance, obstacle_info, _robot_collision_ptr,
                                          _config_from_state, _obstacle_tolerance_result))
         {
           graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX, _obstacle_distance_tolerance,
@@ -633,6 +630,28 @@ public:
           _obstacles_marker.points.back().y = obstacle_info->pose.position()[1];
           _obstacles_marker.points.back().z = 0;
         }
+      }
+    }
+    if (_obstacle_mode == "all")
+    {
+      _mode = "distance";
+      const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+      SystemInterface::state(_state, point);
+      for (auto obstacle_info : _obstacle_collision_infos)
+      {
+        // ObstacleFactor::close_enough(_state, _obstacle_factor_include_distance, obstacle_info, _robot_collision_ptr,
+        //                              _config_from_state, _obstacle_tolerance_result))
+        graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX, _obstacle_distance_tolerance,
+                                             0.1, _obstacle_noise);
+
+        _obstacles_marker.points.emplace_back();
+        _obstacles_marker.points.back().x = _state[0];
+        _obstacles_marker.points.back().y = _state[1];
+        _obstacles_marker.points.back().z = 0;
+        _obstacles_marker.points.emplace_back();
+        _obstacles_marker.points.back().x = obstacle_info->pose.position()[0];
+        _obstacles_marker.points.back().y = obstacle_info->pose.position()[1];
+        _obstacles_marker.points.back().z = 0;
       }
     }
     if (_obstacle_mode == "sdf")
