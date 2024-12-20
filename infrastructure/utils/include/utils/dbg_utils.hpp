@@ -79,7 +79,7 @@ inline void log_variables(std::string name, Vars... vars)
 #define PRINT_MSG(MSG)                                                                                                 \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
-    PRX_DBG_VARS(msg)                                                                                                  \
+    DEBUG_VARS(msg)                                                                                                    \
   };
 
 #define PRINT_MSG_VARS(MSG, ...)                                                                                       \
@@ -107,6 +107,6 @@ inline void log_variables(std::string name, Vars... vars)
 #define PRINT_MSG_ONCE(MSG)                                                                                            \
   static bool deprecated_print_once = []() {                                                                           \
     const std::string msg{ MSG };                                                                                      \
-    PRX_DBG_VARS(msg)                                                                                                  \
+    DEBUG_VARS(msg)                                                                                                    \
     return true;                                                                                                       \
   }();
