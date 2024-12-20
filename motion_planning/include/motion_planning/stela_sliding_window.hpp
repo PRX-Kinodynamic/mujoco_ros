@@ -68,7 +68,6 @@ public:
     , _tree_recevied(false)
     , _last_local_goal(true)
     , _goal_received(false)
-    , _mode("None")
     , _experiment_id("test")
     , _files_created(false)
     , _name("STELA_SW")
@@ -251,7 +250,7 @@ public:
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
-    ofs_data << "ObstacleMode: " << _mode << "\n";
+    ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
 
     ofs_data.close();
@@ -610,7 +609,6 @@ public:
   {
     if (_obstacle_mode == "distance")
     {
-      _mode = "distance";
       const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
       SystemInterface::state(_state, point);
       for (auto obstacle_info : _obstacle_collision_infos)
@@ -634,7 +632,6 @@ public:
     }
     if (_obstacle_mode == "all")
     {
-      _mode = "distance";
       const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
       SystemInterface::state(_state, point);
       for (auto obstacle_info : _obstacle_collision_infos)
@@ -938,7 +935,7 @@ private:
   std::string _experiment_id;
 
   // Obstacle-relates stuff
-  std::string _obstacle_mode, _mode;
+  std::string _obstacle_mode;
   // gtsam::NonlinearFactorGraph _obstacle_graph;
   double _obstacle_distance_tolerance;
   double _obstacle_factor_include_distance;

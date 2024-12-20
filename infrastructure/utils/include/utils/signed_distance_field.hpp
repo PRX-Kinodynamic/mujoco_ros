@@ -151,7 +151,7 @@ class signed_distance_field_t
   {
     using ObstacleFactor = prx::fg::obstacle_factor_t<State, configuration_from_state>;
     using MatrixXb = Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic>;
-    DEBUG_VARS(_environment);
+    // DEBUG_VARS(_environment);
     auto prx_obstacles = prx::load_obstacles(_environment);
     std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ prx_obstacles.second };
     std::vector<std::string> obstacle_names{ prx_obstacles.first };
