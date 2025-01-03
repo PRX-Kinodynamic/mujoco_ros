@@ -103,4 +103,28 @@
       Visualize states from param server
     </description>
   </class>
+  <class 
+      name="utils/PointsTopicsToMarkerPublisher" 
+      type="utils::PointsTopicsToMarkerPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+  <class 
+      name="utils/PointsHeaderTopicsToMarkerPublisher" 
+      type="utils::PointsHeaderTopicsToMarkerPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+  <class 
+      name="utils/StelaTrajectoryVizPublisher" 
+      type="utils::StelaTrajectoryVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
 </library>

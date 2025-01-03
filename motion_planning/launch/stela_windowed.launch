@@ -1,6 +1,7 @@
 <launch> 
     <arg name="control_topic" default="/stela/sbmp/control"/> 
     <arg name="planner" default="StelaWindowed"/>
+    <arg name="Stepper" default="SbmpStepper"/>
     <arg name="Plant" default="ltv_sde"/>
     <arg name="control_frequency" default="30"/>
     <arg name="world_frame" default="world"/>
@@ -18,12 +19,17 @@
     <arg name="visualize" default="true"/>
     <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
     <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
+    <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
+    <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
+    <arg name="total_future_nodes" default="10"/>
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'ltv_sde')" 
         pkg="nodelet" type="nodelet" name="StelaWindowedLtvSde" 
         args="load motion_planning/StelaWindowedLtvSde stela_nodelet_manager" 
         output="screen">
-        <param name="tree_topic_name" value="$(arg tree_topic_name)"/>
+        <param unless="$(eval arg('Stepper') == 'SbmpStepper')" name="tree_topic_name" value="$(arg tree_topic_name)"/>
+        <param if="$(eval arg('Stepper') == 'SbmpStepper')" name="tree_topic_name" value="$(arg tree_ahead_topic)"/>
+        <param if="$(eval arg('Stepper') == 'SbmpStepper')" name="using_stepper" value="true"/>
         <param name="control_topic" value="$(arg control_topic)"/> 
         <param name="control_frequency" value="$(arg control_frequency)"/>
         <param name="world_frame" value="$(arg world_frame)"/>
@@ -41,6 +47,9 @@
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
         <param name="sdf/environment" value="$(arg environment)"/>
+        <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
+        <param name="estimation_pub_freq" value="15"/>
+
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -65,6 +74,19 @@
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
         <param name="sdf/environment" value="$(arg environment)"/>
+    </node> 
+
+    <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 
+        pkg="nodelet" type="nodelet" name="SbmpStepperLtvSde" 
+        args="load motion_planning/SbmpStepperLtvSde stela_nodelet_manager" 
+        output="screen">
+        <param name="tree_topic_name" value="$(arg tree_topic_name)"/> 
+        <param name="output_dir" value="$(arg data_dir)"/>
+        <param name="estimation_topic" value="$(arg estimated_trajectory)"/>
+        <param name="tree_ahead_topic" value="$(arg tree_ahead_topic)"/>
+        <param name="visualize" value="$(arg visualize)"/>
+        <param name="experiment_id" value="$(arg experiment_id)"/>
+        <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
     </node> 
 
 </launch>

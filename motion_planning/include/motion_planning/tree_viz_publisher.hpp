@@ -31,7 +31,7 @@ public:
     // ros::NodeHandle private_nh("~");
 
     std::string tree_topic_name{};
-    std::vector<double> color{};
+    std::vector<double> color{ { 1.0, 0.0, 1.0, 0.0 } };
     bool& use_z{ _use_z };
     double& z_default{ _z_default };
     // _tree_topic_name = ros::this_node::getNamespace() + _tree_topic_name;
@@ -42,8 +42,9 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, x_idx, x_idx);
     PARAM_SETUP_WITH_DEFAULT(private_nh, y_idx, y_idx);
     PARAM_SETUP_WITH_DEFAULT(private_nh, z_idx, z_idx);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, 1.0, 0.0 }));
+    PARAM_SETUP_WITH_DEFAULT(private_nh, color, color);
 
+    prx_assert(color.size() == 4, "Wrong color size");
     _viz_edges_topic_name = tree_topic_name + _viz_edges_topic_name;
     _viz_nodes_topic_name = tree_topic_name + _viz_nodes_topic_name;
 
@@ -99,27 +100,13 @@ public:
   }
 
 protected:
-  inline void allocate_memory(const std::size_t& new_size)
-  {
-    // _nodes_marker.points.resize(new_size);
-    // // Edges need double the points as it will draw a line between each pair of points, so 0-1, 2-3, 4-5, ...
-    // _edges_marker.points.resize(new_size * 2);
-  }
-
-  inline void populate_node_marker(visualization_msgs::Marker, const prx_models::NodeConstPtr node)
-  {
-  }
-
-  // template <typename Graph>
   void get_graph(const prx_models::TreeConstPtr msg)
   {
     const std::size_t total_nodes{ msg->nodes.size() };
     const std::size_t total_edges{ msg->edges.size() };
-    // allocate_memory(total_nodes);
     _nodes_marker.points.clear();
     _edges_marker.points.clear();
 
-    // node_map[msg->node] = marker_node;
     std::unordered_map<std::uint64_t, std::uint64_t> node_map;
 
     for (auto node : msg->nodes)
@@ -128,7 +115,6 @@ protected:
       _nodes_marker.points.emplace_back();
       if (space_point.point.size() < 2)
         continue;
-      // DEBUG_VARS(space_point);
       _nodes_marker.points.back().x = space_point.point[x_idx];
       _nodes_marker.points.back().y = space_point.point[y_idx];
       _nodes_marker.points.back().z = _use_z ? space_point.point[z_idx] : _z_default;
@@ -136,9 +122,6 @@ protected:
     }
     for (auto edge : msg->edges)
     {
-      // const geometry_msgs::Point& source_point{ _nodes_marker.points[node_map[edge.source]] };
-      // const geometry_msgs::Point& target_point{ _nodes_marker.points[node_map[edge.target]] };
-
       if (node_map.count(edge.source) > 0 and node_map.count(edge.target) > 0)
       {
         const std::size_t source_id{ node_map[edge.source] };
@@ -146,42 +129,7 @@ protected:
         _edges_marker.points.push_back(_nodes_marker.points[source_id]);
         _edges_marker.points.push_back(_nodes_marker.points[target_id]);
       }
-      // _edges_marker.points.back().x = parent_point.point[x_idx];
-      // _edges_marker.points.back().y = parent_point.point[y_idx];
-      // _edges_marker.points.back().z = parent_point.point[z_idx];
-      // _edges_marker.points.emplace_back();
-      // _edges_marker.points.back().x = space_point.point[x_idx];
-      // _edges_marker.points.back().y = space_point.point[y_idx];
-      // _edges_marker.points.back().z = space_point.point[z_idx];
     }
-
-    // for (std::size_t i = 0; i < total_nodes; ++i)
-    // {
-    //   const prx_models::Node& node{ msg->nodes[i] };
-    //   const std::size_t node_id{ static_cast<std::size_t>(node.index) };
-    //   const std::size_t parent_id{ static_cast<std::size_t>(node.parent) };
-
-    //   const ml4kp_bridge::SpacePoint& space_point{ node.point };
-    //   _nodes_marker.points.emplace_back();
-    //   _nodes_marker.points.back().x = space_point.point[x_idx];
-    //   _nodes_marker.points.back().y = space_point.point[y_idx];
-    //   _nodes_marker.points.back().z = space_point.point[z_idx];
-
-    //   const ml4kp_bridge::SpacePoint& parent_point{ msg->nodes[parent_id].point };
-    //   _edges_marker.points.emplace_back();
-    //   _edges_marker.points.back().x = parent_point.point[x_idx];
-    //   _edges_marker.points.back().y = parent_point.point[y_idx];
-    //   _edges_marker.points.back().z = parent_point.point[z_idx];
-    //   _edges_marker.points.emplace_back();
-    //   _edges_marker.points.back().x = space_point.point[x_idx];
-    //   _edges_marker.points.back().y = space_point.point[y_idx];
-    //   _edges_marker.points.back().z = space_point.point[z_idx];
-    //   // _nodes_marker.points[node_id].x = space_point.point[x_idx];
-    //   // _nodes_marker.points[node_id].y = space_point.point[y_idx];
-    //   // _nodes_marker.points[node_id].z = space_point.point[z_idx];
-
-    //   // added_nodes.insert(node_id);
-    // }
 
     _viz_nodes_publisher.publish(_nodes_marker);
     _viz_edges_publisher.publish(_edges_marker);

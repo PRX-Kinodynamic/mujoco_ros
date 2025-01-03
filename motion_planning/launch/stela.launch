@@ -1,7 +1,7 @@
 <launch> 
   <arg name="visualize" default="true"/>
   <arg name="planner" default="Stela"/>
-  <arg name="Stepper" default="Stela"/>
+  <arg name="Stepper" default="SbmpStepper"/>
 	<arg name="Plant" default="ltv_sde"/>
   <arg name="plant_file" default="$(find motion_planning)/config/$(arg Plant).yaml"/>
   <arg name="total_states" default="100"/>
@@ -9,8 +9,8 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/empty.yaml"/> -->
-  <arg name="environment" default="environments/simple_obstacle.yaml"/>
-  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
+  <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
+  <arg name="environment" default="environments/forest.yaml"/>
   <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
@@ -41,7 +41,10 @@
   <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
   <arg name="mujoco" default="false" />
   <arg name="tf_noise_sigmas" default="[0.0,0.0,0.0]"/>
-  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/>
+  <arg name="parameter_values" default="[0,0,0.0,0.0,0,0,1,1]"/>
+  <!-- <arg name="tf_noise_sigmas" default="[0.020,0.020,0.0]"/> -->
+  <!-- <arg name="parameter_values" default="[0,0,0.0100,0.0100,0,0,1,1]"/> -->
+  <!-- <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/> -->
   <arg name="experiment_id" default="test"/>
   <arg name="num_workers" default="8"/>
   <arg name="feedback_lookahead" default="3"/>
@@ -50,6 +53,7 @@
   <arg name="control_frequency" default="30"/>
   <arg name="report_control_frequency" default="true"/>
   <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
+  <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
@@ -182,6 +186,8 @@ launch-prefix="gdb --args">
       <arg name="visualize" value="$(arg visualize)"/>
       <arg name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
       <arg name="sdf_params" value="$(find utils)/config/sdf.yaml"/>
+      <arg name="tree_ahead_topic" value="$(arg tree_ahead_topic)"/>
+      <arg name="Stepper" default="$(arg Stepper)"/>
     </include>
 
     <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'ltv_sde')" 
@@ -490,6 +496,15 @@ launch-prefix="gdb --args">
       <param name="color" type="yaml" value="[1.0, 1.0, 1.0, 1.0]"/>
     </node>  
 
+    <node if="$(arg visualize)" 
+      pkg="nodelet" type="nodelet" name="SbmpStepperTreeVizPublisher" 
+      args="load motion_planning/MotionPlanningTreeVizPublisher viz_nodelet_manager" output="screen">
+      <param name="tree_topic_name" value="$(arg tree_ahead_topic)"/>
+      <param name="use_z" value="false"/>
+      <param name="z_default" value="0.75"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]"/>
+    </node>  
+
     <node if="$(eval arg('visualize') and arg('Plant') == 'ltv_sde')" 
       pkg="nodelet" type="nodelet" name="ControlVizPublisher" 
       args="load interface/ControlVisualizationNodelet viz_nodelet_manager" output="screen">
@@ -514,6 +529,18 @@ launch-prefix="gdb --args">
       <param name="parameters_to_viz" type="yaml" value="[/Plant/goal/state, /Plant/start_state]"/>
       <param name="colors" type="yaml" value="['1.0 1.0 0.0 0.0', '1.0 0.0 1.0 0.0']"/>
       <param name="radius" type="yaml" value="[0.5, 0.5]"/>
+    </node>   
+
+    <node if="$(eval arg('visualize'))" 
+      pkg="nodelet" type="nodelet" name="StelaTrajectoryVizPublisher" 
+      args="load utils/StelaTrajectoryVizPublisher viz_nodelet_manager" output="screen">
+      <param name="topic_name" value="/stela/sbmp/estimated_trajectory"/>
+      <param name="x_idx" value="0"/>
+      <param name="y_idx" value="1"/>
+      <param name="use_z" value="false"/>
+      <param name="z_default" value="0.5"/>
+      <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 1.0]"/>
+
     </node>   
 
 

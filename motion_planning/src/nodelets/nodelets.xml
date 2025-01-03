@@ -127,5 +127,14 @@
       Scate
     </description>
   </class>
+
+  <class 
+      name="motion_planning/SbmpStepperLtvSde" 
+      type="motion_planning::SbmpStepperLtvSde" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      SBMP stepper
+    </description>
+  </class>
   
 </library>

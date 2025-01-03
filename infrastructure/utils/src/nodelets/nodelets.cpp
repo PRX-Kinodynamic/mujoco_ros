@@ -13,6 +13,8 @@
 #include <utils/sink_topics.hpp>
 #include <utils/plan_to_tree_publisher.hpp>
 #include <utils/state_from_param_viz_publisher.hpp>
+#include <utils/point_topics_to_markers.hpp>
+#include <utils/StelaTrajectoryViz.hpp>
 
 namespace utils
 {
@@ -36,7 +38,9 @@ using GraphVizPublisher = graph_viz_publisher_t<nodelet::Nodelet>;
 using BoolSinker = sink_topics_t<std_msgs::Bool, nodelet::Nodelet>;
 using PlanToTreePublisher = plan_to_tree_publisher_t<nodelet::Nodelet>;
 using StateFromParamPublisher = state_from_param_viz_publisher_t<nodelet::Nodelet>;
-
+using PointsTopicsToMarkerPublisher = points_topics_to_markers<false, nodelet::Nodelet>;
+using PointsHeaderTopicsToMarkerPublisher = points_topics_to_markers<true, nodelet::Nodelet>;
+using StelaTrajectoryVizPublisher = stela_trajectory_viz_t<nodelet::Nodelet>;
 }  // namespace utils
 PLUGINLIB_EXPORT_CLASS(utils::EnvironmentPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::TrajectoryVizPublisher, nodelet::Nodelet);
@@ -51,3 +55,6 @@ PLUGINLIB_EXPORT_CLASS(utils::CollisionToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::BoolSinker, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::PlanToTreePublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::StateFromParamPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::PointsTopicsToMarkerPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::PointsHeaderTopicsToMarkerPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::StelaTrajectoryVizPublisher, nodelet::Nodelet);
