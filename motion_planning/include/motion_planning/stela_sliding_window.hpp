@@ -69,7 +69,6 @@ public:
     , _isam2_update_params(gtsam::ISAM2UpdateParams())
     , _tree_recevied(false)
     , _last_local_goal(true)
-    , _goal_received(false)
     , _experiment_id("test")
     , _files_created(false)
     , _name("STELA_SW")
@@ -1102,8 +1101,7 @@ private:
 
   double _time_remaining;
 
-  bool _goal_received;
-  motion_planning::StelaGraphTraversalGoal _goal;
+  // motion_planning::StelaGraphTraversalGoal _goal;
 
   std::uint64_t _x_curr;
   std::uint64_t _x_next;

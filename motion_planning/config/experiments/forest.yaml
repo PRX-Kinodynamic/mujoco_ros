@@ -1,0 +1,94 @@
+A: &A
+  position: [0.0, 0.0] 
+  orientation: 1.5707963268
+
+B: &B
+  position: [2.0, 22.0] 
+  orientation: 1.5707963268
+
+C: &C
+  position: [20.0, 20.0] 
+  orientation: 1.5707963268
+
+D: &D
+  position: [22.0,2.0]
+  orientation: 1.5707963268
+
+E: &E
+  position: [12.0,-2.0]
+  orientation: 1.5707963268
+
+F: &F
+  position: [-2.0,12.0]
+  orientation: 1.5707963268
+
+G: &G
+  position: [4.0,22.0]
+  orientation: 1.5707963268
+
+
+experiments:
+  -
+    id: 0
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 1
+    start: *C
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 2
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *D
+  -
+    id: 3
+    start: *D
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 4
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *E
+  -
+    id: 5
+    start: *E
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 6
+    start: *F
+    goal:
+      radius: 0.2
+      <<: *D
+  -
+    id: 7
+    start: *D
+    goal:
+      radius: 0.2
+      <<: *F
+  -
+    id: 8
+    start: *G
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 9
+    start: *G
+    goal:
+      radius: 0.2
+      <<: *D
+
+bounds:
+  lower: [-5, -5] # forest & simple obs
+  upper: [25, 25] # forest & simple obs
