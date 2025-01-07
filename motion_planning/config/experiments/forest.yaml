@@ -33,7 +33,7 @@ experiments:
     start: *A
     goal:
       radius: 0.2
-      <<: *B
+      <<: *C
   -
     id: 1
     start: *C
