@@ -4,8 +4,8 @@ path: "mushrFG"
 vis_body: "body"
 
 control_steps: 
-  min: 20
-  max: 75
+  min: 1
+  max: 20
 
 # start_state: [1,-0.5,1.5707963268,0] # obstacle_0
 start_state: [0,0,1.5707963268,0,0,0] # simple_obstacle && forest

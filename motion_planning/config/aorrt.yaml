@@ -12,8 +12,8 @@ visualize: true
 checker_type: time
 # checker_value: 7200
 # checker_value: 3600
-# checker_value: 600
-checker_value: 300
+checker_value: 600
+# checker_value: 300
 # checker_value: 120
 # checker_value: 60
 # checker_value: 30
