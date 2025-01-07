@@ -74,6 +74,8 @@
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
         <param name="sdf/environment" value="$(arg environment)"/>
+        <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
+        <param name="estimation_pub_freq" value="15"/>
     </node> 
 
     <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 
