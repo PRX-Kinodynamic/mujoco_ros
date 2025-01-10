@@ -1,0 +1,20 @@
+A: &A
+  position: [3.0, -0.93] 
+  orientation: 0.0
+
+B: &B
+  position: [-2.945, -1.719] 
+  orientation: 0.0
+
+
+experiments:
+  -
+    id: 0
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+
+bounds:
+  lower: [-4.1, -2.5] 
+  upper: [+3.5, +0.5] 
