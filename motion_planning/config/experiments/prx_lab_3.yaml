@@ -14,6 +14,60 @@ experiments:
     goal:
       radius: 0.2
       <<: *B
+  -
+    id: 1
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 2
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 3
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 4
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 5
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 6
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 7
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
+  -
+    id: 8
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 9
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
 
 bounds:
   lower: [-4.1, -2.5] 
