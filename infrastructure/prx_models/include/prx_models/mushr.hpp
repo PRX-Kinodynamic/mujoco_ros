@@ -241,10 +241,21 @@ public:
         vec = p1.head(2);
       }
       vec = -vec / vec.norm();
-      H(0, 0) = vec[0];
-      H(0, 1) = vec[1];
 
-      LOG_VARS(state, vec.transpose(), p1.transpose(), p2.transpose(), collision)
+      if (vec[0] * vec[1] > 0)
+      {
+        // H0 = Eigen::Matrix<double, 1, 3>(-Hconfig[0], -Hconfig[1], 0.0);
+        H(0, 0) = -vec[0];
+        H(0, 1) = -vec[1];
+      }
+      else
+      {
+        H(0, 0) = vec[0];
+        H(0, 1) = vec[1];
+        // H0 = Eigen::Matrix<double, 1, 3>(Hconfig[0], Hconfig[1], 0.0);
+      }
+
+      // LOG_VARS(state, vec.transpose(), p1.transpose(), p2.transpose(), collision)
 
       const double Sth{ std::sin(state[2]) };
       const double Cth{ std::cos(state[2]) };
