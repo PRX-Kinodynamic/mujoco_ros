@@ -56,7 +56,8 @@ public:
   virtual bool active(const gtsam::Values& values) const override
   {
     const State state{ values.at<State>(this->template key<1>()) };
-    const bool is_close{ distance(state) <= _eps_distance };
+    const double dist{ distance(state) };
+    const bool is_close{ dist < _eps_distance };
 
     return is_close;
   }
@@ -73,13 +74,26 @@ public:
 
     const double activated_dist{ -dist + _eps_distance };
 
-    const Eigen::VectorXd error{ Eigen::Vector<double, 1>(activated_dist) };
+    const Eigen::VectorXd error{ { activated_dist } };
+    // const std::string key{ SF::formatter(this->template key<1>()) };
     if (H0)
     {
-      _config_from_state.jacobian(x0, -_Hconfig, *H0);
+      _config_from_state.jacobian(x0, _Hconfig, *H0);
+      *H0 = -1 * (*H0);
     }
 
     return error;
+  }
+
+  void print(const std::string& s, const gtsam::KeyFormatter& keyFormatter = SF::formatter) const override
+  {
+    std::cout << s << "SdfFactor: " << keyFormatter(this->template key<1>());
+    std::cout << " epsilon_distance: " << _eps_distance;
+    if (this->noiseModel_)
+      this->noiseModel_->print("  noise model: ");
+    else
+      std::cout << "no noise model" << std::endl;
+    std::cout << "\n";
   }
 
 protected:

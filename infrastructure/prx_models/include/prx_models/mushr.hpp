@@ -237,12 +237,22 @@ public:
       H = Eigen::Matrix<double, 1, 3>::Zero();
       Eigen::Vector2d vec{ (p1 - p2).head(2) };
       if (collision)
-        vec = -p1.head(2);
-      vec.normalize();
-      H(0, 0) = -vec[0];
-      H(0, 1) = -vec[1];
+      {
+        vec = p1.head(2);
+      }
+      vec = -vec / vec.norm();
+      H(0, 0) = vec[0];
+      H(0, 1) = vec[1];
 
-      // H(0,2) = -(−vec[0](ax std::sin(state[2])+ay std::cos(state[2]))+ fy(ax cosθ−ay sinθ)
+      LOG_VARS(state, vec.transpose(), p1.transpose(), p2.transpose(), collision)
+
+      const double Sth{ std::sin(state[2]) };
+      const double Cth{ std::cos(state[2]) };
+      const double ax{ collision ? p1[0] : (p1[0] - state[0]) };
+      const double ay{ collision ? p1[1] : (p1[1] - state[1]) };
+      const double fx{ vec[0] };
+      const double fy{ vec[1] };
+      H(0, 2) = -fx * (ax * Sth + ay * Cth) + fy * (ax * Cth - ay * Sth);
     }
 
     void configuration(Eigen::Vector2d& pt, const State& x)
@@ -253,7 +263,26 @@ public:
 
     void jacobian(const State& x0, const Eigen::Matrix<double, 1, 2>& Hconfig, Eigen::MatrixXd& H0) const
     {
-      H0 = Eigen::Matrix<double, 1, 3>(Hconfig[0], Hconfig[1], 0.0);
+      // const double rad{ 0.42 };
+      // const double Sth{ std::sin(x[2]) };
+      // const double Cth{ std::cos(x[2]) };
+
+      // const double Jth{ Hconfig[0] * rad * () + Hconfig[1] };
+      if (Hconfig[0] * Hconfig[1] > 0)
+      {
+        H0 = Eigen::Matrix<double, 1, 3>(-Hconfig[0], -Hconfig[1], 0.0);
+      }
+      else
+      {
+        H0 = Eigen::Matrix<double, 1, 3>(Hconfig[0], Hconfig[1], 0.0);
+      }
+      // H0 = Eigen::Matrix<double, 1, 3>(0.0, 0.0, 0.0);
+      // H0 = Eigen::Matrix<double, 1, 3>(Hconfig[1], Hconfig[0], 0.0);
+      // H0 = Eigen::Matrix<double, 1, 3>(0.0, Hconfig[0], Hconfig[1]);
+      // H0 = H0 / H0.norm();
+      // H0 = H0 * 0.1;
+      // LOG_VARS(x0, H0)
+      // H0 = Eigen::Matrix<double, 1, 3>(-Hconfig[0], -Hconfig[1], 0.0);
       // H0 = Hconfig;
     }
   };
@@ -382,10 +411,13 @@ public:
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e0) };
     NoiseModel dt_limit_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
+    NoiseModel xd_integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
 
-    graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise, "MushrXXdot");
+    // graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot1, k_t01, integration_noise,
+    // "MushrXXdot");
+    graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
-    graph_values.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
+    graph_values.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, xd_integration_noise,
                                                              default_params, default_poly);
     // aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
 
@@ -399,14 +431,14 @@ public:
     // aux_graph.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
 
     graph_values.first.addPrior(k_t01, dt, dt_noise);
-    graph_values.first.addPrior(k_x1, x1, prior_noise);
-    // graph_values.first.addPrior(k_xdot1, xdot1, xdot_prior_noise);
-    // graph_values.first.addPrior(k_ubar1, ubar1);
+    graph_values.first.addPrior(k_x1, x1);
+    graph_values.first.addPrior(k_xdot1, xdot1);
+    // graph_values.first.addPrior(k_u01, u01);
+    // graph_values.first.addPrior(k_xdot1, xdot1, prior_noise);
     graph_values.second.insert(k_x1, x1);
     graph_values.second.insert(k_t01, dt);
 
     // aux_graph.first.addPrior(k_u01, u01, u_prior_noise);
-    graph_values.first.addPrior(k_xdot1, xdot1);
     graph_values.second.insert(k_xdot1, xdot1);
     graph_values.second.insert(k_u01, u01);
 

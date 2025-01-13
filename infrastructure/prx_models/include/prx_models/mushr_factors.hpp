@@ -945,7 +945,7 @@ public:
           + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero * xd1Zero_H_qdd * qdd_H_AccIn *
                 accIn_H_paramAccIn;
       (*Hparams).col(mushr_types::Control::steering) = Eigen::Vector3d::Zero();
-      (*Hparams).col(mushr_types::Control::friction) = Eigen::Vector3d::Zero();  // xd1_H_xddF * xddF_H_F;
+      (*Hparams).col(mushr_types::Control::friction) = wNew_H_friction;  // xd1_H_xddF * xddF_H_F;
     }
 
     return xd1;

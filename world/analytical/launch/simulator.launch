@@ -40,6 +40,7 @@
             <param name="collision_topic" value="$(arg collision_topic)"/>
             <param name="observation_frequency" value="$(arg observation_frequency)"/>
             <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
+            <param name="verbose" value="false"/>
         </node>
 
         <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen">

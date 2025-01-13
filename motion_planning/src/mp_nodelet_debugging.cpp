@@ -11,6 +11,7 @@
 #include <motion_planning/stela.hpp>
 #include <motion_planning/scate.hpp>
 #include <motion_planning/stela_stepper.hpp>
+#include <motion_planning/stela_sliding_window.hpp>
 
 #include <ml4kp_bridge/fg_ltv_sde.hpp>
 
@@ -57,6 +58,12 @@ int main(int argc, char** argv)
   {
     // using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
     node = std::make_unique<motion_planning::stela_t<prx_models::mushr_utils_t, utils::nodelet_as_node_t>>();
+  }
+  else if (node_name == "StelaWindowedMushr")
+  {
+    using StelaWindowedMushr = motion_planning::stela_windowed_t<prx_models::mushr_utils_t, utils::nodelet_as_node_t>;
+    // using StelaMushr = stela_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
+    node = std::make_unique<StelaWindowedMushr>();
   }
   else if (node_name == "StelaStepper")
   {

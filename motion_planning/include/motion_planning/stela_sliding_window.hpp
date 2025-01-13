@@ -62,7 +62,7 @@ public:
   using GraphValues = std::pair<FactorGraph, Values>;
 
   stela_windowed_t()
-    : _isam_params(gtsam::ISAM2GaussNewtonParams(), 0.1, 10, true, true, gtsam::ISAM2Params::CHOLESKY, true,
+    : _isam_params(gtsam::ISAM2DoglegParams(), 0.1, 10, true, true, gtsam::ISAM2Params::CHOLESKY, true,
                    prx::fg::symbol_factory_t::formatter, true)
     , _tf_listener(_tf_buffer)
     , _isam(_isam_params)
@@ -93,7 +93,7 @@ public:
     std::string collision_topic;
     std::string environment;
     std::string estimated_tree_topic;
-    double obstacle_sigma{ 0.1 };
+    double obstacle_sigma{ 1.0 };
     double control_frequency;
     double& obstacle_distance_tolerance{ _obstacle_distance_tolerance };
     double& obstacle_factor_include_distance{ _obstacle_factor_include_distance };
@@ -325,17 +325,38 @@ public:
     to_file(false, true);
   }
 
+  void print_error(const std::string msg)
+  {
+    const gtsam::Values values{ _isam.calculateBestEstimate() };
+    const double current_error{ _isam.getFactorsUnsafe().error(values) };
+    DEBUG_VARS(msg, current_error);
+  }
+
   void check_frequency(const ros::TimerEvent& event)
   {
     if (_tree_recevied)
     {
+      // _isam.calculateBestEstimate()
       // const double current_error{ _isam.error(_isam.getDelta()) };
+      const gtsam::Values values{ _isam.calculateBestEstimate() };
+      const double current_error{ _isam.getFactorsUnsafe().error(values) };
 
       const double dt{ (event.current_real - event.last_real).toSec() };
       const double stela_frequency{ _freq_counter / dt };
 
-      DEBUG_VARS(stela_frequency);
+      // DEBUG_VARS(stela_frequency);
+      // const std::string frq{ "stela_frequency" };
+      DEBUG_VARS(stela_frequency, current_error);
       _freq_counter = 0;
+
+      // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+      //     printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr and err > 0.1; };
+      // _isam.getFactorsUnsafe().printErrors(values, "Problem graph", SF::formatter, printCondition);
+
+      // if (current_error > 1.0)
+      // {
+      //   to_file(false, true);
+      // }
     }
   }
 
@@ -370,7 +391,9 @@ public:
     if (_tree_recevied)
     {
       update_next_goal();
+      // print_error("After updating goal");
       const bool valid_observations{ add_observations() };
+      // print_error("After adding observations");
       if (not _goal_reached and valid_observations)
       {
         publish_control();
@@ -559,8 +582,6 @@ public:
       try
       {
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
-
-        // DEBUG_VARS(_x_curr, _isam2_result.newFactorsIndices);
         _inserted_factors[_x_curr].insert(_inserted_factors[_x_curr].end(),
                                           _isam2_result.newFactorsIndices.begin(),  // no-lint
                                           _isam2_result.newFactorsIndices.end());
@@ -704,7 +725,7 @@ public:
     {
       PRINT_MSG_ONCE("Using SDF Factors")
       const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-      SystemInterface::state(_state, point);
+      // SystemInterface::state(_state, point);
       graph.emplace_shared<SdfFactor>(keyX, _obstacle_distance_tolerance, _sdf, _obstacle_noise);
     }
   }
@@ -836,8 +857,11 @@ public:
   {
     try
     {
-      SF::symbols_to_file("/Users/Gary/pracsys/catkin_ws/factor_graph_symbols.txt");
+      // SF::symbols_to_file("/Users/Gary/pracsys/catkin_ws/factor_graph_symbols.txt");
       _values.insert(values);
+      // graph.printErrors(_values, "Problem graph", SF::formatter);
+
+      // _isam2_update_params.force_relinearize = true;
       _isam2_result = _isam.update(graph, values, _isam2_update_params);
       _isam2_update_params.removeFactorIndices.clear();
     }
@@ -846,8 +870,9 @@ public:
       failure_to_file(e.what());
       prx::fg::indeterminant_linear_system_helper(graph, _values);
       std::cout << "[EXCEPTION] Var: " << SF::formatter(e.nearbyVariable()) << std::endl;
-      // graph.printErrors(_values, "Problem graph", SF::formatter);
-      // _values.print("Values", SF::formatter);
+      _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter);
+      graph.printErrors(_values, "Problem graph", SF::formatter);
+      _values.print("Values", SF::formatter);
       throw e;
     }
     catch (gtsam::ValuesKeyDoesNotExist e)

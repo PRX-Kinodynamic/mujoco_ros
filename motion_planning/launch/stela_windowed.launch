@@ -78,6 +78,32 @@
         <param name="estimation_pub_freq" value="15"/>
     </node> 
 
+    <node if="$(eval arg('planner') == 'StelaWindowed-dbg' and  arg('Plant') == 'mushr')" 
+        pkg="motion_planning" type="mp_nodelet_debugging" name="stela_windowed_debugging" 
+        output="screen" launch-prefix="xterm -e lldb --">
+        <param name="node_name" value="StelaWindowedMushr"/>
+        <param name="tree_topic_name" value="$(arg tree_topic_name)"/>
+        <param name="control_topic" value="$(arg control_topic)"/> 
+        <param name="control_frequency" value="$(arg control_frequency)"/>
+        <param name="world_frame" value="$(arg world_frame)"/>
+        <param name="robot_frame" value="$(arg robot_frame)"/>
+        <param name="output_dir" value="$(arg data_dir)"/>
+        <param name="collision_topic" value="$(arg collision_topic)"/>
+        <param name="environment" value="$(arg environment)"/>
+        <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+        <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
+        <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
+        <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+        <param name="experiment_id" value="$(arg experiment_id)"/>
+        <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
+        <param name="visualize" value="$(arg visualize)"/>
+        <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+        <param name="sdf_params" value="$(arg sdf_params)"/>
+        <param name="sdf/environment" value="$(arg environment)"/>
+        <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
+        <param name="estimation_pub_freq" value="15"/>
+    </node> 
+
     <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 
         pkg="nodelet" type="nodelet" name="SbmpStepperLtvSde" 
         args="load motion_planning/SbmpStepperLtvSde stela_nodelet_manager" 

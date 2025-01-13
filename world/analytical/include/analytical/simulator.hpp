@@ -20,7 +20,7 @@ template <typename Base>
 class simulator_t : public Base
 {
 public:
-  simulator_t() : _set_state_topic_name("/ml4kp/simulator/set_state") {};
+  simulator_t() : _set_state_topic_name("/ml4kp/simulator/set_state"), _verbose(false) {};
 
   virtual ~simulator_t()
   {
@@ -44,6 +44,8 @@ protected:
     std::vector<double> tf_noise_sigmas{ { 0, 0, 0 } };
     std::string shutdown_topic{ "" };
 
+    bool& verbose{ _verbose };
+
     PARAM_SETUP(private_nh, plant_ml4kp_params);
     PARAM_SETUP(private_nh, state_topic);
     PARAM_SETUP(private_nh, control_topic);
@@ -54,6 +56,7 @@ protected:
     PARAM_SETUP_WITH_DEFAULT(private_nh, robot_frame, robot_frame);
     PARAM_SETUP_WITH_DEFAULT(private_nh, tf_noise_sigmas, tf_noise_sigmas);
     PARAM_SETUP_WITH_DEFAULT(private_nh, shutdown_topic, shutdown_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
 
     DEBUG_VARS(prx::simulation_step);
 
@@ -196,6 +199,12 @@ protected:
     if (_step_prev_time == ros::Time::now())
       return;
     _system_group->propagate_once();
+    if (_verbose)
+    {
+      Eigen::RowVectorXd xt(_state_space->size());
+      _state_space->copy_to(xt);
+      DEBUG_VARS(xt);
+    }
     _step_prev_time = ros::Time::now();
     if (_collision_group->in_collision())
     {
@@ -204,6 +213,8 @@ protected:
       _collision_publisher.publish(msg);
     }
   }
+
+  bool _verbose;
 
   ros::Time _prev_time;
   ros::Time _step_prev_time;

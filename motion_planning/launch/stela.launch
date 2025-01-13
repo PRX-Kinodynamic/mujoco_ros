@@ -11,6 +11,7 @@
   <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <arg name="environment" default="environments/forest.yaml"/>
+  <!-- <arg name="environment" default="environments/prx_lab_3.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
@@ -41,8 +42,9 @@
   <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
   <arg name="mujoco" default="false" />
   <arg name="tf_noise_sigmas" default="[0.0,0.0,0.0]"/>
-  <arg name="parameter_values" default="[0,0,0.0,0.0,0,0,1,1]"/>
-  <!-- <arg name="tf_noise_sigmas" default="[0.020,0.020,0.0]"/> -->
+  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.0,0.0]"/>
+  <!-- <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.005,0.0005,0.0005]"/> -->
+  <!-- <arg name="tf_noise_sigmas" default="[0.010,0.010,0.0]"/> -->
   <!-- <arg name="parameter_values" default="[0,0,0.0100,0.0100,0,0,1,1]"/> -->
   <!-- <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/> -->
   <arg name="experiment_id" default="test"/>
@@ -54,10 +56,11 @@
   <arg name="report_control_frequency" default="true"/>
   <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
   <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
+  <arg name="observation_frequency" default="30"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
-    <rosparam file="$(find motion_planning)/config/$(arg Plant).yaml" />
+    <rosparam file="$(arg plant_file)" />
   </group>
 
   <group ns="stela">
@@ -322,6 +325,7 @@ launch-prefix="gdb --args">
       <arg name="parameter_values" value="$(arg parameter_values)"/>  
       <arg name="shutdown_topic" default="$(arg shutdown_topic)"/>
       <arg name="num_workers" default="$(arg num_workers)"/>
+      <arg name="observation_frequency" default="$(arg observation_frequency)"/>
     </include>
 
     <include if="$(eval arg('Plant') == 'MjMushr' and arg('mujoco'))" 
@@ -354,8 +358,8 @@ launch-prefix="gdb --args">
       <param name="in_topics" type="yaml" value="[$(arg collision_topic), $(arg stop_topic), /stela/finished]"/>
     </node>
 
-    <node if="$(arg sim_clock)" 
-      pkg="utils" type="SimClock" name="SimClock" output="screen">
+    <node if="$(arg sim_clock)" launch-prefix="xterm -e"
+      pkg="utils" type="SimClock" name="SimClock" output="screen" >
       <param name="SimStep" value="$(arg simulation_step)"/>
       <param name="fileprefix" value="desired_trajectories"/>
       <param name="topic_name" value="$(arg trajectory_topic)"/>

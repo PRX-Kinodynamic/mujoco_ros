@@ -4,7 +4,7 @@ A: &A
 
 B: &B
   position: [2.0, 22.0] 
-  orientation: 1.5707963268
+  orientation: 0.0
 
 C: &C
   position: [20.0, 20.0] 
@@ -24,7 +24,7 @@ F: &F
 
 G: &G
   position: [4.0,22.0]
-  orientation: 1.5707963268
+  orientation: 0
 
 
 experiments:

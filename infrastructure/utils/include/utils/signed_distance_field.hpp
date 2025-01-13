@@ -202,6 +202,7 @@ class signed_distance_field_t
     Translation pt, p1, p2;
     State position{ State::Zero() };
 
+    Eigen::Vector2d min_obstacle_position;
     double inside_dist{ 0.0 };
     for (std::size_t x = 0; x < w; ++x)
     {
@@ -226,32 +227,44 @@ class signed_distance_field_t
             dist = -inside_dist;
             break;
           }
-          dist = std::min(dist, obs_dist);
+          if (obs_dist < dist)
+          {
+            dist = obs_dist;
+            min_obstacle_position = obs->pose.position().head(2);
+          }
+          // dist = std::min(dist, obs_dist);
         }
 
         _sdf(x, y) = dist;
-      }
-    }
 
-    using OutType = Eigen::Vector<double, 1>;
-    using SdfWrapper = std::function<OutType(const Eigen::Vector2d&)>;
-    using Derivative = prx::math::first_order_derivative_t<SdfWrapper, Eigen::Vector2d, 3>;
-
-    SdfWrapper wrapper = [this](const Eigen::Vector2d& p) { return OutType(distance(p)); };
-
-    Derivative derivative(wrapper, _resolution);
-    Eigen::Vector2d H;
-    for (std::size_t x = 0; x < w; ++x)
-    {
-      position[0] = _min_bound[0] + x * _resolution;
-      for (std::size_t y = 0; y < h; ++y)
-      {
-        position[1] = _min_bound[1] + y * _resolution;
-        H = derivative(position);
+        const Eigen::Vector2d v_obs{ min_obstacle_position - position };
+        const Eigen::Vector2d H{ v_obs / v_obs.norm() };
         _sdf_dx(x, y) = H[0];
         _sdf_dy(x, y) = H[1];
       }
     }
+
+    // using OutType = Eigen::Vector<double, 1>;
+    // using SdfWrapper = std::function<OutType(const Eigen::Vector2d&)>;
+    // using Derivative = prx::math::first_order_derivative_t<SdfWrapper, Eigen::Vector2d, 3>;
+
+    // SdfWrapper wrapper = [this](const Eigen::Vector2d& p) { return OutType(distance(p)); };
+
+    // Derivative derivative(wrapper, _resolution);
+    // std::function<Eigen::Vector2d(const Eigen::Vector2d&)> = [&](const Eigen::Vector2d&) { return };
+
+    // Eigen::Vector2d H;
+    // for (std::size_t x = 0; x < w; ++x)
+    // {
+    //   position[0] = _min_bound[0] + x * _resolution;
+    //   for (std::size_t y = 0; y < h; ++y)
+    //   {
+    //     position[1] = _min_bound[1] + y * _resolution;
+    //     H = derivative(position);
+    //     _sdf_dx(x, y) = H[0];
+    //     _sdf_dy(x, y) = H[1];
+    //   }
+    // }
   }
 
   inline IdxPair coordinates_to_indices(const double& x, const double& y) const
@@ -294,12 +307,27 @@ public:
     return _sdf(idxs.first, idxs.second);
   }
 
+  Eigen::Vector2d jacobian(const IdxPair& idx) const
+  {
+    const double dx{ _sdf_dx(idx.first, idx.second) };
+    const double dy{ _sdf_dy(idx.first, idx.second) };
+    return Eigen::Vector2d(dx, dy);
+  }
+
   Eigen::Vector2d jacobian(const double& x, const double& y) const
   {
-    const IdxPair idxs{ coordinates_to_indices(x, y) };
-    const double dx{ _sdf_dx(idxs.first, idxs.second) };
-    const double dy{ _sdf_dy(idxs.first, idxs.second) };
-    return Eigen::Vector2d(dx, dy);
+    const IdxPair idxs00{ coordinates_to_indices(x, y) };
+    const IdxPair idxs01{ IdxPair(idxs00.first, idxs00.second - 1) };
+    const IdxPair idxs10{ IdxPair(idxs00.first - 1, idxs00.second) };
+    const IdxPair idxs11{ IdxPair(idxs00.first - 1, idxs00.second - 1) };
+    // const double dx{ _sdf_dx(idxs.first, idxs.second) };
+    // const double dy{ _sdf_dy(idxs.first, idxs.second) };
+    const Eigen::Vector2d jac00{ jacobian(idxs00) };
+    const Eigen::Vector2d jac01{ jacobian(idxs01) };
+    const Eigen::Vector2d jac10{ jacobian(idxs10) };
+    const Eigen::Vector2d jac11{ jacobian(idxs11) };
+
+    return (jac00 + jac01 + jac10 + jac11) / 4.0;
   }
 
   double distance(const Eigen::Vector2d& x) const
