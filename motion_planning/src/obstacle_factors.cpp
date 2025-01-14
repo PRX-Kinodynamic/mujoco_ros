@@ -13,6 +13,7 @@
 // #include <estimation/fg_trajectory_estimation.hpp>
 #include <analytical/fg_ltv_sde.hpp>
 #include <motion_planning/sdf_factor.hpp>
+#include <prx_models/mushr.hpp>
 
 // ML4KP
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
@@ -26,7 +27,8 @@
 
 int main(int argc, char** argv)
 {
-  using SystemInterface = prx::fg::ltv_sde_utils_t;
+  // using SystemInterface = prx::fg::ltv_sde_utils_t;
+  using SystemInterface = prx_models::mushr_utils_t;
   using State = typename SystemInterface::State;
   using Sdf = utils::signed_distance_field_t;
   using SdfPtr = std::shared_ptr<Sdf>;
@@ -37,6 +39,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
+  int iterations{ 1 };
   int total_states;
   double safety_distance, obstacle_sigma;
   prx::param_loader params{};
@@ -47,17 +50,19 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, sdf_file);
   ROS_PARAM_SETUP(nh, outfile);
   ROS_PARAM_SETUP(nh, obstacle_sigma);
+  PARAM_SETUP_WITH_DEFAULT(nh, iterations, iterations);
 
   params.add_file(sdf_file);
   SdfPtr sdf{ Sdf::create(params) };
 
   const gtsam::Key k(0);
   gtsam::GaussNewtonParams gn_params;
-  gn_params.setMaxIterations(1);
+  gn_params.setMaxIterations(iterations);
+  gn_params.setVerbosity("SILENT");
 
-  gtsam::LevenbergMarquardtParams lm_params{ prx::fg::default_levenberg_marquardt_parameters() };
-  lm_params.setMaxIterations(1);
-  lm_params.setVerbosityLM("SUMMARY");
+  // gtsam::LevenbergMarquardtParams lm_params{ prx::fg::default_levenberg_marquardt_parameters() };
+  // lm_params.setMaxIterations(1);
+  // lm_params.setVerbosityLM("SILENT");
 
   std::ofstream ofs(outfile.c_str());
   auto obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
@@ -66,21 +71,26 @@ int main(int argc, char** argv)
   {
     gtsam::Values values;
     gtsam::NonlinearFactorGraph graph;
-    const State initial{ prx::uniform_random(-5.0, 25.0), prx::uniform_random(-5.0, 25.0) };
+    // const State initial{ prx::uniform_random(-5.0, 25.0), prx::uniform_random(-5.0, 25.0) };
+    const State initial{ prx::uniform_random(-5.0, 25.0), prx::uniform_random(-5.0, 25.0),
+                         prx::uniform_random(0.0, 2 * 3.14159) };
+    // 3.14159 / 2.0 };
     values.insert(k, initial);
     graph.addPrior(k, initial);
     graph.emplace_shared<SdfFactor>(k, safety_distance, sdf, obstacle_noise);
     // DEBUG_VARS(initial.transpose());
     // gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
     gtsam::GaussNewtonOptimizer optimizer(graph, values, gn_params);
-    graph.printErrors(values, "Graph");
+    // graph.printErrors(values, "Graph");
     // gtsam::Values result{ optimizer.optimize() };
     gtsam::Values result{ optimizer.optimize() };
 
     const State final{ result.at<State>(k) };
 
-    ofs << initial.transpose() << " ";
-    ofs << final.transpose() << " ";
+    ofs << initial[0] << " ";
+    ofs << initial[1] << " ";
+    ofs << final[0] << " ";
+    ofs << final[1] << " ";
     ofs << "\n";
   }
 

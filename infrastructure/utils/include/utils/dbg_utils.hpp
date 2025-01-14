@@ -19,11 +19,6 @@ inline static const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
 inline static std::ofstream ofs_log;
 }  // namespace variables
 
-inline void print_variables(std::ostream& stream, std::string name)
-{
-  stream << std::endl;
-}
-
 template <typename Value, std::enable_if_t<prx::utilities::is_streamable<Value>::value, bool> = true>
 inline void print_value(std::ostream& stream, const Value& value)
 {
@@ -42,8 +37,13 @@ inline void print_value(std::ostream& stream, const Value& value)
   // stream << "\n";
 }
 
+inline void print_variables(std::ostream& stream, bool color, std::string name)
+{
+  stream << std::endl;
+}
+
 template <typename Var0, class... Vars>
-inline void print_variables(std::ostream& stream, std::string name, Var0 var, Vars... vars)
+inline void print_variables(std::ostream& stream, bool color, std::string name, Var0 var, Vars... vars)
 {
   const std::regex regex(",(\\s*)+");
   std::string var_name{ name };
@@ -56,10 +56,19 @@ inline void print_variables(std::ostream& stream, std::string name, Var0 var, Va
     var_name = name.substr(0, split_on);
     other_names = name.substr(split_on + match.length());  // <-- also, skip the whole math
   }
+  if (color)
+  {
+    stream << prx::constants::color::yellow;
+    stream << var_name << ": ";
+    stream << prx::constants::color::normal;
+  }
+  else
+  {
+    stream << var_name << ": ";
+  }
 
-  stream << prx::constants::color::yellow << var_name << ": " << prx::constants::color::normal;
   print_value(stream, var);
-  print_variables(stream, other_names, vars...);
+  print_variables(stream, color, other_names, vars...);
 }
 
 template <class... Vars>
@@ -70,11 +79,11 @@ inline void log_variables(std::string name, Vars... vars)
   {
     ofs_log.open(dbg::variables::lib_path + "/log.txt");
   }
-  dbg::print_variables(ofs_log, name, vars...);
+  dbg::print_variables(ofs_log, false, name, vars...);
 }
 
 }  // namespace dbg
-#define DEBUG_VARS(...) dbg::print_variables(std::cout, #__VA_ARGS__, __VA_ARGS__);
+#define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_VARS(...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
 #define PRINT_MSG(MSG)                                                                                                 \
   {                                                                                                                    \
@@ -85,13 +94,13 @@ inline void log_variables(std::string name, Vars... vars)
 #define PRINT_MSG_VARS(MSG, ...)                                                                                       \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
-    dbg::print_variables(std::cout, "msg", msg, #__VA_ARGS__, __VA_ARGS__);                                            \
+    dbg::print_variables(std::cout, true, "msg", msg, #__VA_ARGS__, __VA_ARGS__);                                      \
   };
 
 #define PRINT_KEY(KEY)                                                                                                 \
   {                                                                                                                    \
     const std::string key{ SF::formatter(KEY) };                                                                       \
-    dbg::print_variables(std::cout, #KEY, key);                                                                        \
+    dbg::print_variables(std::cout, true, #KEY, key);                                                                  \
   };
 #define PRINT_KEYS(KEYS)                                                                                               \
   {                                                                                                                    \
@@ -101,7 +110,7 @@ inline void log_variables(std::string name, Vars... vars)
       const std::string key_str{ SF::formatter(key) };                                                                 \
       dbg::print_value(std::cout, key_str);                                                                            \
     }                                                                                                                  \
-    dbg::print_variables(std::cout, "");                                                                               \
+    dbg::print_variables(std::cout, true, "");                                                                         \
   };
 
 #define PRINT_MSG_ONCE(MSG)                                                                                            \

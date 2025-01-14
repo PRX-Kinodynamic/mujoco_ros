@@ -107,10 +107,15 @@ class signed_distance_field_t
       const std::string dir{ params.exists("directory") ? params["directory"].as<std::string>() : "None" };
       std::filesystem::path path(_environment);
       _file = dir + "/" + path.stem().string() + ".txt";
-      initialized = from_file();
+      const bool force_recompute{ params.exists("force_recompute") ? params["force_recompute"].as<bool>() : false };
+      if (not force_recompute)
+      {
+        initialized = from_file();
+      }
     }
     if (not initialized)
     {
+      PRINT_MSG("Computing SDF.");
       create_sdf();
     }
   }
@@ -225,46 +230,49 @@ class signed_distance_field_t
           if (inside)
           {
             dist = -inside_dist;
+            // min_obstacle_position = p2.head(2);
+            min_obstacle_position = obs->pose.position().head(2);
             break;
           }
           if (obs_dist < dist)
           {
             dist = obs_dist;
-            min_obstacle_position = obs->pose.position().head(2);
+            min_obstacle_position = p2.head(2);
           }
           // dist = std::min(dist, obs_dist);
         }
+        // LOG_VARS(dist, min_obstacle_position.transpose());
 
         _sdf(x, y) = dist;
 
-        const Eigen::Vector2d v_obs{ min_obstacle_position - position };
-        const Eigen::Vector2d H{ v_obs / v_obs.norm() };
+        // const Eigen::Vector2d v_obs{ position - min_obstacle_position };
+        // // const Eigen::Vector2d H{ v_obs / dist };
+        // const Eigen::Vector2d H{ (dist > 0 ? 1.0 : -1.0) * v_obs / v_obs.norm() };
+        // // DEBUG_VARS(position.transpose(), dist, min_obstacle_position.transpose(), v_obs.transpose(),
+        // H.transpose()); _sdf_dx(x, y) = H[0]; _sdf_dy(x, y) = H[1];
+      }
+    }
+
+    using OutType = Eigen::Vector<double, 1>;
+    using SdfWrapper = std::function<OutType(const Eigen::Vector2d&)>;
+    using Derivative = prx::math::first_order_derivative_t<SdfWrapper, Eigen::Vector2d, 5, -2>;
+
+    SdfWrapper wrapper = [this](const Eigen::Vector2d& p) { return OutType(distance(p)); };
+
+    Derivative derivative(wrapper, _resolution);
+
+    Eigen::Vector2d H;
+    for (std::size_t x = 0; x < w; ++x)
+    {
+      position[0] = _min_bound[0] + x * _resolution;
+      for (std::size_t y = 0; y < h; ++y)
+      {
+        position[1] = _min_bound[1] + y * _resolution;
+        H = derivative(position);
         _sdf_dx(x, y) = H[0];
         _sdf_dy(x, y) = H[1];
       }
     }
-
-    // using OutType = Eigen::Vector<double, 1>;
-    // using SdfWrapper = std::function<OutType(const Eigen::Vector2d&)>;
-    // using Derivative = prx::math::first_order_derivative_t<SdfWrapper, Eigen::Vector2d, 3>;
-
-    // SdfWrapper wrapper = [this](const Eigen::Vector2d& p) { return OutType(distance(p)); };
-
-    // Derivative derivative(wrapper, _resolution);
-    // std::function<Eigen::Vector2d(const Eigen::Vector2d&)> = [&](const Eigen::Vector2d&) { return };
-
-    // Eigen::Vector2d H;
-    // for (std::size_t x = 0; x < w; ++x)
-    // {
-    //   position[0] = _min_bound[0] + x * _resolution;
-    //   for (std::size_t y = 0; y < h; ++y)
-    //   {
-    //     position[1] = _min_bound[1] + y * _resolution;
-    //     H = derivative(position);
-    //     _sdf_dx(x, y) = H[0];
-    //     _sdf_dy(x, y) = H[1];
-    //   }
-    // }
   }
 
   inline IdxPair coordinates_to_indices(const double& x, const double& y) const
@@ -274,6 +282,13 @@ class signed_distance_field_t
     const std::size_t x_idx{ static_cast<std::size_t>(std::ceil((x_p - _min_bound[0]) / _resolution)) };
     const std::size_t y_idx{ static_cast<std::size_t>(std::ceil((y_p - _min_bound[1]) / _resolution)) };
     return { x_idx, y_idx };
+  }
+
+  inline IdxPair indices_bound_check(const std::size_t& i, const std::size_t& j) const
+  {
+    const std::size_t ip{ (i > 0 ? i : 0) < _sdf.rows() ? i : _sdf.rows() - 1 };
+    const std::size_t jp{ (j > 0 ? j : 0) < _sdf.cols() ? j : _sdf.cols() - 1 };
+    return { ip, jp };
   }
 
 public:
@@ -317,9 +332,9 @@ public:
   Eigen::Vector2d jacobian(const double& x, const double& y) const
   {
     const IdxPair idxs00{ coordinates_to_indices(x, y) };
-    const IdxPair idxs01{ IdxPair(idxs00.first, idxs00.second - 1) };
-    const IdxPair idxs10{ IdxPair(idxs00.first - 1, idxs00.second) };
-    const IdxPair idxs11{ IdxPair(idxs00.first - 1, idxs00.second - 1) };
+    const IdxPair idxs01{ indices_bound_check(idxs00.first, idxs00.second - 1) };
+    const IdxPair idxs10{ indices_bound_check(idxs00.first - 1, idxs00.second) };
+    const IdxPair idxs11{ indices_bound_check(idxs00.first - 1, idxs00.second - 1) };
     // const double dx{ _sdf_dx(idxs.first, idxs.second) };
     // const double dy{ _sdf_dy(idxs.first, idxs.second) };
     const Eigen::Vector2d jac00{ jacobian(idxs00) };

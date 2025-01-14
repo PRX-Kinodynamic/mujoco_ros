@@ -79,7 +79,17 @@ public:
     if (H0)
     {
       _config_from_state.jacobian(x0, _Hconfig, *H0);
+      // if (dist > 0)
       *H0 = -1 * (*H0);
+      // if (std::abs(dist - _eps_distance) < 0.01)
+      // {
+      //   *H0 = *H0 * 0.5;
+      // }
+      // LOG_VARS(x0, dist, activated_dist, *H0);
+    }
+    else
+    {
+      // LOG_VARS(x0, dist, activated_dist);
     }
 
     return error;
