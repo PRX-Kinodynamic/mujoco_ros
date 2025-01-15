@@ -85,6 +85,7 @@ public:
       // {
       //   *H0 = *H0 * 0.5;
       // }
+      // DEBUG_VARS(x0, *H0);
       // LOG_VARS(x0, dist, activated_dist, *H0);
     }
     else

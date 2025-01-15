@@ -7,6 +7,7 @@
 #include <visualization_msgs/Marker.h>
 
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace interface
 {
@@ -20,7 +21,7 @@ public:
   {
   }
 
-  ~control_vizualizer_t(){};
+  ~control_vizualizer_t() {};
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
@@ -90,7 +91,7 @@ protected:
     {
       SystemInterface::control_vizualization(_pt1, msg);
 
-      _pt1 = _transform * _pt1;
+      _pt1 = _Tq * _pt1 + _Tt;
       _control_marker.points[1].x = _pt1[0];
       _control_marker.points[1].y = _pt1[1];
       _control_marker.points[1].z = _pt1[2];
@@ -111,16 +112,21 @@ protected:
       _control_marker.points[0].y = _tf.transform.translation.y;
       _control_marker.points[0].z = _tf.transform.translation.z;
 
-      const double x{ _control_marker.points[0].x };
-      const double y{ _control_marker.points[0].y };
-      const double z{ _control_marker.points[0].z };
+      _Tt[0] = _control_marker.points[0].x;
+      _Tt[1] = _control_marker.points[0].y;
+      _Tt[2] = _control_marker.points[0].z;
+      _Tq.x() = _tf.transform.rotation.x;
+      _Tq.y() = _tf.transform.rotation.y;
+      _Tq.z() = _tf.transform.rotation.z;
+      _Tq.w() = _tf.transform.rotation.w;
 
-      const double qx{ _tf.transform.rotation.x };
-      const double qy{ _tf.transform.rotation.y };
-      const double qz{ _tf.transform.rotation.z };
-      const double qw{ _tf.transform.rotation.w };
-
-      _transform = Eigen::Translation<double, 3>(x, y, z) * Eigen::Quaterniond(qw, qx, qy, qz);
+      // // const Eigen::Quaternion<double, Eigen::DontAlign> q(qw, qx, qy, qz);
+      // DEBUG_PRINT
+      // // const Eigen::Vector3d v(x, y, z);
+      // DEBUG_PRINT
+      // // _transform = v * q;
+      // // _transform = q * v;
+      // DEBUG_PRINT
       // DEBUG_VARS(_control_marker.points[0]);
       return true;
     }
@@ -150,9 +156,10 @@ protected:
   tf2_ros::Buffer _tf_buffer;
   tf2_ros::TransformListener _tf_listener;
   geometry_msgs::TransformStamped _tf;
-  std_msgs::Header _prev_header;
 
   Eigen::Vector3d _pt1;
-  Eigen::Transform<double, 3, Eigen::TransformTraits::Isometry> _transform;
+  Eigen::Quaternion<double, Eigen::DontAlign> _Tq;
+  Eigen::Vector3d _Tt;
+  // Eigen::Transform<double, 3, Eigen::TransformTraits::Isometry, Eigen::DontAlign> _transform;
 };
 }  // namespace interface

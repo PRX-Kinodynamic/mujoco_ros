@@ -62,7 +62,7 @@ public:
   using GraphValues = std::pair<FactorGraph, Values>;
 
   stela_windowed_t()
-    : _isam_params(gtsam::ISAM2DoglegParams(), 0.1, 10, true, true, gtsam::ISAM2Params::CHOLESKY, true,
+    : _isam_params(gtsam::ISAM2GaussNewtonParams(), 0.1, 10, true, true, gtsam::ISAM2Params::CHOLESKY, true,
                    prx::fg::symbol_factory_t::formatter, true)
     , _tf_listener(_tf_buffer)
     , _isam(_isam_params)
@@ -80,6 +80,7 @@ public:
     , _using_stepper(false)
     , _trees_received(0)
     , _max_observation_delay(1.0)
+    , _control_frequency(30)
   {
   }
 
@@ -94,7 +95,7 @@ public:
     std::string environment;
     std::string estimated_tree_topic;
     double obstacle_sigma{ 1.0 };
-    double control_frequency;
+    double& control_frequency{ _control_frequency };
     double& obstacle_distance_tolerance{ _obstacle_distance_tolerance };
     double& obstacle_factor_include_distance{ _obstacle_factor_include_distance };
 
@@ -267,7 +268,9 @@ public:
 
     std::ofstream ofs_branch(filename_branch_gt);
     std::ofstream ofs_data(filename_data);
+
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
+    const double avg_freq{ _total_calls / elapsed_time };
     ofs_data << "Initialized: " << (_tree_recevied ? "true" : "false") << "\n";
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
@@ -275,6 +278,8 @@ public:
     ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
     ofs_data << "NetworkProblem: " << (network_problem ? "true" : "false") << "\n";
+    ofs_data << "AverageFrequency: " << avg_freq << "\n";
+    DEBUG_VARS(avg_freq);
     ofs_data.close();
 
     // PRINT_MSG("[TODO] Data files for STELA_SW not implemented.");
@@ -338,15 +343,15 @@ public:
     {
       // _isam.calculateBestEstimate()
       // const double current_error{ _isam.error(_isam.getDelta()) };
-      const gtsam::Values values{ _isam.calculateBestEstimate() };
-      const double current_error{ _isam.getFactorsUnsafe().error(values) };
+      // const gtsam::Values values{ _isam.calculateBestEstimate() };
+      // const double current_error{ _isam.getFactorsUnsafe().error(values) };
 
       const double dt{ (event.current_real - event.last_real).toSec() };
       const double stela_frequency{ _freq_counter / dt };
-
-      // DEBUG_VARS(stela_frequency);
+      const double& target_frequency{ _control_frequency };
+      DEBUG_VARS(stela_frequency, target_frequency);
       // const std::string frq{ "stela_frequency" };
-      DEBUG_VARS(stela_frequency, current_error);
+      // DEBUG_VARS(stela_frequency, current_error);
       _freq_counter = 0;
 
       // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
@@ -398,8 +403,9 @@ public:
       {
         publish_control();
       }
+      _freq_counter++;
+      _total_calls++;
     }
-    _freq_counter++;
   }
 
   void update_estimated_tree()
@@ -1168,7 +1174,7 @@ private:
   int _total_future_nodes;
 
   std::size_t _freq_counter;
-  std::size_t _freq_total;
+  std::size_t _total_calls;
   double _freq_accum;
 
   std::size_t _goal_id;
@@ -1195,5 +1201,6 @@ private:
   std::size_t _trees_received;
 
   ros::Duration _max_observation_delay;
+  double _control_frequency;
 };
 }  // namespace motion_planning

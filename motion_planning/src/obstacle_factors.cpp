@@ -93,7 +93,7 @@ int main(int argc, char** argv)
     ofs << final[1] << " ";
     ofs << "\n";
   }
-
+  PRINT_MSG("Finished!");
   // for (int i = 0; i < total_states; ++i)
   // {
   //   const gtsam::Key k(i);

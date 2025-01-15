@@ -102,7 +102,9 @@ protected:
           const Color color{ get_color(str_color) };
 
           const Eigen::Vector3d t{ Rt->translation() };
-          const Eigen::Quaterniond q{ Rt->rotation() };
+          const Eigen::Matrix3d rot{ Rt->rotation() };
+          // Without this, it throws an assertion on unaligned arrays on some linux machines
+          const Eigen::Quaternion<double, Eigen::DontAlign> q{ rot };
           const std::vector<double> geom_params{ gi->get_geometry_params() };
 
           marker.pose.position.x = t[0];

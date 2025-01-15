@@ -16,10 +16,12 @@ class control_vizualizer_t : public Base
 public:
   control_vizualizer_t() : _tf_listener(_tf_buffer), _viz_control_name("/marker")
   {
+    DEBUG_PRINT
   }
 
   virtual void onInit()
   {
+    DEBUG_PRINT
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
     // ros::NodeHandle private_nh("~");
 
@@ -29,10 +31,12 @@ public:
     std::vector<double> color{};
     // _control_topic_name = ros::this_node::getNamespace() + _control_topic_name;
 
+    DEBUG_PRINT
     PARAM_SETUP(private_nh, world_frame);
     PARAM_SETUP(private_nh, robot_frame);
     PARAM_SETUP(private_nh, control_topic_name);
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, .78, 1.0 }));
+    DEBUG_PRINT
 
     _viz_control_name = control_topic_name + _viz_control_name;
 
@@ -74,7 +78,9 @@ protected:
     // geometry_msgs/Point
     if (update_tf)
     {
+      DEBUG_PRINT
       SystemInterface::control_vizualization(_control_marker.points[1], msg);
+      DEBUG_PRINT
 
       _control_marker.points[1].x += _control_marker.points[0].x;
       _control_marker.points[1].y += _control_marker.points[0].y;
@@ -86,6 +92,7 @@ protected:
   {
     try
     {
+      DEBUG_PRINT
       _tf = _tf_buffer.lookupTransform(_world_frame, _robot_frame, ros::Time(0));
       _control_marker.points[0].x = _tf.transform.translation.x;
       _control_marker.points[0].y = _tf.transform.translation.y;
@@ -99,7 +106,6 @@ protected:
   }
 
   // Topic names
-  std::string _tree_topic_name;
   std::string _viz_control_name;
 
   // Subscribers
@@ -107,9 +113,6 @@ protected:
 
   // Publishers
   ros::Publisher _viz_control_publisher;
-
-  // Timers
-  ros::Timer _tree_timer;
 
   // Viz
   visualization_msgs::Marker _control_marker;
@@ -120,9 +123,5 @@ protected:
   tf2_ros::Buffer _tf_buffer;
   tf2_ros::TransformListener _tf_listener;
   geometry_msgs::TransformStamped _tf;
-  std_msgs::Header _prev_header;
-
-  bool _use_z;
-  double _z_default;
 };
 }  // namespace motion_planning
