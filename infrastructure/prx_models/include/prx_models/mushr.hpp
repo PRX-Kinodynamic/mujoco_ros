@@ -240,22 +240,11 @@ public:
       {
         vec = p1.head(2);
       }
-      vec = -vec / vec.norm();
 
-      // if (vec[0] * vec[1] > 0)
-      // {
-      //   // H0 = Eigen::Matrix<double, 1, 3>(-Hconfig[0], -Hconfig[1], 0.0);
-      //   H(0, 0) = -vec[0];
-      //   H(0, 1) = -vec[1];
-      // }
-      // else
-      // {
-      //   H(0, 0) = vec[0];
-      //   H(0, 1) = vec[1];
-      //   // H0 = Eigen::Matrix<double, 1, 3>(Hconfig[0], Hconfig[1], 0.0);
-      // }
-
-      // LOG_VARS(state, vec.transpose(), p1.transpose(), p2.transpose(), collision)
+      // vT =  HT * R
+      // V = (HT * R)T = RT * H
+      const Eigen::Matrix2d R{ state.rotation<Eigen::Matrix2d>() };
+      vec = -R.transpose() * vec;
 
       const double Sth{ std::sin(state[2]) };
       const double Cth{ std::cos(state[2]) };
@@ -263,6 +252,8 @@ public:
       const double ay{ collision ? p1[1] : (p1[1] - state[1]) };
       const double fx{ vec[0] };
       const double fy{ vec[1] };
+      H(0, 0) = vec[0];
+      H(0, 1) = vec[1];
       H(0, 2) = -fx * (ax * Sth + ay * Cth) + fy * (ax * Cth - ay * Sth);
     }
 
@@ -274,10 +265,6 @@ public:
 
     void jacobian(const State& x0, const Eigen::Matrix<double, 1, 2>& Hconfig, Eigen::MatrixXd& H0) const
     {
-      // const double rad{ 0.42 };
-      // const double Sth{ std::sin(x[2]) };
-      // const double Cth{ std::cos(x[2]) };
-
       // const double Jth{ Hconfig[0] * rad * () + Hconfig[1] };
       // if (Hconfig[0] * Hconfig[1] > 0)
       // {
