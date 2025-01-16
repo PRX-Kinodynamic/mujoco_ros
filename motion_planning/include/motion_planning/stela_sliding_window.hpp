@@ -21,6 +21,7 @@
 #include <gtsam/nonlinear/ISAM2Params.h>
 #include <ml4kp_bridge/StelaTrajectory.h>
 #include <prx_models/tree_msg_wrapper.hpp>
+#include <utils/time_profiler.hpp>
 
 #include <tbb/global_control.h>
 namespace motion_planning
@@ -84,6 +85,7 @@ public:
     , _max_observation_delay(1.0)
     , _control_frequency(30)
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
+    , _profiler()
   {
   }
 
@@ -168,9 +170,6 @@ public:
 
     const ros::Duration control_timer(1.0 / control_frequency);
     const ros::Duration estimation_timer(1.0 / estimation_pub_freq);
-    _dt_expected = ros::WallDuration(1.0 / control_frequency);
-
-    DEBUG_VARS(_dt_expected);
 
     _control_timer = private_nh.createTimer(control_timer, &Derived::main_timer_callback, this);
     _estimation_timer = private_nh.createTimer(estimation_timer, &Derived::estimation_timer_callback, this);
@@ -243,6 +242,8 @@ public:
     const std::string filename{ path + "_" + _experiment_id + "_" + _timestamp + ".txt" };
     _ofs.open(filename);
     _ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
+
+    _profiler.set_filename(path + "_freq_" + _experiment_id + "_" + _timestamp + ".txt");
   }
 
   ~stela_windowed_t()
@@ -405,25 +406,19 @@ public:
   {
     if (_tree_recevied)
     {
-      const ros::WallTime start{ ros::WallTime::now() };
-
+      _profiler.start();
       update_next_goal();
+      _profiler.checkpoint();
       // print_error("After updating goal");
       const bool valid_observations{ add_observations() };
+      _profiler.checkpoint();
       // print_error("After adding observations");
       if (not _goal_reached and valid_observations)
       {
         publish_control();
       }
-      const ros::WallTime end{ ros::WallTime::now() };
-      _dt_real = end - start;
-      LOG_VARS(_dt_real, _dt_expected);
-      if (_dt_real > _dt_expected)
-      {
-        // to_file(false, false, true);
-      }
+      _profiler.end();
       _freq_counter++;
-      _total_calls++;
     }
   }
 
@@ -1224,7 +1219,6 @@ private:
 
   tbb::global_control _tbb_control;
 
-  ros::WallDuration _dt_real;
-  ros::WallDuration _dt_expected;
+  utils::time_profiler_t _profiler;
 };
 }  // namespace motion_planning
