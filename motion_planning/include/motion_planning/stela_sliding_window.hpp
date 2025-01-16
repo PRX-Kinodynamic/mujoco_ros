@@ -23,7 +23,9 @@
 #include <prx_models/tree_msg_wrapper.hpp>
 #include <utils/time_profiler.hpp>
 
+#ifdef GTSAM_USE_TBB
 #include <tbb/global_control.h>
+#endif
 namespace motion_planning
 {
 
@@ -84,8 +86,10 @@ public:
     , _trees_received(0)
     , _max_observation_delay(1.0)
     , _control_frequency(30)
-    , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
     , _profiler()
+#ifdef GTSAM_USE_TBB
+    , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
+#endif
   {
   }
 
@@ -279,8 +283,8 @@ public:
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
     const double avg_freq{ _total_calls / elapsed_time };
     const std::string network_res{ network_problem ? "true" : "false" };
-    const auto dt_real = _dt_real.toSec();
-    const auto dt_expected = _dt_expected.toSec();
+    // const auto dt_real = _dt_real.toSec();
+    // const auto dt_expected = _dt_expected.toSec();
 
     ofs_data << "Initialized: " << (_tree_recevied ? "true" : "false") << "\n";
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
@@ -288,7 +292,7 @@ public:
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
     ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
-    ofs_data << "NetworkProblem: " << network_res << " " << dt_real << " " << dt_expected << "\n";
+    ofs_data << "NetworkProblem: " << network_res << "\n";
     ofs_data << "AverageFrequency: " << avg_freq << "\n";
     // DEBUG_VARS(avg_freq);
     ofs_data.close();
@@ -1217,8 +1221,9 @@ private:
   ros::Duration _max_observation_delay;
   double _control_frequency;
 
-  tbb::global_control _tbb_control;
-
   utils::time_profiler_t _profiler;
+#ifdef GTSAM_USE_TBB
+  tbb::global_control _tbb_control;
+#endif
 };
 }  // namespace motion_planning
