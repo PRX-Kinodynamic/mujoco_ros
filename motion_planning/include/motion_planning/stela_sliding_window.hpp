@@ -1,3 +1,4 @@
+#include <chrono>
 #include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
@@ -21,6 +22,7 @@
 #include <ml4kp_bridge/StelaTrajectory.h>
 #include <prx_models/tree_msg_wrapper.hpp>
 
+#include <tbb/global_control.h>
 namespace motion_planning
 {
 
@@ -81,6 +83,7 @@ public:
     , _trees_received(0)
     , _max_observation_delay(1.0)
     , _control_frequency(30)
+    , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
   {
   }
 
@@ -165,6 +168,10 @@ public:
 
     const ros::Duration control_timer(1.0 / control_frequency);
     const ros::Duration estimation_timer(1.0 / estimation_pub_freq);
+    _dt_expected = std::chrono::duration<double>(1.0 / control_frequency);
+
+    auto dt_expected = std::chrono::duration_cast<std::chrono::seconds>(_dt_expected).count();
+    DEBUG_VARS(dt_expected);
 
     _control_timer = private_nh.createTimer(control_timer, &Derived::main_timer_callback, this);
     _estimation_timer = private_nh.createTimer(estimation_timer, &Derived::estimation_timer_callback, this);
@@ -271,15 +278,19 @@ public:
 
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
     const double avg_freq{ _total_calls / elapsed_time };
+    const std::string network_res{ network_problem ? "true" : "false" };
+    const auto dt_real = std::chrono::duration_cast<std::chrono::seconds>(_dt_real).count();
+    const auto dt_expected = std::chrono::duration_cast<std::chrono::seconds>(_dt_expected).count();
+
     ofs_data << "Initialized: " << (_tree_recevied ? "true" : "false") << "\n";
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
     ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
     ofs_data << "ObstacleDistanceTolerance: " << _obstacle_distance_tolerance << "\n";
     ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
-    ofs_data << "NetworkProblem: " << (network_problem ? "true" : "false") << "\n";
+    ofs_data << "NetworkProblem: " << network_res << " " << dt_real << " " << dt_expected << "\n";
     ofs_data << "AverageFrequency: " << avg_freq << "\n";
-    DEBUG_VARS(avg_freq);
+    // DEBUG_VARS(avg_freq);
     ofs_data.close();
 
     // PRINT_MSG("[TODO] Data files for STELA_SW not implemented.");
@@ -395,6 +406,8 @@ public:
   {
     if (_tree_recevied)
     {
+      const auto start{ std::chrono::steady_clock::now() };
+
       update_next_goal();
       // print_error("After updating goal");
       const bool valid_observations{ add_observations() };
@@ -402,6 +415,12 @@ public:
       if (not _goal_reached and valid_observations)
       {
         publish_control();
+      }
+      const auto end{ std::chrono::steady_clock::now() };
+      _dt_real = end - start;
+      if (_dt_real > _dt_expected)
+      {
+        to_file(false, false, true);
       }
       _freq_counter++;
       _total_calls++;
@@ -1202,5 +1221,10 @@ private:
 
   ros::Duration _max_observation_delay;
   double _control_frequency;
+
+  tbb::global_control _tbb_control;
+
+  std::chrono::duration<double> _dt_real;
+  std::chrono::duration<double> _dt_expected;
 };
 }  // namespace motion_planning
