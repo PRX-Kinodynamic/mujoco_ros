@@ -11,6 +11,8 @@
 #include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/factor_graphs/factors/obstacle_factor.hpp>
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
+#include <motion_planning/utils.hpp>
+#include <motion_planning/sdf_factor.hpp>
 
 namespace motion_planning
 {
@@ -25,13 +27,16 @@ class scate_t : public Base
   using State = typename SystemInterface::State;
   using StateDot = typename SystemInterface::StateDot;
   using Observation = typename SystemInterface::Observation;
-  using StateKeys = typename SystemInterface::StateKeys;\
+  using StateKeys = typename SystemInterface::StateKeys;
   using StateEstimates = typename SystemInterface::StateEstimates;
   using ObstacleFactor = prx::fg::obstacle_factor_t<State, typename SystemInterface::ConfigFromState>;
   using LessThanCmp = prx::fg::VectorLessThanCmp<Control>;
   using GreaterThanCmp = prx::fg::VectorGreaterThanCmp<Control>;
   using MaxControlLimitFactor = prx::fg::constraint_factor_t<Control, GreaterThanCmp>;
   using MinControlLimitFactor = prx::fg::constraint_factor_t<Control, LessThanCmp>;
+  using Sdf = utils::signed_distance_field_t;
+  using SdfPtr = std::shared_ptr<Sdf>;
+  using SdfFactor = motion_planning::sdf_factor_t<State, typename SystemInterface::ConfigFromState>;
 
   using SF = prx::fg::symbol_factory_t;
 
@@ -52,6 +57,7 @@ public:
     , _files_created(false)
     , _experiment_id("test")
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
+    , _sim_clock(false)
     , _tree_received(false)  {};
 
   virtual void onInit()
@@ -66,11 +72,14 @@ public:
     double& obstacle_sigma{ _obstacle_sigma };
     std::vector<double> min_control_limit;
     std::vector<double> max_control_limit;
-    std::string environment, solution_tree_topic, sbmp_tree_topic;
+    std::string environment, solution_tree_topic, sbmp_tree_topic, replan_scate_topic;
     bool& time_factor{ _time_factor };
     bool& limit_ctrl{ _limit_controls };
     bool naive_guess{ false };
     int fg_iterations{ 100 };
+    bool& sim_clock{ _sim_clock };
+
+    std::string sdf_params;
     std::string& world_frame{ _world_frame };
     std::string& robot_frame{ _robot_frame };
     std::string& obstacle_mode{ _obstacle_mode };
@@ -86,16 +95,34 @@ public:
     PARAM_SETUP(private_nh, obstacle_sigma)
     PARAM_SETUP(private_nh, obstacle_activation_distance)
     PARAM_SETUP(private_nh, environment);
+    PARAM_SETUP(private_nh, obstacle_mode)
     PARAM_SETUP(private_nh, time_factor);
     PARAM_SETUP(private_nh, collision_topic)
     PARAM_SETUP(private_nh, limit_ctrl);
     PARAM_SETUP(private_nh, output_dir);
     PARAM_SETUP(private_nh, min_control_limit);
     PARAM_SETUP(private_nh, max_control_limit);
+    PARAM_SETUP(private_nh, replan_scate_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fix_sigmas, fix_sigmas);
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
+
+    DEBUG_VARS(obstacle_mode);
+
+    if (obstacle_mode == "sdf")
+    {
+      // if (sdf_params == "")
+      //   prx_throw("No SDF params!");
+      // prx::param_loader sdf_param_loader{};
+      // sdf_param_loader = Sdf::default_parameters();
+      // sdf_param_loader.add_file(sdf_params);
+      // sdf_param_loader["environment"].set(environment);
+      // // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
+      // _sdf = Sdf::create(sdf_param_loader);
+    }
 
     _is_sbmp_init = !naive_guess;
 
@@ -132,7 +159,6 @@ public:
 
     auto obstacles = prx::load_obstacles(environment);
     _obstacle_list = obstacles.second;
-    // DEBUG_VARS(environment, _obstacle_list.size());
 
     const std::string plant_name{ SystemInterface::plant_name };
     _plant = prx::system_factory_t::create_system(plant_name, plant_name);
@@ -156,13 +182,29 @@ public:
       PARAM_SETUP(private_nh, init_ctrl);
     }
 
-    DEBUG_VARS(control_frequency);
-    const ros::Duration control_timer(1.0 / control_frequency);
-    _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);
+    if (!sim_clock) {
+      DEBUG_VARS(control_frequency);
+      const ros::Duration control_timer(1.0 / control_frequency);
+      _control_timer = private_nh.createTimer(control_timer, &Derived::action_function, this);  
+    }
+    else {
+      _replan_subscriber = private_nh.subscribe(replan_scate_topic, 1, &Derived::replan_callback, this);
+      _control_stamped.space_point.point = std::vector<double>{0, 0};
+      _control_stamped.header.seq++;
+      _control_stamped.header.stamp = ros::Time::now();
+
+      _stamped_control_publisher.publish(_control_stamped);
+    }
+  }
+
+  void replan_callback(const std_msgs::EmptyConstPtr& msg)
+  {
+    update_fg_and_publish_controls(ros::Time::now());
   }
 
   void collision_callback(const std_msgs::BoolConstPtr& msg)
   {
+    std::cout << "Collision Detected" << std::endl;
     if (msg->data)
     {
       to_file(true);
@@ -171,8 +213,10 @@ public:
 
   void action_function(const ros::TimerEvent& event)
   {
-    // std::cout << "Action function" << std::endl;
+    update_fg_and_publish_controls(event.current_real);    
+  }
 
+  void update_fg_and_publish_controls(const ros::Time event_timestamp) {
     if (!is_initialized())
     {
       if (_is_sbmp_init){
@@ -184,13 +228,15 @@ public:
       }
     }
     
-    bool is_node_updated = update_current_node(event);
-    bool added_observations = false;
-    // bool added_observations = add_observations();
+    bool is_node_updated = update_current_node(event_timestamp);
+    if (_current_node >= _total_states - 1) return;
+
+    bool added_observations = add_observations();
+    bool should_publish_control = _sim_clock or (added_observations or is_node_updated);
 
     publish_tree();
 
-    if (_current_node < _total_states and (added_observations or is_node_updated)){
+    if (should_publish_control){
       publish_control();
     }
   }
@@ -239,9 +285,8 @@ public:
 
   void to_file(const bool collision = false, const bool raised_exception = false)
   {
-    SF::symbols_to_file("/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/symbols.txt");
-    // if (_files_created)
-    //   return;
+    if (_files_created)
+      return;
 
     // const std::string filename{ _output_dir + "/scate_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
     // const std::string filename_branch_gt{ _output_dir + "/scate_branch_gt_" + _experiment_id + "_" +
@@ -303,21 +348,21 @@ public:
 
   bool is_initialized() const { return _is_sbmp_init ? _tree_received : _isam_initialized; }
 
-  bool update_current_node(const ros::TimerEvent& event)
+  bool update_current_node(const ros::Time& event_timestamp)
   {
     if (_current_node == -1)
     {
-      _next_node_time_stamp = event.current_real + ros::Duration(_init_duration);
+      _next_node_time_stamp = event_timestamp + ros::Duration(_init_duration);
       _current_node = 0;
       return true;
     }
-    else if (_current_node >= _total_states){
+    else if (_current_node >= _total_states - 1){
       ROS_WARN("Finished! Creating file");
       to_file();
       return false;
     }
 
-    if (event.current_real >= _next_node_time_stamp)
+    if (event_timestamp >= _next_node_time_stamp)
     {
       _current_node++;
       _next_node_time_stamp += ros::Duration(_init_duration);
@@ -337,32 +382,12 @@ public:
 
       Observation z_new;
       SystemInterface::copy(z_new, _tf);
-      int prev_node, current_node;
 
-      if (_current_node == 0) {
-        prev_node = 0;
-        current_node = 1;
-      }
-      else {
-        prev_node = _current_node - 1;
-        current_node = _current_node;
-      }
+      ros::Time current_node_time_stamp = _next_node_time_stamp - ros::Duration(_init_duration);
 
-      // if (_current_node == _total_states-1) {
-      //   prev_node = _current_node - 1;
-      //   current_node = _current_node;
-      // }
-      // else {
-      //   prev_node = _current_node;
-      //   current_node = _current_node + 1;
-      // }
+      double duration = (_tf.header.stamp - current_node_time_stamp).toSec();
 
-      // double duration = (_tf.header.stamp - _next_node_time_stamp + ros::Duration(_init_duration)).toSec();
-      double duration = _init_duration;
-
-      DEBUG_VARS(duration);
-
-      const GraphValues graph_values_z{ SystemInterface::add_observation_factor(prev_node, current_node, z_new, duration, 0.01) };
+      const GraphValues graph_values_z{ SystemInterface::add_observation_factor(_current_node, _current_node + 1, z_new, duration, 0.01) };
 
       _factor_graph += graph_values_z.first;
       _current_estimate.insert(graph_values_z.second);
@@ -388,9 +413,6 @@ public:
     const State x{ _current_estimate.at<State>(xkey) };
     const State xdot{ _current_estimate.at<StateDot>(xDotKey) };
 
-  // const std::string xstr{SF::formatter(xkey)};
-    // DEBUG_VARS(u.transpose());
-
     ml4kp_bridge::copy(_control_stamped.space_point, u);
 
     _control_stamped.header.seq++;
@@ -401,12 +423,21 @@ public:
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, const int x_id)
   {
-    const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-    for (auto obstacle_info : _obstacle_collision_infos)
-    {
-      _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
-                                                     _obstacle_activation_distance, 0.1, _obstacle_noise);
-    }
+    // if (_obstacle_mode == "all") {
+    //   const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+    //   for (auto obstacle_info : _obstacle_collision_infos)
+    //   {
+    //     _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
+    //                                                   _obstacle_activation_distance, 0.1, _obstacle_noise);
+    //   }
+    // }
+
+    // if (_obstacle_mode == "sdf")
+    // {
+    //   PRINT_MSG_ONCE("Using SDF Factors")
+    //   const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+    //   _obstacle_graph.emplace_shared<SdfFactor>(keyX, _obstacle_activation_distance, _sdf, _obstacle_noise);
+    // }
   }
 
   void control_limit_factors(int i)
@@ -418,7 +449,7 @@ public:
 
   void init_from_sbmp(const prx_models::TreeConstPtr& msg)
   {
-    std::cout << "Received tree" << std::endl;
+    std::cout << "Received SBMP tree" << std::endl;
 
     const ros::Time start{ ros::Time::now() };
     const std::size_t total_tree_nodes{ msg->nodes.size() };
@@ -428,7 +459,6 @@ public:
 
     GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, root_node.point) };
 
-    DEBUG_VARS(msg->root);
 
     auto child_id = root_node.children[0];
     int idx = 0;
@@ -457,22 +487,13 @@ public:
 
       GraphValues graph_values;
 
-      if (total_children == 0)  // Is a leaf
-      {
-        graph_values = SystemInterface::leaf_to_fg(edge.source, edge.target, node_current.point, edge.plan);
-      }
-      else
-      {
-        // Create a FG that goes from N0 to N1 with plan P01
-        graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
-        // DEBUG_VARS(edge.plan);
-      }
+      graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
 
       if (msg->root != node_current.index)
       {
         obstacle_factors(node_current.point, edge.target);
 
-        if (_limit_controls) control_limit_factors(edge.target);
+        if (_limit_controls and total_children > 0) control_limit_factors(edge.target);
       }
 
       root_graph_values.first += graph_values.first;
@@ -486,28 +507,26 @@ public:
       edge_id = next_node_child.parent_edge;
     }
 
-    std::cout << "Total states: " << _total_states << std::endl;
+    DEBUG_VARS(_total_states);
 
     // Adding goal state
     prx::space_t* ss{ _plant->get_state_space() };
     ml4kp_bridge::SpacePoint goal_state{};
     goal_state.point = _goal_state;
-    GraphValues graph_values{ SystemInterface::fix_cost(_total_states, goal_state, _fix_sigmas) };
+    GraphValues graph_values{ SystemInterface::fix_cost(_total_states-1, goal_state, _fix_sigmas) };
     root_graph_values.first += graph_values.first;
-    root_graph_values.second.insert(graph_values.second);
+    root_graph_values.second.insert_or_assign(graph_values.second);
 
     // Updating with obstacle and control limit factors
-    // root_graph_values.first += _obstacle_graph;
-    // root_graph_values.first += _control_limit_graph;
+    root_graph_values.first += _obstacle_graph;
+    root_graph_values.first += _control_limit_graph;
 
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
-    SF::symbols_to_file("/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/symbols.txt");
 
     gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
     _current_estimate = optimizer.optimize();
-    std::cout << "Optimization done" << std::endl;
 
     const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
         printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 0.1; };
@@ -533,7 +552,7 @@ public:
     GraphValues root_graph_values{ SystemInterface::fix_cost(0, state, _fix_sigmas) };
     if (_limit_controls) control_limit_factors(0);
 
-    for (int i = 1; i <= _total_states; ++i)
+    for (int i = 1; i < _total_states; ++i)
     {
       const gtsam::Key xkey{ SystemInterface::keyX(1, i) };
       const gtsam::Key xdotkey{ SystemInterface::keyXdot(1, i) };
@@ -545,12 +564,11 @@ public:
       root_graph_values.first += graph_values.first;
       root_graph_values.second.insert(graph_values.second);
       obstacle_factors(state, i);
-      if (_limit_controls) control_limit_factors(i);
+      if (_limit_controls and i < _total_states-1) control_limit_factors(i);
     }
 
     ss->copy(state.point, _goal_state);
-    // DEBUG_VARS(_total_states);
-    GraphValues graph_values{ SystemInterface::fix_cost(_total_states, state, _fix_sigmas) };
+    GraphValues graph_values{ SystemInterface::fix_cost(_total_states-1, state, _fix_sigmas) };
     root_graph_values.first += graph_values.first;
     root_graph_values.first += _obstacle_graph;
     root_graph_values.first += _control_limit_graph;
@@ -558,17 +576,15 @@ public:
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
-    std::cout << "Starting optimization" << std::endl;
     gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
     _current_estimate = optimizer.optimize();
-    std::cout << "Optimization done" << std::endl;
 
-    const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
-        printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 0.1; };
+    // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+    //     printCondition = [&](const gtsam::Factor*, double err, size_t) { return err > 0.1; };
 
-    _current_estimate.print("Initial estimate: ", SF::formatter);
+    // _current_estimate.print("Initial estimate: ", SF::formatter);
 
-    _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
+    // _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
   }
 
   void publish_tree()
@@ -578,7 +594,7 @@ public:
     _tree.edges.clear();
     _tree.root = 0;
 
-    for (int i = _current_node; i < _total_states; ++i)
+    for (int i = _current_node; i < _total_states-1; ++i)
     {
       const gtsam::Key xkey{ SystemInterface::keyX(1, i) };
       const gtsam::Key xdotkey{ SystemInterface::keyXdot(1, i) };
@@ -606,6 +622,7 @@ public:
 private:
   Values _values;
   FactorGraph _factor_graph, _obstacle_graph, _control_limit_graph;
+  SdfPtr _sdf;
 
   // gtsam
   gtsam::ISAM2Params _isam_params;
@@ -621,6 +638,7 @@ private:
   ros::Publisher _finish_publisher;
   ros::Subscriber _tree_subscriber;
   ros::Subscriber _collision_subscriber;
+  ros::Subscriber _replan_subscriber;
 
   ros::Timer _control_timer;
 
@@ -663,6 +681,7 @@ private:
   ros::Time _start_time;
   
   bool _time_factor;
+  bool _sim_clock;
   double _fix_sigmas;
 
   std::shared_ptr<prx::system_t> _plant;

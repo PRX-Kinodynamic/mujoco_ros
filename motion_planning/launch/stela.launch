@@ -9,7 +9,7 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <arg name="naive_guess" default="false"/>
-  <!-- <arg name="environment" default="environments/empty.yaml"/> -->
+  <arg name="environment" default="environments/empty.yaml"/>
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <!-- <arg name="environment" default="environments/forest.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_3.yaml"/> -->
@@ -22,12 +22,12 @@
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
   <arg name="data_dir" default="/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data"/>
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/tunning"/> -->
-  <arg name="simulation_step" default="0.1"/>
+  <arg name="simulation_step" default="0.01"/>
   <arg name="collect_data" default="true"/>
   <arg name="sim_clock" default="false"/>
   <arg name="random_seed" default="390489"/>
   <arg name="experiment_name" default="test"/>
-  <arg name="obstacle_mode" default="distance"/>
+  <arg name="obstacle_mode" default="sdf"/>
   <arg name="obstacle_distance_tolerance" default="1.0"/>
   <arg name="obstacle_factor_include_distance" default="1.0"/>
   <arg name="obstacle_sigma" default="1.0"/>
@@ -43,11 +43,9 @@
   <arg name="shutdown_topic" default="/stela/shutdown"/>  <!-- Shutdown NOW -->
   <arg name="mujoco" default="false" />
   <arg name="tf_noise_sigmas" default="[0.0,0.0,0.0]"/>
-  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.0,0.0]"/>
-  <!-- <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.005,0.0005,0.0005]"/> -->
-  <!-- <arg name="tf_noise_sigmas" default="[0.010,0.010,0.0]"/> -->
-  <!-- <arg name="parameter_values" default="[0,0,0.0100,0.0100,0,0,1,1]"/> -->
-  <!-- <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/> -->
+  <arg name="parameter_values" default="[1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.00,0.00]"/>
+  <!-- <arg name="tf_noise_sigmas" default="[0.020,0.020,0.0]"/>
+  <arg name="parameter_values" default="[0,0,0.0500,0.0500,0,0,1,1]"/> -->
   <arg name="experiment_id" default="test"/>
   <arg name="num_workers" default="8"/>
   <arg name="feedback_lookahead" default="3"/>
@@ -63,6 +61,7 @@
   <arg name="stela_future_nodes" default="10"/>
   <arg name="stela_past_nodes" default="10"/>
   <arg name="time_as_variable" default="true"/>
+  <arg name="replan_scate_topic" default="/scate/sbmp/replan"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
@@ -310,8 +309,8 @@ launch-prefix="gdb --args">
       <param name="total_states" value="$(arg total_states)"/>
       <param name="init_ctrl"  type="yaml" value="[0.0,0.0]"/>
       <param name="limit_ctrl" value="$(arg limit_ctrl)"/>
-      <param name="min_control_limit" type="yaml" value="[-0.2, -0.2]" />
-      <param name="max_control_limit" type="yaml" value="[0.2, 0.2]" />
+      <param name="min_control_limit" type="yaml" value="[-0.5, -0.5]" />
+      <param name="max_control_limit" type="yaml" value="[0.5, 0.5]" />
       <!-- <param name="min_control_limit" type="yaml" value="[-200, -200]" />
       <param name="max_control_limit" type="yaml" value="[200, 200]" /> -->
       <param name="collision_topic" value="$(arg collision_topic)"/>
@@ -319,6 +318,10 @@ launch-prefix="gdb --args">
       <param name="init_duration"   value="0.1"/>
       <param name="time_factor" value="false"/>
       <param name="fg_iterations" value="100"/>
+      <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+      <param name="sim_clock" value="$(arg sim_clock)"/>
+      <param name="sdf_params" value="/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/src/infrastructure/utils/config/sdf.yaml"/>
+      <param name="replan_scate_topic" value="$(arg replan_scate_topic)"/>
     </node>
 
 
@@ -382,6 +385,9 @@ launch-prefix="gdb --args">
       <param name="fileprefix" value="desired_trajectories"/>
       <param name="topic_name" value="$(arg trajectory_topic)"/>
       <param name="realtime_factor" value="1.0"/>
+      <param name="warmup_steps" value="0"/>
+      <param name="control_frequency" value="$(arg control_frequency)"/>
+      <param name="replan_scate_topic" value="$(arg replan_scate_topic)"/>
     </node>
 
     <node if="$(arg collect_data)" 
