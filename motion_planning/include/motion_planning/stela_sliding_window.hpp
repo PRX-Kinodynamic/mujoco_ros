@@ -86,6 +86,7 @@ public:
     , _trees_received(0)
     , _max_observation_delay(1.0)
     , _control_frequency(30)
+    , _total_z_calls(0)
     , _profiler()
 #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
@@ -104,6 +105,7 @@ public:
     std::string environment;
     std::string estimated_tree_topic;
     double obstacle_sigma{ 1.0 };
+    double observation_frquency{ 30 };
     double& control_frequency{ _control_frequency };
     double& obstacle_distance_tolerance{ _obstacle_distance_tolerance };
     double& obstacle_factor_include_distance{ _obstacle_factor_include_distance };
@@ -150,6 +152,7 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
     PARAM_SETUP_WITH_DEFAULT(private_nh, using_stepper, using_stepper)
     PARAM_SETUP_WITH_DEFAULT(private_nh, estimation_pub_freq, estimation_pub_freq);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, observation_frquency, observation_frquency);
 
     if (plant_parameters.size() > 0)
     {
@@ -174,12 +177,12 @@ public:
 
     const ros::Duration control_timer(1.0 / control_frequency);
     const ros::Duration estimation_timer(1.0 / estimation_pub_freq);
+    const ros::Duration observation_timer(1.0 / observation_frquency);
 
     _control_timer = private_nh.createTimer(control_timer, &Derived::main_timer_callback, this);
     _estimation_timer = private_nh.createTimer(estimation_timer, &Derived::estimation_timer_callback, this);
 
     // How much time can it pass between observations before declaring failure
-    const ros::Duration observation_timer(10);
     _observations_freq_timer = private_nh.createTimer(observation_timer, &Derived::observation_timer_callback, this);
 
     if (report_control_frequency)
@@ -282,6 +285,7 @@ public:
 
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
     const double avg_freq{ _total_calls / elapsed_time };
+    const double avg_obervation_freq{ static_cast<double>(_total_z_calls) / elapsed_time };
     const std::string network_res{ network_problem ? "true" : "false" };
     // const auto dt_real = _dt_real.toSec();
     // const auto dt_expected = _dt_expected.toSec();
@@ -294,6 +298,8 @@ public:
     ofs_data << "ExceptionRaised: " << (rasied_exception ? "true" : "false") << "\n";
     ofs_data << "NetworkProblem: " << network_res << "\n";
     ofs_data << "AverageFrequency: " << avg_freq << "\n";
+    ofs_data << "ObservationFrequency: " << avg_obervation_freq << "\n";
+
     // DEBUG_VARS(avg_freq);
     ofs_data.close();
 
@@ -384,11 +390,13 @@ public:
   {
     if (_tree_recevied)
     {
-      const ros::Duration dt{ ros::Time::now() - _tf.header.stamp };
-      if (dt > _max_observation_delay)
-      {
-        to_file(false, false, true);
-      }
+      add_observations();
+      _total_z_calls++;
+      // const ros::Duration dt{ ros::Time::now() - _tf.header.stamp };
+      // if (dt > _max_observation_delay)
+      // {
+      //   to_file(false, false, true);
+      // }
     }
   }
 
@@ -412,17 +420,18 @@ public:
     {
       _profiler.start();
       update_next_goal();
-      _profiler.checkpoint();
+      // _profiler.checkpoint();
       // print_error("After updating goal");
-      const bool valid_observations{ add_observations() };
-      _profiler.checkpoint();
+      // const bool valid_observations{ add_observations() };
+      // _profiler.checkpoint();
       // print_error("After adding observations");
-      if (not _goal_reached and valid_observations)
-      {
-        publish_control();
-      }
+      // if (not _goal_reached and valid_observations)
+      // {
+      publish_control();
+      // }
       _profiler.end();
       _freq_counter++;
+      _total_calls++;
     }
   }
 
@@ -864,7 +873,6 @@ public:
     _future_factors_queue.push_back(edge.source);
     insert_factors(edge.source, edge.target);
 
-    // DEBUG_VARS(node_current);
     if (total_children > 0)
     {
       const prx_models::Node& node_child{ _tree.nodes[node_current.children[0]] };
@@ -1220,6 +1228,7 @@ private:
 
   ros::Duration _max_observation_delay;
   double _control_frequency;
+  std::size_t _total_z_calls;
 
   utils::time_profiler_t _profiler;
 #ifdef GTSAM_USE_TBB
