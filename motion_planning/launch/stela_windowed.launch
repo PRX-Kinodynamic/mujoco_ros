@@ -49,7 +49,7 @@
         <param name="sdf/environment" value="$(arg environment)"/>
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
-
+        <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -76,6 +76,7 @@
         <param name="sdf/environment" value="$(arg environment)"/>
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
+        <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed-dbg' and  arg('Plant') == 'mushr')" 
@@ -102,6 +103,7 @@
         <param name="sdf/environment" value="$(arg environment)"/>
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
+        <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
     </node> 
 
     <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 

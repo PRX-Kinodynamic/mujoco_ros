@@ -57,6 +57,7 @@
   <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
   <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
   <arg name="observation_frequency" default="30"/>
+  <arg name="stela_future_nodes" default="10"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
