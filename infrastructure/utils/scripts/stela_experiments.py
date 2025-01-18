@@ -22,6 +22,19 @@ def set_environment_params(plant_file, experiments_file, experiment_id):
         if str(e["id"]) == experiment_id:
             experiment = e
 
+    if plant_file["name"] == "fg_ltv_sde":
+        plant_file["start_state"][0] = experiment["start"]["position"][0]
+        plant_file["start_state"][1] = experiment["start"]["position"][1]
+
+        plant_file["goal"]["state"][0] = experiment["goal"]["position"][0]
+        plant_file["goal"]["state"][1] = experiment["goal"]["position"][1]
+
+        plant_file["state_space"]["lower_bound"][0] = experiments_file["bounds"]["lower"][0]
+        plant_file["state_space"]["lower_bound"][1] = experiments_file["bounds"]["lower"][1]
+
+        plant_file["state_space"]["upper_bound"][0] = experiments_file["bounds"]["upper"][0]
+        plant_file["state_space"]["upper_bound"][1] = experiments_file["bounds"]["upper"][1]
+
     if plant_file["name"] == "mushrFG":
         plant_file["start_state"][0] = experiment["start"]["position"][0]
         plant_file["start_state"][1] = experiment["start"]["position"][1]
