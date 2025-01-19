@@ -1,0 +1,25 @@
+A: &A
+  position: [-14.0, 0.0] 
+  orientation: 1.5707963268
+
+B: &B
+  position: [-3.0, 0.0] 
+  orientation: 0.0
+
+experiments:
+  -
+    id: 0
+    start: *A
+    goal:
+      radius: 0.2
+      <<: *B
+  -
+    id: 0
+    start: *B
+    goal:
+      radius: 0.2
+      <<: *A
+
+bounds:
+  lower: [-17.0, -16.0] # forest & simple obs
+  upper: [+13.0, +16.0] # forest & simple obs
