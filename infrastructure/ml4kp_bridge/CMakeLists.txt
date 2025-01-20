@@ -20,11 +20,12 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   nodelet
   roslib
+  geometry_msgs
 )
 
 # find_package(TBB COMPONENTS tbb tbbmalloc)
 # find_package(TBB REQUIRED)
-
+add_definitions("-O3")
 if(GTSAM_USE_TBB)
   message(STATUS "GTSAM is using TBB")
   find_package(TBB 4.4 REQUIRED COMPONENTS tbb tbbmalloc)
@@ -151,8 +152,8 @@ include_directories(
 
 set(BUILD_FLAGS "-O3")
 if (UNIX AND NOT APPLE)
-  MESSAGE(STATUS "Setting Eigen SIMD speedups")
-  set(BUILD_FLAGS "-march=native")
+  # MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  # set(BUILD_FLAGS "-march=native")
   list(APPEND BUILD_FLAGS "-fPIC")
 endif(UNIX AND NOT APPLE)
 add_definitions(${BUILD_FLAGS})
