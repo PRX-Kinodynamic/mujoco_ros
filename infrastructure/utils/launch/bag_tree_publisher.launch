@@ -1,0 +1,9 @@
+<launch>
+
+  <arg name="bagfile" value="None"/>
+  
+  <node pkg="utils" type="bag_tree_publisher.py" name="bag_tree_publisher" output="screen">
+    <param name="bagfile" value="$(arg bagfile)" />
+  </node>  
+
+</launch>
