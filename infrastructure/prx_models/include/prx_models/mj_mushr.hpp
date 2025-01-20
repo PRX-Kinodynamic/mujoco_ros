@@ -1,6 +1,5 @@
 #pragma once
 #include "eigen3/Eigen/Dense"
-#include "geometry_msgs/Pose2D.h"
 
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/mj_copy.hpp"
@@ -10,6 +9,8 @@
 #include <prx_models/MushrObservation.h>
 #include <prx_models/MushrFeedback.h>
 #include <prx_models/MushrPlanner.h>
+
+#include <geometry_msgs/Pose2D.h>
 
 namespace prx_models
 {
