@@ -17,6 +17,12 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   prx_models
 )
+
+add_definitions("-O3")
+if (UNIX AND NOT APPLE)
+  MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  list(APPEND BUILD_FLAGS "-fPIC")
+endif()
 # add_definitions("-g")
 
 ## System dependencies are found with CMake's conventions

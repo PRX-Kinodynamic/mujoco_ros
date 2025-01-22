@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
+add_definitions("-O3")
 # add_definitions("-g")
 include(GNUInstallDirs)
 # set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
@@ -87,10 +88,10 @@ endif()
 
 set(BUILD_FLAGS "-O3")
 if (UNIX AND NOT APPLE)
-  MESSAGE(STATUS "Setting Eigen SIMD speedups")
-  set(BUILD_FLAGS "-march=native")
+  # MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  # set(BUILD_FLAGS "-march=native")
   list(APPEND BUILD_FLAGS "-fPIC")
-endif(UNIX)
+endif()
 
 add_definitions(${BUILD_FLAGS})
 set(ACTION_FILES "")
