@@ -1,6 +1,6 @@
 <launch>
 
-  <arg name="stop_topic" value="/stela/shutdown"/>
+  <arg name="stop_topic" default="/stela/shutdown"/>
   
   <node pkg="utils" type="blocker_node" name="blocker_node" output="screen">
     <param name="stop_topic" value="$(arg stop_topic)" />
