@@ -6,13 +6,18 @@
 
 #include <gtsam/nonlinear/ISAM2.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+
 #include <actionlib/server/simple_action_server.h>
 #include <motion_planning/StelaGraphTraversalAction.h>
 #include <prx/simulation/loaders/obstacle_loader.hpp>
 #include <prx/factor_graphs/factors/obstacle_factor.hpp>
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
-#include <motion_planning/utils.hpp>
+
 #include <motion_planning/sdf_factor.hpp>
+
+#include <motion_planning/utils.hpp>
+#include <utils/std_utils.hpp>
+#include <utils/time_profiler.hpp>
 
 namespace motion_planning
 {
@@ -58,6 +63,7 @@ public:
     , _experiment_id("test")
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
     , _sim_clock(false)
+    , _profiler()
     , _tree_received(false)  {};
 
   virtual void onInit()
@@ -66,12 +72,12 @@ public:
     std::string graph_topic_name{ "" };
     std::string control_topic;
     std::string collision_topic;
-    double control_frequency;
+    double control_frequency, ctrl_computation_buffer, observation_frequency;
     double& obstacle_activation_distance{ _obstacle_activation_distance };
     double& fix_sigmas{ _fix_sigmas };
     double& obstacle_sigma{ _obstacle_sigma };
-    std::vector<double> min_control_limit;
-    std::vector<double> max_control_limit;
+    std::vector<double> min_ctrl_limit;
+    std::vector<double> max_ctrl_limit;
     std::string environment, solution_tree_topic, sbmp_tree_topic, replan_scate_topic;
     bool& time_factor{ _time_factor };
     bool& limit_ctrl{ _limit_controls };
@@ -87,9 +93,11 @@ public:
     std::string& experiment_id{ _experiment_id };
 
     PARAM_SETUP(private_nh, solution_tree_topic);
+    PARAM_SETUP(private_nh, ctrl_computation_buffer);
     PARAM_SETUP(private_nh, sbmp_tree_topic);
     PARAM_SETUP(private_nh, control_topic);
     PARAM_SETUP(private_nh, control_frequency);
+    PARAM_SETUP(private_nh, observation_frequency);
     PARAM_SETUP(private_nh, world_frame);
     PARAM_SETUP(private_nh, robot_frame);
     PARAM_SETUP(private_nh, obstacle_sigma)
@@ -100,8 +108,8 @@ public:
     PARAM_SETUP(private_nh, collision_topic)
     PARAM_SETUP(private_nh, limit_ctrl);
     PARAM_SETUP(private_nh, output_dir);
-    PARAM_SETUP(private_nh, min_control_limit);
-    PARAM_SETUP(private_nh, max_control_limit);
+    PARAM_SETUP(private_nh, min_ctrl_limit);
+    PARAM_SETUP(private_nh, max_ctrl_limit);
     PARAM_SETUP(private_nh, replan_scate_topic);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
@@ -114,22 +122,23 @@ public:
 
     if (obstacle_mode == "sdf")
     {
-      // if (sdf_params == "")
-      //   prx_throw("No SDF params!");
-      // prx::param_loader sdf_param_loader{};
-      // sdf_param_loader = Sdf::default_parameters();
-      // sdf_param_loader.add_file(sdf_params);
-      // sdf_param_loader["environment"].set(environment);
-      // // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
-      // _sdf = Sdf::create(sdf_param_loader);
+      if (sdf_params == "")
+        prx_throw("No SDF params!");
+      prx::param_loader sdf_param_loader{};
+      sdf_param_loader = Sdf::default_parameters();
+      sdf_param_loader.add_file(sdf_params);
+      sdf_param_loader["environment"].set(environment);
+      // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
+      _sdf = Sdf::create(sdf_param_loader);
     }
 
     _is_sbmp_init = !naive_guess;
+    _max_ctrl_comp_duration = (1.0 / control_frequency) + ctrl_computation_buffer;
 
     DEBUG_VARS(_is_sbmp_init);
 
-    _min_control_limit = Eigen::Map<Control>(min_control_limit.data(), min_control_limit.size());
-    _max_control_limit = Eigen::Map<Control>(max_control_limit.data(), max_control_limit.size());
+    _min_ctrl_limit = Eigen::Map<Control>(min_ctrl_limit.data(), min_ctrl_limit.size());
+    _max_ctrl_limit = Eigen::Map<Control>(max_ctrl_limit.data(), max_ctrl_limit.size());
 
     _lm_params.setUseFixedLambdaFactor(true);
     _lm_params.setMaxIterations(fg_iterations);
@@ -165,8 +174,8 @@ public:
     _robot_collision_ptr = SystemInterface::collision_geometry();
     _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
-    double& init_duration{ _init_duration };
-    PARAM_SETUP(private_nh, init_duration);
+    double& delta_t{ _delta_t };
+    PARAM_SETUP(private_nh, delta_t);
 
     utils::get_param_and_check(private_nh, "/Plant/start_state", _start_state);
     DEBUG_VARS("Start state: ", _start_state);
@@ -182,6 +191,7 @@ public:
       PARAM_SETUP(private_nh, init_ctrl);
     }
 
+    _observation_timer = private_nh.createTimer(ros::Duration(1.0 / observation_frequency), &Derived::observation_callback, this);
     if (!sim_clock) {
       DEBUG_VARS(control_frequency);
       const ros::Duration control_timer(1.0 / control_frequency);
@@ -195,50 +205,83 @@ public:
 
       _stamped_control_publisher.publish(_control_stamped);
     }
+
+    _timestamp = utils::timestamp();
+    const std::string path{ _output_dir + "/scate" };
+    const std::string filename{ path  + "_" + _experiment_id + "_" + _timestamp + ".txt" };
+    _ofs.open(filename);
+    _ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
+
+    _profiler.set_filename(path + "_freq_" + _experiment_id + "_" + _timestamp + ".txt");
+    _profiler.start();
+    _profiler.checkpoint("Start");
+    _profiler.end("End");
   }
 
-  void replan_callback(const std_msgs::EmptyConstPtr& msg)
+  void observation_callback(const ros::TimerEvent& event)
   {
-    update_fg_and_publish_controls(ros::Time::now());
+    if (!is_initialized()) return;
+    
+    _added_observations = _added_observations or add_observations();
   }
 
   void collision_callback(const std_msgs::BoolConstPtr& msg)
   {
-    std::cout << "Collision Detected" << std::endl;
+    ROS_WARN("Collision Detected! Creating file");
     if (msg->data)
     {
       to_file(true);
     }
   }
 
-  void action_function(const ros::TimerEvent& event)
+  void replan_callback(const std_msgs::EmptyConstPtr& msg)
   {
-    update_fg_and_publish_controls(event.current_real);    
+    double computation_duration = update_fg_and_publish_controls(ros::Time::now());
+    DEBUG_VARS(computation_duration);
   }
 
-  void update_fg_and_publish_controls(const ros::Time event_timestamp) {
-    if (!is_initialized())
-    {
-      if (_is_sbmp_init){
-        return;
-      }
-      else {
-        init_from_naive_guess();
-        _isam_initialized = true;
+  void action_function(const ros::TimerEvent& event)
+  {
+    std::cout << "Timer event" << std::endl;
+    double computation_duration = update_fg_and_publish_controls(event.current_real);
+
+    // if (computation_duration > _max_ctrl_comp_duration)
+    // {
+    //   ROS_WARN("Computation duration: %f exceeded computation duration limit. Quitting ", computation_duration);
+    //   to_file(false, true);
+    // }
+  }
+
+  double update_fg_and_publish_controls(const ros::Time event_timestamp) {
+    _profiler.start();
+
+    if (!is_initialized() && !_is_sbmp_init) {
+      init_from_naive_guess();
+      _isam_initialized = true;
+    }
+
+    if (is_initialized()) {
+      bool is_node_updated = update_current_node(event_timestamp);
+
+      DEBUG_VARS(_current_node);
+
+      if (_current_node < _total_states - 1) {
+        _profiler.checkpoint();
+
+        bool should_publish_control = _sim_clock or (_added_observations or is_node_updated);
+        publish_tree();
+
+        if (should_publish_control){
+          publish_control();
+        }
       }
     }
-    
-    bool is_node_updated = update_current_node(event_timestamp);
-    if (_current_node >= _total_states - 1) return;
 
-    bool added_observations = add_observations();
-    bool should_publish_control = _sim_clock or (added_observations or is_node_updated);
+    _added_observations = false;
 
-    publish_tree();
+    ros::WallDuration computation_duration = _profiler.end();
 
-    if (should_publish_control){
-      publish_control();
-    }
+    return computation_duration.toSec();
   }
 
   bool query_tf()
@@ -254,39 +297,12 @@ public:
     return false;
   }
 
-  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
-  {
-    using StateType = typename std::tuple_element<I, StateEstimates>::type;
-    const gtsam::Key key{ keys[I] };
-    const StateType state{ estimate.at<StateType>(key) };
-    const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
-    const Eigen::VectorXd diagonal{ cov.diagonal() };
-
-    // ofs << i << " ";
-    ofs << SF::formatter(key) << " ";
-    for (int i = 0; i < diagonal.size(); ++i)
-    {
-      ofs << state[i] << " ";
-    }
-    for (int i = 0; i < diagonal.size(); ++i)
-    {
-      ofs << diagonal[i] << " ";
-    }
-    estimates_to_file<I + 1>(ofs, estimate, keys);
-    // ofs << "\n";
-  }
-
-  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
-  {
-    ofs << "\n";
-  }
-
-  void to_file(const bool collision = false, const bool raised_exception = false)
+  void to_file(const bool collision = false, const bool ctrl_time_limit_exceeded = false)
   {
     if (_files_created)
       return;
+
+    // TODO: Implement this
 
     // const std::string filename{ _output_dir + "/scate_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
     // const std::string filename_branch_gt{ _output_dir + "/scate_branch_gt_" + _experiment_id + "_" +
@@ -352,7 +368,7 @@ public:
   {
     if (_current_node == -1)
     {
-      _next_node_time_stamp = event_timestamp + ros::Duration(_init_duration);
+      _next_node_time_stamp = event_timestamp + ros::Duration(_delta_t);
       _current_node = 0;
       return true;
     }
@@ -365,7 +381,7 @@ public:
     if (event_timestamp >= _next_node_time_stamp)
     {
       _current_node++;
-      _next_node_time_stamp += ros::Duration(_init_duration);
+      _next_node_time_stamp += ros::Duration(_delta_t);
       return true;
     }
 
@@ -383,7 +399,7 @@ public:
       Observation z_new;
       SystemInterface::copy(z_new, _tf);
 
-      ros::Time current_node_time_stamp = _next_node_time_stamp - ros::Duration(_init_duration);
+      ros::Time current_node_time_stamp = _next_node_time_stamp - ros::Duration(_delta_t);
 
       double duration = (_tf.header.stamp - current_node_time_stamp).toSec();
 
@@ -392,12 +408,17 @@ public:
       _factor_graph += graph_values_z.first;
       _current_estimate.insert(graph_values_z.second);
 
-      gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
-
-      _current_estimate = optimizer.optimize();
+      
       return true;
     }
     return false;
+  }
+
+  void optimize_fg()
+  {
+      gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
+
+      _current_estimate = optimizer.optimize();
   }
 
   void publish_control()
@@ -413,6 +434,8 @@ public:
     const State x{ _current_estimate.at<State>(xkey) };
     const State xdot{ _current_estimate.at<StateDot>(xDotKey) };
 
+    DEBUG_VARS(u);
+
     ml4kp_bridge::copy(_control_stamped.space_point, u);
 
     _control_stamped.header.seq++;
@@ -423,77 +446,206 @@ public:
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, const int x_id)
   {
-    // if (_obstacle_mode == "all") {
-    //   const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-    //   for (auto obstacle_info : _obstacle_collision_infos)
-    //   {
-    //     _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
-    //                                                   _obstacle_activation_distance, 0.1, _obstacle_noise);
-    //   }
-    // }
+    if (_obstacle_mode == "all") {
+      const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+      for (auto obstacle_info : _obstacle_collision_infos)
+      {
+        _obstacle_graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
+                                                      _obstacle_activation_distance, 0.1, _obstacle_noise);
+      }
+    }
 
-    // if (_obstacle_mode == "sdf")
-    // {
-    //   PRINT_MSG_ONCE("Using SDF Factors")
-    //   const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
-    //   _obstacle_graph.emplace_shared<SdfFactor>(keyX, _obstacle_activation_distance, _sdf, _obstacle_noise);
-    // }
+    if (_obstacle_mode == "sdf")
+    {
+      PRINT_MSG_ONCE("Using SDF Factors")
+      const gtsam::Key keyX{ SystemInterface::keyX(1, x_id) };
+      _obstacle_graph.emplace_shared<SdfFactor>(keyX, _obstacle_activation_distance, _sdf, _obstacle_noise);
+    }
   }
 
   void control_limit_factors(int i)
   {
     const gtsam::Key uKey{ SystemInterface::keyU(i, i + 1) };
-    _control_limit_graph.emplace_shared<MinControlLimitFactor>(uKey, _min_control_limit);
-    _control_limit_graph.emplace_shared<MaxControlLimitFactor>(uKey, _max_control_limit);
+    _control_limit_graph.emplace_shared<MinControlLimitFactor>(uKey, _min_ctrl_limit);
+    _control_limit_graph.emplace_shared<MaxControlLimitFactor>(uKey, _max_ctrl_limit);
+  }
+
+  prx_models::Tree normalize_sbmp_tree(const prx_models::TreeConstPtr& orig_tree)
+  {
+    prx_models::Tree new_tree;
+
+    // Get the original root node
+    const prx_models::Node& orig_root_node{ orig_tree->nodes[orig_tree->root] };
+
+    // Set the root node of the new tree
+    new_tree.root = 0;
+    prx_models::Node new_root_node;
+    new_root_node.point = ml4kp_bridge::SpacePoint(orig_root_node.point);
+    new_tree.nodes.emplace_back(new_root_node);
+    
+    // Get the first child that is not the root node    
+    auto orig_child_id = orig_root_node.children[0];
+    int node_idx = 0;
+    while (orig_child_id == orig_tree->root and node_idx < orig_root_node.children.size()) {
+      orig_child_id = orig_root_node.children[++node_idx];
+    }
+    if (orig_child_id == orig_tree->root) {
+      throw std::runtime_error("Root node has no children");
+    }
+
+    std::uint64_t orig_edge_id = orig_tree->nodes[orig_child_id].parent_edge;
+
+    node_idx = 1;
+    int edge_idx = 0;
+    bool add_edge = false;
+    double previous_edge_duration = _delta_t, remaining_edge_time = 0;
+    ml4kp_bridge::Plan new_edge_plan;
+    ml4kp_bridge::SpacePoint new_node_point;
+    Eigen::Vector2d accumulated_control;
+
+
+    while(true) {
+      const prx_models::Edge& edge{ orig_tree->edges[orig_edge_id] };
+      const prx_models::Node& node_parent{ orig_tree->nodes[edge.source] };
+      const prx_models::Node& node_current{ orig_tree->nodes[edge.target] };
+
+      const Eigen::Vector2d edge_control{edge.plan.steps[0].control.point.data()};
+      double edge_duration = edge.plan.steps[0].duration.data.toSec();
+      
+      prx_assert(edge_duration == _delta_t or previous_edge_duration == _delta_t, "Edge duration mismatch. At least one edge duration in consecutive edges should be equal to delta_t");
+      prx_assert(edge_duration <= _delta_t, "Edge duration should be less than or equal to delta_t");
+
+      if (remaining_edge_time == 0) {
+        if (edge_duration == _delta_t) {
+          add_edge = true;
+          new_edge_plan = ml4kp_bridge::Plan(edge.plan);
+          new_node_point = ml4kp_bridge::SpacePoint(node_current.point);
+        }
+        else {
+          accumulated_control += edge_duration * edge_control;
+          remaining_edge_time = _delta_t - edge_duration;
+        }
+      }
+      else {
+        Eigen::Vector2d new_edge_control;
+
+        if (edge_duration < remaining_edge_time) {
+          remaining_edge_time -= edge_duration;
+          accumulated_control += edge_duration * edge_control;
+        }
+        else if (edge_duration == remaining_edge_time) {
+          add_edge = true;
+          accumulated_control = Eigen::Vector2d::Zero();
+          new_edge_control = (accumulated_control + (remaining_edge_time * edge_control))/ _delta_t;
+          ml4kp_bridge::PlanStep plan_step;
+
+          new_node_point = ml4kp_bridge::SpacePoint(node_current.point);
+
+          remaining_edge_time = 0;
+        }
+        else{
+          add_edge = true;
+          double unused_duration = edge_duration - remaining_edge_time;
+
+          new_edge_control = (accumulated_control + (remaining_edge_time * edge_control))/ _delta_t;
+          accumulated_control = unused_duration * edge_control;
+
+          Eigen::Vector4d parent_node_vector, current_node_vector, new_node_vector;
+          parent_node_vector << node_parent.point.point[0], node_parent.point.point[1], node_parent.point.point[2], node_parent.point.point[3];
+          current_node_vector << node_current.point.point[0], node_current.point.point[1], node_current.point.point[2], node_current.point.point[3];
+          new_node_vector = ((remaining_edge_time * parent_node_vector) + (unused_duration * current_node_vector)) / edge_duration;
+
+          new_node_point = ml4kp_bridge::SpacePoint();
+          new_node_point.point.insert(new_node_point.point.end(), new_node_vector.data(), new_node_vector.data() + 4);
+          new_node_point.point.push_back(0);
+          
+          remaining_edge_time = _delta_t - unused_duration;          
+        }
+
+        if (add_edge) {
+          new_edge_plan = ml4kp_bridge::Plan();
+          ml4kp_bridge::PlanStep plan_step;
+          plan_step.duration.data = ros::Duration(_delta_t);
+          plan_step.control.point.insert(plan_step.control.point.end(), new_edge_control.data(), new_edge_control.data() + 2);
+          new_edge_plan.steps.push_back(plan_step);
+        }
+        
+      }
+
+      if (add_edge) {
+        prx_models::Edge edge;
+        edge.index = edge_idx;
+        edge.source = node_idx - 1;
+        edge.target = node_idx;
+        edge.plan = new_edge_plan;
+
+        prx_models::Node node;
+        node.index = node_idx;
+        node.parent = node_idx - 1;
+        node.parent_edge = edge_idx;
+        node.point = new_node_point;
+
+        new_tree.nodes[node_idx - 1].children.emplace_back(node_idx);
+        new_tree.nodes.emplace_back(node);
+        new_tree.edges.emplace_back(edge);
+
+        node_idx++;
+        edge_idx++;
+        add_edge = false;
+      }
+
+      const std::size_t total_children{ node_current.children.size() };
+      if (total_children == 0) {
+        break;
+      }
+
+      const prx_models::Node& next_node_child{ orig_tree->nodes[node_current.children[0]] };
+      orig_edge_id = next_node_child.parent_edge;
+      previous_edge_duration = edge_duration;
+    }
+
+    return new_tree;
   }
 
   void init_from_sbmp(const prx_models::TreeConstPtr& msg)
   {
     std::cout << "Received SBMP tree" << std::endl;
 
-    const ros::Time start{ ros::Time::now() };
-    const std::size_t total_tree_nodes{ msg->nodes.size() };
+    prx_models::Tree tree = normalize_sbmp_tree(msg);
 
-    const prx_models::Node& root_node{ msg->nodes[msg->root] };
+    const prx_models::Node& root_node{ tree.nodes[tree.root] };
     _values = gtsam::Values();
 
-    GraphValues root_graph_values{ SystemInterface::root_to_fg(msg->root, root_node.point) };
+    GraphValues root_graph_values{ SystemInterface::root_to_fg(tree.root, root_node.point) };
 
 
     auto child_id = root_node.children[0];
-    int idx = 0;
-
-    while (child_id == msg->root and idx < root_node.children.size()) {
-      child_id = root_node.children[++idx];
-    }
-
-    if (child_id == msg->root) {
-      throw std::runtime_error("Root node has no children");
-    }
 
     // Start and goal states do not count as states in the FG
+    int current_node = 0;
     _total_states = 1;
 
-    const prx_models::Node& node_child{ msg->nodes[child_id] };
-    std::uint64_t edge_id = node_child.parent_edge;
+    const prx_models::Node& node_child{ tree.nodes[child_id] };
+    std::uint64_t edge_id = tree.nodes[child_id].parent_edge;
 
     while(true) {
-      _total_states++;
-      const prx_models::Edge& edge{ msg->edges[edge_id] };
-      const prx_models::Node& node_parent{ msg->nodes[edge.source] };
-      const prx_models::Node& node_current{ msg->nodes[edge.target] };
+      const prx_models::Edge& edge{ tree.edges[edge_id] };
+      const prx_models::Node& node_parent{ tree.nodes[edge.source] };
+      const prx_models::Node& node_current{ tree.nodes[edge.target] };
 
       const std::size_t total_children{ node_current.children.size() };
 
       GraphValues graph_values;
 
-      graph_values = SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan);
+      // std::cout << current_node << " " << current_node+1 << " " << total_children << std::endl;
 
-      if (msg->root != node_current.index)
+      graph_values = SystemInterface::node_edge_to_fg(current_node, current_node+1, node_current.point, edge.plan);
+
+      if (tree.root != node_current.index)
       {
-        obstacle_factors(node_current.point, edge.target);
+        obstacle_factors(node_current.point, current_node+1);
 
-        if (_limit_controls and total_children > 0) control_limit_factors(edge.target);
+        if (_limit_controls and total_children > 0) control_limit_factors(current_node+1);
       }
 
       root_graph_values.first += graph_values.first;
@@ -503,11 +655,17 @@ public:
         break;
       }
 
-      const prx_models::Node& next_node_child{ msg->nodes[node_current.children[0]] };
+      const prx_models::Node& next_node_child{ tree.nodes[node_current.children[0]] };
       edge_id = next_node_child.parent_edge;
-    }
+
+      current_node++;
+    } 
+
+    _total_states = current_node + 1;
 
     DEBUG_VARS(_total_states);
+
+    SF::symbols_to_file("/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/symbols.txt");
 
     // Adding goal state
     prx::space_t* ss{ _plant->get_state_space() };
@@ -546,7 +704,7 @@ public:
     ml4kp_bridge::Plan plan;
     plan.steps.emplace_back();
     plan.steps[0].control.point = _init_ctrl;
-    plan.steps[0].duration.data = ros::Duration(_init_duration);
+    plan.steps[0].duration.data = ros::Duration(_delta_t);
 
     state.point = _start_state;
     GraphValues root_graph_values{ SystemInterface::fix_cost(0, state, _fix_sigmas) };
@@ -640,7 +798,7 @@ private:
   ros::Subscriber _collision_subscriber;
   ros::Subscriber _replan_subscriber;
 
-  ros::Timer _control_timer;
+  ros::Timer _control_timer, _observation_timer;
 
   std::string _world_frame;
   std::string _robot_frame;
@@ -652,6 +810,7 @@ private:
   bool _isam_initialized;
   bool _is_sbmp_init;
   bool _tree_received;
+  bool _added_observations;
   motion_planning::tree_manager_t _tree_manager;
   int _current_node;
 
@@ -666,9 +825,10 @@ private:
 
   double _obstacle_sigma;
   double _obstacle_activation_distance;
+  double _max_ctrl_comp_duration;
   bool _limit_controls;
-  Control _min_control_limit;
-  Control _max_control_limit;
+  Control _min_ctrl_limit;
+  Control _max_ctrl_limit;
   gtsam::Values _current_estimate;
   gtsam::LevenbergMarquardtParams _lm_params;
 
@@ -676,7 +836,7 @@ private:
   std::vector<double> _start_state;
   std::vector<double> _goal_state;
   std::vector<double> _init_ctrl;
-  double _init_duration;
+  double _delta_t;
   ros::Time _next_node_time_stamp;
   ros::Time _start_time;
   
@@ -688,5 +848,9 @@ private:
 
   std::string _obstacle_mode;
   gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
+
+  std::string _timestamp;
+  std::ofstream _ofs;
+  utils::time_profiler_t _profiler;
 };
 }  // namespace motion_planning
