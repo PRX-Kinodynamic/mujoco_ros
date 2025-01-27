@@ -157,8 +157,8 @@ public:
                            gtsam::OptionalJacobian<3, 3> Hxd0 = boost::none,
                            gtsam::OptionalJacobian<3, DimParams> Hparams = boost::none) const
   {
-    return prx_models::mushr_CtrlAccel_t::predict(xd0, _u, _dt, params, prx_models::mushr_utils_t::default_poly, Hxd0,
-                                                  boost::none, boost::none, Hparams);
+    return prx_models::mushr_CtrlAccel_t<>::predict(xd0, _u, _dt, params, prx_models::mushr_utils_t::default_poly, Hxd0,
+                                                    boost::none, boost::none, Hparams);
   }
 
   virtual Error evaluateError(const Statedot& xd1, const Statedot& xd0, const Params& params,  // no-lint
@@ -488,7 +488,7 @@ int main(int argc, char** argv)
 
       const double delta{ u[prx_models::mushr_types::Control::steering] };
       ofs_vels << edge_duration * (factor_idx - 1) << " ";
-      ofs_vels << xdot0.norm() << " " << xddot << " " << xdot_prev.norm() << " ";
+      ofs_vels << xdot0.head(2).norm() << " " << xddot << " " << xdot_prev.head(2).norm() << " ";
       ofs_vels << delta << " ";
       ofs_vels << prx_models::mushr_types::Control::evaluate_polynomial(prx_models::mushr_utils_t::default_poly, delta);
       ofs_vels << "\n";
