@@ -30,7 +30,7 @@ if(GTSAM_USE_TBB)
   message(STATUS "GTSAM is using TBB")
   find_package(TBB 4.4 REQUIRED COMPONENTS tbb tbbmalloc)
 
-# endif()
+endif()
 
 
 ## System dependencies are found with CMake's conventions
