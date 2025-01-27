@@ -88,6 +88,7 @@ public:
     , _control_frequency(30)
     , _total_z_calls(0)
     , _profiler()
+    , _time_as_variable(true)
 #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
 #endif
@@ -123,6 +124,7 @@ public:
     bool report_control_frequency{ true };
     bool& visualize{ _visualize };
     bool& using_stepper{ _using_stepper };
+    bool& time_as_variable{ _time_as_variable };
     int& total_future_nodes{ _total_future_nodes };
     int& total_past_nodes{ _total_past_nodes };
     int estimation_pub_freq{ 30 };
@@ -143,6 +145,7 @@ public:
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
     PARAM_SETUP(private_nh, estimated_trajectory_topic)
     PARAM_SETUP_WITH_DEFAULT(private_nh, visualize, visualize)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, time_as_variable, time_as_variable)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
     PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id)
     PARAM_SETUP_WITH_DEFAULT(private_nh, plant_parameters, plant_parameters)
@@ -528,8 +531,9 @@ public:
 
         SystemInterface::copy(_u_plan, plan.steps[0].control);  // DBG
 
-        _key_dt = SystemInterface::keyT(_x_curr, _x_next);
-        calculate_estimate_safe(_dt01, _key_dt);
+        update_dt();
+        // _key_dt = SystemInterface::keyT(_x_curr, _x_next);
+        // calculate_estimate_safe(_dt01, _key_dt);
 
         // const ros::Duration extra{};
         _x0_start_time = finish_time;
@@ -542,6 +546,19 @@ public:
 
         // _current_past_nodes++;
       }
+    }
+  }
+
+  void update_dt()
+  {
+    _key_dt = SystemInterface::keyT(_x_curr, _x_next);
+    if (_time_as_variable)
+    {
+      calculate_estimate_safe(_dt01, _key_dt);
+    }
+    else
+    {
+      _values.at<double>(_key_dt);
     }
   }
 
@@ -621,10 +638,11 @@ public:
         _isam2_result.newFactorsIndices.clear();
 
         _key_u01 = SystemInterface::keyU(_x_curr, _x_next);
-        _key_dt = SystemInterface::keyT(_x_curr, _x_next);
-
         _u01 = _isam.calculateEstimate<Control>(_key_u01);
-        _dt01 = _isam.calculateEstimate<double>(_key_dt);
+
+        update_dt();
+        // _key_dt = SystemInterface::keyT(_x_curr, _x_next);
+        // _dt01 = _isam.calculateEstimate<double>(_key_dt);
       }
       catch (gtsam::IndeterminantLinearSystemException e)
       {
@@ -801,16 +819,39 @@ public:
                                          _isam2_result.newFactorsIndices.end());
 
     _next_tree_edge = _tree.nodes[root_node.children[0]].parent_edge;
-    for (int i = 0; i < _total_future_nodes; ++i)
+    if (_total_future_nodes > 1)
     {
-      add_tree_node();
+      for (int i = 0; i < _total_future_nodes; ++i)
+      {
+        add_tree_node();
+      }
+    }
+    else if (_total_future_nodes < 0)
+    {
+      PRINT_MSG_ONCE("Using all nodes");
+
+      const std::size_t initial_goal_id{ _goal_id };
+      do
+      {
+        // prev_goal_id = _goal_id;
+        add_tree_node();
+        // DEBUG_VARS(prev_goal_id, _goal_id);
+      } while (initial_goal_id == _goal_id);
+      DEBUG_VARS(_goal_id);
+    }
+    else
+    {
+      prx_throw("Cannot have 0 or 1 (curr) future nodes. Needed 2 (current + next) or more.");
     }
     _x_curr = _tree.root;
     set_next_node();
     PRINT_MSG("Stela Windowed Initialized");
     _tree_recevied = true;
-    _key_dt = SystemInterface::keyT(_x_curr, _x_next);
-    calculate_estimate_safe(_dt01, _key_dt);
+
+    // _key_dt = SystemInterface::keyT(_x_curr, _x_next);
+    // calculate_estimate_safe(_dt01, _key_dt);
+    update_dt();
+
     _start_time = ros::Time::now();
   }
 
@@ -1229,6 +1270,8 @@ private:
   ros::Duration _max_observation_delay;
   double _control_frequency;
   std::size_t _total_z_calls;
+
+  bool _time_as_variable;
 
   utils::time_profiler_t _profiler;
 #ifdef GTSAM_USE_TBB

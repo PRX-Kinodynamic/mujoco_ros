@@ -27,8 +27,8 @@
   <arg name="random_seed" default="390489"/>
   <arg name="experiment_name" default="test"/>
   <arg name="obstacle_mode" default="distance"/>
-  <arg name="obstacle_distance_tolerance" default="0.5"/>
-  <arg name="obstacle_factor_include_distance" default="0.5"/>
+  <arg name="obstacle_distance_tolerance" default="1.0"/>
+  <arg name="obstacle_factor_include_distance" default="1.0"/>
   <arg name="obstacle_sigma" default="1.0"/>
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="robot"/>
@@ -311,7 +311,7 @@ launch-prefix="gdb --args">
 
   <group ns="simulator">
     
-    <include if="$(eval arg('Plant') == 'ltv_sde' or arg('Plant') == 'mushr' )" 
+    <include if="$(eval arg('Plant') == 'ltv_sde' or arg('Plant') == 'mushr' or arg('Plant') == 'quadrotor')" 
              file="$(find analytical)/launch/simulator.launch" >
       <arg name="ns" value="stela"/>
       <arg name="plant_file" value="$(arg plant_file)"/>
@@ -360,7 +360,8 @@ launch-prefix="gdb --args">
       <param name="in_topics" type="yaml" value="[$(arg collision_topic), $(arg stop_topic), /stela/finished]"/>
     </node>
 
-    <node if="$(arg sim_clock)" launch-prefix="xterm -e"
+    <node if="$(arg sim_clock)" 
+      launch-prefix="xterm -e"
       pkg="utils" type="SimClock" name="SimClock" output="screen" >
       <param name="SimStep" value="$(arg simulation_step)"/>
       <param name="fileprefix" value="desired_trajectories"/>
