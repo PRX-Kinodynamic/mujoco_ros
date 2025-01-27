@@ -58,7 +58,8 @@
   <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
   <arg name="observation_frequency" default="30"/>
   <arg name="stela_future_nodes" default="10"/>
-
+  <arg name="stela_past_nodes" default="10"/>
+  
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
     <rosparam file="$(arg plant_file)" />
@@ -193,6 +194,7 @@ launch-prefix="gdb --args">
       <arg name="tree_ahead_topic" value="$(arg tree_ahead_topic)"/>
       <arg name="Stepper" default="$(arg Stepper)"/>
       <arg name="total_future_nodes" default="$(arg stela_future_nodes)"/>
+      <arg name="total_past_nodes" default="$(arg stela_past_nodes)"/>
     </include>
 
     <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'ltv_sde')" 
