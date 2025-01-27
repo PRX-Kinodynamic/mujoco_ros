@@ -299,6 +299,8 @@ public:
     ofs_data << "NetworkProblem: " << network_res << "\n";
     ofs_data << "AverageFrequency: " << avg_freq << "\n";
     ofs_data << "ObservationFrequency: " << avg_obervation_freq << "\n";
+    ofs_data << "TotalFutureNodes: " << _total_future_nodes << "\n";
+    ofs_data << "TotalFastNodes: " << _total_past_nodes << "\n";
 
     // DEBUG_VARS(avg_freq);
     ofs_data.close();

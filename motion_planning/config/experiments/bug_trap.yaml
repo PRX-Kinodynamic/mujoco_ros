@@ -1,10 +1,10 @@
 A: &A
   position: [-14.0, 0.0] 
-  orientation: 1.5707963268
+  orientation: 0.0
 
 B: &B
   position: [-3.0, 0.0] 
-  orientation: 0.0
+  orientation: 3.14159
 
 experiments:
   -

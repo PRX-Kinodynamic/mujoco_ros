@@ -22,6 +22,7 @@
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
     <arg name="total_future_nodes" default="10"/>
+    <arg name="total_past_nodes" default="10"/>
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'ltv_sde')" 
         pkg="nodelet" type="nodelet" name="StelaWindowedLtvSde" 
@@ -50,6 +51,7 @@
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
+        <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -77,6 +79,7 @@
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
+        <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed-dbg' and  arg('Plant') == 'mushr')" 
@@ -104,6 +107,7 @@
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
+        <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
     </node> 
 
     <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 
