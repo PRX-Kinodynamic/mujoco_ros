@@ -19,6 +19,10 @@
 #include <utils/std_utils.hpp>
 #include <utils/time_profiler.hpp>
 
+#ifdef GTSAM_USE_TBB
+#include <tbb/global_control.h>
+#endif
+
 namespace motion_planning
 {
 
@@ -64,7 +68,20 @@ public:
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
     , _sim_clock(false)
     , _profiler()
-    , _tree_received(false)  {};
+    , _total_calls(0)
+    , _total_z_calls(0)
+    , _tree_received(false)  
+    , _is_verbose(false)
+  #ifdef GTSAM_USE_TBB
+    , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
+  #endif
+    {
+    }
+
+  ~scate_t()
+  {
+    to_file();
+  }
 
   virtual void onInit()
   {
@@ -81,6 +98,7 @@ public:
     std::string environment, solution_tree_topic, sbmp_tree_topic, replan_scate_topic;
     bool& time_factor{ _time_factor };
     bool& limit_ctrl{ _limit_controls };
+    bool& verbose{ _is_verbose };
     bool naive_guess{ false };
     int fg_iterations{ 100 };
     bool& sim_clock{ _sim_clock };
@@ -111,6 +129,7 @@ public:
     PARAM_SETUP(private_nh, min_ctrl_limit);
     PARAM_SETUP(private_nh, max_ctrl_limit);
     PARAM_SETUP(private_nh, replan_scate_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
@@ -142,6 +161,10 @@ public:
 
     _lm_params.setUseFixedLambdaFactor(true);
     _lm_params.setMaxIterations(fg_iterations);
+    if (!verbose) {
+      _lm_params.setVerbosityLM("SILENT");
+    }
+    
     _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
 
     const std::string stamped_control_topic{ control_topic + "_stamped" };
@@ -156,6 +179,15 @@ public:
     if (_is_sbmp_init) {
       DEBUG_VARS(sbmp_tree_topic);
       _tree_subscriber = private_nh.subscribe(sbmp_tree_topic, 1, &Derived::init_from_sbmp, this);
+      _name = "scate_sbmp"; 
+    }
+    else
+    {
+      int& total_states{ _total_states };
+      std::vector<double>& init_ctrl{ _init_ctrl };
+      PARAM_SETUP(private_nh, total_states);
+      PARAM_SETUP(private_nh, init_ctrl);
+      _name = "scate_naive";
     }
       
     _collision_subscriber = private_nh.subscribe(collision_topic, 1, &Derived::collision_callback, this);
@@ -182,16 +214,14 @@ public:
     
     utils::get_param_and_check(private_nh, "/Plant/goal/state", _goal_state);
     DEBUG_VARS("Goal state: ", _goal_state);
-    
-    if (naive_guess)
-    {
-      int& total_states{ _total_states };
-      std::vector<double>& init_ctrl{ _init_ctrl };
-      PARAM_SETUP(private_nh, total_states);
-      PARAM_SETUP(private_nh, init_ctrl);
-    }
 
-    _observation_timer = private_nh.createTimer(ros::Duration(1.0 / observation_frequency), &Derived::observation_callback, this);
+    _current_node = -1;
+    
+    DEBUG_VARS(observation_frequency);
+    const ros::Duration observation_timer(1.0 / observation_frequency);
+    DEBUG_VARS(observation_timer.toSec());
+    _observation_timer = private_nh.createTimer(observation_timer, &Derived::observation_callback, this);
+
     if (!sim_clock) {
       DEBUG_VARS(control_frequency);
       const ros::Duration control_timer(1.0 / control_frequency);
@@ -207,10 +237,7 @@ public:
     }
 
     _timestamp = utils::timestamp();
-    const std::string path{ _output_dir + "/scate" };
-    const std::string filename{ path  + "_" + _experiment_id + "_" + _timestamp + ".txt" };
-    _ofs.open(filename);
-    _ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
+    const std::string path{ _output_dir + "/" + _name };
 
     _profiler.set_filename(path + "_freq_" + _experiment_id + "_" + _timestamp + ".txt");
     _profiler.start();
@@ -220,9 +247,19 @@ public:
 
   void observation_callback(const ros::TimerEvent& event)
   {
+    if (_is_verbose) {
+      std::cout << "Observation callback" << std::endl;
+    }
     if (!is_initialized()) return;
+
+    _total_z_calls++;
+    bool added_new_obs = add_observations();
+
+    if (_is_verbose and added_new_obs) {
+      std::cout << "Added new observations" << std::endl;
+    }
     
-    _added_observations = _added_observations or add_observations();
+    _added_observations = _added_observations or added_new_obs;
   }
 
   void collision_callback(const std_msgs::BoolConstPtr& msg)
@@ -236,13 +273,23 @@ public:
 
   void replan_callback(const std_msgs::EmptyConstPtr& msg)
   {
+    if (_is_verbose) {
+      std::cout << "Replan callback" << std::endl;
+    }
+    
     double computation_duration = update_fg_and_publish_controls(ros::Time::now());
-    DEBUG_VARS(computation_duration);
+
+    if (_is_verbose) {
+      DEBUG_VARS(computation_duration);
+    }
   }
 
   void action_function(const ros::TimerEvent& event)
   {
-    std::cout << "Timer event" << std::endl;
+    if (_is_verbose) {
+      std::cout << "Action function" << std::endl;
+    }
+
     double computation_duration = update_fg_and_publish_controls(event.current_real);
 
     // if (computation_duration > _max_ctrl_comp_duration)
@@ -250,6 +297,10 @@ public:
     //   ROS_WARN("Computation duration: %f exceeded computation duration limit. Quitting ", computation_duration);
     //   to_file(false, true);
     // }
+
+    if (_is_verbose) {
+      DEBUG_VARS(computation_duration);
+    }
   }
 
   double update_fg_and_publish_controls(const ros::Time event_timestamp) {
@@ -263,11 +314,12 @@ public:
     if (is_initialized()) {
       bool is_node_updated = update_current_node(event_timestamp);
 
-      DEBUG_VARS(_current_node);
-
       if (_current_node < _total_states - 1) {
         _profiler.checkpoint();
 
+        if (_added_observations) {
+          optimize_fg();
+        }
         bool should_publish_control = _sim_clock or (_added_observations or is_node_updated);
         publish_tree();
 
@@ -275,6 +327,8 @@ public:
           publish_control();
         }
       }
+
+      _total_calls++;
     }
 
     _added_observations = false;
@@ -297,65 +351,118 @@ public:
     return false;
   }
 
+  template <std::size_t I, std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    using StateType = typename std::tuple_element<I, StateEstimates>::type;
+    const gtsam::Key key{ keys[I] };
+    const StateType state{ estimate.at<StateType>(key) };
+    
+
+    // ofs << i << " ";
+    ofs << SF::formatter(key) << " ";
+    for (int i = 0; i < state.size(); ++i)
+    {
+      ofs << state[i] << " ";
+    }
+
+    // try 
+    // {
+    //   const Eigen::MatrixXd cov{ _isam.marginalCovariance(key) };
+    //   const Eigen::VectorXd diagonal{ cov.diagonal() };
+      
+    //   for (int i = 0; i < diagonal.size(); ++i)
+    //   {
+    //     ofs << diagonal[i] << " ";
+    //   }
+    // }
+    // catch (std::out_of_range e)
+    // {
+    //   const std::string problem_key{ SF::formatter(key) };
+    //   PRINT_MSG_VARS("Can't compute covariance", problem_key);
+    //   DEBUG_VARS(e.what());
+    // }
+
+    estimates_to_file<I + 1>(ofs, estimate, keys);
+    // ofs << "\n";
+  }
+
+  template <std::size_t I, std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
+  void estimates_to_file(std::ofstream& ofs, const gtsam::Values& estimate, const StateKeys& keys)
+  {
+    ofs << "\n";
+  }
+
   void to_file(const bool collision = false, const bool ctrl_time_limit_exceeded = false)
   {
     if (_files_created)
       return;
 
-    // TODO: Implement this
-
-    // const std::string filename{ _output_dir + "/scate_" + _experiment_id + "_" + utils::timestamp() + ".txt" };
-    // const std::string filename_branch_gt{ _output_dir + "/scate_branch_gt_" + _experiment_id + "_" +
-    //                                       utils::timestamp() + ".txt" };
-    // const std::string filename_data{ _output_dir + "/scate_data_" + _experiment_id + "_" + utils::timestamp() +
-    //                                  ".txt" };
-
-    // // DEBUG_VARS(filename);
-    // // DEBUG_VARS(filename_branch_gt);
-    // // DEBUG_VARS(filename_data);
-    // std::ofstream ofs(filename);
-    // std::ofstream ofs_branch(filename_branch_gt);
-    // std::ofstream ofs_data(filename_data);
-    // const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
-    // ofs_data << "ElapsedTime: " << elapsed_time << "\n";
-    // ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
-    // ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
-    // ofs_data << "ExceptionRaised: " << (raised_exception ? "true" : "false") << "\n";
-
-    // gtsam::Values estimate{ _isam.calculateEstimate() };
-    // ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
-    // ofs_branch << "# id point[...]\n";
-    // for (int node_id = 0; node_id< _total_states; ++node_id)
-    // {
-    //   ofs << node_id << " ";
-    //   const StateKeys keys{ SystemInterface::keyState(1, node_id) };
-    //   estimates_to_file<0>(ofs, _current_estimate, keys);
-    //   // const ml4kp_bridge::SpacePoint& {};
-    //   ofs_branch << node_id << " ";
-    //   ofs_branch << "\n";
-    // }
-
-    // ofs.close();
-    // ofs_branch.close();
-    // ofs_data.close();
-
-    // _files_created = true;
+    _collision_subscriber.shutdown();
+    
+    const std::string filename_data{ _output_dir + "/" + _name + "_data_" + _experiment_id + "_" + _timestamp + ".txt" };
 
     
-    // const Control u {Control::Zero() };
-    
-    // ml4kp_bridge::copy(_control_stamped.space_point, u);
+    std::ofstream ofs_data(filename_data);
 
-    // _control_stamped.header.seq++;
-    // _control_stamped.header.stamp = ros::Time::now();
+    const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
+    const double avg_freq{ _total_calls / elapsed_time };
+    const double avg_obervation_freq{ static_cast<double>(_total_z_calls) / elapsed_time };
 
-    // _stamped_control_publisher.publish(_control_stamped);
+    ofs_data << "Initialized: " << (is_initialized() ? "true" : "false") << "\n";
+    ofs_data << "ElapsedTime: " << elapsed_time << "\n";
+    ofs_data << "Collision: " << (collision ? "true" : "false") << "\n";
+    ofs_data << "ObstacleDistanceTolerance: " << _obstacle_activation_distance << "\n";
+    ofs_data << "ObstacleMode: " << _obstacle_mode << "\n";
+    ofs_data << "ExceptionRaised: " << "false" << "\n";
+    ofs_data << "NetworkProblem: " << "false" << "\n";
+    ofs_data << "AverageFrequency: " << avg_freq << "\n";
+    ofs_data << "ObservationFrequency: " << avg_obervation_freq << "\n";
 
-    // std_msgs::Bool msg;
-    // msg.data = true;
-    // _finish_publisher.publish(msg);
+    ofs_data.close();
 
-    // PRX_DBG_VARS(collision);
+    const std::string filename{ _output_dir + "/" + _name  + "_" + _experiment_id + "_" + _timestamp + ".txt" };
+    std::ofstream ofs(filename);
+
+    ofs << "# id key_x x[...] key_xdot xdot[...]\n";
+    for (int node_id = 0; node_id< _total_states; ++node_id)
+    {
+      ofs << node_id << " ";
+      const StateKeys keys{ SystemInterface::keyState(1, node_id) };
+      estimates_to_file<0>(ofs, _current_estimate, keys);
+    }
+
+    ofs.close();
+
+    if (_is_sbmp_init) {
+      const std::string filename_branch_gt{ _output_dir + "/" + _name + "_branch_gt_" + _experiment_id + "_" + _timestamp + ".txt" };
+
+      std::ofstream ofs_branch(filename_branch_gt);
+
+      ofs_branch << "# id point[...]\n";
+      for (int node_id = 0; node_id < _total_states; ++node_id)
+      {
+        // ofs << node_id << " ";
+        // const StateKeys keys{ SystemInterface::keyState(1, node_id) };
+        // estimates_to_file<StateEstimates, 0>(ofs, _values, keys, _isam, false);
+        // ofs_covariance
+        ofs_branch << node_id << " ";
+        ml4kp_bridge::to_file(_sbmp_tree.nodes[node_id].point, ofs_branch);
+        ofs_branch << "\n";
+      }
+
+      ofs_branch.close();
+    }
+
+    _files_created = true;
+
+    _tree_received = false;
+
+    std_msgs::Bool msg;
+    msg.data = true;
+    _finish_publisher.publish(msg);
+
+    PRX_DBG_VARS(collision);
 
     ros::Rate rate(1);
     rate.sleep();
@@ -382,6 +489,11 @@ public:
     {
       _current_node++;
       _next_node_time_stamp += ros::Duration(_delta_t);
+
+      if (_is_verbose) {
+        DEBUG_VARS(_current_node);
+      }
+
       return true;
     }
 
@@ -390,6 +502,9 @@ public:
 
   bool add_observations()
   {
+    if (_current_node == -1)
+      return false;
+
     const bool new_observation{ query_tf() };
     const bool header_updated{ _tf.header.stamp > _prev_header.stamp };
     if (new_observation and header_updated)
@@ -407,7 +522,6 @@ public:
 
       _factor_graph += graph_values_z.first;
       _current_estimate.insert(graph_values_z.second);
-
       
       return true;
     }
@@ -434,14 +548,16 @@ public:
     const State x{ _current_estimate.at<State>(xkey) };
     const State xdot{ _current_estimate.at<StateDot>(xDotKey) };
 
-    DEBUG_VARS(u);
-
     ml4kp_bridge::copy(_control_stamped.space_point, u);
 
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
 
     _stamped_control_publisher.publish(_control_stamped);
+
+    if (_is_verbose) {
+      DEBUG_VARS(u);
+    }
   }
 
   void obstacle_factors(const ml4kp_bridge::SpacePoint& point, const int x_id)
@@ -501,7 +617,7 @@ public:
     double previous_edge_duration = _delta_t, remaining_edge_time = 0;
     ml4kp_bridge::Plan new_edge_plan;
     ml4kp_bridge::SpacePoint new_node_point;
-    Eigen::Vector2d accumulated_control;
+    Eigen::Vector2d accumulated_control = Eigen::Vector2d::Zero();
 
 
     while(true) {
@@ -511,6 +627,8 @@ public:
 
       const Eigen::Vector2d edge_control{edge.plan.steps[0].control.point.data()};
       double edge_duration = edge.plan.steps[0].duration.data.toSec();
+
+      // std::cout << edge_control[0] << ";" << edge_control[1] << ";" << edge_duration << std::endl;
       
       prx_assert(edge_duration == _delta_t or previous_edge_duration == _delta_t, "Edge duration mismatch. At least one edge duration in consecutive edges should be equal to delta_t");
       prx_assert(edge_duration <= _delta_t, "Edge duration should be less than or equal to delta_t");
@@ -520,6 +638,9 @@ public:
           add_edge = true;
           new_edge_plan = ml4kp_bridge::Plan(edge.plan);
           new_node_point = ml4kp_bridge::SpacePoint(node_current.point);
+
+          remaining_edge_time = 0;
+          accumulated_control = Eigen::Vector2d::Zero();
         }
         else {
           accumulated_control += edge_duration * edge_control;
@@ -535,31 +656,35 @@ public:
         }
         else if (edge_duration == remaining_edge_time) {
           add_edge = true;
-          accumulated_control = Eigen::Vector2d::Zero();
           new_edge_control = (accumulated_control + (remaining_edge_time * edge_control))/ _delta_t;
           ml4kp_bridge::PlanStep plan_step;
 
           new_node_point = ml4kp_bridge::SpacePoint(node_current.point);
 
           remaining_edge_time = 0;
+          accumulated_control = Eigen::Vector2d::Zero();
         }
         else{
           add_edge = true;
           double unused_duration = edge_duration - remaining_edge_time;
-
+    
           new_edge_control = (accumulated_control + (remaining_edge_time * edge_control))/ _delta_t;
-          accumulated_control = unused_duration * edge_control;
 
+          // Compute the new node position
           Eigen::Vector4d parent_node_vector, current_node_vector, new_node_vector;
           parent_node_vector << node_parent.point.point[0], node_parent.point.point[1], node_parent.point.point[2], node_parent.point.point[3];
           current_node_vector << node_current.point.point[0], node_current.point.point[1], node_current.point.point[2], node_current.point.point[3];
           new_node_vector = ((remaining_edge_time * parent_node_vector) + (unused_duration * current_node_vector)) / edge_duration;
 
+          // Set the new node point
           new_node_point = ml4kp_bridge::SpacePoint();
           new_node_point.point.insert(new_node_point.point.end(), new_node_vector.data(), new_node_vector.data() + 4);
           new_node_point.point.push_back(0);
-          
+
+          // For the next edge
           remaining_edge_time = _delta_t - unused_duration;          
+          // accumulated_control = unused_duration * edge_control;
+          accumulated_control = edge_control * unused_duration;
         }
 
         if (add_edge) {
@@ -596,6 +721,32 @@ public:
 
       const std::size_t total_children{ node_current.children.size() };
       if (total_children == 0) {
+        // Add the final edge with the remaining edge time
+        if (remaining_edge_time > 0) {
+          Eigen::Vector2d new_edge_control = (accumulated_control + (remaining_edge_time * edge_control)) / _delta_t;
+          ml4kp_bridge::PlanStep plan_step;
+          plan_step.duration.data = ros::Duration(_delta_t);
+          plan_step.control.point.insert(plan_step.control.point.end(), new_edge_control.data(), new_edge_control.data() + 2);
+          ml4kp_bridge::Plan new_edge_plan;
+          new_edge_plan.steps.push_back(plan_step);
+
+          prx_models::Edge edge;
+          edge.index = edge_idx;
+          edge.source = node_idx - 1;
+          edge.target = node_idx;
+          edge.plan = new_edge_plan;
+
+          prx_models::Node node;
+          node.index = node_idx;
+          node.parent = node_idx - 1;
+          node.parent_edge = edge_idx;
+          node.point.point = _goal_state;
+
+          new_tree.nodes[node_idx - 1].children.emplace_back(node_idx);
+          new_tree.nodes.emplace_back(node);
+          new_tree.edges.emplace_back(edge);
+        }
+
         break;
       }
 
@@ -611,12 +762,12 @@ public:
   {
     std::cout << "Received SBMP tree" << std::endl;
 
-    prx_models::Tree tree = normalize_sbmp_tree(msg);
+    _sbmp_tree = normalize_sbmp_tree(msg);
 
-    const prx_models::Node& root_node{ tree.nodes[tree.root] };
+    const prx_models::Node& root_node{ _sbmp_tree.nodes[_sbmp_tree.root] };
     _values = gtsam::Values();
 
-    GraphValues root_graph_values{ SystemInterface::root_to_fg(tree.root, root_node.point) };
+    GraphValues root_graph_values{ SystemInterface::root_to_fg(_sbmp_tree.root, root_node.point) };
 
 
     auto child_id = root_node.children[0];
@@ -625,23 +776,21 @@ public:
     int current_node = 0;
     _total_states = 1;
 
-    const prx_models::Node& node_child{ tree.nodes[child_id] };
-    std::uint64_t edge_id = tree.nodes[child_id].parent_edge;
+    const prx_models::Node& node_child{ _sbmp_tree.nodes[child_id] };
+    std::uint64_t edge_id = _sbmp_tree.nodes[child_id].parent_edge;
 
     while(true) {
-      const prx_models::Edge& edge{ tree.edges[edge_id] };
-      const prx_models::Node& node_parent{ tree.nodes[edge.source] };
-      const prx_models::Node& node_current{ tree.nodes[edge.target] };
+      const prx_models::Edge& edge{ _sbmp_tree.edges[edge_id] };
+      const prx_models::Node& node_parent{ _sbmp_tree.nodes[edge.source] };
+      const prx_models::Node& node_current{ _sbmp_tree.nodes[edge.target] };
 
       const std::size_t total_children{ node_current.children.size() };
 
       GraphValues graph_values;
 
-      // std::cout << current_node << " " << current_node+1 << " " << total_children << std::endl;
-
       graph_values = SystemInterface::node_edge_to_fg(current_node, current_node+1, node_current.point, edge.plan);
 
-      if (tree.root != node_current.index)
+      if (_sbmp_tree.root != node_current.index)
       {
         obstacle_factors(node_current.point, current_node+1);
 
@@ -655,7 +804,7 @@ public:
         break;
       }
 
-      const prx_models::Node& next_node_child{ tree.nodes[node_current.children[0]] };
+      const prx_models::Node& next_node_child{ _sbmp_tree.nodes[node_current.children[0]] };
       edge_id = next_node_child.parent_edge;
 
       current_node++;
@@ -694,6 +843,7 @@ public:
     // _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
 
     _tree_received = true;
+    _start_time = ros::Time::now();
   }
 
   void init_from_naive_guess()
@@ -743,6 +893,7 @@ public:
     // _current_estimate.print("Initial estimate: ", SF::formatter);
 
     // _factor_graph.printErrors(_current_estimate, "Problem graph", SF::formatter, printCondition);
+    _start_time = ros::Time::now();
   }
 
   void publish_tree()
@@ -798,7 +949,8 @@ private:
   ros::Subscriber _collision_subscriber;
   ros::Subscriber _replan_subscriber;
 
-  ros::Timer _control_timer, _observation_timer;
+  ros::Timer _control_timer;
+  ros::Timer _observation_timer;
 
   std::string _world_frame;
   std::string _robot_frame;
@@ -809,6 +961,7 @@ private:
 
   bool _isam_initialized;
   bool _is_sbmp_init;
+  bool _is_verbose;
   bool _tree_received;
   bool _added_observations;
   motion_planning::tree_manager_t _tree_manager;
@@ -818,6 +971,11 @@ private:
   bool _files_created;
   std::string _output_dir;
   std::string _experiment_id;
+
+  std::size_t _total_z_calls;
+  std::size_t _total_calls;
+
+  prx_models::Tree _sbmp_tree;
 
   std::shared_ptr<prx::fg::collision_info_t> _robot_collision_ptr;
   std::vector<std::shared_ptr<prx::movable_object_t>> _obstacle_list;
@@ -850,7 +1008,11 @@ private:
   gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
 
   std::string _timestamp;
-  std::ofstream _ofs;
+  std::string _name;
   utils::time_profiler_t _profiler;
+
+  #ifdef GTSAM_USE_TBB
+    tbb::global_control _tbb_control;
+  #endif
 };
 }  // namespace motion_planning

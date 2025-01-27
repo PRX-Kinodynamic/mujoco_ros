@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fstream>
 #include <ros/ros.h>
 
@@ -34,7 +36,7 @@ public:
     {
       _ofs << msg << " ";
     }
-    _ofs << dt << " ";
+    _ofs << dt.toSec() << " ";
     return dt;
   }
 

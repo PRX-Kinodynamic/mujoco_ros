@@ -9,10 +9,9 @@
   <arg name="debug_prefix" default=""/> 
   <arg name="rosbag_file" default=""/>
   <arg name="naive_guess" default="false"/>
-  <arg name="environment" default="environments/empty.yaml"/>
+  <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
-  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
-  <!-- <arg name="environment" default="environments/prx_lab_3.yaml"/> -->
+  <arg name="environment" default="environments/forest.yaml"/>
   <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
@@ -62,6 +61,7 @@
   <arg name="stela_past_nodes" default="10"/>
   <arg name="time_as_variable" default="true"/>
   <arg name="replan_scate_topic" default="/scate/sbmp/replan"/>
+  <arg name="verbose" default="false"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
@@ -297,7 +297,7 @@ launch-prefix="gdb --args">
       <param name="solution_tree_topic" value="$(arg sln_tree)"/>
       <param name="sbmp_tree_topic" value="/scate/sbmp/sln_tree"/>
       <param name="control_topic" value="$(arg control_topic)"/> 
-      <param name="control_frequency" value="30"/>
+      <param name="control_frequency" value="10"/>
       <param name="world_frame" value="$(arg world_frame)"/>
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
@@ -309,19 +309,22 @@ launch-prefix="gdb --args">
       <param name="total_states" value="$(arg total_states)"/>
       <param name="init_ctrl"  type="yaml" value="[0.0,0.0]"/>
       <param name="limit_ctrl" value="$(arg limit_ctrl)"/>
-      <param name="min_control_limit" type="yaml" value="[-0.5, -0.5]" />
-      <param name="max_control_limit" type="yaml" value="[0.5, 0.5]" />
+      <param name="min_ctrl_limit" type="yaml" value="[-0.2, -0.2]" />
+      <param name="max_ctrl_limit" type="yaml" value="[0.2, 0.2]" />
       <!-- <param name="min_control_limit" type="yaml" value="[-200, -200]" />
       <param name="max_control_limit" type="yaml" value="[200, 200]" /> -->
       <param name="collision_topic" value="$(arg collision_topic)"/>
       <param name="output_dir" value="$(arg data_dir)"/>
-      <param name="init_duration"   value="0.1"/>
+      <param name="delta_t"   value="0.5"/>
       <param name="time_factor" value="false"/>
       <param name="fg_iterations" value="100"/>
       <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
       <param name="sim_clock" value="$(arg sim_clock)"/>
       <param name="sdf_params" value="/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/src/infrastructure/utils/config/sdf.yaml"/>
       <param name="replan_scate_topic" value="$(arg replan_scate_topic)"/>
+      <param name="observation_frequency" value="30"/>
+      <param name="ctrl_computation_buffer" value="0.0"/>
+      <param name="verbose" value="$(arg verbose)"/>
     </node>
 
 
