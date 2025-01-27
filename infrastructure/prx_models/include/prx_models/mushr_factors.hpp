@@ -132,131 +132,8 @@ inline double evaluate_polynomial(const Poly& poly, const double& x, gtsam::Opti
 
 }  // namespace mushr_types
 
+using mushr_x_xdot_nodT_t = prx::fg::lie_integration_factor_t<mushr_types::State::type, mushr_types::StateDot::type>;
 using mushr_x_xdot_t = prx::fg::lie_integration_factor_t<mushr_types::State::type, mushr_types::StateDot::type, double>;
-// template <typename X, typename Xdot, typename... Types>
-// class mushr_x_xdot_t : public gtsam::NoiseModelFactorN<mushr_types::State::type, mushr_types::State::type,
-//                                                        mushr_types::StateDot::type, mushr_types::Ubar::type, double>
-// {
-//   using X = mushr_types::State::type;
-//   using Xdot = mushr_types::StateDot::type;
-//   using Ubar = mushr_types::Ubar::type;
-
-//   using Base = gtsam::NoiseModelFactorN<X, X, Xdot, Ubar, double>;
-//   using LieIntegrator = prx::fg::lie_integrator_t<X, Xdot, double>;
-//   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
-//   static constexpr Eigen::Index DimX{ gtsam::traits<X>::dimension };
-//   static constexpr Eigen::Index DimXdot{ gtsam::traits<Xdot>::dimension };
-//   static constexpr Eigen::Index DimUbar{ gtsam::traits<Ubar>::dimension };
-
-//   // static constexpr std::size_t NumTypes{ sizeof...(Types) };
-
-//   using DerivativeX = Eigen::Matrix<double, DimX, DimX>;
-//   using OptDeriv = boost::optional<Eigen::MatrixXd&>;
-//   template <typename T>
-//   using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
-
-//   using MatXX = Eigen::Matrix<double, DimX, DimX>;
-//   using MatXXdot = Eigen::Matrix<double, DimX, DimXdot>;
-//   using MatXdotXdot = Eigen::Matrix<double, DimXdot, DimXdot>;
-//   using MatXdotDt = Eigen::Matrix<double, DimXdot, 1>;
-
-//   mushr_x_xdot_t() = delete;
-//   mushr_x_xdot_t(const mushr_x_xdot_t& other) = delete;
-
-// public:
-//   mushr_x_xdot_t(const gtsam::Key key_xt1, const gtsam::Key key_xt0, const gtsam::Key key_xdot,
-//                  const gtsam::Key key_ubar, const gtsam::Key key_dt, const NoiseModel& cost_model,
-//                  const std::string label = "MushrLieOdeIntegration")
-//     : Base(cost_model, key_xt1, key_xt0, key_xdot, key_ubar, key_dt), _h(0.0), _label(label)
-//   {
-//   }
-
-//   ~mushr_x_xdot_t() override
-//   {
-//   }
-
-//   // virtual X0 predict(const X1& x1, const X2& x2) const = 0;
-//   static X predict(const X& x, const Xdot& xdot, const Ubar& ubar, const double dt,  // no-lint
-//                    gtsam::OptionalJacobian<DimX, DimX> Hx = boost::none,             // no-lint
-//                    gtsam::OptionalJacobian<DimX, DimXdot> Hxdot = boost::none,       // no-lint
-//                    gtsam::OptionalJacobian<DimX, DimUbar> Hubar = boost::none,       // no-lint
-//                    gtsam::OptionalJacobian<DimX, 1> Hdt = boost::none)
-//   {
-//     const double& beta{ ubar[mushr_types::Ubar::beta] };
-//     const X x_beta(Eigen::Vector2d::Zero(), beta);
-//     // const X xp{ x * x_beta };  // x' <= beta + theta
-//     const X xp{ gtsam::traits<X>::Compose(x, x_beta) };
-//     // DEBUG_VARS(x);
-//     // DEBUG_VARS(beta, x_beta);
-//     // DEBUG_VARS(xp);
-//     // const X xp{ x };
-//     // return gtsam::traits<prx::fg::SE2_t>::Compose(x, exmap);
-
-//     const X result{ LieIntegrator::integrate(xp, xdot, dt, Hx, Hxdot, Hdt) };
-
-//     return result;
-//   }
-
-//   Eigen::VectorXd error(const X& x1, const X& x0, const Xdot& xdot, const Ubar& ubar, const double& dt,
-//                         boost::optional<Eigen::MatrixXd&> Hx1 = boost::none,
-//                         boost::optional<Eigen::MatrixXd&> Hx0 = boost::none,
-//                         boost::optional<Eigen::MatrixXd&> Hxdot = boost::none,
-//                         boost::optional<Eigen::MatrixXd&> Hubar = boost::none,
-//                         boost::optional<Eigen::MatrixXd&> Hdt = boost::none) const
-//   {
-//     Eigen::Matrix<double, DimX, DimX> err_H_b;       // Deriv error wrt between
-//     Eigen::Matrix<double, DimX, DimX> b_H_q1;        // Deriv between wrt x1
-//     Eigen::Matrix<double, DimX, DimX> b_H_qp;        // Deriv between wrt predicted
-//     Eigen::Matrix<double, DimX, DimX> qp_H_q0;       // Deriv predicted wrt x0
-//     Eigen::Matrix<double, DimX, DimXdot> qp_H_qdot;  // Deriv predicted wrt xdot
-//     Eigen::Matrix<double, DimX, DimUbar> qp_H_ubar;  // Deriv predicted wrt dt
-//     Eigen::Matrix<double, DimX, 1> qp_H_qdt;         // Deriv predicted wrt dt
-
-//     const X prediction{ predict(x0, xdot, ubar, dt,            // no-lint
-//                                 Hx0 ? &qp_H_q0 : nullptr,      // no-lint
-//                                 Hxdot ? &qp_H_qdot : nullptr,  // no-lint
-//                                 Hubar ? &qp_H_ubar : nullptr,  // no-lint
-//                                 Hdt ? &qp_H_qdt : nullptr) };
-//     // X1_p (-) x1 => Eq. 26 from "A micro Lie theory [...]" https://arxiv.org/pdf/1812.01537.pdf
-//     const X between{ x1.between(prediction,                                 // no-lint
-//                                 (Hx0 or Hxdot or Hdt) ? &b_H_q1 : nullptr,  // no-lint
-//                                 (Hx0 or Hxdot or Hdt) ? &b_H_qp : nullptr) };
-//     const Eigen::VectorXd error{ X::Logmap(between, (Hx0 or Hxdot or Hdt) ? &err_H_b : nullptr) };
-
-//     if (Hx1)
-//     {
-//       *Hx1 = err_H_b * b_H_q1;
-//     }
-//     if (Hx0)
-//     {
-//       *Hx0 = err_H_b * b_H_qp * qp_H_q0;
-//     }
-//     if (Hxdot)
-//     {
-//       *Hxdot = err_H_b * b_H_qp * qp_H_qdot;
-//     }
-//     if (Hdt)
-//     {
-//       *Hdt = err_H_b * b_H_qp * qp_H_qdt;
-//     }
-
-//     return error;
-//   }
-
-//   virtual Eigen::VectorXd evaluateError(const X& x1, const X& x0, const Xdot& xdot, const Ubar& ubar,
-//                                         const double& dt,  // no-lint
-//                                         OptDeriv H1 = boost::none, OptDeriv H0 = boost::none,
-//                                         OptDeriv Hdot = boost::none, OptDeriv Hubar = boost::none,
-//                                         OptDeriv Hdt = boost::none) const override
-//   {
-//     return error(x1, x0, xdot, ubar, dt, H1, H0, Hdot, Hubar, Hdt);
-//   }
-
-// private:
-//   const double _h;
-//   const std::string _label;
-//   // const DerivativeX _negative_identity;
-// };
 
 // CtrlUbarFactor
 class mushr_ub_u_xdot_param_t
@@ -756,8 +633,9 @@ private:
   const Params _params;
 };
 
+template <typename... Types>
 class mushr_CtrlAccel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot::type, mushr_types::StateDot::type,
-                                                          mushr_types::Control::type, double>
+                                                          mushr_types::Control::type, Types...>
 {
   using State = mushr_types::State::type;
   using StateDot = mushr_types::StateDot::type;
@@ -772,22 +650,33 @@ class mushr_CtrlAccel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot:
 
   static constexpr Eigen::Index DimParams{ mushr_types::Control::ParamsDim };
 
-  using Base = gtsam::NoiseModelFactorN<StateDot, StateDot, Control, double>;
+  using Base = gtsam::NoiseModelFactorN<StateDot, StateDot, Control, Types...>;
 
   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
   using Error = Eigen::VectorXd;
 
   using OptDeriv = boost::optional<Eigen::MatrixXd&>;
 
+  template <typename T>
+  using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
+  static constexpr std::size_t NumTypes{ sizeof...(Types) };
+
   mushr_CtrlAccel_t() = delete;
   mushr_CtrlAccel_t(const mushr_CtrlAccel_t& other) = delete;
 
 public:
+  template <std::size_t Num = NumTypes, typename std::enable_if_t<(1 == Num), bool> = true>
   mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
                     const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
-    : Base(cost_model, xd1, xd0, u, dt), _params(params), _steering_poly(steering_poly)
+    : Base(cost_model, xd1, xd0, u, dt), _params(params), _steering_poly(steering_poly), _dt(-1)
   {
-    // PRX_DBG_VARS(_params);
+  }
+
+  template <std::size_t Num = NumTypes, typename std::enable_if_t<(0 == Num), bool> = true>
+  mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const double& dt,
+                    const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
+    : Base(cost_model, xd1, xd0, u), _params(params), _steering_poly(steering_poly), _dt(dt)
+  {
   }
 
   ~mushr_CtrlAccel_t() override
@@ -951,23 +840,35 @@ public:
     return xd1;
   }
 
-  virtual Error evaluateError(const StateDot& xd1, const StateDot& xd0, const Control& u, const double& dt,  // no-lint
-                              OptDeriv Hxd1 = boost::none, OptDeriv Hxd0 = boost::none, OptDeriv Hu = boost::none,
-                              OptDeriv Hdt = boost::none) const override
+  virtual Eigen::VectorXd evaluateError(const StateDot& xd1, const StateDot& xd0, const Control& u,
+                                        const Types&... dt01,  // no-lint
+                                        OptDeriv Hxd1 = boost::none, OptDeriv Hxd0 = boost::none,
+                                        OptDeriv Hu = boost::none, OptionalMatrix<Types>... H) const override
   {
-    const StateDot xdp1{ predict(xd0, u, dt, _params, _steering_poly, Hxd0, Hu, Hdt) };
+    StateDot xdp1{};
+    if constexpr (0 == NumTypes)
+    {
+      xdp1 = predict(xd0, u, _dt, _params, _steering_poly, Hxd0, Hu);
+      // return error(x1, x0, xdot, _h, H1, H0, Hdot);
+    }
+    else
+    {
+      xdp1 = predict(xd0, u, dt01..., _params, _steering_poly, Hxd0, Hu, H...);
+      // return error(x1, x0, xdot, xd..., H1, H0, Hdot, H...);
+    }
+
     if (Hxd1)
     {
       *Hxd1 = -Eigen::Matrix<double, 3, 3>::Identity();
     }
-    // PRX_DBG_VARS(xd1.transpose());
-
     return xdp1 - xd1;
   }
 
 private:
   const Polynomial _steering_poly;
   const Params _params;
+
+  const double _dt;
 };
 
 // Non-holonomic constraints

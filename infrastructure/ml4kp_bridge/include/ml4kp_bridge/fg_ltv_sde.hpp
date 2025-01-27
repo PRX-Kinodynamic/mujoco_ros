@@ -574,8 +574,10 @@ public:
   // SBMP:  N0 ----E01---- N1 which is: N0=traj[0]; E01=plan
   // FG:    X0 ----F01---- X1
   static GraphValues node_edge_to_fg(const std::size_t parent, const std::size_t child,
-                                     const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan)
+                                     const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan,
+                                     const bool time_as_variable = true)
   {
+    prx_assert(time_as_variable, "LTV dt not as variable not supported");
     const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
     const double duration{ edge_plan.steps[0].duration.data.toSec() };
 

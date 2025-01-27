@@ -10,12 +10,12 @@
   <arg name="rosbag_file" default=""/>
   <!-- <arg name="environment" default="environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
-  <arg name="environment" default="environments/forest.yaml"/>
+  <!-- <arg name="environment" default="environments/forest.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_3.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
-  <!-- <arg name="environment" default="environments/bug_trap.yaml"/> -->
+  <arg name="environment" default="environments/bug_trap.yaml"/>
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->
@@ -59,7 +59,8 @@
   <arg name="observation_frequency" default="30"/>
   <arg name="stela_future_nodes" default="10"/>
   <arg name="stela_past_nodes" default="10"/>
-  
+  <arg name="time_as_variable" default="true"/>
+
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
     <rosparam file="$(arg plant_file)" />
@@ -195,6 +196,8 @@ launch-prefix="gdb --args">
       <arg name="Stepper" default="$(arg Stepper)"/>
       <arg name="total_future_nodes" default="$(arg stela_future_nodes)"/>
       <arg name="total_past_nodes" default="$(arg stela_past_nodes)"/>
+      <arg name="time_as_variable" default="$(arg time_as_variable)"/>
+      
     </include>
 
     <node if="$(eval arg('planner') == 'Stela' and  arg('Plant') == 'ltv_sde')" 

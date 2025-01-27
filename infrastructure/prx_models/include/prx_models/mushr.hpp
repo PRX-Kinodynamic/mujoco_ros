@@ -362,12 +362,15 @@ public:
 
   // Create a FG that goes from N0 to N1 with plan P01
   static GraphValues node_edge_to_fg(const std::size_t parent, const std::size_t child,
-                                     const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan)
+                                     const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan,
+                                     const bool time_as_variable = true)
   {
     // using StateStateDotFactor = prx::fg::lie_integration_factor_t<State, StateDot, double>;
-    using StateStateDotFactor = prx_models::mushr_x_xdot_t;
+    using StateStateDotTimeFactor = prx_models::mushr_x_xdot_t;
+    using StateStateDotNoTimeFactor = prx_models::mushr_x_xdot_nodT_t;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
-    using XdotIntegrationFactor = prx_models::mushr_CtrlAccel_t;
+    using XdotIntegrationTimeFactor = prx_models::mushr_CtrlAccel_t<double>;
+    using XdotIntegrationNoTimeFactor = prx_models::mushr_CtrlAccel_t<>;
     using NHCFactor = prx_models::mushr_NHC_t;
 
     const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
@@ -418,10 +421,24 @@ public:
 
     // graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot1, k_t01, integration_noise,
     // "MushrXXdot");
-    graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
-    graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
-    graph_values.first.emplace_shared<XdotIntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, xd_integration_noise,
-                                                             default_params, default_poly);
+    // graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
+    // graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
+    if (time_as_variable)
+    {
+      graph_values.first.emplace_shared<XdotIntegrationTimeFactor>(k_xdot1, k_xdot0, k_u01, k_t01, xd_integration_noise,
+                                                                   default_params, default_poly);
+      graph_values.first.emplace_shared<StateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
+      graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
+      graph_values.first.addPrior(k_t01, dt, dt_noise);
+    }
+    else
+    {
+      graph_values.first.emplace_shared<XdotIntegrationNoTimeFactor>(k_xdot1, k_xdot0, k_u01, dt, xd_integration_noise,
+                                                                     default_params, default_poly);
+      graph_values.first.emplace_shared<StateStateDotNoTimeFactor>(k_x1, k_x0, k_xdot0, integration_noise, dt);
+      PRINT_MSG_ONCE("Using fix time!")
+    }
+    graph_values.second.insert(k_t01, dt);
     // aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
 
     // using StateStateDotFactor = prx_models::mushr_x_xdot_t;
@@ -433,13 +450,11 @@ public:
     // aux_graph.first.emplace_shared<mushr_ub_u_xdot_t>(k_ubar1, k_u01, k_ubar0, k_t01, default_params, nullptr);
     // aux_graph.first.emplace_shared<mushr_xdot_ub_t>(k_xdot1, k_ubar1, nullptr);
 
-    graph_values.first.addPrior(k_t01, dt, dt_noise);
     graph_values.first.addPrior(k_x1, x1);
     graph_values.first.addPrior(k_xdot1, xdot1);
     // graph_values.first.addPrior(k_u01, u01);
     // graph_values.first.addPrior(k_xdot1, xdot1, prior_noise);
     graph_values.second.insert(k_x1, x1);
-    graph_values.second.insert(k_t01, dt);
 
     // aux_graph.first.addPrior(k_u01, u01, u_prior_noise);
     graph_values.second.insert(k_xdot1, xdot1);
@@ -453,7 +468,7 @@ public:
   {
     using StateStateDotFactor = prx_models::mushr_x_xdot_t;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
-    using XdotIntegrationFactor = prx_models::mushr_CtrlAccel_t;
+    using XdotIntegrationFactor = prx_models::mushr_CtrlAccel_t<double>;
 
     const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
     const double dt{ edge_plan.steps[0].duration.data.toSec() };
@@ -632,7 +647,7 @@ public:
 
   virtual void propagate(const double simulation_step) override final
   {
-    _state_dot = mushr_CtrlAccel_t::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
+    _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
     const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
                              prx::gaussian_random(0.0, _state_dot_noise[1]),
                              prx::gaussian_random(0.0, _state_dot_noise[2]) };

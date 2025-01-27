@@ -198,8 +198,8 @@ class signed_distance_field_t
     // const double xdiff{ bounds.second[0] - bounds.first[0] };
     // const double ydiff{ bounds.second[1] - bounds.first[1] };
     init_matrices();
-    const std::size_t w{ static_cast<std::size_t>(_sdf.cols()) };
-    const std::size_t h{ static_cast<std::size_t>(_sdf.rows()) };
+    const std::size_t h{ static_cast<std::size_t>(_sdf.cols()) };
+    const std::size_t w{ static_cast<std::size_t>(_sdf.rows()) };
 
     configuration_from_state cfs;
     ObstacleFactor::CollideResult collision_result;
@@ -366,10 +366,13 @@ public:
     ofs << _resolution << " ";
     ofs << "\n";
 
-    for (std::size_t x = 0; x < _sdf.cols(); ++x)
+    const std::size_t h{ static_cast<std::size_t>(_sdf.cols()) };
+    const std::size_t w{ static_cast<std::size_t>(_sdf.rows()) };
+
+    for (std::size_t x = 0; x < w; ++x)
     {
       xt[0] = _min_bound[0] + x * _resolution;
-      for (std::size_t y = 0; y < _sdf.rows(); ++y)
+      for (std::size_t y = 0; y < h; ++y)
       {
         xt[1] = _min_bound[1] + y * _resolution;
         const double dist{ _sdf(x, y) };

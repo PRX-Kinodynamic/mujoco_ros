@@ -23,6 +23,8 @@
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
     <arg name="total_future_nodes" default="10"/>
     <arg name="total_past_nodes" default="10"/>
+    <arg name="time_as_variable" default="true"/>
+
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'ltv_sde')" 
         pkg="nodelet" type="nodelet" name="StelaWindowedLtvSde" 
@@ -52,6 +54,7 @@
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
         <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
+        <param name="time_as_variable" value="$(arg time_as_variable)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed' and  arg('Plant') == 'mushr')" 
@@ -80,6 +83,7 @@
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
         <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
+        <param name="time_as_variable" value="$(arg time_as_variable)"/>
     </node> 
 
     <node if="$(eval arg('planner') == 'StelaWindowed-dbg' and  arg('Plant') == 'mushr')" 
@@ -108,6 +112,7 @@
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
         <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
+        <param name="time_as_variable" value="$(arg time_as_variable)"/>
     </node> 
 
     <node if="$(eval arg('Stepper') == 'SbmpStepper' and  arg('Plant') == 'ltv_sde')" 

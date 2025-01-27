@@ -560,8 +560,9 @@ public:
     }
     else
     {
-      _values.at<double>(_key_dt);
+      _dt01 = _values.at<double>(_key_dt);
     }
+    // DEBUG_VARS(_dt01);
   }
 
   template <typename Estimate>
@@ -904,8 +905,8 @@ public:
       _active_nodes.insert(node_parent.index);
     }
 
-    GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point,
-                                                               edge.plan) };
+    GraphValues graph_values{ SystemInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan,
+                                                               _time_as_variable) };
     obstacle_factors(graph_values.first, node_current.point, edge.target);
 
     check_factor_removal();

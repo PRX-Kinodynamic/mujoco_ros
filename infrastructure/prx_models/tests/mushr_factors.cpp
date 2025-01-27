@@ -53,8 +53,8 @@ TEST(TestMushrFactors, testMushrCtrlXddot01VelocityDelta)
   // PRX_DBG_VARS(expectedHxd0);
   // PRX_DBG_VARS(actualHxd0);
 
-  PRX_DBG_VARS(expectedHdt);
-  PRX_DBG_VARS(actualHdt);
+  // PRX_DBG_VARS(expectedHdt);
+  // PRX_DBG_VARS(actualHdt);
 
   // PRX_DBG_VARS(expectedHxdotd);
   // PRX_DBG_VARS(actualHxdotd);
@@ -163,8 +163,8 @@ TEST(TestMushrFactors, testMushrCtrlXddot01EvaluateError)
   // PRX_DBG_VARS(expectedHxd0);
   // PRX_DBG_VARS(actualHxd0);
 
-  PRX_DBG_VARS(expectedHdt);
-  PRX_DBG_VARS(actualHdt);
+  // PRX_DBG_VARS(expectedHdt);
+  // PRX_DBG_VARS(actualHdt);
 
   // PRX_DBG_VARS(expectedHu);
   // PRX_DBG_VARS(actualHu);
@@ -177,10 +177,10 @@ TEST(TestMushrFactors, testMushrCtrlXddot01EvaluateError)
   const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
   const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
 
-  PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
-  PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
-  PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
-  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+  // PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
+  // PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+  // PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+  // PRX_DBG_VARS(expectedHu_isApprox_actualHu);
 
   ASSERT_TRUE(expectedHxd1.isApprox(actualHxd1, tolerance));
   ASSERT_TRUE(expectedHxd0.isApprox(actualHxd0, tolerance));
@@ -224,14 +224,14 @@ TEST(TestMushrFactors, testMushrCtrlAccel)
   expectedHu = gtsam::numericalDerivative43(err_proxy, xd1, xd0, u, dt);
   expectedHdt = gtsam::numericalDerivative44(err_proxy, xd1, xd0, u, dt);
 
-  PRX_DBG_VARS(expectedHxd0);
-  PRX_DBG_VARS(actualHxd0);
+  // PRX_DBG_VARS(expectedHxd0);
+  // PRX_DBG_VARS(actualHxd0);
 
-  PRX_DBG_VARS(expectedHdt);
-  PRX_DBG_VARS(actualHdt);
+  // PRX_DBG_VARS(expectedHdt);
+  // PRX_DBG_VARS(actualHdt);
 
-  PRX_DBG_VARS(expectedHu);
-  PRX_DBG_VARS(actualHu);
+  // PRX_DBG_VARS(expectedHu);
+  // PRX_DBG_VARS(actualHu);
 
   // PRX_DBG_VARS(expectedHparams);
   // PRX_DBG_VARS(actualHparams);
@@ -241,10 +241,10 @@ TEST(TestMushrFactors, testMushrCtrlAccel)
   const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
   const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
 
-  PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
-  PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
-  PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
-  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+  // PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
+  // PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+  // PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+  // PRX_DBG_VARS(expectedHu_isApprox_actualHu);
 
   ASSERT_TRUE(expectedHxd1.isApprox(actualHxd1, tolerance));
   ASSERT_TRUE(expectedHxd0.isApprox(actualHxd0, tolerance));
@@ -289,27 +289,27 @@ TEST(TestMushrFactors, testMushrCtrlAccelParams)
   expectedHdt = gtsam::numericalDerivative43(err_proxy, xd0, u, dt, params);
   expectedHparams = gtsam::numericalDerivative44(err_proxy, xd0, u, dt, params);
 
-  PRX_DBG_VARS(expectedHxd0);
-  PRX_DBG_VARS(actualHxd0);
+  // PRX_DBG_VARS(expectedHxd0);
+  // PRX_DBG_VARS(actualHxd0);
 
-  PRX_DBG_VARS(expectedHdt);
-  PRX_DBG_VARS(actualHdt);
+  // PRX_DBG_VARS(expectedHdt);
+  // PRX_DBG_VARS(actualHdt);
 
-  PRX_DBG_VARS(expectedHu);
-  PRX_DBG_VARS(actualHu);
+  // PRX_DBG_VARS(expectedHu);
+  // PRX_DBG_VARS(actualHu);
 
-  PRX_DBG_VARS(expectedHparams);
-  PRX_DBG_VARS(actualHparams);
+  // PRX_DBG_VARS(expectedHparams);
+  // PRX_DBG_VARS(actualHparams);
 
   const bool expectedHxd0_isApprox_actualHxd0{ expectedHxd0.isApprox(actualHxd0, tolerance) };
   const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
   const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
   const bool expectedHparams_isApprox_actualHparams{ expectedHparams.isApprox(actualHparams, tolerance) };
 
-  PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
-  PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
-  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
-  PRX_DBG_VARS(expectedHparams_isApprox_actualHparams);
+  // PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+  // PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+  // PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+  // PRX_DBG_VARS(expectedHparams_isApprox_actualHparams);
 
   // ASSERT_TRUE(expectedHxd1.isApprox(actualHxd1, tolerance));
   ASSERT_TRUE(expectedHxd0.isApprox(actualHxd0, tolerance));
@@ -346,11 +346,11 @@ TEST(TestMushrFactors, testMushrNHC)
   expectedHxd = gtsam::numericalDerivative21(err_proxy, xd, u);
   expectedHu = gtsam::numericalDerivative22(err_proxy, xd, u);
 
-  PRX_DBG_VARS(expectedHxd);
-  PRX_DBG_VARS(actualHxd);
+  // PRX_DBG_VARS(expectedHxd);
+  // PRX_DBG_VARS(actualHxd);
 
-  PRX_DBG_VARS(expectedHu);
-  PRX_DBG_VARS(actualHu);
+  // PRX_DBG_VARS(expectedHu);
+  // PRX_DBG_VARS(actualHu);
 
   // PRX_DBG_VARS(expectedHparams);
   // PRX_DBG_VARS(actualHparams);
@@ -358,8 +358,8 @@ TEST(TestMushrFactors, testMushrNHC)
   const bool expectedHxd_isApprox_actualHxd{ expectedHxd.isApprox(actualHxd, tolerance) };
   const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
 
-  PRX_DBG_VARS(expectedHxd_isApprox_actualHxd);
-  PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+  // PRX_DBG_VARS(expectedHxd_isApprox_actualHxd);
+  // PRX_DBG_VARS(expectedHu_isApprox_actualHu);
 
   ASSERT_TRUE(expectedHxd.isApprox(actualHxd, tolerance));
   ASSERT_TRUE(expectedHu.isApprox(actualHu, tolerance));
@@ -374,21 +374,21 @@ TEST(TestMushrFactors, testMushrPoly)
 
   const double x{ 5.0 };
   // Check jacobians
-  PRX_DBG_VARS(poly.transpose());
+  // PRX_DBG_VARS(poly.transpose());
 
   const Eigen::Matrix<double, 1, 1> expectedHx{ 3 * poly[0] * x * x + 2 * poly[1] * x + poly[2] };
   Eigen::Matrix<double, 1, 1> actualHx;
-  PRX_DBG_VARS(expectedHx);
+  // PRX_DBG_VARS(expectedHx);
 
   const double expected{ poly[0] * x * x * x + poly[1] * x * x + poly[2] * x + poly[3] };
   const double actual{ prx_models::mushr_types::Control::evaluate_polynomial(poly, x, actualHx) };
 
-  PRX_DBG_VARS(expected, expectedHx);
-  PRX_DBG_VARS(actual, actualHx);
+  // PRX_DBG_VARS(expected, expectedHx);
+  // PRX_DBG_VARS(actual, actualHx);
 
   const bool expectedHx_isApprox_actualHx{ expectedHx.isApprox(actualHx, tolerance) };
 
-  PRX_DBG_VARS(expectedHx_isApprox_actualHx);
+  // PRX_DBG_VARS(expectedHx_isApprox_actualHx);
 
   ASSERT_TRUE(expectedHx.isApprox(actualHx, tolerance));
   ASSERT_TRUE(expected == actual);
