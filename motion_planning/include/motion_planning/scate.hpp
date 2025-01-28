@@ -72,6 +72,7 @@ public:
     , _total_z_calls(0)
     , _tree_received(false)  
     , _is_verbose(false)
+    , _no_obs(false)
   #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
   #endif
@@ -85,6 +86,10 @@ public:
 
   virtual void onInit()
   {
+
+    #ifdef GTSAM_USE_TBB
+     std::cout << "Scate: Initializing with TBB control" << std::endl;
+    #endif
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
     std::string graph_topic_name{ "" };
     std::string control_topic;
@@ -99,6 +104,7 @@ public:
     bool& time_factor{ _time_factor };
     bool& limit_ctrl{ _limit_controls };
     bool& verbose{ _is_verbose };
+    bool& no_obs{ _no_obs };
     bool naive_guess{ false };
     int fg_iterations{ 100 };
     bool& sim_clock{ _sim_clock };
@@ -130,6 +136,7 @@ public:
     PARAM_SETUP(private_nh, max_ctrl_limit);
     PARAM_SETUP(private_nh, replan_scate_topic);
     PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, no_obs, no_obs);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
@@ -279,9 +286,7 @@ public:
     
     double computation_duration = update_fg_and_publish_controls(ros::Time::now());
 
-    if (_is_verbose) {
-      DEBUG_VARS(computation_duration);
-    }
+    DEBUG_VARS(computation_duration);
   }
 
   void action_function(const ros::TimerEvent& event)
@@ -507,7 +512,8 @@ public:
 
     const bool new_observation{ query_tf() };
     const bool header_updated{ _tf.header.stamp > _prev_header.stamp };
-    if (new_observation and header_updated)
+
+    if (new_observation and header_updated and !_no_obs)
     {
       _prev_header = _tf.header;
 
@@ -961,7 +967,7 @@ private:
 
   bool _isam_initialized;
   bool _is_sbmp_init;
-  bool _is_verbose;
+  bool _is_verbose, _no_obs;
   bool _tree_received;
   bool _added_observations;
   motion_planning::tree_manager_t _tree_manager;
