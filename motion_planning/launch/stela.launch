@@ -327,6 +327,7 @@ launch-prefix="gdb --args">
       <param name="ctrl_computation_buffer" value="0.0"/>
       <param name="verbose" value="$(arg verbose)"/>
       <param name="no_obs" value="$(arg no_obs)"/>
+      <param name="lm_fixed_lambda" value="false"/>
     </node>
 
 

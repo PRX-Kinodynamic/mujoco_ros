@@ -66,6 +66,7 @@ public:
     , _files_created(false)
     , _experiment_id("test")
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
+    , _init_lm_params(prx::fg::default_levenberg_marquardt_parameters())
     , _sim_clock(false)
     , _profiler()
     , _total_calls(0)
@@ -115,6 +116,7 @@ public:
     std::string& obstacle_mode{ _obstacle_mode };
     std::string& output_dir{ _output_dir };
     std::string& experiment_id{ _experiment_id };
+    bool lm_fixed_lambda;
 
     PARAM_SETUP(private_nh, solution_tree_topic);
     PARAM_SETUP(private_nh, ctrl_computation_buffer);
@@ -135,6 +137,7 @@ public:
     PARAM_SETUP(private_nh, min_ctrl_limit);
     PARAM_SETUP(private_nh, max_ctrl_limit);
     PARAM_SETUP(private_nh, replan_scate_topic);
+    PARAM_SETUP(private_nh, lm_fixed_lambda);
     PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
     PARAM_SETUP_WITH_DEFAULT(private_nh, no_obs, no_obs);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
@@ -166,8 +169,11 @@ public:
     _min_ctrl_limit = Eigen::Map<Control>(min_ctrl_limit.data(), min_ctrl_limit.size());
     _max_ctrl_limit = Eigen::Map<Control>(max_ctrl_limit.data(), max_ctrl_limit.size());
 
-    _lm_params.setUseFixedLambdaFactor(true);
+    _lm_params.setUseFixedLambdaFactor(lm_fixed_lambda);
+    _init_lm_params.setUseFixedLambdaFactor(lm_fixed_lambda);
     _lm_params.setMaxIterations(fg_iterations);
+    _init_lm_params.setMaxIterations(400);
+  
     if (!verbose) {
       _lm_params.setVerbosityLM("SILENT");
     }
@@ -794,7 +800,7 @@ public:
 
       GraphValues graph_values;
 
-      graph_values = SystemInterface::node_edge_to_fg(current_node, current_node+1, node_current.point, edge.plan);
+      graph_values = SystemInterface::node_edge_to_fg(current_node, current_node+1, node_current.point, edge.plan, false);
 
       if (_sbmp_tree.root != node_current.index)
       {
@@ -837,8 +843,7 @@ public:
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
-
-    gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
+    gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _init_lm_params);
     _current_estimate = optimizer.optimize();
 
     const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
@@ -890,7 +895,7 @@ public:
     _factor_graph = root_graph_values.first;
     _current_estimate = root_graph_values.second;
 
-    gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _lm_params);
+    gtsam::LevenbergMarquardtOptimizer optimizer(_factor_graph, _current_estimate, _init_lm_params);
     _current_estimate = optimizer.optimize();
 
     // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
@@ -994,7 +999,7 @@ private:
   Control _min_ctrl_limit;
   Control _max_ctrl_limit;
   gtsam::Values _current_estimate;
-  gtsam::LevenbergMarquardtParams _lm_params;
+  gtsam::LevenbergMarquardtParams _lm_params, _init_lm_params;
 
   int _total_states;
   std::vector<double> _start_state;

@@ -400,12 +400,15 @@ public:
     return graph_values;
   }
 
-  static GraphValues local_factor_graph(const local_update_t& update)
+  static GraphValues local_factor_graph(const local_update_t& update, bool time_as_variable = true)
   {
     using VectorElementGreaterComparison = prx::fg::VectorGreaterThanCmp<Control>;
     using VectorGreaterThanFactor = prx::fg::constraint_factor_t<Control, VectorElementGreaterComparison>;
     using EulerStateStateDotFactor = prx::fg::euler_integration_factor_t<State, StateDot, double>;
     using EulerStateDotControlFactor = prx::fg::euler_integration_factor_t<StateDot, Control, double>;
+    using EulerStateStateDotFactorNoTime = prx::fg::euler_integration_factor_t<State, StateDot>;
+    using EulerStateDotControlFactorNoTime = prx::fg::euler_integration_factor_t<StateDot, Control>;
+
     GraphValues graph_values;
 
     const gtsam::Key x0{ keyX(1, update.parent) };
@@ -418,24 +421,32 @@ public:
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
-
-    graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, k_t01, update.integration_noise,
+    if (time_as_variable) {
+      graph_values.first.emplace_shared<EulerStateStateDotFactor>(x1, x0, xdot0, k_t01, update.integration_noise,
                                                                 "EulerX");
-    graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, k_t01, update.dynamic_noise,
-                                                                  "EulerXdot");
-    graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+      graph_values.first.emplace_shared<EulerStateDotControlFactor>(xdot1, xdot0, u01, k_t01, update.dynamic_noise,
+                                                                    "EulerXdot");
+      graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_noise);
+
+      graph_values.first.addPrior(k_t01, update.dt, dt_noise);
+      graph_values.second.insert(k_t01, update.dt);
+    }
+    else {
+      graph_values.first.emplace_shared<EulerStateStateDotFactorNoTime>(x1, x0, xdot0, update.integration_noise, update.dt, "EulerX");
+      graph_values.first.emplace_shared<EulerStateDotControlFactorNoTime>(xdot1, xdot0, u01, update.dynamic_noise, update.dt, "EulerXdot");
+    }
+    
     // graph_values.first.emplace_shared<VectorGreaterThanFactor>(u01, Control(0.2, 0.2));
-    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(xdot1, Control(0.5, 0.5));
+    // graph_values.first.emplace_shared<VectorGreaterThanFactor>(xdot1, Control(0.5, 0.5));s
 
     graph_values.first.addPrior(x1, update.x);
     graph_values.first.addPrior(xdot1, update.xdot);
     // graph_values.first.addPrior(u01, update.control, u_prior_noise);
-    graph_values.first.addPrior(k_t01, update.dt, dt_noise);
 
     graph_values.second.insert(x1, update.x);
     graph_values.second.insert(xdot1, update.xdot);
     graph_values.second.insert(u01, update.control);
-    graph_values.second.insert(k_t01, update.dt);
+    
     return graph_values;
   }
 
@@ -577,7 +588,6 @@ public:
                                      const ml4kp_bridge::SpacePoint& node_state, const ml4kp_bridge::Plan& edge_plan,
                                      const bool time_as_variable = true)
   {
-    prx_assert(time_as_variable, "LTV dt not as variable not supported");
     const ml4kp_bridge::SpacePoint& edge_control{ edge_plan.steps[0].control };
     const double duration{ edge_plan.steps[0].duration.data.toSec() };
 
@@ -604,7 +614,7 @@ public:
     update.xdot[1] = node_state.point[3];
     // update.xdot = node_state.tail(2);
 
-    return local_factor_graph(update);
+    return local_factor_graph(update, time_as_variable);
   };
 
   static GraphValues scate_fg(const std::size_t parent, const std::size_t child,
