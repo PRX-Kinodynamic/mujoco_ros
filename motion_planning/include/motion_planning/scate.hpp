@@ -71,6 +71,7 @@ public:
     , _profiler()
     , _total_calls(0)
     , _total_z_calls(0)
+    , _total_added_observations(0)
     , _tree_received(false)  
     , _is_verbose(false)
     , _no_obs(false)
@@ -268,6 +269,10 @@ public:
     _total_z_calls++;
     bool added_new_obs = add_observations();
 
+    if (added_new_obs) {
+      _total_added_observations++;
+    }
+
     if (_is_verbose and added_new_obs) {
       std::cout << "Added new observations" << std::endl;
     }
@@ -418,7 +423,8 @@ public:
 
     const double elapsed_time{ (ros::Time::now() - _start_time).toSec() };
     const double avg_freq{ _total_calls / elapsed_time };
-    const double avg_obervation_freq{ static_cast<double>(_total_z_calls) / elapsed_time };
+    const double avg_observation_freq{ static_cast<double>(_total_z_calls) / elapsed_time };
+    const double avg_added_observation_freq{ static_cast<double>(_total_added_observations) / elapsed_time };
 
     ofs_data << "Initialized: " << (is_initialized() ? "true" : "false") << "\n";
     ofs_data << "ElapsedTime: " << elapsed_time << "\n";
@@ -428,7 +434,8 @@ public:
     ofs_data << "ExceptionRaised: " << "false" << "\n";
     ofs_data << "NetworkProblem: " << "false" << "\n";
     ofs_data << "AverageFrequency: " << avg_freq << "\n";
-    ofs_data << "ObservationFrequency: " << avg_obervation_freq << "\n";
+    ofs_data << "ObservationFrequency: " << avg_observation_freq << "\n";
+    ofs_data << "SuccessfulObservationFrequency: " << avg_added_observation_freq << "\n";
 
     ofs_data.close();
 
@@ -983,8 +990,7 @@ private:
   std::string _output_dir;
   std::string _experiment_id;
 
-  std::size_t _total_z_calls;
-  std::size_t _total_calls;
+  std::size_t _total_calls, _total_z_calls, _total_added_observations;
 
   prx_models::Tree _sbmp_tree;
 
