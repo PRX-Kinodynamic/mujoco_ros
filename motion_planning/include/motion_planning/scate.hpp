@@ -64,7 +64,6 @@ public:
     , _fix_sigmas(1.0)
     , _obstacle_activation_distance(1.0)
     , _files_created(false)
-    , _experiment_id("test")
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
     , _init_lm_params(prx::fg::default_levenberg_marquardt_parameters())
     , _sim_clock(false)
@@ -139,13 +138,13 @@ public:
     PARAM_SETUP(private_nh, max_ctrl_limit);
     PARAM_SETUP(private_nh, replan_scate_topic);
     PARAM_SETUP(private_nh, lm_fixed_lambda);
+    PARAM_SETUP(private_nh, experiment_id);
     PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
     PARAM_SETUP_WITH_DEFAULT(private_nh, no_obs, no_obs);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sim_clock, sim_clock);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fg_iterations, fg_iterations);
     PARAM_SETUP_WITH_DEFAULT(private_nh, naive_guess, naive_guess);
     PARAM_SETUP_WITH_DEFAULT(private_nh, fix_sigmas, fix_sigmas);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, experiment_id, experiment_id);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
 
     DEBUG_VARS(obstacle_mode);
@@ -413,8 +412,10 @@ public:
   {
     if (_files_created)
       return;
-
     _collision_subscriber.shutdown();
+    std_msgs::Bool msg;
+    msg.data = true;
+    _finish_publisher.publish(msg);
     
     const std::string filename_data{ _output_dir + "/" + _name + "_data_" + _experiment_id + "_" + _timestamp + ".txt" };
 
@@ -472,13 +473,11 @@ public:
       ofs_branch.close();
     }
 
+    std::cout << "Files created" << std::endl;
+
     _files_created = true;
 
     _tree_received = false;
-
-    std_msgs::Bool msg;
-    msg.data = true;
-    _finish_publisher.publish(msg);
 
     PRX_DBG_VARS(collision);
 

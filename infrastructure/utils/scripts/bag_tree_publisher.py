@@ -10,10 +10,10 @@ import random
 import rosbag
 import argparse
 
-# ros_dir = "/Users/Gary/pracsys/catkin_ws/"
-# bag_dir = ros_dir + "bags/"
-# bag_file = "simple_obstacle_aorrt_003.bag"
-bag_file_path = "/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/data/bags/ltv_sde_forest_aorrt_30s_0p1_000.bag"
+ros_dir = "/common/home/st1122/Projects/ros_workspace/"
+bag_dir = ros_dir + "data/bags/"
+# bag_file = "ltv_sde_forest_aorrt_1m_000.bag"
+# bag_file_path = bag_dir + bag_file
 
 publishing_topic = "/stela/sbmp/sln_tree"
 tree_topic = "/scate/sbmp/sln_tree"
@@ -21,8 +21,21 @@ node_name = "bag_tree_publisher"
 
 
 class launcher:
-    def bag_publisher(self):
-        # bag = rosbag.Bag(bag_dir + bag_file)
+    def __init__(self):
+        rospy.init_node(node_name, anonymous=False)
+        # private_param =
+        # self.bagfile = bag_dir + bag_file
+        self.bagfile = rospy.get_param("~bagfile")
+        print("Using bagfile:", self.bagfile)
+        self.tree_pub = rospy.Publisher(tree_topic, Tree, queue_size=1, latch=True)
+
+        time.sleep(5)
+        self.bag_publisher()
+        rospy.spin()
+
+    def bag_publisher(
+        self,
+    ):
         bag = rosbag.Bag(self.bagfile)
         print("Publishing tree from bagfile:", self.bagfile)
         print("Publishing from topic:", publishing_topic)
@@ -32,26 +45,15 @@ class launcher:
             # print(msg)
         bag.close()
 
-    def __init__(self):
-        rospy.init_node(node_name, anonymous=False)
-        # private_param =
-        self.bagfile = bag_file_path
-        # self.bagfile = rospy.get_param("~bagfile")
-        print("Using bagfile:", self.bagfile)
-        self.tree_pub = rospy.Publisher(tree_topic, Tree, queue_size=1, latch=True)
-
-        time.sleep(5)
-        self.bag_publisher()
-        rospy.spin()
-
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
-    #                 prog='bag_tree_publisher',
-    #                 description='What the program does',
-    #                 epilog='Text at the bottom of help')
-    # parser.add_argument('bagfile')           # positional argument
-    # # The ArgumentParser.parse_args() method runs the parser and places the extracted data in a argparse.Namespace object:
+    #     prog="bag_tree_publisher",
+    #     description="What the program does",
+    #     epilog="Text at the bottom of help",
+    # )
+    # parser.add_argument("bagfile")  # positional argument
+    # The ArgumentParser.parse_args() method runs the parser and places the extracted data in a argparse.Namespace object:
 
     # args = parser.parse_args()
     # print(args.filename, args.count, args.verbose)

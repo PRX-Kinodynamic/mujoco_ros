@@ -52,7 +52,7 @@
   <arg name="limit_ctrl" default="false"/>
   <arg name="no_opt" default="false"/>
   <arg name="sln_tree" default="/stela/sbmp/sln_tree"/>
-  <arg name="control_frequency" default="10"/>
+  <arg name="control_frequency" default="3"/>
   <arg name="report_control_frequency" default="true"/>
   <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
   <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
@@ -63,6 +63,7 @@
   <arg name="replan_scate_topic" default="/scate/sbmp/replan"/>
   <arg name="verbose" default="false"/>
   <arg name="no_obs" default="false"/>
+  <arg name="fg_iterations" default="2"/>
 
   <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
   <group ns="Plant">
@@ -303,7 +304,6 @@ launch-prefix="gdb --args">
       <param name="robot_frame" value="$(arg robot_frame)"/>
       <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
       <param name="obstacle_activation_distance" value="$(arg obstacle_distance_tolerance)"/>
-      <param name="fg_iterations"  value="100"/>
       <param name="naive_guess" value="$(arg naive_guess)"/>
       <param name="environment" value="$(arg environment)"/>
       <param name="plant_file" value="$(arg plant_file)"/>
@@ -318,16 +318,17 @@ launch-prefix="gdb --args">
       <param name="output_dir" value="$(arg data_dir)"/>
       <param name="delta_t"   value="0.5"/>
       <param name="time_factor" value="false"/>
-      <param name="fg_iterations" value="100"/>
+      <param name="fg_iterations" value="$(arg fg_iterations)"/>
       <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
       <param name="sim_clock" value="$(arg sim_clock)"/>
-      <param name="sdf_params" value="/Users/htnamus/All_Stuff/Programming_Stuff/ros_workspace/src/infrastructure/utils/config/sdf.yaml"/>
+      <param name="sdf_params" value="$(find utils)/config/sdf.yaml"/>
       <param name="replan_scate_topic" value="$(arg replan_scate_topic)"/>
       <param name="observation_frequency" value="30"/>
       <param name="ctrl_computation_buffer" value="0.0"/>
       <param name="verbose" value="$(arg verbose)"/>
       <param name="no_obs" value="$(arg no_obs)"/>
       <param name="lm_fixed_lambda" value="false"/>
+      <param name="experiment_id" value="$(arg experiment_id)"/>
     </node>
 
 
