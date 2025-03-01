@@ -12,6 +12,14 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 
+// Function to calculate safe distance based on speed
+template <typename ParamsType>
+double calculate_safe_distance(double speed, const ParamsType& params)
+{
+  return params["safe_min"].template as<double>() + params["safe_mul"].template as<double>() * std::fabs(speed) +
+         params["safe_quad_mul"].template as<double>() * std::pow(std::fabs(speed), 2);
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
@@ -56,7 +64,7 @@ int main(int argc, char** argv)
   std::shared_ptr<prx::dirt_replan_t> dirt = std::make_shared<prx::dirt_replan_t>("dirt");
   prx::dirt_replan_specification_t* dirt_spec =
       new prx::dirt_replan_specification_t(planning_context.first, planning_context.second);
-  
+
   auto heuristic_plant = prx::system_factory_t::create_system("2D_Point", "2D_Point");
   prx_assert(heuristic_plant != nullptr, "Failed to create plant");
   prx::world_model_t heuristic_model({ heuristic_plant }, { obstacle_list });
@@ -83,7 +91,6 @@ int main(int argc, char** argv)
     return heuristic_map.get_cost(s);
   };
 
-  
   dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.62;
   };
@@ -126,6 +133,28 @@ int main(int argc, char** argv)
   dirt_spec->use_pruning = false;
   dirt_spec->use_contingency = use_contingency;
 
+  dirt_spec->plan_safety_check = [&](prx::trajectory_t& traj) {
+    for (auto&& s : traj)
+    {
+      auto pqp_distance = prx::default_obstacle_distance_function(s, ss, cg);
+      double min_distance = std::numeric_limits<double>::max();
+      for (auto&& d : pqp_distance.distances)
+      {
+        if (d < min_distance)
+        {
+          min_distance = d;
+        }
+      }
+      double speed = std::fabs(s->at(3));
+      double safe_distance = calculate_safe_distance<decltype(params)>(speed, params["plan_safety_params"]);
+      if (min_distance < safe_distance)
+      {
+        return false;
+      }
+    }
+    return true;
+  };
+
   dirt_spec->contingency_check = [&](prx::trajectory_t& traj) {
     for (auto&& s : traj)
     {
@@ -138,8 +167,8 @@ int main(int argc, char** argv)
           min_distance = d;
         }
       }
-      double safe_distance = params["safe_min"].as<double>() + params["safe_mul"].as<double>() * std::fabs(s->at(3));
-      // if (min_distance < params["safe_distance"].as<double>())
+      double speed = std::fabs(s->at(3));
+      double safe_distance = calculate_safe_distance<decltype(params)>(speed, params["contingency_safety_params"]);
       if (min_distance < safe_distance)
       {
         return false;
@@ -175,11 +204,17 @@ int main(int argc, char** argv)
 
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics, retain_previous);
 
+  // Pass the safe distance calculation function to the planner service
+  planner_service.set_safe_distance_calculator([&params](double speed) {
+    return calculate_safe_distance<decltype(params)>(speed, params["contingency_safety_params"]);
+  });
+
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, cs->get_dimension());
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pose", 10, true);
   ros::Publisher goal_radius_publisher = n.advertise<std_msgs::Float64>(root + "/goal_radius", 10, true);
+  ros::Publisher safety_radius_publisher = n.advertise<std_msgs::Float64>(root + "/safety_radius", 10, true);
   ros::Publisher planning_result_publisher =
       n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
   ros::Publisher reset_publisher = n.advertise<std_msgs::Empty>(root + "/reset", 1, true);
@@ -189,36 +224,39 @@ int main(int argc, char** argv)
   mujoco_ros::Collision collision_srv;
 
   int max_cycles;
-  double planning_cycle_duration, preprocess_timeout, postprocess_timeout;
-  n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
+  double planning_cycle_duration_double, preprocess_timeout, postprocess_timeout;
+  n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration_double);
   n.getParam(ros::this_node::getName() + "/preprocess_timeout", preprocess_timeout);
   n.getParam(ros::this_node::getName() + "/postprocess_timeout", postprocess_timeout);
   n.getParam(ros::this_node::getName() + "/max_cycles", max_cycles);
   planner_service.set_preprocess_timeout(preprocess_timeout);
   planner_service.set_postprocess_timeout(postprocess_timeout);
-  dirt_spec->planning_cycle_duration = planning_cycle_duration;
+  dirt_spec->planning_cycle_duration = planning_cycle_duration_double;
+
+  ros::Duration planning_cycle_duration_ros(planning_cycle_duration_double);
 
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
 
-  double prev_time = ros::Time::now().toSec();
-  double start_time = ros::Time::now().toSec();
-  double current_time = ros::Time::now().toSec();
-  int current_cycle = 0;
+  planner_client.call_service(goal_configuration, goal_radius, 0, 2 * planning_cycle_duration_double);
+  ;
+  ros::Time experiment_start_time = planner_client.get_experiment_start_time();
+
+  int current_cycle = 1;
   while (ros::ok() && current_cycle <= max_cycles)
   {
     if (!planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
-      current_time = ros::Time::now().toSec();
-      if (current_time - prev_time >= planning_cycle_duration)
+      ros::Time current_time = ros::Time::now();
+      if (current_time >= experiment_start_time + (planning_cycle_duration_ros * (current_cycle - 1)))
       {
-        ROS_INFO("Cycle %d Elapsed Time: %f", current_cycle, current_time - start_time);
-        planner_client.call_service(goal_configuration, goal_radius, planning_cycle_duration);
-        prev_time = current_time;
+        ROS_INFO("Cycle %d Elapsed Time: %f", current_cycle,
+                 (current_time - planner_client.get_experiment_start_time()).toSec());
+        planner_client.call_service(goal_configuration, goal_radius, current_cycle, planning_cycle_duration_double);
         current_cycle++;
-        ROS_DEBUG("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
-        ROS_DEBUG("Query fulfill time: %f",
+        ROS_INFO("Preprocess time: %f", planner_service.get_preprocess_time() - planner_client.get_preprocess_time());
+        ROS_INFO("Query fulfill time: %f",
                  planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
       }
     }
@@ -227,7 +265,7 @@ int main(int argc, char** argv)
       ROS_WARN("Goal reached, not replanning");
       planning_result_msg.goal_reached.data = true;
       planning_result_msg.in_collision.data = false;
-      planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
+      planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
       planning_result_publisher.publish(planning_result_msg);
       break;
     }
@@ -238,7 +276,7 @@ int main(int argc, char** argv)
         ROS_WARN("Collision detected");
         planning_result_msg.goal_reached.data = false;
         planning_result_msg.in_collision.data = true;
-        planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
+        planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
         planning_result_publisher.publish(planning_result_msg);
         std_msgs::Empty reset_msg;
         reset_publisher.publish(reset_msg);
@@ -252,7 +290,7 @@ int main(int argc, char** argv)
   {
     ROS_WARN("Goal not reached");
     planning_result_msg.goal_reached.data = false;
-    planning_result_msg.total_time.data = current_cycle * planning_cycle_duration;
+    planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
     planning_result_publisher.publish(planning_result_msg);
   }
 

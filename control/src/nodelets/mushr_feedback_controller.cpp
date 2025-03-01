@@ -14,6 +14,8 @@ namespace control
 {
 class mushr_feedback_controller_t : public nodelet::Nodelet
 {
+  using Trajectory = std::shared_ptr<prx::trajectory_t>;
+
 public:
   mushr_feedback_controller_t()
   {
@@ -48,8 +50,9 @@ public:
     context = control_model->get_context("control_context");
     ROS_ASSERT(context.first != nullptr);
 
-    trajectory = std::make_shared<prx::trajectory_t>(plant->get_state_space());
     current_state = plant->get_state_space()->make_point();
+    empty_trajectory = std::make_shared<prx::trajectory_t>(plant->get_state_space());
+    _has_experiment_started = false;
 
     if (controller_params["name"].as<std::string>() == "mushr_pure_pursuit")
     {
@@ -93,10 +96,51 @@ public:
 
   void get_trajectory(const ml4kp_bridge::TrajectoryStamped& msg)
   {
-    ROS_INFO_STREAM("Received trajectory with " << msg.trajectory.data.size() << " points.");
-    ml4kp_bridge::copy(trajectory, msg.trajectory);
-    controller->set_points(trajectory);
-    _trajectory_received = true;
+    int trajectory_cycle_idx = msg.header.seq;
+    Trajectory previous_trajectory = trajectory_map[trajectory_cycle_idx];
+
+    if (msg.trajectory.data.size() == 0)
+    {
+      int current_cycle_idx = get_current_cycle_idx();
+      contingency_enabled_map[current_cycle_idx] = true;
+      contingency_enabled_map[trajectory_cycle_idx] = true;
+      ROS_WARN("Contingency enabled for cycles %d and %d at %f", current_cycle_idx, trajectory_cycle_idx,
+               (ros::Time::now() - _experiment_start_time).toSec());
+    }
+    else
+    {
+      trajectory_map[trajectory_cycle_idx] = std::make_shared<prx::trajectory_t>(plant->get_state_space());
+      ml4kp_bridge::copy(trajectory_map[trajectory_cycle_idx], msg.trajectory);
+      std::cout << "Received trajectory of cycle " << trajectory_cycle_idx << " at "
+                << (ros::Time::now() - _experiment_start_time).toSec() << std::endl;
+    }
+
+    if (previous_trajectory != nullptr)
+    {
+      ROS_WARN("Trajectory already received for cycle %d", trajectory_cycle_idx);
+    }
+
+    if (!_has_experiment_started && trajectory_cycle_idx == 0)
+    {
+      _experiment_start_time = msg.header.stamp;
+      _has_experiment_started = true;
+    }
+    else if (!_has_experiment_started && trajectory_cycle_idx > 0)
+    {
+      ROS_WARN("Experiment not started, but received trajectory of cycle %d", trajectory_cycle_idx);
+    }
+  }
+
+  bool set_trajectory(int cycle_idx)
+  {
+    if (trajectory_map[cycle_idx] == nullptr)
+    {
+      ROS_WARN("Trajectory not received for cycle %d", cycle_idx);
+      return false;
+    }
+
+    controller->set_points(trajectory_map[cycle_idx]);
+    return true;
   }
 
   void get_pose(const prx_models::MushrObservation& msg)
@@ -105,25 +149,73 @@ public:
     _pose_received = true;
   }
 
-  void reset(const std_msgs::Empty& msg)
+  void publish_zero_control()
   {
-    _trajectory_received = false;
-    _pose_received = false;
-    controller->reset();
+    current_control.resize(2);
+    current_control[0] = 0.0;
+    current_control[1] = 0.0;
+    ml4kp_bridge::copy(_ctrl, current_control);
+    _control_publisher.publish(_ctrl);
   }
 
+  void reset(const std_msgs::Empty& msg)
+  {
+    controller->set_points(empty_trajectory);
+    publish_zero_control();
+    _pose_received = false;
+    controller->reset();
+    _has_experiment_started = false;
+    _previous_cycle_idx = -1;
+    trajectory_map.clear();
+    contingency_enabled_map.clear();
+  }
+
+  int get_current_cycle_idx()
+  {
+    double time_since_experiment_start = (ros::Time::now() - _experiment_start_time).toSec();
+    return std::floor(time_since_experiment_start);
+  }
+  
   void control(const ros::TimerEvent& event)
   {
+    // Store the difference between event.current_real and experiment start time
+    double time_since_experiment_start = (event.current_real - _experiment_start_time).toSec();
+
+    if (!_has_experiment_started or time_since_experiment_start < 0)
+    {
+      return;
+    }
+
+    int current_cycle_idx = std::floor(time_since_experiment_start);
+
+    if (contingency_enabled_map[current_cycle_idx] or trajectory_map[current_cycle_idx] == nullptr)
+    {
+      publish_zero_control();
+      bool did_not_receive_trajectory = trajectory_map[current_cycle_idx] == nullptr and !contingency_enabled_map[current_cycle_idx];
+      if (did_not_receive_trajectory) {
+        ROS_WARN("Trajectory not received in time for cycle %d", current_cycle_idx);
+      }
+      contingency_enabled_map[current_cycle_idx] = true;
+      return;
+    }
+
+    if (current_cycle_idx != _previous_cycle_idx)
+    {
+      set_trajectory(current_cycle_idx);
+    }
+
     controller->get_control(current_state, current_control);
     plant->get_control_space()->enforce_bounds(current_control);
     ml4kp_bridge::copy(_ctrl, current_control);
     _control_publisher.publish(_ctrl);
+
+    _previous_cycle_idx = current_cycle_idx;
   }
 
   bool control_propagation(control::MushrControlPropagation::Request& req,
                            control::MushrControlPropagation::Response& res)
   {
-    if (!_trajectory_received || !_pose_received)
+    if (!_has_experiment_started || !_pose_received)
     {
       return false;
     }
@@ -149,16 +241,19 @@ private:
   ros::Publisher _control_publisher;
   ros::Timer _timer;
   ros::ServiceServer _service_server;
-
+  ros::Time _experiment_start_time;
   prx_models::MushrObservation _pose;
   ml4kp_bridge::SpacePoint _ctrl;
-  bool _trajectory_received, _pose_received;
+  bool _has_experiment_started, _pose_received;
+  int _previous_cycle_idx;
 
   prx::system_ptr_t plant;
   prx::feedback_controller_t<prx::trajectory_t>* controller;
   std::shared_ptr<prx::world_model_t> control_model;
   prx::world_model_context context;
-  std::shared_ptr<prx::trajectory_t> trajectory;
+  std::map<int, Trajectory> trajectory_map;
+  std::map<int, bool> contingency_enabled_map;
+  Trajectory empty_trajectory;
   prx::space_point_t current_state;
   Eigen::VectorXd current_control;
 };

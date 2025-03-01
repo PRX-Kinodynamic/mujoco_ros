@@ -62,6 +62,7 @@ private:
     goal_pose,
     tf,
     trajectory,
+    safety_radius,
     TOTAL  // Keep this one at the end to get the number of enums
   };
 
@@ -78,6 +79,7 @@ private:
     std::string goal_pose_topic;
     std::string goal_rad_topic;
     std::string trajectory_topic;
+    std::string safety_radius_topic;
     std::string camera_frame;
     std::string world_frame;
     std::string robot_frame;
@@ -89,6 +91,7 @@ private:
     NODELET_PARAM_SETUP(private_nh, goal_pose_topic);
     NODELET_PARAM_SETUP(private_nh, goal_rad_topic);
     NODELET_PARAM_SETUP(private_nh, trajectory_topic);
+    NODELET_PARAM_SETUP(private_nh, safety_radius_topic);
     NODELET_PARAM_SETUP(private_nh, camera_frame);
     NODELET_PARAM_SETUP(private_nh, world_frame);
     NODELET_PARAM_SETUP(private_nh, robot_frame);
@@ -118,6 +121,8 @@ private:
     _cv_points[PointIdx::z_normal] = cv::Point3d(0, 0, 1);
     _rgb_subscriber = private_nh.subscribe(image_topic, 1, &aruco_wTc_nodelet_t::get_image, this);
     _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &aruco_wTc_nodelet_t::get_goal_pose, this);
+    _safety_radius_subscriber =
+        private_nh.subscribe(safety_radius_topic, 1, &aruco_wTc_nodelet_t::get_safety_radius, this);
     _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &aruco_wTc_nodelet_t::get_goal_rad, this);
     _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &aruco_wTc_nodelet_t::get_trajectory, this);
 
@@ -145,6 +150,13 @@ private:
     _goal_rad = message->data;
     _msgs_received[PointIdx::goal_rad] = true;
   }
+
+  void get_safety_radius(const std_msgs::Float64ConstPtr message)
+  {
+    _safety_radius = message->data;
+    _msgs_received[PointIdx::safety_radius] = true;
+  }
+
   void get_goal_pose(const geometry_msgs::Pose2DConstPtr message)
   {
     _cv_points[PointIdx::goal_pose].x = message->x;
@@ -228,6 +240,25 @@ private:
         cv::circle(frame->image, _image_traj.front(), 1.0, _color_rgb[0], 3, cv::LineTypes::LINE_AA);
       }
 
+      if (_msgs_received[PointIdx::robot_center] and _msgs_received[PointIdx::safety_radius])
+      {
+        // Calculate safety radius in image coordinates
+        cv::Point3d safety_point = _cv_points[PointIdx::robot_center] + cv::Point3d(_safety_radius, 0, 0);
+        cv::Point2d safety_point_img;
+        std::vector<cv::Point3d> safety_point_vec = { safety_point };
+        std::vector<cv::Point2d> safety_point_img_vec;
+        cv::projectPoints(safety_point_vec, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, safety_point_img_vec);
+        safety_point_img = safety_point_img_vec[0];
+
+        // Calculate the radius in pixels
+        cv::Point2d rad_diff = safety_point_img - _image_points[PointIdx::robot_center];
+        double safety_rad_px = std::sqrt(rad_diff.ddot(rad_diff));
+
+        // Draw the safety radius around the robot center
+        cv::circle(frame->image, _image_points[PointIdx::robot_center], safety_rad_px, _safety_color, 2,
+                   cv::LineTypes::LINE_AA);
+      }
+
       _frame_publisher.publish(frame);
     }
   }
@@ -241,6 +272,7 @@ private:
   ros::Subscriber _goal_pose_subscriber;
   ros::Subscriber _goal_rad_subscriber;
   ros::Subscriber _trajectory_subscriber;
+  ros::Subscriber _safety_radius_subscriber;
 
   ros::Publisher _frame_publisher;
 
@@ -255,7 +287,9 @@ private:
   const std::vector<cv::Scalar> _color_rgb;
 
   double _goal_rad;
+  double _safety_radius;
   const cv::Scalar _goal_color;
+  const cv::Scalar _safety_color{ 128, 128, 0, 128 };  // Teal with transparency
 
   std::vector<cv::Point3d> _cv_points;
   std::vector<cv::Point3d> _cv_traj;
