@@ -58,4 +58,20 @@ inline void add_zero_plan(ml4kp_bridge::PlanStamped& plan_stamped, double durati
     plan_stamped.plan.steps.back().control.point[i] = 0.0;
   }
 }
+
+inline void to_file(const ml4kp_bridge::Plan& msg, std::ofstream& ofs)
+{
+  for (auto step : msg.steps)
+  {
+    // PRX_DBG_VARS(step);
+    to_file(step, ofs);
+    ofs << "\n";
+  }
+  ofs << std::endl;
+}
+
+inline void to_file(const ml4kp_bridge::PlanStamped& msg, std::ofstream& ofs)
+{
+  to_file(msg.plan, ofs);
+}
 }  // namespace ml4kp_bridge

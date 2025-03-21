@@ -1,17 +1,16 @@
 #pragma once
 #include "eigen3/Eigen/Dense"
-#include "geometry_msgs/Pose2D.h"
-#include <ackermann_msgs/AckermannDriveStamped.h>
 
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/mj_copy.hpp"
 
-#include <interface/SensorDataStamped.h>
 #include <prx_models/MushrControl.h>
 #include <prx_models/MushrPlan.h>
 #include <prx_models/MushrObservation.h>
 #include <prx_models/MushrFeedback.h>
 #include <prx_models/MushrPlanner.h>
+
+#include <geometry_msgs/Pose2D.h>
 
 namespace prx_models
 {
@@ -21,8 +20,8 @@ namespace mushr_t
 static constexpr std::size_t u_dim{ 2 };
 namespace control
 {
-static constexpr std::size_t velocity_idx{ 1 };
-static constexpr std::size_t steering_idx{ 0 };
+static constexpr std::size_t steering_idx{ 1 };
+static constexpr std::size_t velocity_idx{ 0 };
 };  // namespace control
 namespace sensors_t
 {
@@ -62,19 +61,6 @@ inline void get_observation(prx_models::MushrObservation& msg, const SensorData&
   msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW].data;
 }
 
-template <typename Pose>
-inline void copy(prx_models::MushrObservation& msg, const Pose& pose)
-{
-  const Eigen::Quaterniond quat{pose.rotation()};
-  msg.pose.position.x = pose.translation().x();
-  msg.pose.position.y = pose.translation().y();
-  msg.pose.position.z = 0.0;
-  msg.pose.orientation.x = quat.x();
-  msg.pose.orientation.y = quat.y();
-  msg.pose.orientation.z = quat.z();
-  msg.pose.orientation.w = quat.w();
-}
-
 template <typename StateSpacePoint>
 inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg)
 {
@@ -85,11 +71,6 @@ inline void copy(StateSpacePoint& state, const prx_models::MushrObservation& msg
   // Eigen::Vector3d euler = quat.toRotationMatrix().eulerAngles(0, 1, 2);
   Eigen::Vector3d euler = prx::quaternion_to_euler(quat);
   state->at(2) = euler[2];
-  if (msg.float_extra.size() > 0)
-    state->at(3) = msg.float_extra[0].data;
-  else
-    state->at(3) = 0.0;
-  // ROS_WARN("Setting current velocity to 0.0");
   // ROS_WARN("Copying observation: %f, %f, %f", state->at(0), state->at(1), state->at(2));
 }
 
@@ -100,5 +81,6 @@ inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
   state->at(1) = msg.y;
   state->at(2) = msg.theta;
   state->at(3) = 0.0;
+  ROS_WARN("Setting current velocity to 0.0");
 }
 }  // namespace prx_models

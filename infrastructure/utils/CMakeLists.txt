@@ -12,7 +12,18 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   roslib
+  nodelet
+  tf
+  ml4kp_bridge
+  prx_models
 )
+
+add_definitions("-O3")
+if (UNIX AND NOT APPLE)
+  MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  list(APPEND BUILD_FLAGS "-fPIC")
+endif()
+# add_definitions("-g")
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -159,6 +170,12 @@ endforeach()
 #############
 ## Install ##
 #############
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  # scripts/mushr_open_loop_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html

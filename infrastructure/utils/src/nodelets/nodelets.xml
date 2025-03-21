@@ -1,0 +1,130 @@
+<library path="lib/libutils_nodelets">
+  <class 
+      name="utils/EnvironmentPublisher" 
+      type="utils::EnvironmentPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish an ML4KP environment from a file to rviz
+    </description>
+  </class>
+  <class 
+      name="utils/TrajectoryVizPublisher" 
+      type="utils::TrajectoryVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to publish an ML4KP trajectory to rviz
+    </description>
+  </class>
+  <class 
+      name="utils/PlanToTrajectoryPublisher" 
+      type="utils::PlanToTrajectoryPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to "convert" a plan to trajectory (through fwd prop)
+    </description>
+  </class>
+  <class 
+      name="utils/TrajectoryToFile" 
+      type="utils::TrajectoryToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Trajectory topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/PlanStampedToFile" 
+      type="utils::PlanStampedToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Plan stamped topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/PlanToFile" 
+      type="utils::PlanToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Plan topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/StateToFile" 
+      type="utils::StateToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      State topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/StateStampedToFile" 
+      type="utils::StateStampedToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      State Stamped topic to a file
+    </description>
+  </class>
+  <class 
+      name="utils/GraphVizPublisher" 
+      type="utils::GraphVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Read a Graph from a topic and publish a marker for rviz 
+    </description>
+  </class>
+  <class 
+      name="utils/CollisionToFile" 
+      type="utils::CollisionToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Read a Graph from a topic and publish a marker for rviz 
+    </description>
+  </class>
+  <class 
+      name="utils/BoolSinker" 
+      type="utils::BoolSinker" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Subscribe to multiple std_msgs::Bool topics and publish into a single topic
+    </description>
+  </class>
+  <class 
+      name="utils/PlanToTreePublisher" 
+      type="utils::PlanToTreePublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Subscribe to multiple std_msgs::Bool topics and publish into a single topic
+    </description>
+  </class>
+  <class 
+      name="utils/StateFromParamPublisher" 
+      type="utils::StateFromParamPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize states from param server
+    </description>
+  </class>
+  <class 
+      name="utils/PointsTopicsToMarkerPublisher" 
+      type="utils::PointsTopicsToMarkerPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+  <class 
+      name="utils/PointsHeaderTopicsToMarkerPublisher" 
+      type="utils::PointsHeaderTopicsToMarkerPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+  <class 
+      name="utils/StelaTrajectoryVizPublisher" 
+      type="utils::StelaTrajectoryVizPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+</library>

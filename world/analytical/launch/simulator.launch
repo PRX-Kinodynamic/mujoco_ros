@@ -1,0 +1,64 @@
+<launch>
+    <arg name="ns" default="analytical_simulator"/>
+    <arg name="plant_file" default="$(find motion_planning)/config/ltv_sde.yaml"/>
+    <!-- <arg name="plant_file" default="/Users/Gary/pracsys/catkin_ws/src/mujoco_ros/world/analytical/config/LTV_CSBRM.yaml"/> -->
+    <arg name="environment" default="environments/empty.yaml"/>
+    <arg name="debug_prefix" default=""/> 
+    <arg name="plan_file" default="$(env ML4KP_ROS)/plan0.txt" />
+    <arg name="simulation_step" default="0.001"/>
+    <arg name="control_topic" default="/$(arg ns)/control"/> 
+    <arg name="plan_topic" default="/$(arg ns)/plan"/> 
+    <arg name="tf_noise_sigmas" default="[0.0, 0.0, 0.0]"/> 
+    <arg name="parameter_values" default="[0,0,0,0,0,0,0,0]"/> 
+    <!-- <arg name="tf_noise_sigmas" default="[0.005, 0.005, 0.0]"/>  -->
+    <!-- <arg name="tf_noise_sigmas" default="[0.01, 0.01, 0.0]"/>  -->
+    <!-- <arg name="tf_noise_sigmas" default="[0.1, 0.1, 0.0]"/>  -->
+    <!-- <arg name="open_loop" default="false"/> -->
+    <arg name="planner" default="None"/>
+    <arg name="sim_clock" default="true"/>
+    <arg name="collision_topic" default="/simulator/collision"/>
+    <arg name="observation_frequency" default="30"/>
+    <arg name="state_topic" default="/$(arg ns)/state"/>
+    <arg name="shutdown_topic" default="/$(arg ns)/shutdown"/>
+    <arg name="num_workers" default="4"/>
+
+    <param name="/use_sim_time" value="$(arg sim_clock)" />
+
+    <group ns="$(arg ns)">
+        <node pkg="analytical" type="simulator" name="simulator" output="screen" launch-prefix="$(arg debug_prefix)">
+            <param name="parameter_space/values" value="$(arg parameter_values)"/>
+            <!-- <param name="parameter_space/values" value="[0.01,0.01,0.01,0.01,0,0,0,0]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.01,0.01,0,0,1,1]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.1,0.1,0,0,1,1]"/> -->
+            <!-- <param name="parameter_space/values" value="[0.0,0.0,0.025,0.025,0,0,1,1]"/> -->
+            <param name="plant_ml4kp_params" value="$(arg plant_file)"/>
+            <param name="state_topic" value="$(arg state_topic)"/>
+            <param name="control_topic" value="$(arg control_topic)"/>
+            <param name="environment" value="$(arg environment)"/>
+            <param name="simulation_step" value="$(arg simulation_step)"/>
+            <param name="tf_noise_sigmas" type="yaml" value="$(arg tf_noise_sigmas)"/>
+            <param name="collision_topic" value="$(arg collision_topic)"/>
+            <param name="observation_frequency" value="$(arg observation_frequency)"/>
+            <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
+            <param name="verbose" value="false"/>
+        </node>
+
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_nodelet_manager"  args="manager" output="screen">
+            <param name="num_worker_threads" value="$(arg num_workers)" />
+        </node>
+
+        <node pkg="nodelet" type="nodelet" name="plan_from_file_t" 
+            args="load ml4kp_bridge/plan_from_file_t plan_from_file_nodelet_manager" 
+            output="screen">
+            <param name="plan_file" value="$(arg plan_file)" />
+            <param name="control_dimension" value="2" />
+            <param name="control_topology" value="EE" />
+            <param name="publisher_topic" value="$(arg plan_topic)" />
+        </node>
+
+           
+
+    </group>
+    
+    
+</launch>

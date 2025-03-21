@@ -34,4 +34,10 @@ inline void copy(prx::plan_step_t& plan_step, const ml4kp_bridge::PlanStepStampe
   copy(plan_step, msg.plan_step);
 }
 
+inline void to_file(const ml4kp_bridge::PlanStep& msg, std::ofstream& ofs)
+{
+  to_file(msg.control, ofs);
+  ofs << msg.duration.data.toSec() << " ";
+}
+
 }  // namespace ml4kp_bridge

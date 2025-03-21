@@ -44,4 +44,19 @@ inline void copy(ml4kp_bridge::SpacePoint& msg, const Eigen::VectorXd& state)
     msg.point[i] = state[i];
   }
 }
+
+inline void to_file(const ml4kp_bridge::SpacePoint& msg, std::ofstream& ofs)
+{
+  for (auto value : msg.point)
+  {
+    ofs << value << " ";
+  }
+  // ofs << "\n";
+}
+
+inline void to_file(const ml4kp_bridge::SpacePointStamped& msg, std::ofstream& ofs)
+{
+  to_file(msg.header, ofs);
+  to_file(msg.space_point, ofs);
+}
 }  // namespace ml4kp_bridge

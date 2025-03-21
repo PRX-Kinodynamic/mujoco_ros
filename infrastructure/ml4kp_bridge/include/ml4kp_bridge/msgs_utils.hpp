@@ -1,5 +1,6 @@
 #pragma once
 
+#include <std_msgs/Header.h>
 #include <prx/utilities/spaces/space.hpp>
 #include <ml4kp_bridge/template_utils.hpp>
 
@@ -34,6 +35,21 @@ template <typename In, std::enable_if_t<is_any_ptr<In>::value, bool> = true,  //
 inline void copy(In msg, const Out state)
 {
   copy(*msg, *state);
+}
+
+template <typename Msg>
+void to_file(const Msg& msg, const std::string filename, const std::ios_base::openmode mode = std::ofstream::trunc)
+{
+  std::ofstream ofs;
+  ofs.open(filename.c_str(), mode);
+  to_file(msg, ofs);
+  ofs.close();
+}
+inline void to_file(const std_msgs::Header& msg, std::ofstream& ofs)
+{
+  ofs << msg.stamp << " ";
+  ofs << msg.seq << " ";
+  ofs << msg.frame_id << " ";
 }
 
 }  // namespace ml4kp_bridge

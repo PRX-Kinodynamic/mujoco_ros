@@ -55,28 +55,11 @@ private:
 
   void control_callback(const Control& control)
   {
-    _most_recent_control = control;
+    
   }
 
   void estimate_pose(const ros::TimerEvent& event)
   {
-    if (_tf_listener.canTransform(_robot_frame, _world_frame, ros::Time(0)))
-    {
-      _tf_listener.lookupTransform(_world_frame, _robot_frame, ros::Time(0), _tf_robot);
-      tf::transformTFToEigen(_tf_robot, _robot_transform);
-      linear_speed.data = _most_recent_control.velocity.data * 0.6228;
-      // linear_speed.data = _most_recent_control.velocity.data * 0.6343;
-      // linear_speed.data = _most_recent_control.velocity.data * 0.774;
-      // linear_speed.data = _most_recent_control.velocity.data * 2.0;
-      _previous_robot_transform = _robot_transform;
-    }
-    copy(_observation, _robot_transform);
-    _header.seq++;
-    _header.stamp = ros::Time::now();
-    _observation.header = _header;
-    _observation.float_extra.clear();
-    _observation.float_extra.push_back(linear_speed);
-    _observation_publisher.publish(_observation);
   }
 
   std_msgs::Header _header;
