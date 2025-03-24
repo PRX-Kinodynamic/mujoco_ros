@@ -4,6 +4,7 @@ path: "fg_ltv_sde"
 vis_body: "body"
 
 simulation_step: 0.1
+random_seed: 42
 
 control_steps: 
   min: 25
@@ -35,3 +36,7 @@ control_space:
 parameter_space:
   values: [0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0]
   # values: [0.01, 0.01, 0.01, 0.01, 1, 1, 1, 1]
+
+planner:
+  u_rep: 1.5
+  blossom_number: 10

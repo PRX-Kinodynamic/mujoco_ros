@@ -1,10 +1,17 @@
+#ifndef TEMPLATE_FIX_HPP
+#define TEMPLATE_FIX_HPP
+
+// This macro enables the "as<>" method to work without explicitly adding "template" keyword
+#define as template as
+
+#endif  // TEMPLATE_FIX_HPP
+
 #include <unordered_set>
 #include <ml4kp_bridge/Trajectory.h>
 #include <visualization_msgs/Marker.h>
 
 #include <utils/rosparams_utils.hpp>
 #include <prx_models/Tree.h>
-
 namespace utils
 {
 

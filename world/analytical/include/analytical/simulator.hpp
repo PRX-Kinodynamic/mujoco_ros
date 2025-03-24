@@ -88,7 +88,7 @@ protected:
     std::cout << "Plant: " << (*_plant) << std::endl;
 
     _start_state = _state_space->make_point();
-    _state_space->copy(_start_state, _params["/plant/start_state"].as<std::vector<double>>());
+    _state_space->copy(_start_state, _params["/plant/start_state"].template as<std::vector<double>>());
     _state_space->copy_from(_start_state);
 
     DEBUG_VARS(*_start_state);
