@@ -19,14 +19,14 @@ ros::Time initial_time;
 
 inline std::string to_string(const std_msgs::Header& header)
 {
-  std::stringstream strstr{};
-  strstr << header.stamp << " ";
+  std::stringstream strstr;
+  strstr << header.stamp.toSec() << " ";
   return strstr.str();
 }
 
 inline std::string to_string(const geometry_msgs::TransformStamped& tf)
 {
-  std::stringstream strstr{};
+  std::stringstream strstr;
   const geometry_msgs::Vector3& vec{ tf.transform.translation };
   const geometry_msgs::Quaternion& quat{ tf.transform.rotation };
 
@@ -72,10 +72,19 @@ void set_ofs(std::ofstream& ofs, const std::filesystem::path& path)
 
   std::filesystem::path filename{ path };
   filename += "_" + utils::timestamp() + ".txt";
-  // const std::filesystem::path filename{ fileprefix + "_" + utils::timestamp() + ".txt" };
+
+  // Create directories if they don't exist
+  std::filesystem::create_directories(filename.parent_path());
+
   DEBUG_VARS(filename);
 
   ofs.open(filename, std::ios::trunc);
+
+  // Check if file opened successfully
+  if (!ofs.is_open())
+  {
+    ROS_ERROR("Failed to open file: %s", filename.string().c_str());
+  }
 }
 
 int main(int argc, char** argv)
@@ -116,36 +125,36 @@ int main(int argc, char** argv)
     frames.push_back(std::make_pair(frame_root, frame_child));
   }
 
-  // set_ofs(ofs_poses, path);
+  set_ofs(ofs_poses, path);
 
-  // tf2_ros::Buffer tf_buffer;
-  // tf2_ros::TransformListener tfListener(tf_buffer);
+  tf2_ros::Buffer tf_buffer;
+  tf2_ros::TransformListener tfListener(tf_buffer);
 
-  // ros::Time now{ ros::Time(0) };
-  // initial_time = ros::Time::now();
-  // ros::Duration window_size(window_duration);
-  // ros::Time window{ ros::Time::now() + window_size };
-  // while (status.ok())
-  // {
-  //   if (window_duration > 0 and window < ros::Time::now())
-  //   {
-  //     set_ofs(ofs_poses, path);
-  //     window = ros::Time::now() + window_size;
-  //   }
-  //   for (auto fr : frames)
-  //   {
-  //     const std::string root{ fr.first };
-  //     const std::string child{ fr.second };
-  //     const std::string tf_str{ get_transform(tf_buffer, root, child, now) };
-  //     if (tf_str.size() > 0)
-  //     {
-  //       ofs_poses << root << " " << child << " " << tf_str << "\n";
-  //     }
-  //   }
-  //   ros::spinOnce();
-  // }
+  ros::Time now{ ros::Time::now() };
+  initial_time = ros::Time::now();
+  ros::Duration window_size(window_duration);
+  ros::Time window{ ros::Time::now() + window_size };
+  while (status.ok())
+  {
+    if (window_duration > 0 and window < ros::Time::now())
+    {
+      set_ofs(ofs_poses, path);
+      window = ros::Time::now() + window_size;
+    }
+    for (auto fr : frames)
+    {
+      const std::string root{ fr.first };
+      const std::string child{ fr.second };
+      const std::string tf_str{ get_transform(tf_buffer, root, child, now) };
+      if (tf_str.size() > 0)
+      {
+        ofs_poses << root << " " << child << " " << tf_str << "\n";
+      }
+    }
+    ros::spinOnce();
+  }
 
-  // ofs_poses.close();
+  ofs_poses.close();
 
   return 0;
 }

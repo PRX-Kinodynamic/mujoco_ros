@@ -79,7 +79,7 @@ inline void copy(StateSpacePoint& state, const geometry_msgs::Pose2D& msg)
 {
   state->at(0) = msg.x;
   state->at(1) = msg.y;
-  state->at(2) = msg.theta;
+  state->at(2) = 0.0;
   state->at(3) = 0.0;
   ROS_WARN("Setting current velocity to 0.0");
 }

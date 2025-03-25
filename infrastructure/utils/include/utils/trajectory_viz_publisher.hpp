@@ -77,9 +77,10 @@ protected:
   void trajectory_callback(const ml4kp_bridge::TrajectoryConstPtr msg)
   {
     _traj_marker.action = visualization_msgs::Marker::DELETEALL;
+    _traj_marker.points.clear();
     _viz_traj_publisher.publish(_traj_marker);
     _traj_marker.action = visualization_msgs::Marker::ADD;
-    _traj_marker.points.clear();
+
     for (auto space_point : msg->data)
     {
       _traj_marker.id++;

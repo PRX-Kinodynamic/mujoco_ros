@@ -3,14 +3,26 @@
 #include "prx_models/mj_mushr.hpp"
 #include "control/MushrControlPropagation.h"
 #include "motion_planning/replanner_service.hpp"
-#include "motion_planning/planner_client.hpp"
+#include "motion_planning/ltv_planner_client.hpp"
 #include "motion_planning/PlanningResult.h"
 #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
+#include "std_msgs/Bool.h"
 #include <utils/std_utils.cpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>
+
+void save_data(const std::string& filename, bool goal_reached, bool in_collision, double total_time)
+{
+  std::ofstream file(filename);
+  file << goal_reached << std::endl;
+  file << in_collision << std::endl;
+  file << total_time << std::endl;
+
+  file.close();
+  std::cout << "Data saved to " << filename << std::endl;
+}
 
 int main(int argc, char** argv)
 {
@@ -18,8 +30,9 @@ int main(int argc, char** argv)
   ros::NodeHandle n;
 
   const std::string root{ ros::this_node::getNamespace() };
-  std::string params_fname;
+  std::string params_fname, shutdown_topic;
   n.getParam(ros::this_node::getName() + "/params_file", params_fname);
+  n.getParam(ros::this_node::getName() + "/shutdown_topic", shutdown_topic);
   auto params = prx::param_loader(params_fname);
 
   // TODO: Does this need to be set inside the client/service for better determinism?
@@ -43,6 +56,15 @@ int main(int argc, char** argv)
   auto ss = planning_context.first->get_state_space();
   auto cs = planning_context.first->get_control_space();
   auto ps = planning_context.first->get_parameter_space();
+
+  std::string experiment_id, data_dir;
+  n.getParam(ros::this_node::getName() + "/experiment_id", experiment_id);
+  n.getParam(ros::this_node::getName() + "/data_dir", data_dir);
+
+  std::string data_file = data_dir + "/kraft_" + experiment_id + ".txt";
+
+  std::cout << "Data file: " << data_file << std::endl;
+
   std::vector<double> min_control_limits = params["control_space/lower_bound"].as<std::vector<double>>();
   std::vector<double> max_control_limits = params["control_space/upper_bound"].as<std::vector<double>>();
   std::vector<double> min_state_limits = params["state_space/lower_bound"].as<std::vector<double>>();
@@ -145,9 +167,10 @@ int main(int argc, char** argv)
       mj_ros::planner_service_t<std::shared_ptr<prx::dirt_replan_t>, prx::dirt_replan_specification_t*,
                                 prx::dirt_replan_query_t*, prx_models::MushrPlanner, prx_models::MushrObservation>;
 
+  using PlannerClient = mj_ros::ltv_planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerService planner_service(n, dirt, dirt_spec, dirt_query, propagate_dynamics, retain_previous);
 
-  using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
+  using PlannerClient = mj_ros::ltv_planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerClient planner_client(n, cs->get_dimension());
 
   ros::Publisher goal_pos_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pose", 10, true);
@@ -156,10 +179,8 @@ int main(int argc, char** argv)
   ros::Publisher planning_result_publisher =
       n.advertise<motion_planning::PlanningResult>(root + "/planning_result", 1, true);
   ros::Publisher reset_publisher = n.advertise<std_msgs::Empty>(root + "/reset", 1, true);
+  ros::Publisher finish_publisher = n.advertise<std_msgs::Bool>(shutdown_topic, 1, true);
   motion_planning::PlanningResult planning_result_msg;
-
-  ros::ServiceClient collision_client = n.serviceClient<mujoco_ros::Collision>(root + "/collision");
-  mujoco_ros::Collision collision_srv;
 
   int max_cycles;
   double planning_cycle_duration_double, preprocess_timeout, postprocess_timeout;
@@ -171,13 +192,16 @@ int main(int argc, char** argv)
   planner_service.set_postprocess_timeout(postprocess_timeout);
   dirt_spec->planning_cycle_duration = planning_cycle_duration_double;
 
+  std_msgs::Bool finish_msg;
+  finish_msg.data = true;
+
   ros::Duration planning_cycle_duration_ros(planning_cycle_duration_double);
 
   spinner.start();
   goal_pos_publisher.publish(goal_configuration);
   goal_radius_publisher.publish(goal_radius);
 
-  planner_client.call_service(goal_configuration, goal_radius, 0, 2 * planning_cycle_duration_double);
+  planner_client.call_service(goal_configuration, goal_radius, 0, planning_cycle_duration_double);
 
   ros::Time experiment_start_time = planner_client.get_experiment_start_time();
 
@@ -205,54 +229,59 @@ int main(int argc, char** argv)
       planning_result_msg.in_collision.data = false;
       planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
       planning_result_publisher.publish(planning_result_msg);
+      save_data(data_file, true, false, current_cycle * planning_cycle_duration_double);
+      finish_publisher.publish(finish_msg);
       break;
     }
-    if (collision_client.call(collision_srv))
+    if (planner_client.is_collision_detected())
     {
-      if (collision_srv.response.collision_result.data)
-      {
-        ROS_WARN("Collision detected");
-        planning_result_msg.goal_reached.data = false;
-        planning_result_msg.in_collision.data = true;
-        planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
-        planning_result_publisher.publish(planning_result_msg);
-        std_msgs::Empty reset_msg;
-        reset_publisher.publish(reset_msg);
-        break;
-      }
+      ROS_WARN("Collision detected");
+      planning_result_msg.goal_reached.data = false;
+      planning_result_msg.in_collision.data = true;
+      planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
+      planning_result_publisher.publish(planning_result_msg);
+      std_msgs::Empty reset_msg;
+      save_data(data_file, false, true, current_cycle * planning_cycle_duration_double);
+      reset_publisher.publish(reset_msg);
+      finish_publisher.publish(finish_msg);
+      break;
     }
     ros::spinOnce();
   }
 
-  // if (current_cycle > max_cycles && !planner_client.is_goal_reached(goal_configuration, goal_radius))
-  // {
-  //   ROS_WARN("Goal not reached");
-  //   planning_result_msg.goal_reached.data = false;
-  //   planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
-  //   planning_result_publisher.publish(planning_result_msg);
-  // }
+  if (current_cycle > max_cycles && !planner_client.is_goal_reached(goal_configuration, goal_radius))
+  {
+    ROS_WARN("Goal not reached");
+    planning_result_msg.goal_reached.data = false;
+    planning_result_msg.in_collision.data = false;
+    planning_result_msg.total_time.data = current_cycle * planning_cycle_duration_double;
+    planning_result_publisher.publish(planning_result_msg);
+    save_data(data_file, false, false, current_cycle * planning_cycle_duration_double);
+  }
 
-  // int id;
-  // n.getParam(ros::this_node::getName() + "/id", id);
+  finish_publisher.publish(finish_msg);
 
-  // /*
-  // auto error_data = planner_client.get_error_data();
-  // prx::space_point_t print_state = ss->make_point();
+  int id;
+  n.getParam(ros::this_node::getName() + "/id", id);
 
-  // std::ofstream error_file;
-  // error_file.open("/home/aravind/error_data_" + std::to_string(id) + ".txt");
-  // for (unsigned i = 0; i < std::get<0>(error_data).size(); i++)
-  // {
-  //   ml4kp_bridge::copy(print_state, std::get<0>(error_data)[i]);
-  //   error_file << ss->print_point(print_state) << ", ";
-  //   ml4kp_bridge::copy(print_state, std::get<1>(error_data)[i]);
-  //   error_file << ss->print_point(print_state) << ", ";
-  //   prx_models::copy(print_state, std::get<2>(error_data)[i]);
-  //   error_file << ss->print_point(print_state) << std::endl;
-  // }
-  // */
+  /*
+  auto error_data = planner_client.get_error_data();
+  prx::space_point_t print_state = ss->make_point();
 
-  // spinner.stop();
+  std::ofstream error_file;
+  error_file.open("/home/aravind/error_data_" + std::to_string(id) + ".txt");
+  for (unsigned i = 0; i < std::get<0>(error_data).size(); i++)
+  {
+    ml4kp_bridge::copy(print_state, std::get<0>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    ml4kp_bridge::copy(print_state, std::get<1>(error_data)[i]);
+    error_file << ss->print_point(print_state) << ", ";
+    prx_models::copy(print_state, std::get<2>(error_data)[i]);
+    error_file << ss->print_point(print_state) << std::endl;
+  }
+  */
+
+  spinner.stop();
 
   return 0;
 }

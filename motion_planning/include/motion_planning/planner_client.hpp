@@ -132,7 +132,7 @@ public:
       if (cycle_idx == 0) {
         _experiment_start_time = ros::Time::now() + ros::Duration(planning_duration);
       }
-      
+
       ROS_DEBUG("Service call successful");
       ROS_DEBUG_STREAM("Current obs: " << _most_recent_observation.pose.position.x << ", "
                                        << _most_recent_observation.pose.position.y);

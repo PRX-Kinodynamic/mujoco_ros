@@ -2,6 +2,7 @@
 #include <prx_models/mj_copy.hpp>
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
+#include <utils/dbg_utils.hpp>
 #include <functional>
 
 namespace mj_ros
@@ -106,6 +107,12 @@ public:
     prx::condition_check_t checker("time", time_limit);
 
     prx_models::copy(_query->start_state, request.current_observation);
+    if (step_traj->size() > 0)
+    {
+      _query->start_state->at(2) = step_traj->back()->at(2);
+      _query->start_state->at(3) = step_traj->back()->at(3);
+    }
+
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     step_traj->clear();
