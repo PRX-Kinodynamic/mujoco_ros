@@ -5,69 +5,67 @@ A: &A
 B: &B
   position: [-2.945, -1.719] 
   orientation: 0.0
+C: &C
+  position: [-3.365, -0.457]
+  orientation: 0.0
+D: &D
+  position: [3.0, -0.193]
+  orientation: -2.327
+E: &E
+  position: [-3.215, 0.183]
+  orientation: 2.701
 
+radius: &radius 0.1
 
 experiments:
   -
     id: 0
-    start: *A
+    start: *D
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *B
   -
     id: 1
-    start: *B
+    start: *C
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *A
   -
     id: 2
     start: *A
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *B
   -
     id: 3
-    start: *B
+    start: *D
     goal:
-      radius: 0.2
-      <<: *A
+      radius: *radius
+      <<: *E
   -
     id: 4
     start: *A
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *B
   -
     id: 5
-    start: *B
+    start: *C
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *A
   -
     id: 6
     start: *A
     goal:
-      radius: 0.2
+      radius: *radius
       <<: *B
   -
     id: 7
-    start: *B
+    start: *D
     goal:
-      radius: 0.2
-      <<: *A
-  -
-    id: 8
-    start: *A
-    goal:
-      radius: 0.2
-      <<: *B
-  -
-    id: 9
-    start: *B
-    goal:
-      radius: 0.2
-      <<: *A
+      radius: *radius
+      <<: *E
 
 bounds:
   lower: [-4.1, -2.5] 

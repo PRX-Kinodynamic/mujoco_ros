@@ -4,7 +4,7 @@ path: "mushrFG"
 vis_body: "body"
 
 control_steps: 
-  min: 1
+  min: 5
   max: 20
 
 # start_state: [1,-0.5,1.5707963268,0] # obstacle_0
@@ -32,8 +32,8 @@ state_space:
   # lower_bound: [-500, -500, -3.14159, -500,-500, -500] # empty
   # upper_bound: [ 500,  500,  3.14159,  500, 500,  500] # empty
 control_space:
-  lower_bound: [-0.1, -1.0]
-  upper_bound: [ 0.1,  1.0]
+  lower_bound: [-0.05, -1.0]
+  upper_bound: [ 0.05,  1.0]
   values: [0.0, 0.0]
 
 parameter_space:

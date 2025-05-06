@@ -209,7 +209,7 @@ public:
 
     _control_stamped.header.seq = 0;
     _control_stamped.header.stamp = ros::Time::now();
-    _control_stamped.header.frame_id = "StelaControl";
+    _control_stamped.header.frame_id = "StelaWindowedControl";
 
     _prev_header.stamp = ros::Time::now();
     _next_node_time = ros::Time::now();
@@ -667,6 +667,7 @@ public:
   {
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
+    // DEBUG_VARS(_u01.transpose());
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
