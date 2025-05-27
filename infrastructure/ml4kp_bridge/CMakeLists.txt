@@ -8,9 +8,11 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 ## is used, also find other catkin packages
 
 # Mujoco-relates packages
-find_package(Eigen3 REQUIRED)
+# find_package(Eigen3 REQUIRED)
 find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(rostest REQUIRED)
+# find_package(GTSAMCMakeTools)
+# find_package(TBB REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -18,7 +20,18 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   nodelet
   roslib
+  geometry_msgs
 )
+
+# find_package(TBB COMPONENTS tbb tbbmalloc)
+# find_package(TBB REQUIRED)
+add_definitions("-O3")
+if(GTSAM_USE_TBB)
+  message(STATUS "GTSAM is using TBB")
+  find_package(TBB 4.4 REQUIRED COMPONENTS tbb tbbmalloc)
+
+endif()
+
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -58,7 +71,7 @@ set(MSG_FILES "")
 file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
 foreach(M_DIR ${MSG_DIRS})
   GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
-  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
+  # GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
   add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
 endforeach()
 
@@ -114,12 +127,15 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+
+message(STATUS "ML4KP_INCLUDE_DIR: ${ML4KP_INCLUDE_DIR} ")
 catkin_package(
- INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR}
+ INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR} # ${TBB_INCLUDE_DIRS}
  LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
- # DEPENDS ML4KP
+ # DEPENDS  gtsam
 )
+
 
 ###########
 ## Build ##
@@ -134,21 +150,30 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+set(BUILD_FLAGS "-O3")
+if (UNIX AND NOT APPLE)
+  # MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  # set(BUILD_FLAGS "-march=native")
+  list(APPEND BUILD_FLAGS "-fPIC")
+endif(UNIX AND NOT APPLE)
+add_definitions(${BUILD_FLAGS})
+
+
 ## Declare a C++ library
 # Consider all src to add to the library (no executables in this package)
 # file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
 add_library(${PROJECT_NAME} INTERFACE)
-add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
+add_dependencies(${PROJECT_NAME} ML4KP::ML4KP )
+target_include_directories(${PROJECT_NAME} INTERFACE include ${ML4KP_INCLUDE_DIR} ${GTSAM_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP )
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
-target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS} ${ML4KP_INCLUDE_DIR} ${GTSAM_INCLUDE_DIR})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
-
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME} )
 
 ### Executable files
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)

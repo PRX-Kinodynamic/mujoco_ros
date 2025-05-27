@@ -3,7 +3,7 @@ project(estimation)
 set(CMAKE_CXX_STANDARD 17)
 
 # Mujoco-relates packages
-#find_package(OpenCV REQUIRED )
+find_package(Eigen3  3.4 REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -17,6 +17,25 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf_conversions
   utils
+)
+
+
+message(STATUS "EIGEN_WORLD_VERSION: ${GTSAM_EIGEN_VERSION_WORLD}")
+message(STATUS "Eigen3_DIR ${Eigen3_DIR}" )
+# add_definitions("-g")
+## Generate services in the 'srv' folder
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  ml4kp_bridge
 )
 
 ###################################
@@ -51,9 +70,11 @@ include_directories(
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
+
 target_include_directories(${NODELET_LIB} PUBLIC include ${OpenCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 ## Executables

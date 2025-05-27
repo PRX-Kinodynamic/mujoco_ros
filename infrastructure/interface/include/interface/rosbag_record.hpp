@@ -21,10 +21,11 @@ class queued_callback_t
 public:
   using TupleQueue = std::queue<std::tuple<std::string, ros::Time, typename Msg::ConstPtr>>;
   queued_callback_t() : _t0(ros::Time::now()){};
-  queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
-  {
-  //  std::cout << "topic_name: " << _topic_name << std::endl;
-  };
+  queued_callback_t(const std::string topic_name)
+    : _topic_name(topic_name)
+    , _t0(ros::Time::now()){
+      //  std::cout << "topic_name: " << _topic_name << std::endl;
+    };
   static inline std::mutex _queue_mutex;
   static inline TupleQueue _queue;
 
@@ -34,7 +35,14 @@ public:
     if (t_now > _t0)
     {
       const std::string topic{ event.getConnectionHeader().at("topic") };
-      _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
+      try
+      {
+        _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
+      }
+      catch (...)
+      {
+        std::cout << "Error at topic: " << _topic_name << std::endl;
+      }
     }
   }
 
@@ -50,14 +58,15 @@ public:
   using QCallback = queued_callback_t<Msg>;
   using Subscribers = std::vector<ros::Subscriber>;
 
-bool register_topic(const std::string& topic_name, const std::string topic_type, const std::string expected_type, ros::NodeHandle& nh)
+  bool register_topic(const std::string& topic_name, const std::string topic_type, const std::string expected_type,
+                      ros::NodeHandle& nh)
   {
     bool status{ false };
     if (topic_type == expected_type)  // Must be a nicer way of checking MsgType/topic_type == expected
     {
       _queues.emplace_back(topic_name);
-//subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
-_subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      _subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
       status = true;
     }
     return status;

@@ -1,7 +1,7 @@
 #include <utils/nodelet_as_node.hpp>
 #include "nodelets/aruco_wTc.cpp"
 #include "nodelets/aruco_cTw.cpp"
-#include "nodelets/plant_estimator.cpp"
+// #include "nodelets/plant_estimator.cpp"
 
 int main(int argc, char** argv)
 {

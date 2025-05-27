@@ -5,12 +5,19 @@
 
 namespace interface
 {
-
 inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
 {
   using prx_models::mushr_t::control::steering_idx;
   using prx_models::mushr_t::control::velocity_idx;
   ctrl_msg.drive.steering_angle = point_msg.point[steering_idx];
-  ctrl_msg.drive.speed = point_msg.point[velocity_idx];
+  // ctrl_msg.drive.speed = std::max(-0.5, std::min(0.5, point_msg.point[velocity_idx]));
+  ctrl_msg.drive.acceleration = point_msg.point[velocity_idx];
 }
+
+inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg,
+                          const ml4kp_bridge::SpacePointStamped& point_msg)
+{
+  translate_msg(ctrl_msg, point_msg.space_point);
+}
+
 }  // namespace interface

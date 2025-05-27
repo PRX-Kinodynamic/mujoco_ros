@@ -7,9 +7,11 @@ from prx_models.msg import MushrObservation
 from prx_models.srv import MushrFeedback,MushrFeedbackResponse
 from std_msgs.msg import Empty
 
+from ackermann_msgs.msg import AckermannDriveStamped
+
 class KeyboardControlService:
     def __init__(self):
-        self.control = MushrControl()
+        self.control = AckermannDriveStamped()
         self.observation = MushrObservation()
 
         self.velocity_increase = 0.1
@@ -22,9 +24,12 @@ class KeyboardControlService:
 
         self.rate = rospy.Rate(10)
 
+        self.pub = rospy.Publisher("/mushr/mux/ackermann_cmd_mux/output", AckermannDriveStamped, queue_size=1)
+
+
     def reset_control(self):
-        self.control.steering_angle.data = 0
-        self.control.velocity.data = 0
+        self.control.drive.steering_angle = 0
+        self.control.drive.speed = 0
     
     def keyboard_terminal(self):
         screen = curses.initscr()
@@ -36,22 +41,22 @@ class KeyboardControlService:
         while not rospy.is_shutdown():
             key = screen.getch()
             if key == curses.KEY_UP or key == ord('w'):
-                self.control.velocity.data += self.velocity_increase
+                self.control.drive.speed += self.velocity_increase
             elif key == curses.KEY_DOWN or key == ord('s'):
-                self.control.velocity.data -= self.velocity_increase
+                self.control.drive.speed -= self.velocity_increase
             elif key == curses.KEY_LEFT or key == ord('a'):
-                self.control.steering_angle.data += self.steering_increase
+                self.control.drive.steering_angle += self.steering_increase
             elif key == curses.KEY_RIGHT or key == ord('d'):
-                self.control.steering_angle.data -= self.steering_increase
+                self.control.drive.steering_angle -= self.steering_increase
             elif key == ord('r'):
                 self.reset_pub.publish(Empty())
                 self.reset_control()
             elif key == ord('q'):
                 break
-            screen.addstr(10, 0, 'Velocity: ' + str(self.control.velocity.data) + ' Steering: ' + str(self.control.steering_angle.data) + '\n')
+            screen.addstr(10, 0, 'Velocity: ' + str(self.control.drive.speed) + ' Steering: ' + str(self.control.drive.steering_angle) + '\n')
             screen.addstr(11, 0, "Position: " + str(self.observation.pose.position.x) + " " + str(self.observation.pose.position.y) + " " + str(self.observation.pose.position.z) + '\n')
             screen.refresh()
-
+            self.pub.publish(self.control);
 
         curses.nocbreak()
         screen.keypad(False)

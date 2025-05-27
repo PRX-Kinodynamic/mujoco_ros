@@ -22,6 +22,8 @@
             <param name="subscriber_topic" value="$(arg plan_from_file_topic)" />
             <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
             <param name="frequency" value="10" />
+            <param name="stop_topic" value="/mushr/vesc/commands/reset"/>
+            <param name="use_stamped_control" value="true"/>
         </node>    
 
         <node if="$(arg simulation)" pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet" 
@@ -32,12 +34,12 @@
             <param name="frequency" value="10" />
         </node>       
 
-        <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
-            args="load interface/AckermannFromSpacePointNodelet plan_from_file_nodelet_manager" 
+        <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointStampedNodelet" 
+            args="load interface/AckermannFromSpacePointStampedNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
-            <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
-            <param name="frequency" value="100" />
+            <param name="subscriber_topic" value="$(arg plan_stepper_topic)_stamped" />
+            <param name="frequency" value="50" />
         </node>         
     </group>
   

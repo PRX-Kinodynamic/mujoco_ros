@@ -1,4 +1,5 @@
 <launch>
+
   <arg name="curr_namespace" default="desktop07" />
   <arg name="camera_config" default="$(find perception)/config/logitech_brio_desktop07.yaml"/>
   <arg name="world_frame" default="world"/>
@@ -17,15 +18,20 @@
 
   <arg name="marker_world_translation" default="0 0 0"/>
   <!-- <arg name="marker_world_quat" default="-0.0697458 0.0174099 -0.0012174 0.9974121"/> -->
-  <arg name="cameras_quat" default="-0.0114 .0606 .99717 .043"/>
+  <arg name="cameras_quat" default="-0.0114 .0606 .9999 .043"/>
   <arg name="marker_world_quat" default="0 0 0 1"/>
   <node pkg="tf2_ros" type="static_transform_publisher" name="tf_C0C1" 
     args="$(arg marker_world_translation) $(arg marker_world_quat) C0_marker_121 $(arg world_frame)" />
+  
+  <arg name="qw" value="-0.010487"/>
+  <arg name="qx" value="-0.0426535"/>
+  <arg name="qy" value=" 0.00401744"/>
+  <arg name="qz" value="-0.998322"/>
+  <arg name="camPosT" value="3.26582 -0.450795 -0.335727"/>
   <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"  -->
-    <!-- args="0 0 0 $(arg marker_world_quat) C0_marker_121 C1_marker_121"/> -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
-    args="3.76 -0.65 0.11 $(arg cameras_quat) C0 C1"/>
-     
+    <!-- args="$(arg camPosT) $(arg qx) $(arg qy) $(arg qz) $(arg qw) C0 C1"/> -->
+    <!-- args="3.61664 -0.195665 -0.122378 0.00075298 0.0393321 -0.999886 0.00676578 C0 C1"/> -->
+       <!-- -0.0114 .0606 .9999 .043 -->
   <group ns="$(arg curr_namespace)">
 
     <!-- Manager nodelet -->
@@ -80,16 +86,45 @@
       <param name="robot_frame_1" value="C1_robot_0"/>
     </node> 
 
+    <node pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
+            args="load interface/AckermannFromSpacePointNodelet standalone_nodelet" 
+            output="screen">
+          <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+          <param name="subscriber_topic" value="/stela/sbmp/control" />
+          <param name="frequency" value="100" />
+    </node>   
+    <node pkg="nodelet" type="nodelet" name="AckermannFromSpacePointStampedNodelet" 
+            args="load interface/AckermannFromSpacePointStampedNodelet standalone_nodelet" 
+            output="screen">
+          <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+          <param name="subscriber_topic" value="/stela/sbmp/control_stamped" />
+          <param name="frequency" value="100" />
+    </node>     
+
+    <node pkg="interface" type="mushr_stop" name="mushr_stop" output="screen">
+          <param name="stop_topic" value="/stela/finished" />
+          <param name="control_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+    </node>  
+
+    <node pkg="utils" type="constant_control" name="constant_control" output="screen">
+          <param name="bool_topic" value="/stela/finished" />
+          <param name="control_topic" value="/stela/sbmp/control" />
+          <param name="fixed_control" type="yaml" value="[0.0,0.0]" />
+    </node>     
+
+     <include file="$(find utils)/launch/multicam_world_calib.launch">
+    </include>
+
+    <!-- <remap to="/stela/finished" from="/mushr/vesc/commands/reset"/> -->
     <!-- Plant estimator -->
-    <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" output="screen"
+<!--     <node pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" output="screen"
       args="load estimation/plant_estimator_nodelet_t standalone_nodelet" >
       <param name="plan_topic" value="$(arg plan_topic)"/>
-      <!-- <param name="trajectory_topic" value="/mushr/ml4kp_traj"/> -->
       <param name="trajectory_topic" value="/mushr/traj/estimated"/>
       <param name="simulation_step" value="0.01"/>
       <param name="observation_dim" value="3"/>
       <param name="world_frame" value="world"/>
       <param name="robot_frame" value="robot_0"/>
-    </node>  
+    </node>   -->
   </group>
 </launch>
