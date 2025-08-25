@@ -80,7 +80,7 @@ private:
     std::string image_topic;
     std::string goal_pose_topic;
     std::string goal_rad_topic;
-    std::string trajectory_topic;
+    std::string trajectory_topic{ "" };
     std::string camera_frame;
     std::string world_frame;
     std::string robot_frame;
@@ -91,7 +91,7 @@ private:
     PARAM_SETUP(private_nh, image_topic);
     PARAM_SETUP(private_nh, goal_pose_topic);
     PARAM_SETUP(private_nh, goal_rad_topic);
-    PARAM_SETUP(private_nh, trajectory_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, trajectory_topic, trajectory_topic);
     PARAM_SETUP(private_nh, camera_frame);
     PARAM_SETUP(private_nh, world_frame);
     PARAM_SETUP(private_nh, robot_frame);
@@ -122,7 +122,10 @@ private:
     _rgb_subscriber = private_nh.subscribe(image_topic, 1, &Derived::get_image, this);
     _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &Derived::get_goal_pose, this);
     _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &Derived::get_goal_rad, this);
-    _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &Derived::get_trajectory, this);
+    if (trajectory_topic != "")
+    {
+      _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &Derived::get_trajectory, this);
+    }
 
     _frame_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
   }

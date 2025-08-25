@@ -1,40 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
-project(mujoco_ros)
+project(control)
 set(CMAKE_CXX_STANDARD 17)
+
+## Compile as C++11, supported in ROS Kinetic and newer
+# add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-
-# Mujoco-relates packages
-find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
-find_package(glfw3 REQUIRED)
-find_package(OpenCV REQUIRED )
-
-set(MJ_INCLUDE_DIR "$ENV{MJ_PATH}/include")
-list(APPEND MJ_INCLUDE_DIR ${GLFW_INCLUDE_DIRS})
-
-set(MJ_LINK  mujoco::mujoco)
-list(APPEND MJ_LINK glfw)
-
-if(APPLE)
-  set(CMAKE_MACOSX_RPATH 0)
-endif()
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs
-  message_generation
-  roslib
   prx_models
-  cv_bridge
-  interface
-  utils
+  ml4kp_bridge
+  nodelet
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(glfw3 REQUIRED)
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -66,21 +50,20 @@ find_package(glfw3 REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-set(MSG_FILES "")
-file(GLOB_RECURSE MSG_DIRS "msg/*.msg")
-foreach(M_DIR ${MSG_DIRS})
-  GET_FILENAME_COMPONENT(M_NAME ${M_DIR} NAME_WE )
-  GET_FILENAME_COMPONENT(D_NAME ${M_DIR} DIRECTORY )
-  add_message_files(DIRECTORY "${D_NAME}" FILES "${M_NAME}.msg")
-endforeach()
-
+# add_message_files(
+#   FILES
+#   Message1.msg
+#   Message2.msg
+# )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+set(SRV_FILES "")
+file(GLOB_RECURSE SRV_DIRS "srv/*.srv")
+foreach(S_DIR ${SRV_DIRS})
+  GET_FILENAME_COMPONENT(S_NAME ${S_DIR} NAME_WE )
+  GET_FILENAME_COMPONENT(D_NAME ${S_DIR} DIRECTORY )
+  add_service_files(DIRECTORY "${D_NAME}" FILES "${S_NAME}.srv")
+endforeach()
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -92,7 +75,8 @@ endforeach()
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
+  std_msgs  # Or other packages containing msgs
+  ml4kp_bridge
 )
 
 ################################################
@@ -125,9 +109,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES mujoco
- CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models
+# INCLUDE_DIRS include
+#  LIBRARIES control
+ CATKIN_DEPENDS ml4kp_bridge roscpp message_runtime
 #  DEPENDS system_lib
 )
 
@@ -137,17 +121,24 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(
-  include
-  ${MJ_INCLUDE_DIR}
-  ${catkin_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS} 
-)
+#include_directories(
+#  include
+#  ${catkin_INCLUDE_DIRS}
+#)
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mujoco.cpp
+#   src/${PROJECT_NAME}/control.cpp
 # )
+
+add_library(${PROJECT_NAME} INTERFACE)
+
+set(NODELET_LIB ${PROJECT_NAME}_nodelets)
+file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
+add_library(${NODELET_LIB} ${NODELET_FILES})
+target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -157,7 +148,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/mujoco_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/control_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -165,25 +156,29 @@ include_directories(
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
-
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 foreach(f ${EXECUTABLE_FILES})
-  get_filename_component(fname ${f} NAME_WE )
-  add_executable(${fname} ${f})
-  ## Add cmake target dependencies of the executable
-  ## same as for the library above
-  add_dependencies(${fname}
-                   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
-                   ${catkin_EXPORTED_TARGETS}
-                   )
-  ## Specify libraries to link a library or executable target against
-  target_link_libraries(${fname}
-                        ${MJ_LINK}
-                        ${catkin_LIBRARIES}
-                        ${OpenCV_LIBS} 
-                      )
+    MESSAGE("file: ${f}")
+    GET_FILENAME_COMPONENT(fname ${f} NAME_WE )
+    add_executable(${fname} ${f})
+    add_dependencies(${fname}
+                     ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+                     ${catkin_EXPORTED_TARGETS}
+                     )
+    target_link_libraries(${fname}
+                          ${catkin_LIBRARIES}
+                        )
 endforeach()
+
+## Add cmake target dependencies of the executable
+## same as for the library above
+# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+## Specify libraries to link a library or executable target against
+# target_link_libraries(${PROJECT_NAME}_node
+#   ${catkin_LIBRARIES}
+# )
 
 #############
 ## Install ##
@@ -194,12 +189,10 @@ endforeach()
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
-catkin_install_python(PROGRAMS
-  ${SCRIPT_FILES}
-  # scripts/mushr_open_loop_publisher.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# catkin_install_python(PROGRAMS
+#   scripts/my_python_script
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
@@ -234,7 +227,7 @@ catkin_install_python(PROGRAMS
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_control.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

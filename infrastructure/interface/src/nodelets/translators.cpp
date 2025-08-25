@@ -33,16 +33,21 @@ using ControlVisualizationNodelet = interface::control_vizualizer_t<prx::fg::ltv
 using MushrFromSpacePointNodelet = interface::msg_translator_t<prx_models::MushrControl, ml4kp_bridge::SpacePoint>;
 using MushrFromSpacePointStampedNodelet =
     interface::msg_translator_t<prx_models::MushrControl, ml4kp_bridge::SpacePointStamped>;
-using AckermannFromSpacePointNodelet =
-    interface::msg_translator_t<ackermann_msgs::AckermannDriveStamped, ml4kp_bridge::SpacePoint>;
 using GroundTruthPoseNodelet = interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped>;
 using MushrControlVisualizationNodelet = interface::control_vizualizer_t<prx_models::mushr_utils_t, nodelet::Nodelet>;
 using SensorDataStampedToFile =
     utils::topic_to_file_t<interface::SensorDataStamped, sensor_data_stamped_to_file, nodelet::Nodelet>;
 
+using AckermannFromSpacePointNodelet =
+    interface::msg_translator_t<ackermann_msgs::AckermannDriveStamped, ml4kp_bridge::SpacePoint>;
+using AckermannFromSpacePointStampedNodelet =
+    interface::msg_translator_t<ackermann_msgs::AckermannDriveStamped, ml4kp_bridge::SpacePointStamped>;
+using GroundTruthPoseNodelet = interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped>;
+
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::AckermannFromSpacePointNodelet, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(interface::AckermannFromSpacePointStampedNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::GroundTruthPoseNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::ControlVisualizationNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointStampedNodelet, nodelet::Nodelet);

@@ -14,7 +14,7 @@ find_package(catkin REQUIRED
   prx_models
   utils
   )
-find_package(OpenCV 4.5.0 REQUIRED)
+find_package(OpenCV 4.6.0 REQUIRED)
 
 ###################################
 ## catkin specific configuration ##
@@ -51,6 +51,9 @@ target_include_directories(${NODELET_LIB} PUBLIC include
 
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+
+# MESSAGE("catkin_LIBRARIES: ${catkin_LIBRARIES}")
+# MESSAGE("OpenCV_LIBS: ${OpenCV_LIBS}")
 # if(catkin_EXPORTED_LIBRARIES)
 # endif()
 

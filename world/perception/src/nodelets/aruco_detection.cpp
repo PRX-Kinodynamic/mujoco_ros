@@ -16,7 +16,6 @@
 #include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
 #include <utils/rosparams_utils.hpp>
-#include <utils/dbg_utils.hpp>
 
 namespace perception
 {
@@ -25,34 +24,25 @@ class aruco_detection_nodelet_t : public nodelet::Nodelet
 public:
   aruco_detection_nodelet_t()
     : _publish_markers_img(false)
-    , _rgb_topic_name("/camera/rgb")
-    , _img_topic_name("/camera/markers")
-    , _markers_topic_name("/markers")
+    , _rgb_topic_name("/raw/rgb")
+    , _img_topic_name("/aruco/rgb")
+    , _markers_topic_name("/aruco/markers")
     , _header(){};
 
 private:
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
+    bool publish_markers_img;
+    std::string camera_topic;
+    ROS_PARAM_SETUP(private_nh, publish_markers_img);
+    ROS_PARAM_SETUP(private_nh, camera_topic);
 
-    _rgb_topic_name = ros::this_node::getNamespace() + _rgb_topic_name;
-    _img_topic_name = ros::this_node::getNamespace() + _img_topic_name;
-    _markers_topic_name = ros::this_node::getNamespace() + _markers_topic_name;
+    _rgb_topic_name = camera_topic + _rgb_topic_name;
+    _img_topic_name = camera_topic + _img_topic_name;
+    _markers_topic_name = camera_topic + _markers_topic_name;
 
-    std::string& rgb_topic{ _rgb_topic_name };
-    std::string& image_topic{ _img_topic_name };
-    std::string& markers_topic{ _markers_topic_name };
-
-    bool& publish_markers_img{ _publish_markers_img };
-
-    NODELET_PARAM_SETUP(private_nh, publish_markers_img);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, rgb_topic, rgb_topic)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, image_topic, image_topic)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, markers_topic, markers_topic)
-
-    DEBUG_VARS(rgb_topic);
-    DEBUG_VARS(image_topic);
-    DEBUG_VARS(markers_topic);
+    _publish_markers_img = publish_markers_img;
 
     _header.seq = 0;
     _header.stamp = ros::Time::now();

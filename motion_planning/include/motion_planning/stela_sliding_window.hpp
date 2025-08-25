@@ -993,7 +993,7 @@ public:
       // {
       const gtsam::KeyVector& factor_keys{ _isam.getFactorsUnsafe()[factor_to_remove]->keys() };
       DEBUG_VARS(_x_curr, factor_to_remove);
-      PRINT_KEYS(factor_keys);
+      // PRINT_KEYS(factor_keys);
       // }
     }
   }

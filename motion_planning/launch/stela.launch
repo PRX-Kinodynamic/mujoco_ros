@@ -12,10 +12,10 @@
   <!-- <arg name="environment" default="environments/simple_obstacle.yaml"/> -->
   <!-- <arg name="environment" default="environments/forest.yaml"/> -->
   <!-- <arg name="environment" default="environments/prx_lab_3.yaml"/> -->
-  <!-- <arg name="environment" default="environments/prx_lab.yaml"/> -->
+  <arg name="environment" default="environments/prx_lab.yaml"/>
   <!-- <arg name="environment" default="environments/prx_lab_2.yaml"/> -->
   <!-- <arg name="environment" default="environments/obstacle_0.yaml"/> -->
-  <arg name="environment" default="environments/bug_trap.yaml"/>
+  <!-- <arg name="environment" default="environments/bug_trap.yaml"/> -->
   <!-- <arg name="environment" default="environments/warehouse.yaml"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/no-noise"/> -->
   <!-- <arg name="data_dir" default="$(env ML4KP_ROS)/data/stela/ltvsde/forest/open-loop/no-noise"/> -->

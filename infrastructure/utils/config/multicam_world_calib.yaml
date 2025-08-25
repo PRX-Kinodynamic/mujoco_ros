@@ -1,0 +1,16 @@
+camera_frames: ["C0", "C1"]
+calibration_file: "/common/home/eg585/perception/stela_ws/data/world_calibration.yaml"
+# load_previous_calibration: true
+load_previous_calibration: false
+
+calibration_frames: 
+  - c0_marker_frame: "C0_robot_0"
+    c1_marker_frame: "C1_robot_0"
+  - c0_marker_frame: "C0_marker_121"
+    c1_marker_frame: "C1_marker_121"
+  - c0_marker_frame: "C0_marker_1"
+    c1_marker_frame: "C1_marker_1"
+  - c0_marker_frame: "C0_marker_12"
+    c1_marker_frame: "C1_marker_12"
+  - c0_marker_frame: "C0_marker_127"
+    c1_marker_frame: "C1_marker_127"

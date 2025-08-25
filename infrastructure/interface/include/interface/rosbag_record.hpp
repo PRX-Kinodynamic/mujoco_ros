@@ -1,22 +1,16 @@
 #pragma once
 #include <any>
 #include <utils/std_utils.hpp>
+#include <utils/dbg_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/execution_status.hpp>
 
 namespace interface
 {
-void init_bag(rosbag::Bag* bag, const std::string rosbag_directory, const std::string name = "")
+void init_bag(rosbag::Bag* bag, const std::string rosbag_directory)
 {
   std::ostringstream bag_name;
-  if (name == "")
-  {
-    bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
-  }
-  else
-  {
-    bag_name << name;
-  }
+  bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
   bag->open(bag_name.str(), rosbag::bagmode::Write);
   ROS_INFO_STREAM("Bag name: " << bag_name.str());
 }
@@ -26,11 +20,12 @@ class queued_callback_t
 {
 public:
   using TupleQueue = std::queue<std::tuple<std::string, ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()) {};
-  queued_callback_t(const std::string topic_name) : _topic_name(topic_name)
-  {
-    std::cout << "topic_name: " << _topic_name << std::endl;
-  };
+  queued_callback_t() : _t0(ros::Time::now()){};
+  queued_callback_t(const std::string topic_name)
+    : _topic_name(topic_name)
+    , _t0(ros::Time::now()){
+      //  std::cout << "topic_name: " << _topic_name << std::endl;
+    };
   static inline std::mutex _queue_mutex;
   static inline TupleQueue _queue;
 
@@ -40,7 +35,14 @@ public:
     if (t_now > _t0)
     {
       const std::string topic{ event.getConnectionHeader().at("topic") };
-      _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
+      try
+      {
+        _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
+      }
+      catch (...)
+      {
+        std::cout << "Error at topic: " << _topic_name << std::endl;
+      }
     }
   }
 
@@ -49,39 +51,28 @@ private:
   const ros::Time _t0;
 };
 
-class queues_base_t
-{
-  using Subscribers = std::vector<ros::Subscriber>;
-
-public:
-  queues_base_t() {};
-  virtual bool register_topic(const std::string& topic_name, const std::string topic_type,
-                              const std::string expected_type, Subscribers& subscribers, ros::NodeHandle& nh) = 0;
-  virtual std::size_t size() const = 0;
-  virtual std::size_t process_queue(rosbag::Bag& bag) = 0;
-};
-
 template <typename Msg>
-class queues_t : public queues_base_t
+class queues_t
 {
 public:
   using QCallback = queued_callback_t<Msg>;
   using Subscribers = std::vector<ros::Subscriber>;
 
-  virtual bool register_topic(const std::string& topic_name, const std::string topic_type,
-                              const std::string expected_type, Subscribers& subscribers, ros::NodeHandle& nh) override
+  bool register_topic(const std::string& topic_name, const std::string topic_type, const std::string expected_type,
+                      ros::NodeHandle& nh)
   {
     bool status{ false };
     if (topic_type == expected_type)  // Must be a nicer way of checking MsgType/topic_type == expected
     {
       _queues.emplace_back(topic_name);
-      subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      _subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
       status = true;
     }
     return status;
   }
 
-  virtual std::size_t size() const override
+  std::size_t size() const
   {
     return _queues.size();
   }
@@ -96,24 +87,9 @@ public:
     return _queues[idx];
   }
 
-  virtual std::size_t process_queue(rosbag::Bag& bag) override
-  {
-    std::size_t msgs_left{ 0 };
-    for (std::size_t idx = 0; idx < _queues.size(); ++idx)
-    {
-      if (!_queues[idx]._queue.empty())
-      {
-        msgs_left += _queues[idx]._queue.size();
-        auto msg = _queues[idx]._queue.front();
-        bag.write(std::get<0>(msg), std::get<1>(msg), std::get<2>(msg));
-        _queues[idx]._queue.pop();
-      }
-    }
-    return msgs_left;
-  }
-
 private:
   std::vector<QCallback> _queues;
+  Subscribers _subscribers;
 };
 
 }  // namespace interface

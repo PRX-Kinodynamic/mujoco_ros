@@ -1,0 +1,9 @@
+topics:
+  -
+    topic: /chrono/throttle
+    type: std_msgs/msg/Float64  # Type of topic to bridge
+    queue_size: 10  # Queue size
+  -
+    topic: /chrono/steer
+    type: std_msgs/msg/Float64  # Type of topic to bridge
+    queue_size: 10  # Queue size

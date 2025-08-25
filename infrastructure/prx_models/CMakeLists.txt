@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(prx_models)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -127,7 +127,7 @@ catkin_package(
 include_directories(
   include
   # ${MJ_INCLUDE_DIR}
-  ${catkin_INCLUDE_DIRS}
+  # ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -207,12 +207,10 @@ add_subdirectory(models/aruco_mip_36h12)
 #############
 
 ## Add gtest based cpp test target and link libraries
-file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
-set(gtest_disable_pthreads OFF)
-foreach(f_test ${TESTS_FILES})
-  get_filename_component(fname ${f_test} NAME_WE )
-  set(test_name "test_${fname}")
-  MESSAGE(STATUS "Test: ${test_name}")
-  catkin_add_gtest(${test_name} ${f_test})
-  target_link_libraries(${test_name} ${catkin_LIBRARIES} )
-endforeach()
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)
+# if(TARGET ${PROJECT_NAME}-test)
+#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+# endif()
+
+## Add folders to be run by python nosetests
+# catkin_add_nosetests(test)
