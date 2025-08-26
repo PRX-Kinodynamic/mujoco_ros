@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   ml4kp_bridge
   prx_models
+  grid_map_msgs
 )
 
 add_definitions("-O3")

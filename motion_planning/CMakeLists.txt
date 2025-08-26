@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 project(motion_planning)
 set(CMAKE_CXX_STANDARD 17)
 ## Find catkin macros and libraries

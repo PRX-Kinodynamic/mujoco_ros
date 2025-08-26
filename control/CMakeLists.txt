@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 project(control)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -14,7 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   nodelet
   message_generation
+  visualization_msgs
+  geometry_msgs
 )
+catkin_python_setup()
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -77,6 +80,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs  # Or other packages containing msgs
   ml4kp_bridge
+  geometry_msgs
 )
 
 ################################################
@@ -109,9 +113,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-# INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES control
- CATKIN_DEPENDS ml4kp_bridge roscpp message_runtime
+  CATKIN_DEPENDS roscpp message_runtime
 #  DEPENDS system_lib
 )
 
@@ -135,10 +139,15 @@ add_library(${PROJECT_NAME} INTERFACE)
 
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
 file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
-add_library(${NODELET_LIB} ${NODELET_FILES})
-target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
-add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
+list(LENGTH NODELET_FILES RES_LEN)
+
+
+if(NOT RES_LEN EQUAL 0) 
+  add_library(${NODELET_LIB} ${NODELET_FILES})
+  target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
+  add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+  target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
+endif()
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -183,6 +192,13 @@ endforeach()
 #############
 ## Install ##
 #############
+
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  # scripts/mushr_open_loop_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html

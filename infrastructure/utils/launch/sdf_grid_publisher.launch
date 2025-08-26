@@ -1,0 +1,22 @@
+<launch>
+
+  <arg name="bagfile" default="None"/>
+  
+  <node pkg="nodelet" type="nodelet" name="environment_nodelet_manager"  args="manager" output="screen">
+  </node>
+
+  <!-- <node pkg="utils" type="SdfToGridPublisher" name="SdfToGridPublisher" output="screen"> -->
+  <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
+      args="load utils/SdfToGridPublisher environment_nodelet_manager" output="screen">
+    <param name="sdf_params" value="$(find utils)/config/sdf_grid.yaml"/>
+    <param name="grid_topicname" value="/environment/grid"/>
+  </node>  
+
+  <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
+      args="load utils/EnvironmentPublisher environment_nodelet_manager" output="screen">
+      <rosparam file="$(find utils)/config/sdf_grid.yaml"/>
+      <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
+      <!-- <param name="environment_file" value="$(arg environment)"/> -->
+    </node>
+
+</launch>

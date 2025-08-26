@@ -15,6 +15,7 @@
 #include <utils/state_from_param_viz_publisher.hpp>
 #include <utils/point_topics_to_markers.hpp>
 #include <utils/StelaTrajectoryViz.hpp>
+#include <utils/sdf_to_grid_publisher.hpp>
 
 namespace utils
 {
@@ -41,6 +42,8 @@ using StateFromParamPublisher = state_from_param_viz_publisher_t<nodelet::Nodele
 using PointsTopicsToMarkerPublisher = points_topics_to_markers<false, nodelet::Nodelet>;
 using PointsHeaderTopicsToMarkerPublisher = points_topics_to_markers<true, nodelet::Nodelet>;
 using StelaTrajectoryVizPublisher = stela_trajectory_viz_t<nodelet::Nodelet>;
+using SdfToGridPublisher = sdf_to_grid_publisher_t<nodelet::Nodelet>;
+
 }  // namespace utils
 PLUGINLIB_EXPORT_CLASS(utils::EnvironmentPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::TrajectoryVizPublisher, nodelet::Nodelet);
@@ -58,3 +61,4 @@ PLUGINLIB_EXPORT_CLASS(utils::StateFromParamPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::PointsTopicsToMarkerPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::PointsHeaderTopicsToMarkerPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::StelaTrajectoryVizPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::SdfToGridPublisher, nodelet::Nodelet);

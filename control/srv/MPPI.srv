@@ -1,0 +1,6 @@
+ml4kp_bridge/SpacePoint control
+ml4kp_bridge/SpacePoint start
+ml4kp_bridge/SpacePoint goal
+---
+ml4kp_bridge/Plan plan
+ml4kp_bridge/Trajectory trajectory

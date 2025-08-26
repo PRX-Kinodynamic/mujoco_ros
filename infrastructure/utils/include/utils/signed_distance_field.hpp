@@ -156,12 +156,12 @@ class signed_distance_field_t
   {
     using ObstacleFactor = prx::fg::obstacle_factor_t<State, configuration_from_state>;
     using MatrixXb = Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic>;
-    // DEBUG_VARS(_environment);
+    DEBUG_VARS(_environment);
     auto prx_obstacles = prx::load_obstacles(_environment);
     std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ prx_obstacles.second };
     std::vector<std::string> obstacle_names{ prx_obstacles.first };
     const prx::EnvironmentBounds bounds{ prx::obstacle_loader_t::bounds_from_yaml(_environment) };
-
+    DEBUG_PRINT
     std::vector<CollisionInfoPtr> obstacles{};
     for (auto obstacle : obstacle_list)
     {
@@ -302,7 +302,7 @@ public:
     return std::make_shared<signed_distance_field_t>(params);
   }
 
-  virtual ~signed_distance_field_t() {};
+  virtual ~signed_distance_field_t(){};
 
   static prx::param_loader default_parameters()
   {
@@ -357,6 +357,7 @@ public:
 
   void to_file() const
   {
+    DEBUG_VARS(_file);
     std::ofstream ofs(_file.c_str());
     State xt;
 
@@ -385,6 +386,31 @@ public:
       }
     }
     ofs.close();
+  }
+
+  State min_bound() const
+  {
+    return _min_bound;
+  }
+
+  State max_bound() const
+  {
+    return _max_bound;
+  }
+
+  double resolution() const
+  {
+    return _resolution;
+  }
+
+  int rows() const
+  {
+    return _sdf.rows();
+  }
+
+  int cols() const
+  {
+    return _sdf.cols();
   }
 
 protected:
