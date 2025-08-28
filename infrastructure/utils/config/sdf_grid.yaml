@@ -1,8 +1,11 @@
 geometry:
   type: "SPHERE"
   parameters: [ 0.01 ]
-resolution: 0.5
-environment: "environments/forest.yaml"
-environment_file: "environments/forest.yaml"
+# resolution: 0.5
+resolution: 0.02
+# environment: "environments/forest.yaml"
+# environment_file: "environments/forest.yaml"
+environment: "environments/boxes.yaml"
+environment_file: "environments/boxes.yaml"
 # environment: "environments/prx_lab_2.yaml"
 directory: "${ML4KP_ROS}/data/sdfs/"

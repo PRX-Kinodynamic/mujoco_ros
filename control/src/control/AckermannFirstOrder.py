@@ -84,3 +84,6 @@ class AckermannFirstOrder(object):
         msg.z = 0
         return msg;
 
+    def configuration(self, state):
+        return state[:,0:2]
+        # diff[:, 2] = torch.atan2( torch.sin(diff[:, 2]), torch.cos(diff[:, 2]))

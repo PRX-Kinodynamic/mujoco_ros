@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from control.mppi import mppi
-from control.AckermannFirstOrder import AckermannFirstOrder
+from control.Mushr import Mushr
 
 import math
 import rospy
@@ -27,14 +27,14 @@ class mppi_ackermann:
 
         self.service = rospy.Service('/mppi/run', MPPI, self.mppi_service)
 
-        self.plant = AckermannFirstOrder()
+        self.plant = Mushr()
         self.controller = mppi(self.plant, self.horizon, self.sample_rollouts)
         self.u0 = torch.zeros(self.plant.Udim)
         self.x0 = torch.zeros(self.plant.Xdim)
         self.goal = torch.zeros(self.plant.Xdim)
         self.controller.goal = torch.Tensor([10,10,0])
         self.controller.obstacle_distance = 1.0
-        self.controller.obstacle_penalty = 10
+        self.controller.obstacle_penalty = 1
 
         self.grid_subscriber = rospy.Subscriber("/environment/grid", GridMap, self.grid_callback)
         # self.controller.goal = torch.Tensor([10,10,0])
@@ -43,35 +43,15 @@ class mppi_ackermann:
     def grid_callback(self, msg):
         self.controller.grid_environment = msg
 
-        # self.env_center = torch.eye(4);
-        # self.env_center[0,3] = msg.info.pose.position.x
-        # self.env_center[1,3] = msg.info.pose.position.y
-        # self.env_center[2,3] = 0.0
-
-        # qw = msg.info.pose.orientation.w
-        # qx = msg.info.pose.orientation.x
-        # qy = msg.info.pose.orientation.y
-        # qz = msg.info.pose.orientation.z
-        # rot = SciPyRot.from_quat([qw, qx, qy, qz], scalar_first=True) # W is first
-        
-        # self.env_center[0:3,0:3] = torch.from_numpy(rot.as_matrix())
-
-        # rows = msg.data[0].layout.dim[0].size
-        # cols = msg.data[0].layout.dim[0].size
-
-        # self.grid = np.asarray(list(msg.data[0].data));
-        # self.grid = np.reshape(self.grid, (rows, cols))
-        # self.grid = torch.from_numpy(self.grid)
-        # # print(f"grid: { self.grid.shape }")
-        # self.controller.grid_environment = self.grid;
 
 
     def x0_callback(self, msg):
         self.x0[0] = msg.point[0]
         self.x0[1] = msg.point[1]
         self.x0[2] = msg.point[2]
+        self.x0[3] = msg.point[3]
 
-        self.controller.goal = torch.Tensor([10,10,0])
+        self.controller.goal = torch.Tensor([10,10,0,0])
 
         self.controller.run(self.x0, self.u0);
 
@@ -87,23 +67,18 @@ class mppi_ackermann:
         self.x0[0] = req.start.point[0]
         self.x0[1] = req.start.point[1]
         self.x0[2] = req.start.point[2]
+        self.x0[3] = req.start.point[3]
 
         self.goal[0] = req.goal.point[0]
         self.goal[1] = req.goal.point[1]
         self.goal[2] = req.goal.point[2]
-
-        if self.visualize:
-            print(f"u0: {self.u0}")
-            print(f"x0: {self.x0}")
-            print(f"goal: {self.goal}")
+        self.goal[3] = req.goal.point[3]
         
         self.controller.goal = self.goal
         # self.controller.goal = torch.Tensor([10,10,0])
 
-        print("running")
         self.controller.run(self.x0, self.u0);
 
-        print("Creating response")
         response = MPPIResponse()
 
         response.plan = self.controller.get_controls();

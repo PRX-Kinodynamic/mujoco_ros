@@ -43,9 +43,12 @@ private:
 
     _grid_publisher = private_nh.advertise<grid_map_msgs::GridMap>(grid_topicname, 1, true);
 
+    DEBUG_PRINT
     populate_grid_msg();
 
+    DEBUG_PRINT
     _grid_publisher.publish(_grid);
+    DEBUG_PRINT
   }
 
   void populate_grid_msg()
@@ -74,22 +77,25 @@ private:
     const int cols{ _sdf->cols() };
     //     MultiArrayDimension[] dim # Array of dimension properties
     // uint32 data_offset        # padding elements at front of data
-
+    DEBUG_PRINT
     _grid.data[0].layout.data_offset = 0;
     _grid.data[0].layout.dim.emplace_back();
     _grid.data[0].layout.dim.emplace_back();
-    _grid.data[0].layout.dim[0].label = "x";
+    _grid.data[0].layout.dim[0].label = "y";
     _grid.data[0].layout.dim[0].size = rows;
-    _grid.data[0].layout.dim[0].stride = cols * rows;
-
-    _grid.data[0].layout.dim[1].label = "y";
+    _grid.data[0].layout.dim[0].stride = rows;
+    DEBUG_PRINT
+    _grid.data[0].layout.dim[1].label = "x";
     _grid.data[0].layout.dim[1].size = cols;
-    _grid.data[0].layout.dim[1].stride = cols;
+    _grid.data[0].layout.dim[1].stride = rows * cols;
 
+    DEBUG_VARS(rows, cols)
     _grid.data[0].data.resize(cols * rows, 0.0);
 
+    DEBUG_PRINT
     int i{ 0 };
     int j{ 0 };
+    int idx{ 0 };
     DEBUG_VARS(min_bound.transpose());
     DEBUG_VARS(max_bound.transpose());
     for (double xi{ min_bound[0] }; xi < max_bound[0]; xi += resolution)
@@ -100,12 +106,17 @@ private:
       {
         const double distance(_sdf->distance(xi, yi));
         // DEBUG_VARS(xi, yi, distance);
-        add_to_grid(0, i, j, distance);
+        // add_to_grid(0, i, j, distance);
+        // _grid.data[0].data[idx] = distance;
+        _grid.data[0].data[j * cols + i] = distance;
+        idx++;
         j++;
+        // DEBUG_PRINT
       }
       i++;
     }
 
+    DEBUG_PRINT
     // # Resolution of the grid [m/cell].
     _grid.info.resolution = resolution;
 
@@ -119,21 +130,23 @@ private:
     _grid.info.pose.position.x = (max_bound[0] + min_bound[0]) / 2.0;
     _grid.info.pose.position.y = (max_bound[1] + min_bound[1]) / 2.0;
 
-    _grid.info.pose.orientation.w = 0.0;
+    _grid.info.pose.orientation.w = 1.0;
     _grid.info.pose.orientation.x = 0.0;
     _grid.info.pose.orientation.y = 0.0;
-    _grid.info.pose.orientation.z = 1.0;
+    _grid.info.pose.orientation.z = 0.0;
+    DEBUG_PRINT
   }
 
   void add_to_grid(const int layer, const int i, const int j, const double value)
   {
     const unsigned int& data_offset{ _grid.data[layer].layout.data_offset };
-    const unsigned int& stride_1{ _grid.data[layer].layout.dim[1].stride };
+    const unsigned int& stride_1{ _grid.data[layer].layout.dim[0].stride };
+    // const unsigned int& stride_1{ _grid.data[layer].layout.dim[1].stride };
     // const std::size_t idx{ data_offset + stride_1 * i + j };
-    const std::size_t idx{ data_offset + stride_1 * j + i };
-    // DEBUG_VARS(idx);
+    // const std::size_t idx{ data_offset + stride_1 * j + i };
+    // DEBUG_VARS(i, j, idx);
     // multiarray(i,j,k) = data[data_offset + dim_stride[1]*i + dim_stride[2]*j + k]
-    _grid.data[layer].data[idx] = value;
+    // _grid.data[layer].data[idx] = value;
   }
 
   // sensor_msgs::ImagePtr _msg, _msg_rgb;

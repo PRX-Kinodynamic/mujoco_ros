@@ -147,6 +147,7 @@ class signed_distance_field_t
     const double ydiff{ _max_bound[1] - _min_bound[1] };
     const std::size_t w{ static_cast<std::size_t>(std::ceil(xdiff / _resolution + 1)) };
     const std::size_t h{ static_cast<std::size_t>(std::ceil(ydiff / _resolution + 1)) };
+    DEBUG_VARS(w, h)
     _sdf = Eigen::MatrixXd(w, h);
     _sdf_dx = Eigen::MatrixXd(w, h);
     _sdf_dy = Eigen::MatrixXd(w, h);
@@ -405,12 +406,13 @@ public:
 
   int rows() const
   {
-    return _sdf.rows();
+    // The dims are switched
+    return _sdf.cols();
   }
 
   int cols() const
   {
-    return _sdf.cols();
+    return _sdf.rows();
   }
 
 protected:

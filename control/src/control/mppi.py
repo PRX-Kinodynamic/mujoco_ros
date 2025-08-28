@@ -5,6 +5,7 @@ import rospy
 from ml4kp_bridge.msg import Trajectory, Plan, PlanStep, SpacePoint
 from visualization_msgs.msg import Marker
 
+from scipy.spatial.transform import Rotation as SciPyRot
 
 class mppi:
 
@@ -28,7 +29,8 @@ class mppi:
         # self.sample_rollouts = 800                     # Number of sample rollouts
         # self.dt = 1
         self.lambda_ = 0.1               # Temperature
-        self.sigma = torch.Tensor([0.2, 0.5]).type(torch.float32).expand(self.horizon, self.sample_rollouts, 2).to(self.device)  # (T, K, 2)
+        # self.sigmas = [0.2, 0.5]
+        self.sigma = torch.Tensor(self.plant.sigmas).type(torch.float32).expand(self.horizon, self.sample_rollouts, 2).to(self.device)  # (T, K, 2)
         self.inv_sigma = 1.0 / self.sigma[0, 0, :]
         self.u_noise = torch.Tensor(self.horizon, self.sample_rollouts, self.Udim).type(self.dtype).to(self.device)                              # (T,K,2)
 
@@ -43,6 +45,12 @@ class mppi:
 
         self.goal_ = torch.zeros(self.Xdim).to(self.device);
 
+        self.grid_environment_ = None # assuming
+        
+        # Obstacles closer than obstacle_distance will add to the cost
+        self.obstacle_distance = 1.0
+        self.obstacle_penalty = 1.0
+
     @property    
     def goal(self):
         return self.goal_
@@ -52,21 +60,106 @@ class mppi:
         self.goal_ = new_goal
         self.goal_.to(self.device)
 
-    # @property    
-    # def horizon(self):
-    #     return self.horizon
+    @property    
+    def obstacle_distance(self):
+        return self.obstacle_distance_
 
-    # @horizon.setter
-    # def horizon(self, new_horizon):
-    #     self.horizon = new_horizon
+    @obstacle_distance.setter
+    def obstacle_distance(self, new_distance):
+        # self.obstacle_distance_ = new_goal
+        self.obstacle_distance_ = torch.full((1, self.sample_rollouts), new_distance).to(self.device)[0]
 
-    # @property    
-    # def sample_rollouts(self):
-    #     return self.sample_rollouts
+    @property    
+    def grid_environment(self):
+        return self.grid_environment_
 
-    # @sample_rollouts.setter
-    # def sample_rollouts(self, new_sample_rollouts):
-    #     self.sample_rollouts = new_sample_rollouts
+    @grid_environment.setter
+    def grid_environment(self, msg):
+        self.env_center = torch.eye(4);
+        self.env_center[0,3] = msg.info.pose.position.x
+        self.env_center[1,3] = msg.info.pose.position.y
+        self.env_center[2,3] = 0.0
+
+        qw = msg.info.pose.orientation.w
+        qx = msg.info.pose.orientation.x
+        qy = msg.info.pose.orientation.y
+        qz = msg.info.pose.orientation.z
+        rot = SciPyRot.from_quat([qw, qx, qy, qz], scalar_first=True) # W is first
+        
+        self.env_center[0:3,0:3] = torch.from_numpy(rot.as_matrix())
+
+        self.grid_rows = msg.data[0].layout.dim[0].size
+        self.grid_cols = msg.data[0].layout.dim[1].size
+
+        grid = np.asarray(list(msg.data[0].data));
+        grid = np.reshape(grid, (self.grid_rows, self.grid_cols))
+        grid = torch.from_numpy(grid)
+        # print(f"grid: { grid.shape }")
+        self.grid_environment_ = grid.to(self.device);
+
+        x_min = msg.info.pose.position.x - msg.info.length_x / 2.0
+        y_min = msg.info.pose.position.y - msg.info.length_y / 2.0
+
+        x_max = x_min + msg.info.length_x
+        y_max = y_min + msg.info.length_y
+
+        self.grid_min_bound = torch.Tensor([x_min, y_min]).to(self.device)
+        self.grid_max_bound = torch.Tensor([x_max, y_max]).to(self.device)
+
+        # print(f"self.grid_min_bound {self.grid_min_bound}")
+        # print(f"self.grid_max_bound {self.grid_max_bound}")
+
+        self.grid_resolution = msg.info.resolution
+    #         // // # Length in x-direction [m].
+    # _grid.info.length_x = max_bound[0] - min_bound[0];
+
+    # // // # Length in y-direction [m].
+    # _grid.info.length_y = max_bound[1] - min_bound[1];
+
+    # // # Pose of the grid map center in the frame defined in `header` [m].
+    # _grid.info.pose.position.x = (max_bound[0] + min_bound[0]) / 2.0;
+    # _grid.info.pose.position.y = (max_bound[1] + min_bound[1]) / 2.0;
+
+        # self.grid_environment_ = new_grid_environment.to(self.device)
+        # self.grid_environment_ = self.grid_environment_.to(self.device)
+    def configuration_to_grid_indices(self, configuration):
+        xy = torch.min(torch.max(configuration, self.grid_min_bound), self.grid_max_bound)
+        idx = torch.floor((xy - self.grid_min_bound )  / self.grid_resolution ).to(torch.int32)
+        # idx = idx.unsqueeze(dim=0).repeat(indices.shape[1],1,1)
+        # const double x_p{ std::min(std::max(x, _min_bound[0]), _max_bound[0]) };
+        # const double y_p{ std::min(std::max(y, _min_bound[1]), _max_bound[1]) };
+        # const std::size_t x_idx{ static_cast<std::size_t>(std::ceil((x_p - _min_bound[0]) / _resolution)) };
+        # const std::size_t y_idx{ static_cast<std::size_t>(std::ceil((y_p - _min_bound[1]) / _resolution)) };
+        return idx;
+
+
+    def environment_cost(self, state):
+        configuration = self.plant.configuration(state)
+        env_cost = torch.zeros_like(configuration).to(self.device)
+
+        # print(f"state: {state.shape}")
+        indices = self.configuration_to_grid_indices(configuration)
+
+        rows = indices[:,1]
+        cols = indices[:,0]
+
+        distances = self.grid_environment_[rows, cols]
+
+        # print(f"configuration: {configuration}")
+        # print(f"indices: {indices}")
+        # print(f"distances: {distances}")
+        # print(f"obstacle_distance_: {self.obstacle_distance_}")
+        
+        activated_dist = self.obstacle_distance_ - distances;
+        activated_dist = torch.max(activated_dist, torch.zeros_like(activated_dist)) * self.obstacle_penalty;
+        # print(f"activated_dist: {activated_dist}")
+
+        return activated_dist;
+        # distances = torch.gather(self.grid_environment_, indices);
+        # print(f"distances {distances} ")
+        # for rollout in range(self.sample_rollouts):
+
+
 
     def control_cost(self, ctrl, noise):
 
@@ -81,23 +174,18 @@ class mppi:
 
         state_cost = self.plant.cost(state, goal, t)
 
+        # print(f"state_cost {state_cost}")
         ctrl_cost = self.control_cost(ctrl, noise)
 
-        # map_o_height, map_o_width = self.obstacle_map.size()
+        environment_cost = self.environment_cost(state);
 
-        # # Use vehicle's actual position for traversability assessment
-        # p_x = (map_o_height // 2 - pose[:,1]).clone().detach().to(dtype=torch.long, device=self.device)
-        # p_y = (map_o_width // 2 + pose[:,0]).clone().detach().to(dtype=torch.long, device=self.device)
-        
-        # p_x[p_x<=0] = 0
-        # p_x[p_x>=map_o_width] = map_o_width - 1
-        # p_y[p_y<=0] = 0
-        # p_y[p_y>=map_o_height] = map_o_height -1
 
         # obstacle_penalty = (self.obstacle_map[p_y, p_x]==255).float().to(self.running_cost.device)
-
+        total_cost = state_cost
+        total_cost += ctrl_cost
+        total_cost += environment_cost 
         # self.running_cost.add_(euclidian_distance_squared*10).add_(obstacle_penalty*50)
-        return state_cost + ctrl_cost
+        return total_cost
 
     def run(self, x0, u0):
 

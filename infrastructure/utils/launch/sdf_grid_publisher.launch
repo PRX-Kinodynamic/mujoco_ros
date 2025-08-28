@@ -5,18 +5,24 @@
   <node pkg="nodelet" type="nodelet" name="environment_nodelet_manager"  args="manager" output="screen">
   </node>
 
-  <!-- <node pkg="utils" type="SdfToGridPublisher" name="SdfToGridPublisher" output="screen"> -->
-  <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
-      args="load utils/SdfToGridPublisher environment_nodelet_manager" output="screen">
+    <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
+      args="standalone utils/SdfToGridPublisher " output="screen">
     <param name="sdf_params" value="$(find utils)/config/sdf_grid.yaml"/>
     <param name="grid_topicname" value="/environment/grid"/>
   </node>  
+  <!-- <node pkg="utils" type="SdfToGridPublisher" name="SdfToGridPublisher" output="screen"> -->
+<!--   <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
+      args="load utils/SdfToGridPublisher environment_nodelet_manager" output="screen">
+    <param name="sdf_params" value="$(find utils)/config/sdf_grid.yaml"/>
+    <param name="grid_topicname" value="/environment/grid"/>
+  </node>   -->
 
   <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
       args="load utils/EnvironmentPublisher environment_nodelet_manager" output="screen">
       <rosparam file="$(find utils)/config/sdf_grid.yaml"/>
       <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 0.0]"/>
-      <!-- <param name="environment_file" value="$(arg environment)"/> -->
-    </node>
-
+    </node> 
+ 
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world" 
+        args="0 0 0 0 0 0 1 world map" />
 </launch>
