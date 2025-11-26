@@ -127,7 +127,7 @@ catkin_package(
 include_directories(
   include
   # ${MJ_INCLUDE_DIR}
-  # ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -206,11 +206,20 @@ add_subdirectory(models/aruco_mip_36h12)
 ## Testing ##
 #############
 
+
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
+file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
+
+message(STATUS "TEST HERE")
+foreach(f_test ${TESTS_FILES})
+  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
+  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
+  if(TARGET ${PROJECT_NAME}-test)
+    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
+    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
+  endif()
+endforeach()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+

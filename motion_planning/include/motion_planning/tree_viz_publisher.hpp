@@ -3,6 +3,7 @@
 #include <prx_models/Tree.h>
 #include <visualization_msgs/Marker.h>
 
+#include <utils/dbg_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <motion_planning/motion_planning_types.hpp>
 namespace motion_planning
@@ -15,8 +16,8 @@ class mp_tree_viz_publisher_t : public Base
 
 public:
   mp_tree_viz_publisher_t()
-    : _viz_edges_topic_name("/edges_marker")
-    , _viz_nodes_topic_name("/nodes_marker")
+    : _viz_edges_topic_name("/edges/marker")
+    , _viz_nodes_topic_name("/nodes/marker")
     , x_idx(0)
     , y_idx(1)
     , z_idx(2)
@@ -36,6 +37,7 @@ public:
     double& z_default{ _z_default };
     // _tree_topic_name = ros::this_node::getNamespace() + _tree_topic_name;
 
+    double scale{ 0.1 };
     PARAM_SETUP(private_nh, tree_topic_name);
     PARAM_SETUP_WITH_DEFAULT(private_nh, use_z, use_z);
     PARAM_SETUP_WITH_DEFAULT(private_nh, z_default, z_default);
@@ -43,20 +45,22 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, y_idx, y_idx);
     PARAM_SETUP_WITH_DEFAULT(private_nh, z_idx, z_idx);
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, color);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, scale, scale);
 
     prx_assert(color.size() == 4, "Wrong color size");
     _viz_edges_topic_name = tree_topic_name + _viz_edges_topic_name;
     _viz_nodes_topic_name = tree_topic_name + _viz_nodes_topic_name;
 
+    // publishers
+    _viz_edges_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_edges_topic_name, 0);
+
+    _viz_nodes_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_nodes_topic_name, 0);
+
     // subscribers
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::get_graph, this);
 
-    // publishers
-    _viz_edges_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_edges_topic_name, 0);
-    _viz_nodes_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_nodes_topic_name, 0);
-
     _nodes_marker.header.frame_id = "world";
-    _nodes_marker.header.stamp = ros::Time();
+    _nodes_marker.header.stamp = ros::Time::now();
     _nodes_marker.ns = "nodes";
     _nodes_marker.id = 0;
     _nodes_marker.type = visualization_msgs::Marker::POINTS;
@@ -68,9 +72,9 @@ public:
     _nodes_marker.pose.orientation.y = 0.0;
     _nodes_marker.pose.orientation.z = 0.0;
     _nodes_marker.pose.orientation.w = 1.0;
-    _nodes_marker.scale.x = 0.1;
-    _nodes_marker.scale.y = 0.1;
-    _nodes_marker.scale.z = 0.1;
+    _nodes_marker.scale.x = scale;
+    _nodes_marker.scale.y = scale;
+    _nodes_marker.scale.z = scale;
 
     _nodes_marker.color.a = color[0];  // Don't forget to set the alpha!
     _nodes_marker.color.r = color[1];
@@ -78,8 +82,8 @@ public:
     _nodes_marker.color.b = color[3];
 
     _edges_marker.header.frame_id = "world";
-    _edges_marker.header.stamp = ros::Time();
-    _edges_marker.ns = "motion_planning";
+    _edges_marker.header.stamp = ros::Time::now();
+    _edges_marker.ns = "edges";
     _edges_marker.id = 0;
     _edges_marker.type = visualization_msgs::Marker::LINE_LIST;
     _edges_marker.action = visualization_msgs::Marker::ADD;
@@ -90,9 +94,9 @@ public:
     _edges_marker.pose.orientation.y = 0.0;
     _edges_marker.pose.orientation.z = 0.0;
     _edges_marker.pose.orientation.w = 1.0;
-    _edges_marker.scale.x = 0.01;
-    _edges_marker.scale.y = 0.01;
-    _edges_marker.scale.z = 0.01;
+    _edges_marker.scale.x = scale * 0.1;
+    _edges_marker.scale.y = scale * 0.1;
+    _edges_marker.scale.z = scale * 0.1;
     _edges_marker.color.a = color[0];  // Don't forget to set the alpha!
     _edges_marker.color.r = color[1];
     _edges_marker.color.g = color[2];
@@ -106,6 +110,12 @@ protected:
     const std::size_t total_edges{ msg->edges.size() };
     _nodes_marker.points.clear();
     _edges_marker.points.clear();
+
+    // DEBUG_VARS(ros::Time::now())
+    _nodes_marker.header.stamp = ros::Time::now();
+    _edges_marker.header.stamp = ros::Time::now();
+    // _nodes_marker.id++;
+    // _edges_marker.id++;
 
     std::unordered_map<std::uint64_t, std::uint64_t> node_map;
 

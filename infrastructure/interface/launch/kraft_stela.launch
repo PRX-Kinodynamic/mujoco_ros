@@ -1,0 +1,14 @@
+<launch>
+
+	<include file="$(find mujoco_ros)/launch/mushr.launch">
+    <arg name="publish_ground_truth_pose" value="false" />
+  </include>
+
+  <include file="$(find interface)/launch/stela.launch">
+    <arg name="input_tree_topic_name" default="/mushr/sln/tree_dbg"/>
+  </include>
+
+  <include file="$(find task_planning)/launch/kraft.launch">
+  </include>
+
+</launch>

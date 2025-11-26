@@ -20,6 +20,11 @@ public:
     _plan_subscriber = nh.subscribe(plan_topic, 1000, &controller_listener_t::plan_callback, this);
   }
 
+  void apply_control(const CtrlMsg& msg)
+  {
+    prx_models::copy(_mj_data->ctrl, msg);
+  }
+
   void control_callback(const boost::shared_ptr<CtrlMsg const>& msg)
   {
     prx_models::copy(_mj_data->ctrl, msg);

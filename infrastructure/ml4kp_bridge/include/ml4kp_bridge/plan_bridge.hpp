@@ -59,6 +59,16 @@ inline void add_zero_plan(ml4kp_bridge::PlanStamped& plan_stamped, double durati
   }
 }
 
+inline ros::Duration duration(const ml4kp_bridge::Plan& plan_in)
+{
+  ros::Duration duration;
+  for (auto step : plan_in.steps)
+  {
+    duration += step.duration.data;
+  }
+  return duration;
+}
+
 inline void to_file(const ml4kp_bridge::Plan& msg, std::ofstream& ofs)
 {
   for (auto step : msg.steps)

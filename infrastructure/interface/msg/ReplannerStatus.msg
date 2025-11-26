@@ -1,0 +1,8 @@
+int16 IDLE=0
+int16 PREPROCESSING=1
+int16 PLANNING=2
+int16 POSTPROCESSING=3
+int16 INITIALIZING=4
+
+std_msgs/Header header
+int16 state

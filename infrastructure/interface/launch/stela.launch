@@ -1,0 +1,88 @@
+<launch>
+    <arg name="control_topic" default="/stela/sbmp/control"/> 
+    <arg name="planner" default="StelaWindowed"/>
+    <arg name="Stepper" default="SbmpStepper"/>
+    <arg name="Plant" default="ltv_sde"/>
+    <arg name="control_frequency" default="30"/>
+    <arg name="world_frame" default="world"/>
+    <arg name="robot_frame" default="robot"/>
+    <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
+    <arg name="collision_topic" default="/simulator/collision"/>
+    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
+    <arg name="obstacle_mode" default="distance"/>
+    <arg name="obstacle_distance_tolerance" default="0.5"/>
+    <arg name="obstacle_factor_include_distance" default="0.5"/>
+    <arg name="obstacle_sigma" default="1.0"/>
+    <arg name="experiment_id" default="test"/>
+    <arg name="input_tree_topic_name" default="/mushr/sln/tree"/>
+    <arg name="report_control_frequency" default="true"/>
+    <arg name="visualize" default="true"/>
+    <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
+    <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
+    <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
+    <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
+    <arg name="total_future_nodes" default="10"/>
+    <arg name="total_past_nodes" default="10"/>
+    <arg name="time_as_variable" default="true"/>   
+
+    <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="StelaWindowedMushr" 
+        args="load motion_planning/StelaWindowedMushr stela_nodelet" 
+        output="log">
+        <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
+        <param name="control_topic" value="$(arg control_topic)"/> 
+        <param name="control_frequency" value="$(arg control_frequency)"/>
+        <param name="world_frame" value="$(arg world_frame)"/>
+        <param name="robot_frame" value="$(arg robot_frame)"/>
+        <param name="output_dir" value="$(arg data_dir)"/>
+        <param name="collision_topic" value="$(arg collision_topic)"/>
+        <param name="environment" value="$(arg environment)"/>
+        <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
+        <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
+        <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
+        <param name="obstacle_sigma" value="$(arg obstacle_sigma)"/>
+        <param name="experiment_id" value="$(arg experiment_id)"/>
+        <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
+        <param name="visualize" value="$(arg visualize)"/>
+        <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
+        <param name="sdf_params" value="$(arg sdf_params)"/>
+        <param name="sdf/environment" value="$(arg environment)"/>
+        <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
+        <param name="estimation_pub_freq" value="15"/>
+        <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
+        <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
+        <param name="time_as_variable" value="$(arg time_as_variable)"/>
+        <param name="sensor_topic_name" value="/mushr/sensordata"/>
+    </node> 
+
+    <node pkg="nodelet" type="nodelet" name="stela_nodelet_aux"  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningEstTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher stela_nodelet_aux" 
+        output="screen">
+        <param name="tree_topic_name" value="$(arg estimated_tree_topic)" />
+        <param name="scale" value="0.2" />
+        <param name="color" type="yaml" value="[1.0, 0.78039, 0.36862, 0.50980]" />
+        <!-- <param name="publisher_topic" value="/mushr/control" /> -->
+        <!-- <param name="frequency" value="100" /> -->
+    </node>  
+
+    <node pkg="nodelet" type="nodelet" name="MushrFromSpacePointStampedNodelet" 
+        args="load interface/MushrFromSpacePointStampedNodelet stela_nodelet_aux" 
+        output="screen">
+        <param name="publisher_topic" value="/mushr/control" />
+        <param name="subscriber_topic" value="/stela/sbmp/control_stamped" />
+    </node>  
+    
+
+    <node pkg="nodelet" type="nodelet" name="TreeToPlanNodelet" 
+        args="load motion_planning/TreeToPlanNodelet stela_nodelet_aux" 
+        output="screen">
+        <param name="tree_topic_name" value="$(arg estimated_tree_topic)" />
+        <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
+    </node>  
+    
+
+</launch>
+

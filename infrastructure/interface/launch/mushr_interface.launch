@@ -32,13 +32,13 @@
             <param name="frequency" value="15" />
         </node>
 
-        <node unless="$(arg ground_truth_pose_used)" pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" 
+        <!-- <node unless="$(arg ground_truth_pose_used)" pkg="nodelet" type="nodelet" name="plant_estimator_nodelet_t" 
             args="load interface/MushrObservationFromArucoNodelet mushr_interface_manager" output="screen">
             <param name="world_frame" value="world"/>
             <param name="robot_frame" value="robot_0"/>
             <param name="observation_topic" value="/mushr/pose" />
             <param name="control_topic" value="/mushr/control" />
-		</node>   
+		</node>  -->  
     </group>
   
 </launch>

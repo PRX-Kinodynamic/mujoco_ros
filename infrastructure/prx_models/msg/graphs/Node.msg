@@ -5,3 +5,4 @@ uint64[] children 								# Tree: Children of the current node. Graph: Edges out
 uint32 status 										# Extra field for status of the node
 ml4kp_bridge/SpacePoint point 		# State associated to the current node 
 float64 cost 											# Migration rule: bags/nodemsg_migration1.bmr 
+time stamp 												# The time of this node (past => estimated, planned => predicted)

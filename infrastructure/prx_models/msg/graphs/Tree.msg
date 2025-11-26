@@ -1,3 +1,5 @@
+std_msgs/Header header
+
 uint64 root
 prx_models/Node[] nodes
 prx_models/Edge[] edges

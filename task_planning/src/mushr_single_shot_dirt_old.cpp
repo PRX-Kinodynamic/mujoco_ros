@@ -12,8 +12,8 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <fstream>
+#include <prx_models/mushr.hpp>
 
-#ifdef BUILD_WITH_ROGUE
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
@@ -53,139 +53,95 @@ int main(int argc, char** argv)
   std::vector<double> param_values = params["/plant/parameter_space/values"].as<std::vector<double>>();
   ps->copy_from(param_values);
 
-  std::shared_ptr<prx::rogue_t> rogue = std::make_shared<prx::rogue_t>("rogue");
+  std::shared_ptr<prx::dirt_t> dirt = std::make_shared<prx::dirt_t>("dirt");
 
-  prx::rogue_specification_t* rogue_spec =
-      new prx::rogue_specification_t(planning_context.first, planning_context.second);
-  rogue_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
-  rogue_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
-  rogue_spec->blossom_number = 1;
-  rogue_spec->use_pruning = false;
-
+  prx::dirt_specification_t* dirt_spec = new prx::dirt_specification_t(planning_context.first, planning_context.second);
   std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
+
+  /*
+  prx::space_point_t goal = ss->make_point();
+  goal->at(0) = goal_config[0];
+  goal->at(1) = goal_config[1];
+  auto dirt_spec_ptr = std::shared_ptr<prx::dirt_specification_t>(dirt_spec);
+  std::cout << "Goal: " << ss->print_point(goal) << std::endl;
+  prx::heuristic_map_t heuristic_map(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, dirt_spec_ptr);
+  heuristic_map.set_obstacle_grid(PRX_PI/2);
+  heuristic_map.set_heuristic_grid(goal);
+  heuristic_map.set_u_rep_coeff(params["u_rep"].as<double>());
+
+  std::ofstream file;
+  file.open("/home/aravind/heuristic_map.txt");
+  file << heuristic_map;
+  file.close();
+
+  dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+    return 0.5 * heuristic_map.get_cost(s);
+  };
+  */
+
+  // dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+  //   return dirt_spec->distance_function(s, s2) / 0.625;
+  // };
+  dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
+  dirt_spec->blossom_number = params["blossom_number"].as<int>();
+  dirt_spec->use_pruning = false;
+
+  geometry_msgs::Pose2D goal_configuration;
+  goal_configuration.x = goal_config[0];
+  goal_configuration.y = goal_config[1];
+  goal_configuration.theta = goal_config[2];
 
   std_msgs::Float64 goal_radius;
   goal_radius.data = params["goal_region_radius"].as<double>();
 
-  prx::rogue_query_t* rogue_query = new prx::rogue_query_t(ss, cs);
-  rogue_query->start_state = ss->make_point();
-  rogue_query->goal_state = ss->make_point();
-  rogue_query->goal_region_radius = goal_radius.data;
-  rogue_query->get_visualization = false;
+  prx::dirt_query_t* dirt_query = new prx::dirt_query_t(ss, cs);
+  dirt_query->start_state = ss->make_point();
+  dirt_query->goal_state = ss->make_point();
+  dirt_query->goal_region_radius = goal_radius.data;
+  dirt_query->get_visualization = true;
   ROS_WARN("Using default goal check");
 
-  geometry_msgs::Pose2D goal_configuration;
-  goal_configuration.x = rogue_query->goal_state->at(0) = goal_config[0];
-  goal_configuration.y = rogue_query->goal_state->at(1) = goal_config[1];
-  goal_configuration.theta = rogue_query->goal_state->at(2) = goal_config[2];
+  /*
+  auto sg = planning_context.first;
+  auto cg = planning_context.second;
+  prx::plan_t plan(cs);
+  plan.append_onto_back(1.0);
+  prx::trajectory_t traj(ss);
 
-  auto learned_controller_params = prx::param_loader(params["controller"].as<std::string>());
-  prx::learned_controller_t controller(plant, learned_controller_params);
-
-  rogue_query_t controller_query(planning_context.first->get_state_space(),
-                                 planning_context.first->get_control_space());
-  controller_query.start_state = ss->clone_point(rogue_query->start_state);
-  controller_query.goal_state = ss->clone_point(rogue_query->goal_state);
-  controller_query.goal_region_radius = rogue_query->goal_region_radius;
-
-  double duration = learned_controller_params["control_duration"].as<double>();
-  std::shared_ptr<roadmap_with_gaps_t> roadmap =
-      std::make_shared<roadmap_with_gaps_t>(*rogue_spec, controller_query, controller);
-  std::string vertices_fname =
-      prx::lib_path + "resources/roadmaps/" + params["roadmap_dir"].as<std::string>() + "vertices.txt";
-  std::string edges_fname =
-      prx::lib_path + "resources/roadmaps/" + params["roadmap_dir"].as<std::string>() + "edges.txt";
-  roadmap->load_roadmap_from_file(vertices_fname, edges_fname);
-
-  auto s_nn = roadmap->add_start(rogue_query->start_state);
-  std::cout << "Added start node" << std::endl;
-  auto g_nn = roadmap->add_goal(rogue_query->goal_state);
-  std::cout << "Added goal node" << std::endl;
-
-  graph_nearest_neighbors_t* metric = new graph_nearest_neighbors_t(rogue_spec->distance_function);
-  auto vertices = roadmap->get_vertices();
-  for (auto it : vertices)
-  {
-    metric->add_node(it.second.get());
-  }
-
-  roadmap->compute_wavefront(g_nn);
-
-  std::vector<roadmap_with_gaps_node_t*> nodes;
-
-  rogue_spec->h = [&](const space_point_t& s, const space_point_t& s2) {
-    return rogue_spec->distance_function(s, s2) / 0.6;
-  };
-
-  rogue_spec->roadmap_heuristic = [&](const space_point_t& s) {
-    nodes.clear();
-    auto prox_nodes = metric->radius_and_closest_query(s, 0.25);
-
-    std::transform(prox_nodes.begin(), prox_nodes.end(), std::back_inserter(nodes),
-                   [](proximity_node_t* n) { return static_cast<roadmap_with_gaps_node_t*>(n); });
-
-    double h = PRX_INFINITY;
-    for (auto& node : nodes)
+  std::vector<std::vector<double>> control_list = { { -1.0, 1.0 },  { 0.0, 1.0 },  { 1.0, 1.0 },
+                                                    { -1.0, -1.0 }, { 0.0, -1.0 }, { 1.0, -1.0 } };
+  dirt_spec->expand = [&](prx::space_point_t& s, std::vector<prx::plan_t*>& plans,
+                          std::vector<prx::trajectory_t*>& trajs, int bn, bool blossom_expand) {
+    if (blossom_expand)
     {
-      h = std::min(h, node->get_cost_to_go());
-    }
-
-    return h;
-  };
-
-  space_point_t local_goal = ss->make_point();
-  rogue_spec->node_expand = [&](rogue_node_t* tree_node, std::vector<plan_t*>& plans,
-                                std::vector<trajectory_t*>& trajs) {
-    if (!tree_node->is_blossom_expand_done)
-    {
-      nodes.clear();
-      auto prox_nodes = metric->radius_query(tree_node->point, 0.5);
-
-      std::transform(prox_nodes.begin(), prox_nodes.end(), std::back_inserter(nodes),
-                     [](proximity_node_t* n) { return static_cast<roadmap_with_gaps_node_t*>(n); });
-
-      auto nearest = nodes[0];
-      int nearest_successor_index = nearest->get_successor_index();
-      if (nearest_successor_index != -1)
+      for (unsigned i = 0; i < control_list.size(); i++)
       {
-        ss->copy_point(local_goal, roadmap->get_vertex_point(nearest_successor_index));
+        traj.clear();
+        cs->copy(plan.back().control, control_list[i]);
+        sg->propagate(s, plan, traj);
+        plans.push_back(new prx::plan_t(plan));
+        trajs.push_back(new prx::trajectory_t(traj));
       }
-      else
-      {
-        rogue_spec->sample_state(local_goal);
-      }
-
-      auto control = controller.get_control(tree_node->point, local_goal);
-
-      trajectory_t traj(ss);
-      plan_t plan(cs);
-
-      traj.clear();
-      plan.clear();
-      plan.append_onto_back(duration);
-      cs->copy_point_from_vector(plan.back().control, control);
-      rogue_spec->propagate(tree_node->point, plan, traj);
-      plans.push_back(new plan_t(plan));
-      trajs.push_back(new trajectory_t(traj));
     }
     else
     {
-      default_expand(tree_node->point, plans, trajs, 1, planning_context.first, rogue_spec->sample_plan,
-                     rogue_spec->propagate);
+      prx::default_expand(s, plans, trajs, 1, sg, dirt_spec->sample_plan, dirt_spec->propagate);
     }
   };
+  */
 
-  rogue->link_and_setup_spec(rogue_spec);
-  rogue->preprocess();
-  rogue->link_and_setup_query(rogue_query);
+  dirt->link_and_setup_spec(dirt_spec);
+  dirt->preprocess();
+  dirt->link_and_setup_query(dirt_query);
 
   ros::AsyncSpinner spinner(2);
 
-  using PlannerService = mj_ros::planner_service_t<prx::rogue_t, prx::rogue_specification_t*, prx::rogue_query_t*,
-                                                   prx_models::MushrPlanner>;
-  PlannerService planner_service(n, rogue, rogue_spec, rogue_query);
+  using PlannerService =
+      mj_ros::planner_service_t<prx::dirt_t, prx::dirt_specification_t*, prx::dirt_query_t*, prx_models::MushrPlanner>;
+  PlannerService planner_service(n, dirt, dirt_spec, dirt_query);
 
-  using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;
+  using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::mushr_stela_t>;
   PlannerClient planner_client(n, cs->get_dimension());
 
   ros::Publisher goal_pose_publisher = n.advertise<geometry_msgs::Pose2D>(root + "/goal_pose", 10, true);
@@ -198,9 +154,11 @@ int main(int argc, char** argv)
   ros::ServiceClient collision_client = n.serviceClient<mujoco_ros::Collision>(root + "/collision");
   mujoco_ros::Collision collision_srv;
 
-  double planning_cycle_duration;
+  double planning_cycle_duration, timeout;
   n.getParam(ros::this_node::getName() + "/planning_cycle_duration", planning_cycle_duration);
+  n.getParam(ros::this_node::getName() + "/timeout", timeout);
   ROS_INFO("Planning duration: %f", planning_cycle_duration);
+  ROS_INFO("Timeout: %f", timeout);
 
   spinner.start();
   goal_pose_publisher.publish(goal_configuration);
@@ -213,7 +171,7 @@ int main(int argc, char** argv)
   ROS_INFO("Query fulfill time: %f",
            planner_client.get_query_fulfill_time() - planner_service.get_query_fulfill_time());
 
-  while (ros::ok())
+  while (ros::ok() && ros::Time::now().toSec() - start_time < timeout)
   {
     if (planner_client.is_goal_reached(goal_configuration, goal_radius))
     {
@@ -254,8 +212,8 @@ int main(int argc, char** argv)
   std::ofstream plan_file, traj_file;
   plan_file.open(plan_file_path);
   traj_file.open(traj_file_path);
-  plan_file << rogue_query->solution_plan.print() << std::endl;
-  traj_file << rogue_query->solution_traj.print() << std::endl;
+  plan_file << dirt_query->solution_plan.print() << std::endl;
+  traj_file << dirt_query->solution_traj.print() << std::endl;
   plan_file.close();
   traj_file.close();
 
@@ -264,17 +222,10 @@ int main(int argc, char** argv)
 
   prx::three_js_group_t* vis_group = new prx::three_js_group_t({ plant }, { obstacle_list });
   std::string body_name = plant_name + "/body";
-  vis_group->add_vis_infos(prx::info_geometry_t::FULL_LINE, rogue_query->tree_visualization, body_name, ss);
-  vis_group->add_animation(rogue_query->solution_traj, ss, rogue_query->start_state);
+  vis_group->add_vis_infos(prx::info_geometry_t::FULL_LINE, dirt_query->tree_visualization, body_name, ss);
+  vis_group->add_animation(dirt_query->solution_traj, ss, dirt_query->start_state);
   vis_group->output_html(out_html);
   delete vis_group;
 
   return 0;
 }
-#else
-int main(int argc, char** argv)
-{
-  ROS_ERROR("This example requires the ROGUE build option to be enabled");
-  return 1;
-}
-#endif

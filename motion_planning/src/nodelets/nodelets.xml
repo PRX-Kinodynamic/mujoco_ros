@@ -7,4 +7,31 @@
             Nodelet managing a tree
         </description>
     </class>
+
+    <class
+        name="motion_planning/StelaWindowedMushr"
+        type="motion_planning::StelaWindowedMushr"
+        base_class_type="nodelet::Nodelet">
+        <description>
+            Nodelet managing a tree
+        </description>
+    </class>
+
+    <class
+        name="motion_planning/PlannerClockSync"
+        type="motion_planning::PlannerClockSync"
+        base_class_type="nodelet::Nodelet">
+        <description>
+            Nodelet publishing a clock and extra params for synchronizing planner + controller + other 
+        </description>
+    </class>
+
+    <class
+        name="motion_planning/TreeToPlanNodelet"
+        type="motion_planning::TreeToPlanNodelet"
+        base_class_type="nodelet::Nodelet">
+        <description>
+            Nodelet publishing a clock and extra params for synchronizing planner + controller + other 
+        </description>
+    </class>
 </library>

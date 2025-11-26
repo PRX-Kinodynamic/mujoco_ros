@@ -4,9 +4,18 @@
       type="interface::MushrFromSpacePointNodelet" 
       base_class_type="nodelet::Nodelet">
     <description> 
-      Nodelet to step over plan to mushr (mujoco) control
+      Nodelet to translate from space_point msg to mushr control
     </description>
   </class>
+  <class 
+      name="interface/MushrFromSpacePointStampedNodelet" 
+      type="interface::MushrFromSpacePointStampedNodelet" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to translate from space point stamped msg to mushr control
+    </description>
+  </class>
+  
   <class 
       name="interface/AckermannFromSpacePointNodelet" 
       type="interface::AckermannFromSpacePointNodelet" 

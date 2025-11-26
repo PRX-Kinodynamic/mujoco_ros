@@ -10,7 +10,7 @@
   <!-- <include file="../friction_floors/friction_incline.xml"/> -->
   <include file="../aruco_mip_36h12/tags/aruco_mip_36h12_00000.xml" />
   <!-- <include file="../obstacles/movable.xml"/> -->
-  <include file="../obstacles/boxes.xml" />
+  <!-- <include file="../obstacles/boxes.xml" /> -->
   <!-- <include file="../obstacles/turns.xml"/> -->
   <!-- <include file="../obstacles/walls.xml"/> -->
   <include file="lab_markers.xml" />

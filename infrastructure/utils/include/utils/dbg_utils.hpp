@@ -102,7 +102,7 @@ inline void log_variables(std::string name, Vars... vars)
     const std::string key{ SF::formatter(KEY) };                                                                       \
     dbg::print_variables(std::cout, true, #KEY, key);                                                                  \
   };
-#define PRINT_KEYS(KEYS)                                                                                               \
+#define PRINT_KEYS_(KEYS)                                                                                              \
   {                                                                                                                    \
     std::cout << prx::constants::color::yellow << #KEYS << ": " << prx::constants::color::normal;                      \
     for (auto key : KEYS)                                                                                              \

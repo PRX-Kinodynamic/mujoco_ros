@@ -1,0 +1,79 @@
+<launch> 
+    <arg name = "namespace" default = "mushr"/>
+    <arg name = "clock_cycle_duration" default = "1.0"/>
+    <arg name = "planning_cycle_duration" default = "1.0"/>
+    <arg name = "propagate_dynamics" default = "false"/>
+    <arg name = "retain_previous" default = "true"/>
+    <!-- <arg name = "use_contingency" default = "true"/> -->
+    <arg name = "use_contingency" default = "false"/>
+    <arg name = "use_complete_traj" default = "false"/>
+    <arg name = "use_rogue" default="false"/>
+    <arg name = "max_cycles" default="90"/>
+    <arg name = "preprocess_timeout" default = "0.05" />
+    <arg name = "postprocess_timeout" default = "0.30" />
+    <arg name = "record" default = "false"/>
+    <arg name = "id" default = "0"/>
+    <arg name = "params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/planning_simulation.yaml" />
+    <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
+    <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
+
+    <group ns="mushr">
+
+    <node pkg="nodelet" type="nodelet" name="kraft_nodelet"  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+        output="screen">
+        <param name="tree_topic_name" value="/mushr/tree" />
+    </node>     
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+        output="screen">
+        <param name="tree_topic_name" value="/mushr/sln/tree" />
+        <param name="color" type="yaml" value="[1.0, 0.0, 0.8, 1.0]" />
+        <param name="scale" value="0.15" />
+    </node>      
+
+     <node pkg="nodelet" type="nodelet" name="PlannerClockSync" 
+        args="load motion_planning/PlannerClockSync kraft_nodelet" 
+        output="screen">
+        <param name="planner_clock_topic" value="/motion_planning/clock" />
+        <param name="start_delay" value="2" />
+        <param name="cycle_duration" value="$(arg clock_cycle_duration)" />
+    </node>
+
+    <node pkg="task_planning" name="replanner" type="mushr_replanning_dirt" output="screen">
+        <param name="params_file" value="$(arg params_file)" />
+        <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
+        
+        <param name="preprocess_timeout" value="$(arg preprocess_timeout)" />
+        <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
+        <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)"/>
+        <param name="max_cycles" value="$(arg max_cycles)" />
+
+        <param name="estimation_tree_topic" value="/stela/estimation/tree"/>
+        <param name="planner_clock_topic" value="/motion_planning/clock"/>
+
+        <param name="sbmp_full_tree_topic" value="/mushr/tree"/>
+        <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
+        <param name="max_edge_duration" value="0.1"/>
+        <param name="use_contingency" value="$(arg use_contingency)"/>
+
+        <!-- <param name="" value=""/> -->
+        <!-- <param name="" value=""/> -->
+        <!-- <param name="" value=""/> -->
+        <!-- <param name="" value=""/> -->
+
+
+
+        <!-- <param name="retain_previous" value="$(arg retain_previous)"/> -->
+        <!-- <param name="id" value="$(arg id)"/> -->
+
+    </node>
+    </group>
+        <!-- <node if="$(arg record)" pkg="rosbag" name="rosbag_record" type="record"  -->
+        <!-- args="-O $(find task_planning)/data/$(arg namespace).bag  -->
+        <!-- /mushr/control /mushr/plan_stepper/control /mushr/ml4kp_plan  -->
+        <!-- /mushr/ml4kp_traj /mushr/pose /mushr/aruco_cTw/robot_pose"/> -->
+</launch>

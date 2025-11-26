@@ -50,14 +50,14 @@ int main(int argc, char** argv)
   }
 
   mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "observer_camera");
-  if (publish_ground_truth_pose)
-  {
-    mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);
-  }
-  else
-  {
-    mj_ros::run_simulation(sim, visualizer, 2, camera_publisher);
-  }
+  // mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);
+  mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher, camera_publisher);
+  // if (publish_ground_truth_pose)
+  // {
+  // }
+  // else
+  // {
+  // }
 
   ROS_INFO_STREAM(node_name << " finished.");
   return 0;

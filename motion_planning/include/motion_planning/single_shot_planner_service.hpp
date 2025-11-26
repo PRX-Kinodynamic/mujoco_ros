@@ -4,9 +4,11 @@
 
 namespace mj_ros
 {
-template <typename PlannerPtr, typename SpecPtr, typename QueryPtr, typename Service>
+template <typename Planner, typename SpecPtr, typename QueryPtr, typename Service>
 class planner_service_t
 {
+  using PlannerPtr = std::shared_ptr<Planner>;
+
 private:
   ros::ServiceServer _service_server;
   PlannerPtr _planner;
@@ -38,7 +40,8 @@ public:
   {
     prx::condition_check_t checker("time", request.planning_duration.data.toSec());
 
-    prx_models::copy(_query->start_state, request.current_observation);
+    _spec->state_space->copy(_query->start_state, request.current_observation.point);
+    // prx_models::copy(_query->start_state, request.current_observation);
     prx_models::copy(_query->goal_state, request.goal_configuration);
 
     _planner->link_and_setup_spec(_spec);

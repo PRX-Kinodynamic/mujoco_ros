@@ -225,7 +225,7 @@ public:
     }
     _preprocess_start_time = ros::Time::now().toSec();
 
-    _service.request.current_observation = _most_recent_observation;
+    // _service.request.current_observation = _most_recent_observation; // TODO: adapt changes?
     _service.request.planning_duration.data = ros::Duration(planning_duration);
     _service.request.goal_configuration = goal_configuration;
     if (_service_client.call(_service))

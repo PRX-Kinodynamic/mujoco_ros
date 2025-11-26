@@ -23,13 +23,46 @@ public:
     copy(msg);
   }
 
-  void copy(const prx_models::TreeConstPtr msg)
+  prx_models::Tree to_msg()
   {
-    root = msg->root;
-    copy(msg->nodes);
-    copy(msg->edges);
+    prx_models::Tree tree;
+    tree.root = root;
+    for (auto& node : nodes)
+    {
+      tree.nodes.push_back(node.second);
+    }
+    for (auto& edge : edges)
+    {
+      tree.edges.push_back(edge.second);
+    }
+    return tree;
   }
 
+  EdgeIdx get_child_edge(const NodeIdx& node_idx, const NodeIdx& child)
+  {
+    const NodeIdx child_idx{ nodes[node_idx].children[child] };
+    return nodes[child_idx].parent_edge;
+  }
+
+  void copy(const tree_msg_wrapper_t& other)
+  {
+    root = other.root;
+    nodes.insert(other.nodes.begin(), other.nodes.end());
+    edges.insert(other.edges.begin(), other.edges.end());
+  }
+
+  void copy(const prx_models::TreeConstPtr msg)
+  {
+    copy(*msg);
+  }
+  void copy(const prx_models::Tree& other_tree)
+  {
+    root = other_tree.root;
+    copy(other_tree.nodes);
+    copy(other_tree.edges);
+  }
+
+  // template <typename Container>
   void copy(const std::vector<Node>& msg_nodes)
   {
     // DEBUG_VARS(nodes.size(), msg_nodes.size());
@@ -41,11 +74,11 @@ public:
     // DEBUG_VARS(nodes.size(), msg_nodes.size());
   }
 
+  // template <typename Container>
   void copy(const std::vector<Edge>& msg_edges)
   {
     for (auto edge : msg_edges)
     {
-      // DEBUG_VARS(edge.index, edge.source, edge.target);
       edges[edge.index] = edge;
     }
   }
@@ -54,6 +87,47 @@ public:
   {
     nodes.clear();
     edges.clear();
+  }
+
+  void merge(const prx_models::Tree& other_tree)
+  {
+    for (auto& other_node : other_tree.nodes)
+    {
+      nodes[other_node.index] = other_node;
+    }
+
+    for (auto& other_edge : other_tree.edges)
+    {
+      edges[other_edge.index] = other_edge;
+    }
+  }
+
+  void erase_node(const NodeIdx idx)
+  {
+    if (nodes.size() == 0)
+      return;
+    // DEBUG_VARS(idx);
+    const auto node_iter = nodes.find(idx);
+
+    if (idx == root)
+    {
+      // DEBUG_VARS(node_iter->second.children.size())
+      // DEBUG_VARS(node_iter->second)
+
+      root = node_iter->second.children[0];
+    }
+    else
+    {
+      const EdgeIdx parent_edge{ node_iter->second.parent_edge };
+
+      const auto edge_iter = edges.find(parent_edge);
+
+      edges.erase(edge_iter);
+    }
+
+    // DEBUG_PRINT
+    nodes.erase(node_iter);
+    // DEBUG_PRINT
   }
 
   friend void swap(tree_msg_wrapper_t& lhs, tree_msg_wrapper_t& rhs)

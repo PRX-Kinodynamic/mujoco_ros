@@ -1,0 +1,60 @@
+random_seed: 210896
+simulation_step: 0.01
+
+plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
+# plant: !file "src/motion_planning/config/mushr.yaml"
+learned_controller: "controllers/mushr_analytical.yaml"
+feedback_controller: "controllers/mushr_stanley_sim.yaml"
+# feedback_controller: "controllers/mushr_pure_pursuit.yaml"
+
+# environment: "environments/movable.yaml"
+# environment: "environments/slip.yaml"
+environment: "${DIRTMP_PATH}/resources/input_files/environments/boxes.yaml"
+# environment: "environments/turns.yaml"
+# environment: "environments/walls.yaml"
+safe_distance: 0.25
+
+# goal_state: [0.25, 4.0, 0.0, 0.0]
+goal:
+  state: [1.0, 5.0, 0.0, 0.0, 0.0, 0]
+  radius: 0.25
+# goal_state: [1.5, 5.0, 0.0, 0.0]
+# goal_region_radius: 0.25
+
+# For debugging
+planner_name: "RoGuE"
+visualize: true
+repeats: 5
+output_dir: "RoGuE"
+
+min_time: 0.2
+max_time: 0.8
+blossom_number: 10
+
+u_att: 1.0
+u_rep: 1.5
+
+roadmap:
+  xlims: [ 0.0, 2.0]
+  ylims: [-1.0, 6.0]
+  xres: 5
+  yres: 15
+  # dir: "obstacle_0/"
+  dir: "obstacle_1/"
+
+wavefront:
+  xlims: [-0.5, 2.5]
+  ylims: [-1.0, 6.0]
+  xstep: 0.01
+  ystep: 0.01
+
+
+plan_safety_params:
+  safe_min: 0.02
+  safe_mul: 0.15
+  safe_quad_mul: 0.0
+
+contingency_safety_params:
+  safe_min: 0.03
+  safe_mul: 0.18
+  safe_quad_mul: 0.01

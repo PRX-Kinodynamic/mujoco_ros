@@ -998,4 +998,65 @@ private:
   const Params _params;
 };
 
+class mushr_params_sysid_t : public gtsam::NoiseModelFactorN<mushr_types::Control::params>
+{
+  using State = mushr_types::State::type;
+  using StateDot = mushr_types::StateDot::type;
+  using StateDotDot = mushr_types::StateDot::type;
+
+  using Params = mushr_types::Control::params;
+  using Control = mushr_types::Control::type;
+  using Polynomial = mushr_types::Control::Poly;
+
+  static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
+  static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
+
+  static constexpr Eigen::Index DimParams{ mushr_types::Control::ParamsDim };
+
+  using Base = gtsam::NoiseModelFactorN<Params>;
+
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using Error = Eigen::VectorXd;
+
+  using OptDeriv = boost::optional<Eigen::MatrixXd&>;
+
+  using MushrCtrlAccel = mushr_CtrlAccel_t<>;
+  template <typename T>
+  using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
+
+  mushr_params_sysid_t() = delete;
+  mushr_params_sysid_t(const mushr_params_sysid_t& other) = delete;
+
+public:
+  mushr_params_sysid_t(const gtsam::Key key_param,                                                // no-lint
+                       const StateDot xd1, const StateDot xd0, const Control u, const double dt,  // no-lint
+                       const Polynomial& steering_poly, const NoiseModel& cost_model)
+    : Base(cost_model, key_param), _xd1(xd1), _xd0(xd0), _u(u), _dt(dt), _steering_poly(steering_poly)
+  {
+  }
+
+  ~mushr_params_sysid_t() override
+  {
+  }
+
+  // Vb= Ad(0,0,beta)*[xr/dt;0;th1/dt]*dt;
+  // T(x,y,th)*Exp(Vb(1),Vb(2),Vb(3))
+
+  virtual Eigen::VectorXd evaluateError(const Params& params, OptDeriv Hparams = boost::none) const override
+  {
+    const StateDot xdp1{ MushrCtrlAccel::predict(_xd0, _u, _dt, params, _steering_poly, boost::none, boost::none,
+                                                 boost::none, Hparams) };
+
+    return xdp1 - _xd1;
+  }
+
+private:
+  const StateDot _xd0, _xd1;
+  const Control _u;
+  const Polynomial _steering_poly;
+  const Params _params;
+
+  const double _dt;
+};
+
 }  // namespace prx_models

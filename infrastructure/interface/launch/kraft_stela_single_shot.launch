@@ -1,0 +1,13 @@
+<launch>
+
+	<include file="$(find mujoco_ros)/launch/mushr.launch">
+    <arg name="publish_ground_truth_pose" value="false" />
+  </include>
+
+  <include file="$(find interface)/launch/stela.launch">
+  </include>
+
+  <include file="$(find task_planning)/launch/kraft_single_shot.launch">
+  </include>
+
+</launch>
