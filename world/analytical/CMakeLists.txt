@@ -18,8 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
 set(BUILD_FLAGS "-O3")
 if (UNIX AND NOT APPLE)
   MESSAGE(STATUS "Setting Eigen SIMD speedups")
-  set(BUILD_FLAGS "-march=native")
-  list(APPEND BUILD_FLAGS "-fPIC")
+  # set(BUILD_FLAGS "-march=native")
+  # list(APPEND BUILD_FLAGS "-fPIC")
 endif()
 
 ## Uncomment this if the package has a setup.py. This macro ensures

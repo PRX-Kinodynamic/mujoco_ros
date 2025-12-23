@@ -7,3 +7,4 @@ float32 x3
 float32 y3
 float32 x4
 float32 y4
+geometry_msgs/Point[4] corners

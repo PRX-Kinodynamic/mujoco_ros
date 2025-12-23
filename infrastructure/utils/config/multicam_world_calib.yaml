@@ -6,11 +6,26 @@ load_previous_calibration: false
 calibration_frames: 
   - c0_marker_frame: "C0_robot_0"
     c1_marker_frame: "C1_robot_0"
+    c1_marker_on_gound: false
   - c0_marker_frame: "C0_marker_121"
     c1_marker_frame: "C1_marker_121"
+    c1_marker_on_gound: true
   - c0_marker_frame: "C0_marker_1"
     c1_marker_frame: "C1_marker_1"
-  - c0_marker_frame: "C0_marker_12"
-    c1_marker_frame: "C1_marker_12"
+    c1_marker_on_gound: true
+  - c0_marker_frame: "C0_marker_80"
+    c1_marker_frame: "C1_marker_80"
+    c1_marker_on_gound: true
   - c0_marker_frame: "C0_marker_127"
     c1_marker_frame: "C1_marker_127"
+    c1_marker_frame: "C1_marker_127"
+    c1_marker_on_gound: true
+  - c0_marker_frame: "C0_marker_203"
+    c1_marker_frame: "C1_marker_203"
+    c1_marker_frame: "C1_marker_203"
+    c1_marker_on_gound: false
+
+camera_topics: ["/perception/logitech_brio_73B6FC82/aruco/markers", "/perception/logitech_brio_96214279/aruco/markers"]
+  
+
+marker_size: 0.164

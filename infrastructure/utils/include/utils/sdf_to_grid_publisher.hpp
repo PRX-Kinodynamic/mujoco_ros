@@ -4,6 +4,7 @@
 
 // #include <motion_planning/sdf_factor.hpp>
 #include <utils/signed_distance_field.hpp>
+// #include <interface/node_status.hpp>
 
 namespace utils
 {
@@ -28,6 +29,8 @@ private:
     std::string environment;
     std::string grid_topicname;
 
+    // _node_status = interface::node_status_t::create(nh, "/nodes/grid/");
+
     PARAM_SETUP(private_nh, sdf_params);
     // PARAM_SETUP(private_nh, environment)
     PARAM_SETUP(private_nh, grid_topicname);
@@ -43,12 +46,10 @@ private:
 
     _grid_publisher = private_nh.advertise<grid_map_msgs::GridMap>(grid_topicname, 1, true);
 
-    DEBUG_PRINT
     populate_grid_msg();
 
-    DEBUG_PRINT
     _grid_publisher.publish(_grid);
-    DEBUG_PRINT
+    // node_status->status(interface::NodeStatus::RUNNING);
   }
 
   void populate_grid_msg()
@@ -77,32 +78,33 @@ private:
     const int cols{ _sdf->cols() };
     //     MultiArrayDimension[] dim # Array of dimension properties
     // uint32 data_offset        # padding elements at front of data
-    DEBUG_PRINT
+
     _grid.data[0].layout.data_offset = 0;
     _grid.data[0].layout.dim.emplace_back();
     _grid.data[0].layout.dim.emplace_back();
     _grid.data[0].layout.dim[0].label = "y";
     _grid.data[0].layout.dim[0].size = rows;
     _grid.data[0].layout.dim[0].stride = rows;
-    DEBUG_PRINT
+
     _grid.data[0].layout.dim[1].label = "x";
     _grid.data[0].layout.dim[1].size = cols;
     _grid.data[0].layout.dim[1].stride = rows * cols;
 
-    DEBUG_VARS(rows, cols)
+    // DEBUG_VARS(rows, cols)
     _grid.data[0].data.resize(cols * rows, 0.0);
 
-    DEBUG_PRINT
     int i{ 0 };
     int j{ 0 };
     int idx{ 0 };
-    DEBUG_VARS(min_bound.transpose());
-    DEBUG_VARS(max_bound.transpose());
-    for (double xi{ min_bound[0] }; xi < max_bound[0]; xi += resolution)
+    // DEBUG_VARS(min_bound.transpose());
+    // DEBUG_VARS(max_bound.transpose());
+    // for (double xi{ min_bound[0] }; xi < max_bound[0]; xi += resolution)
+    for (double xi{ max_bound[0] }; min_bound[0] < xi; xi -= resolution)
     {
       j = 0;
       // DEBUG_VARS(i, j);
-      for (double yi{ min_bound[1] }; yi < max_bound[1]; yi += resolution)
+      // for (double yi{ min_bound[1] }; yi < max_bound[1]; yi += resolution)
+      for (double yi{ max_bound[1] }; min_bound[1] < yi; yi -= resolution)
       {
         const double distance(_sdf->distance(xi, yi));
         // DEBUG_VARS(xi, yi, distance);
@@ -116,7 +118,6 @@ private:
       i++;
     }
 
-    DEBUG_PRINT
     // # Resolution of the grid [m/cell].
     _grid.info.resolution = resolution;
 
@@ -134,7 +135,6 @@ private:
     _grid.info.pose.orientation.x = 0.0;
     _grid.info.pose.orientation.y = 0.0;
     _grid.info.pose.orientation.z = 0.0;
-    DEBUG_PRINT
   }
 
   void add_to_grid(const int layer, const int i, const int j, const double value)
@@ -156,6 +156,8 @@ private:
 
   SdfPtr _sdf;
   grid_map_msgs::GridMap _grid;
+
+  // std::shared_ptr<interface::node_status_t> _node_status;
 };
 
 }  // namespace utils

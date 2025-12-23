@@ -21,7 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
 )
 
-find_package(TBB 4.4 COMPONENTS tbb tbbmalloc)
+# find_package(TBB 4.4 COMPONENTS tbb tbbmalloc)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -142,7 +142,7 @@ include_directories(
 # file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
 add_library(${PROJECT_NAME} INTERFACE)
 add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP ${EIGEN3_INCLUDE_DIR})
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)

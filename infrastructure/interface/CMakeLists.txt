@@ -24,8 +24,13 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
 )
 find_package(OpenCV REQUIRED )
+catkin_python_setup()
 
 add_definitions("-O3")
+if (UNIX AND NOT APPLE)
+  # MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  # list(APPEND BUILD_FLAGS "-fPIC")
+endif()
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -152,6 +157,7 @@ file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 foreach(f ${EXECUTABLE_FILES})
   get_filename_component(fname ${f} NAME_WE )
   add_executable(${fname} ${f})
+  target_include_directories(${fname} PUBLIC include  ${catkin_INCLUDE_DIRS})
   ## Add cmake target dependencies of the executable
   ## same as for the library above
   add_dependencies(${fname}

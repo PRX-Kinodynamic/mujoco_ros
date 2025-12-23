@@ -9,9 +9,10 @@
     <arg name="robot_id" default="0"/>
     <arg name="main_marker" default="C0_marker_121"/>
 
+    <arg name="camera0_topic" default="/perception/$(arg camera0)"/>
+    <arg name="camera1_topic" default="/perception/$(arg camera1)"/>
+    
 	<group ns="perception">
-        <arg name="camera0_topic" default="/perception/$(arg camera0)"/>
-        <arg name="camera1_topic" default="/perception/$(arg camera1)"/>
         <arg name="camera0_frame" default="C0"/>
         <arg name="camera1_frame" default="C1"/>
         <arg name="marker_size" default="0.164"/>
@@ -35,16 +36,18 @@
       		args="load perception/aruco_detection_nodelet_t cameras_nodelet" >
             <param name="publish_markers_img" value="true" />
             <param name="camera_topic" value="$(arg camera0_topic)" />
+            <param name="markers_topic_name" value="$(arg camera0_topic)/aruco/markers" />
     	</node>
 
     	<node pkg="nodelet" type="nodelet" name="aruco_detection_camera1" output="screen"
       		args="load perception/aruco_detection_nodelet_t cameras_nodelet" >
             <param name="publish_markers_img" value="true" />
             <param name="camera_topic" value="$(arg camera1_topic)" />
+            <param name="markers_topic_name" value="$(arg camera1_topic)/aruco/markers" />
     	</node>
 
         <!-- camera To world -->
-        <node pkg="nodelet" type="nodelet" name="aruco_cTw_camera0" output="screen"
+        <!-- <node pkg="nodelet" type="nodelet" name="aruco_cTw_camera0" output="screen"
           args="load estimation/aruco_cTw_nodelet_t cameras_nodelet">
             <rosparam command="load" file="$(arg camera0_config)" />
             <param name="camera_id"         value="0"/>
@@ -53,10 +56,9 @@
             <param name="markers_topic_name"  value="$(arg camera0_topic)/aruco/markers" />
             <param name="robot_id"            value="$(arg robot_id)" />
             <param name="vizualize_markers"   value="true"/>
-          <!-- <rosparam param="rotation_offset" subst_value="True">$(arg rotation_offset)</rosparam> -->
-        </node>  
+        </node>   -->
 
-        <node pkg="nodelet" type="nodelet" name="aruco_cTw_camera1" output="screen"
+       <!--  <node pkg="nodelet" type="nodelet" name="aruco_cTw_camera1" output="screen"
           args="load estimation/aruco_cTw_nodelet_t cameras_nodelet">
           <rosparam command="load" file="$(arg camera1_config)" />
             <param name="camera_id"         value="1"/>
@@ -65,11 +67,10 @@
             <param name="markers_topic_name"  value="$(arg camera1_topic)/aruco/markers" />
             <param name="robot_id"            value="$(arg robot_id)" />
             <param name="vizualize_markers"   value="true"/>
-          <!-- <rosparam param="rotation_offset" subst_value="True">$(arg rotation_offset)</rosparam> -->
-        </node>  
+        </node>   -->
 
         <!-- world To camera -->
-        <node pkg="nodelet" type="nodelet" name="aruco_wTc_camera0" output="screen"
+        <!-- <node pkg="nodelet" type="nodelet" name="aruco_wTc_camera0" output="screen"
                 args="load estimation/aruco_wTc_nodelet_t cameras_nodelet" >
             <rosparam command="load"        file="$(arg camera0_config)" />
             <param name="camera_id"         value="0"/>
@@ -95,13 +96,13 @@
             <param name="robot_frame"       value="$(arg robot_frame)"/>
             <param name="reset_topic"       value="/mushr/aruco_wtc/reset"/>
             <param name="node_name"         value="aruco_wTc"/>
-        </node>  
+        </node>   -->
 
-        <node pkg="nodelet" type="nodelet" name="robot_estimation_simple_nodelet_t" output="screen"
+        <!-- <node pkg="nodelet" type="nodelet" name="robot_estimation_simple_nodelet_t" output="screen"
             args="load estimation/robot_estimation_simple_nodelet_t cameras_nodelet" >
             <param name="robot_frame_0" value="C0_robot_0"/>
             <param name="robot_frame_1" value="C1_robot_0"/>
-        </node> 
+        </node>  -->
 	</group>
 
 
@@ -109,9 +110,9 @@
     <group ns="tools">
         <node pkg="nodelet" type="nodelet" name="tools_nodelet" args="manager" output="screen"/>
 
-        <node pkg="utils" type="multicam_world_calib" name="multicam_world_calib" output="screen">
+        <!-- <node pkg="utils" type="multicam_world_calib" name="multicam_world_calib" output="screen">
             <rosparam command="load" file="$(find utils)/config/multicam_world_calib.yaml" />
-        </node>
+        </node> -->
 
         <node pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
             args="load interface/AckermannFromSpacePointNodelet tools_nodelet" 

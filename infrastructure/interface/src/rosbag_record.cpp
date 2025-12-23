@@ -106,11 +106,14 @@ void bag_writter()
 }
 int main(int argc, char** argv)
 {
+  DEBUG_PRINT
   ros::init(argc, argv, "rosbag_record");
 
+  DEBUG_PRINT
   ros::NodeHandle nh("~");
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
+  DEBUG_PRINT
   XmlRpc::XmlRpcValue topics;
   std::string stop_topic;
   ROS_PARAM_SETUP(nh, topics);
@@ -120,7 +123,8 @@ int main(int argc, char** argv)
   std::vector<ros::Subscriber> subscribers;
   utils::execution_status_t execution_status(nh, stop_topic);
 
-  // PRX_DEBUG_VARS(topics.toXml());
+  PRX_DEBUG_VARS(rosbag_directory);
+  PRX_DEBUG_VARS(stop_topic);
   // PRX_DEBUG_VARS(topics.size());
   for (int i = 0; i < topics.size(); ++i)
   {
@@ -135,7 +139,7 @@ int main(int argc, char** argv)
     bool registred{ false };
     registred |= string_queue.register_topic(topic_name, topic_type, "std_msgs::string", nh);
     registred |= int32_queue.register_topic(topic_name, topic_type, "std_msgs::int32", nh);
-    registred |= stamped_markers_queue.register_topic(topic_name, topic_type, "interface::stamped_markers", nh);
+    registred |= stamped_markers_queue.register_topic(topic_name, topic_type, "interface::StampedMarkers", nh);
     registred |= twist_stamped_queue.register_topic(topic_name, topic_type, "geometry_msgs::TwistStamped", nh);
     registred |= ackermann_drive_stamped_queue.register_topic(topic_name, topic_type,
                                                               "ackermann_msgs::AckermannDriveStamped", nh);
@@ -155,7 +159,7 @@ int main(int argc, char** argv)
     DEBUG_VARS(topic_name, registred)
     // std::cout << "Unsupported topic '" << topic_name << "' type: " << topic_type << std::endl;
   }
-  //  DEBUG_VARS(subscribers.size());
+  DEBUG_VARS(subscribers.size());
   std::thread thread_b(bag_writter);
   ros::AsyncSpinner spinner(4);
   spinner.start();

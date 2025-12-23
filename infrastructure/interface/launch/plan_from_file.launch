@@ -2,7 +2,7 @@
     <arg name="simulation" default="true" />
     <arg name="plan_from_file_topic" default="/mushr/ml4kp_plan" />
     <arg name="plan_stepper_topic" default="/mushr/plan_stepper/control" />
-    <arg name="plan_filename" default="$(env ML4KP_ROS)/plan0.txt" />
+    <arg name="plan_filename" default="$(env ML4KP_ROS)/plan.txt" />
     <arg name="ns" default="mushr"/>
 
     <group ns="$(arg ns)">

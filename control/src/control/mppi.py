@@ -9,12 +9,15 @@ from scipy.spatial.transform import Rotation as SciPyRot
 
 class mppi:
 
-    def __init__(self, plant, horizon=100, sample_rollouts=100,  device = 'cuda'):
+    def __init__(self, plant, horizon=100, sample_rollouts=100, seed=231192, device = 'cuda'):
         self.dtype = torch.float32                                                            
         if device == 'cuda' and torch.cuda.is_available():
             self.device = 'cuda'
         else:
             self.device = 'cpu'
+
+
+        torch.manual_seed(seed)
 
         self.plant = plant
         self.Xdim = self.plant.Xdim
@@ -50,6 +53,7 @@ class mppi:
         # Obstacles closer than obstacle_distance will add to the cost
         self.obstacle_distance = 1.0
         self.obstacle_penalty = 1.0
+
 
     @property    
     def goal(self):
@@ -94,6 +98,7 @@ class mppi:
         grid = np.asarray(list(msg.data[0].data));
         grid = np.reshape(grid, (self.grid_rows, self.grid_cols))
         grid = torch.from_numpy(grid)
+        grid = torch.flip(grid, dims=[0,1]);
         # print(f"grid: { grid.shape }")
         self.grid_environment_ = grid.to(self.device);
 

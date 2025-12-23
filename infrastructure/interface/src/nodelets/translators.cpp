@@ -16,6 +16,7 @@
 
 #include <utils/topic_to_file.hpp>
 #include <interface/SensorDataStamped.h>
+#include <interface/mushr_observation_to_marker.hpp>
 
 namespace interface
 {
@@ -43,6 +44,7 @@ using AckermannFromSpacePointNodelet =
 using AckermannFromSpacePointStampedNodelet =
     interface::msg_translator_t<ackermann_msgs::AckermannDriveStamped, ml4kp_bridge::SpacePointStamped>;
 using GroundTruthPoseNodelet = interface::msg_translator_t<prx_models::MushrObservation, interface::SensorDataStamped>;
+using MushrObservationToMarkerNodelet = interface::mushr_observation_to_marker_t<nodelet::Nodelet>;
 
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointNodelet, nodelet::Nodelet);
@@ -53,3 +55,4 @@ PLUGINLIB_EXPORT_CLASS(interface::ControlVisualizationNodelet, nodelet::Nodelet)
 PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointStampedNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::MushrControlVisualizationNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::SensorDataStampedToFile, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(interface::MushrObservationToMarkerNodelet, nodelet::Nodelet);

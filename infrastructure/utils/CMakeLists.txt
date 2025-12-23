@@ -22,7 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_definitions("-O3")
 if (UNIX AND NOT APPLE)
   MESSAGE(STATUS "Setting Eigen SIMD speedups")
-  list(APPEND BUILD_FLAGS "-fPIC")
+  # list(APPEND BUILD_FLAGS "-fPIC")
 endif()
 # add_definitions("-g")
 
@@ -157,6 +157,7 @@ foreach(f ${EXECUTABLE_FILES})
   add_executable(${fname} ${f})
   ## Add cmake target dependencies of the executable
   ## same as for the library above
+  target_include_directories(${fname} PUBLIC include  ${catkin_INCLUDE_DIRS})
   add_dependencies(${fname}
                    ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                    ${catkin_EXPORTED_TARGETS}
@@ -164,7 +165,7 @@ foreach(f ${EXECUTABLE_FILES})
   ## Specify libraries to link a library or executable target against
   target_link_libraries(${fname}
                         ${catkin_LIBRARIES}
-                        ${OpenCV_LIBS} 
+                        # ${OpenCV_LIBS} 
                       )
 endforeach()
 

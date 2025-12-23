@@ -5,29 +5,29 @@
     <arg name="camera1_topic" default="/perception/logitech_brio_96214279/aruco/rgb"/>
 
     <group ns="tools">
-        <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen">
+        <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen"
+            launch-prefix="gdb -ex run --args"
+            >
             <rosparam command="load" file="$(find interface)/config/rosbag_record.yaml" />
             <param name="stop_topic" value="$(arg stop_topic)"/>
         </node>
 
-        <node pkg="interface" type="topic_to_video" name="topic_to_video" output="screen">
+        <!-- <node pkg="interface" type="topic_to_video" name="topic_to_video" output="screen">
             <param name="stop_topic" value="$(arg stop_topic)"/>
             <param name="video_directory" value="$(env ML4KP_ROS)/data/videos/"/>
             <param name="width" value="1980"/>
             <param name="height" value="1080"/>
-            <!-- <param name="image_topic" value="/desktop07/wTc/image"/> -->
             <param name="image_topic" value="$(arg camera0_topic)"/>
-            <param name="video_id" value="$(arg experiment_id)_desktop07"/>
+            <param name="video_id" value="$(arg experiment_id)_C0"/>
         </node>
         <node pkg="interface" type="topic_to_video" name="topic_to_video_robb" output="screen">
             <param name="stop_topic" value="$(arg stop_topic)"/>
             <param name="video_directory" value="$(env ML4KP_ROS)/data/videos/"/>
             <param name="width" value="1980"/>
             <param name="height" value="1080"/>
-            <!-- <param name="image_topic" value="/robb/wTc/image"/> -->
             <param name="image_topic" value="$(arg camera1_topic)"/>
-            <param name="video_id" value="$(arg experiment_id)_robb"/>
-        </node> 
+            <param name="video_id" value="$(arg experiment_id)_C1"/>
+        </node>  -->
     </group>
   
 </launch>

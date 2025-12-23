@@ -1,0 +1,39 @@
+<launch>
+
+  <arg name="visualize" default="true" />
+  <arg name="horizon" default="100" />
+  <arg name="sample_rollouts" default="1000" />
+  <arg name="pose_topicname" default="/mushr/pose" />
+  <arg name="frequency" default="10" />
+  <arg name="viz_sampling" default="0.1" />
+  <arg name="control_topicname" default="/mushr/control" />
+  <arg name="seed" default="231192" />
+  <arg name="experiment"/>
+
+
+
+  <include file="$(find utils)/launch/sdf_grid_publisher.launch">
+  </include>
+
+  <node pkg="control" type="mppi_mushr.py" name="mppi_mushr" output="screen">
+      <param name="visualize" value="$(arg visualize)"/>
+      <param name="horizon" value="$(arg horizon)"/>
+      <param name="sample_rollouts" value="$(arg sample_rollouts)"/>
+      <param name="pose_topicname" value="$(arg pose_topicname)"/>
+      <param name="frequency" value="$(arg frequency)"/>
+      <param name="viz_sampling" value="$(arg viz_sampling)"/>
+      <param name="control_topicname" value="$(arg control_topicname)"/>
+      <param name="seed" value="$(arg seed)"/>
+  </node>
+
+  <node pkg="interface" type="run_experiments" name="run_experiments" output="screen">
+    <param name="goal" type="yaml" value="[1.0, 5.0]"/>
+    <param name="goal_radius" value="0.5"/>
+    <param name="pose_topic" value="/mushr/pose"/>
+    <param name="collision_topic" value="/mushr/collision"/>
+    <param name="sim_status_topic" value="/nodes/mj/status/change"/>
+    <param name="mppi_status_topic" value="/nodes/mppi/status/change"/>
+    <param name="filename_prefix" value="$(env ML4KP_ROS)/data/mppi/$(arg experiment)"/>
+  </node>
+
+</launch>

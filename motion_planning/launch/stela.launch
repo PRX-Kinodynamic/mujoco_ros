@@ -352,27 +352,14 @@ launch-prefix="gdb --args">
       <param name="num_worker_threads" value="$(arg num_workers)" />
     </node>
 
-    <node pkg="nodelet" type="nodelet" name="plan_from_file_t" output="screen"
+<!--     <node pkg="nodelet" type="nodelet" name="plan_from_file_t" output="screen"
           args="load ml4kp_bridge/plan_from_file_t to_file_nodelet_manager" >
       <param name="control_dimension" value="2" />
       <param name="control_topology" value="EE" />
       <param name="publisher_topic" value="$(arg plan_topic)" />
-    </node>
+    </node> -->
 
-    <node 
-      pkg="nodelet" type="nodelet" name="BoolSinker" output="screen"
-      args="load utils/BoolSinker to_file_nodelet_manager" >
-      <param name="out_topic" value="$(arg shutdown_topic)"/>
-      <param name="in_topics" type="yaml" value="[$(arg collision_topic), $(arg stop_topic), /stela/finished]"/>
-    </node>
-
-    <node 
-      pkg="nodelet" type="nodelet" name="BoolSinkerMushrReal" output="screen"
-      args="load utils/BoolSinker to_file_nodelet_manager" >
-      <param name="out_topic" value="/mushr/vesc/commands/reset"/>
-      <param name="in_topics" type="yaml" value="[$(arg collision_topic), $(arg stop_topic), /stela/finished]"/>
-    </node>
-
+<!-- 
     <node if="$(arg sim_clock)" launch-prefix="xterm -e"
       pkg="utils" type="SimClock" name="SimClock" output="screen" >
       <param name="SimStep" value="$(arg simulation_step)"/>
@@ -386,7 +373,6 @@ launch-prefix="gdb --args">
       <param name="directory" value="$(arg data_dir)"/>
       <param name="fileprefix" value="tf_$(arg experiment_id)"/>
       <rosparam command="load" file="$(find utils)/config/frames.yaml" />
-      <!-- <param name="transforms" value="$(find utils)/config/frames.yaml"/> -->
       <param name="reset_topic" value="$(arg reset_topic)"/>
       <param name="window_duration" value="0"/>
       <param name="stop_topic" value="$(arg shutdown_topic)"/>
@@ -442,7 +428,7 @@ launch-prefix="gdb --args">
       <param name="topic_name" value="/simulator/mushr/sensordata"/>
       <param name="reset_topic" value="$(arg reset_topic)"/>
       <param name="shutdown_topic" value="$(arg shutdown_topic)"/>
-    </node>
+    </node> -->
 
   </group>
 
