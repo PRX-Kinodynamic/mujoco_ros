@@ -52,6 +52,7 @@ public:
 
   using StateKeys = std::array<gtsam::Key, 2>;
   using ControlKeys = std::array<gtsam::Key, 1>;
+  using TimeKeys = std::array<gtsam::Key, 1>;
 
   using StateEstimates = std::tuple<State, StateDot>;
   using ControlEstimates = std::tuple<Control>;
@@ -77,6 +78,22 @@ public:
     _last_observation.first[2] = prx::quaternion_to_euler(q)[2];
     _last_observation.second = msg->header.stamp;
     _new_observation = true;
+    // DEBUG_VARS(_new_observation)
+  }
+
+  static GraphValues estimate_to_prior(const std::size_t idx, StateEstimates& estimates,
+                                       std::vector<Eigen::MatrixXd>& covariances)
+  {
+    const gtsam::Key k_x{ keyX(1, idx) };
+    const gtsam::Key k_xdot{ keyXdot(1, idx) };
+
+    GraphValues graph_values;
+    graph_values.first.addPrior(k_x, std::get<0>(estimates), covariances[0]);
+    graph_values.first.addPrior(k_xdot, std::get<1>(estimates), covariances[1]);
+
+    graph_values.second.insert(k_x, std::get<0>(estimates));
+    graph_values.second.insert(k_xdot, std::get<1>(estimates));
+    return graph_values;
   }
 
   // Factor graph for "Idle" state (i.e. before starting execution or after reaching the goal)
@@ -132,7 +149,7 @@ public:
     // NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
 
     graph_values.first.addPrior(k_u01, _idle_control, u_prior_noise);
-    // graph_values.first.addPrior(k_x1, x, _id);
+    // graph_values.first.addPrior(k_x1, _idle_state, prior_noise);
     graph_values.first.addPrior(k_xdot1, _idle_state_dot, xdot_prior_noise);
 
     graph_values.second.insert(k_t01, _idle_dt);
@@ -202,6 +219,10 @@ public:
   static ControlKeys keyControl(const int& level, const int& step)
   {
     return { keyU(level, step) };
+  }
+  static TimeKeys keyTime(const int& level, const int& step)
+  {
+    return { keyT(level, step) };
   }
 
   static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
@@ -441,7 +462,10 @@ public:
 
     GraphValues graph_values;
     if (not _new_observation)
+    {
+      // PRINT_MSG("[Mushr] No observation");
       return graph_values;
+    }
 
     const gtsam::Key x0{ keyX(1, prev_id) };
     const gtsam::Key x1{ keyX(1, curr_id) };
@@ -730,11 +754,22 @@ public:
   template <typename Params>
   static void set_params(const Params& params)
   {
-    prx_assert(params.size() == default_params.size(), "Wrong number of parameters!");
-    for (int i = 0; i < params.size(); ++i)
+    default_params[mushr_types::Control::vel_desired] = params[mushr_types::Control::vel_desired];
+    default_params[mushr_types::Control::steering] = params[mushr_types::Control::steering];
+    default_params[mushr_types::Control::friction] = params[mushr_types::Control::friction];
+    default_params[mushr_types::Control::delta_offset] = params[mushr_types::Control::delta_offset];
+    default_params[mushr_types::Control::delta_gain] = params[mushr_types::Control::delta_gain];
+    for (int i = 0; i < mushr_types::Control::PolyDeg; ++i)
     {
-      default_params[i] = params[i];
+      default_poly[i] = params[i + 5];
     }
+    DEBUG_VARS(default_params.transpose());
+    DEBUG_VARS(default_poly.transpose());
+    // prx_assert(params.size() == default_params.size(), "Wrong number of parameters!");
+    // for (int i = 0; i < params.size(); ++i)
+    // {
+    //   default_params[i] = params[i];
+    // }
   }
 
   static void print_params()
@@ -768,6 +803,7 @@ class mushrFG_t : public prx::plant_t
   using State = mushr_types::State::type;
   using StateDot = mushr_types::StateDot::type;
   using EulerFactor = prx::fg::euler_integration_factor_t<StateDot, StateDot>;
+  using MushrMjFactor = mushr_mj_factor_t<>;
 
 public:
   mushrFG_t(const std::string& path)
@@ -776,6 +812,8 @@ public:
     , _ubar(mushr_types::Ubar::type::Zero())
     , _state_dot_noise(mushr_types::StateDot::type::Zero())
     , _delta_poly(mushr_stela_t::default_poly)
+    , _propagate_id(0.0)
+    , _curr_propagate_id(-1.0)
   {
     // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
     state_memory = { &_state[0],     &_state[1],     &_state[2],  // no-lint
@@ -788,8 +826,8 @@ public:
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
     input_control_space->set_bounds({ -100, -100 }, { 100, 100 });
 
-    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
-    derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
+    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2], &_propagate_id };
+    derivative_space = new prx::space_t("EEEI", derivative_memory, "mushr_deriv");
 
     parameter_memory = { &_params_u[mushr_types::Control::vel_desired],
                          &_params_u[mushr_types::Control::steering],      // no-lint
@@ -800,9 +838,7 @@ public:
                          &_delta_poly[1],
                          &_delta_poly[2],
                          &_delta_poly[3],
-                         &_state_dot_noise[0],
-                         &_state_dot_noise[1],
-                         &_state_dot_noise[2] };
+                         &_propagation_factor };
     const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
     parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
@@ -812,22 +848,45 @@ public:
     geometries["body"]->set_visualization_color("0x00ff00");
     configurations["body"] = std::make_shared<prx::transform_t>();
     configurations["body"]->setIdentity();
+
+    // DEBUG_PRINT
+    // DEBUG_VARS(_propagation_factor)
   }
   ~mushrFG_t() {};
 
   virtual void propagate(const double simulation_step) override final
   {
-    _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
-    const Eigen::Vector3d w{ prx::gaussian_random(0.0, _state_dot_noise[0]),
-                             prx::gaussian_random(0.0, _state_dot_noise[1]),
-                             prx::gaussian_random(0.0, _state_dot_noise[2]) };
-    if (not _ctrl.isZero(1e-5))
+    if (_propagation_factor == 0)
     {
-      // _ctrl += w.head;
-      _state_dot += w;
+      _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
+    }
+    else if (_propagation_factor == 1)
+    {
+      if (not _mj_factor)
+      {
+        const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
+        const std::string mushr_mj_model{ lib_path +
+                                          "/src/mujoco_ros/infrastructure/prx_models/models/mushr/mushr.xml" };
+        const double h{ 0.01 };
+        const mjModel* mj_model{ MushrMjFactor::init_mj_model(mushr_mj_model) };
+        mjData* mj_data{ MushrMjFactor::init_mj_data(mj_model) };
+        _mj_factor = std::make_shared<MushrMjFactor>(1, 0, 2, 3, nullptr, mj_model, mj_data, h);
+        // const MushrXdotFactor factor(1, 0, 2, 3, nullptr, mj_model, mj_data, h);
+      }
+      // DEBUG_VARS(_curr_propagate_id, _propagate_id)
+      if (_curr_propagate_id != _propagate_id)
+      {
+        _mj_factor->reset_mj_state();
+        _curr_propagate_id++;
+        _propagate_id = _curr_propagate_id;
+      }
+
+      _state_dot = _mj_factor->predict(_state_dot, _ctrl, prx::simulation_step);
     }
 
     _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
+    // DEBUG_VARS(_state, _state_dot.transpose());
+    // DEBUG_VARS(_state.matrix())
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
     // state_space->enforce_bounds();
   }
@@ -854,6 +913,11 @@ protected:
   mushr_types::Control::Poly _delta_poly;
 
   double _idle;
+  double _propagation_factor;  // Defines the type of propagation to use
+  double _propagate_id;        // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  double _curr_propagate_id;   // If mj prop using, it needs to reset if curr_propid != _propagate_id
+
+  std::shared_ptr<MushrMjFactor> _mj_factor;
 };
 }  // namespace prx_models
 PRX_REGISTER_SYSTEM(prx_models::mushrFG_t, mushrFG)

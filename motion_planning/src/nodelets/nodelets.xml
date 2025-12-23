@@ -8,14 +8,14 @@
         </description>
     </class>
 
-    <class
+    <!-- <class
         name="motion_planning/StelaWindowedMushr"
         type="motion_planning::StelaWindowedMushr"
         base_class_type="nodelet::Nodelet">
         <description>
             Nodelet managing a tree
         </description>
-    </class>
+    </class> -->
 
     <class
         name="motion_planning/PlannerClockSync"

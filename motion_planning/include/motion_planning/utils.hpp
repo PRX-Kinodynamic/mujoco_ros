@@ -45,6 +45,38 @@ inline void update_estimates(StateEstimates& state_estimates, gtsam::ISAM2& isam
   update_estimates<I + 1>(state_estimates, isam, keys);
 }
 
+template <std::size_t I, typename StateKeys, std::enable_if_t<(I == std::tuple_size<StateKeys>{}), bool> = true>
+inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, gtsam::ISAM2& isam, const StateKeys& keys)
+{
+}
+
+template <std::size_t I, typename StateKeys, std::enable_if_t<(I < std::tuple_size<StateKeys>{}), bool> = true>
+inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, gtsam::ISAM2& isam, const StateKeys& keys)
+{
+  try
+  {
+    // DEBUG_PRINT
+    // PRINT_KEYS(keys[I])
+    const Eigen::MatrixXd cov{ isam.marginalCovariance(keys[I]) };
+    // DEBUG_PRINT
+    // DEBUG_VARS(cov);
+    covariances.push_back(cov);
+    compute_covariances<I + 1>(covariances, isam, keys);
+    // return { cov, compute_covariances<I + 1>(state_estimates, isam, keys) };
+  }
+  catch (std::out_of_range e)
+  {
+    DEBUG_PRINT
+    DEBUG_VARS(I, keys[I], SF::formatter(keys[I]));
+    DEBUG_VARS(e.what());
+    // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+    //     printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr and err > 0.1; };
+    // isam.getFactorsUnsafe().printErrors(isam.calculateEstimate(), "Problem graph", SF::formatter, printCondition);
+
+    throw e;
+  }
+}
+
 template <std::size_t I, typename StateEstimates, typename StateKeys,
           std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>
 inline void update_values(gtsam::Values& values, gtsam::ISAM2& isam, const StateKeys& keys)
@@ -72,7 +104,7 @@ inline void update_values(gtsam::Values& values, gtsam::ISAM2& isam, const State
   catch (gtsam::ValuesKeyDoesNotExist e)
   {
     DEBUG_PRINT
-    PRINT_KEYS(e.key())
+    PRINT_KEY(e.key())
     DEBUG_VARS(e.what());
   }
   update_values<I + 1, StateEstimates>(values, isam, keys);
@@ -125,12 +157,23 @@ void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key, gts
       }
     }
   }
+  catch (gtsam::IndeterminantLinearSystemException e)
+  {
+    DEBUG_PRINT
+    const std::string problem_key{ SF::formatter(key) };
+    const std::string nearby_key{ SF::formatter(e.nearbyVariable()) };
+    PRINT_MSG_VARS("Can't compute covariance", problem_key, nearby_key);
+    DEBUG_VARS(e.what());
+    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint());
+    throw e;
+  }
   catch (std::out_of_range e)
   {
     DEBUG_PRINT
     const std::string problem_key{ SF::formatter(key) };
     PRINT_MSG_VARS("Can't compute covariance", problem_key);
     DEBUG_VARS(e.what());
+    throw e;
   }
 }
 

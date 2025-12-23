@@ -2,21 +2,26 @@
     <arg name="visualize_sim" default="true"/>
     <arg name="visualize_output" default="false"/>
     <arg name="publish_ground_truth_pose" default="true"/>
-    <arg name="steering_angle" default="1.0"/>
-    <arg name="velocity" default="0.5"/>
+    <!-- <arg name="steering_angle" default="1.0"/> -->
+    <!-- <arg name="velocity" default="0.5"/> -->
     <arg name="frequency" default="10"/>
     <arg name="duration" default="10"/>
-    <arg name="filename" default="$(env ML4KP_ROS)/data/mj_mushr/traj0.txt"/>
+    <arg name="filename_prefix" default="$(env ML4KP_ROS)/data/mj_mushr/"/>
+    <arg name="idx" default="test"/>
+    <arg name="random_seed" default="112392"/>
     <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
 
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="simulation" type="open_loop_data_collection" output="screen">
+        <node pkg="mujoco_ros" name="simulation" type="open_loop_data_collection" output="screen" required="true">
             <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
-            <param name="steering_angle" value="$(arg steering_angle)"/>
-            <param name="velocity" value="$(arg velocity)"/>
+            <!-- <param name="steering_angle" value="$(arg steering_angle)"/> -->
+            <!-- <param name="velocity" value="$(arg velocity)"/> -->
             <param name="frequency" value="$(arg frequency)"/>
             <param name="duration" value="$(arg duration)"/>
-            <param name="filename" value="$(arg filename)"/>
+            <param name="filename_prefix" value="$(arg filename_prefix)"/>
+            <param name="idx" value="$(arg idx)"/>
+            <param name="random_seed" value="$(arg random_seed)"/>
+            <param name="visualize_sim" value="$(arg visualize_sim)"/>
             <!-- <param name="visualize_sim" value="$(arg visualize_sim)" /> -->
             <!-- <param name="visualize_output" value="$(arg visualize_output)" /> -->
             <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->

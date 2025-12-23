@@ -1,0 +1,12 @@
+<launch>
+    <arg name="filename"/>
+    <arg name="file_out"/>
+
+    <node pkg="motion_planning" name="mushr_sysid" type="mushr_sysid" output="screen" required="true">
+            <param name="filename" value="$(arg filename)"/>
+            <param name="file_out" value="$(arg file_out)"/>
+    </node>
+    
+    <!-- <include file="$(find control)/launch/mushr_control.launch" /> -->
+</launch>
+

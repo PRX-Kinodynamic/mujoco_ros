@@ -9,7 +9,9 @@ feedback_controller: "controllers/mushr_stanley_sim.yaml"
 
 # environment: "environments/movable.yaml"
 # environment: "environments/slip.yaml"
-environment: "${DIRTMP_PATH}/resources/input_files/environments/boxes.yaml"
+# environment: "${DIRTMP_PATH}/resources/input_files/environments/boxes.yaml"
+# environment: "${DIRTMP_PATH}/resources/input_files/environments/empty.yaml"
+environment: "${DIRTMP_PATH}/resources/input_files/environments/wall.yaml"
 # environment: "environments/turns.yaml"
 # environment: "environments/walls.yaml"
 safe_distance: 0.25

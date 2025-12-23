@@ -10,12 +10,13 @@
     <arg name = "use_rogue" default="false"/>
     <arg name = "max_cycles" default="90"/>
     <arg name = "preprocess_timeout" default = "0.05" />
-    <arg name = "postprocess_timeout" default = "0.30" />
+    <arg name = "postprocess_timeout" default = "0.2" />
     <arg name = "record" default = "false"/>
     <arg name = "id" default = "0"/>
     <arg name = "params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/planning_simulation.yaml" />
     <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
     <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
+    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/>
 
     <group ns="mushr">
 
@@ -25,6 +26,8 @@
         args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
         output="screen">
         <param name="tree_topic_name" value="/mushr/tree" />
+        <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]" />
+        <param name="scale" value="0.1" />
     </node>     
 
     <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
@@ -32,16 +35,16 @@
         output="screen">
         <param name="tree_topic_name" value="/mushr/sln/tree" />
         <param name="color" type="yaml" value="[1.0, 0.0, 0.8, 1.0]" />
-        <param name="scale" value="0.15" />
+        <param name="scale" value="0.2" />
     </node>      
 
-     <node pkg="nodelet" type="nodelet" name="PlannerClockSync" 
-        args="load motion_planning/PlannerClockSync kraft_nodelet" 
-        output="screen">
-        <param name="planner_clock_topic" value="/motion_planning/clock" />
-        <param name="start_delay" value="2" />
-        <param name="cycle_duration" value="$(arg clock_cycle_duration)" />
-    </node>
+     <!-- <node pkg="nodelet" type="nodelet" name="PlannerClockSync"  -->
+        <!-- args="load motion_planning/PlannerClockSync kraft_nodelet"  -->
+        <!-- output="screen"> -->
+        <!-- <param name="planner_clock_topic" value="/motion_planning/clock" /> -->
+        <!-- <param name="start_delay" value="2" /> -->
+        <!-- <param name="cycle_duration" value="$(arg clock_cycle_duration)" /> -->
+    <!-- </node> -->
 
     <node pkg="task_planning" name="replanner" type="mushr_replanning_dirt" output="screen">
         <param name="params_file" value="$(arg params_file)" />
@@ -59,6 +62,7 @@
         <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
         <param name="max_edge_duration" value="0.1"/>
         <param name="use_contingency" value="$(arg use_contingency)"/>
+        <param name="environment" value="$(arg environment)" />
 
         <!-- <param name="" value=""/> -->
         <!-- <param name="" value=""/> -->

@@ -40,11 +40,12 @@ public:
     // publishers
     _planner_clock_publisher = private_nh.advertise<interface::PlannerClock>(planner_clock_topic, 1);
 
-    const ros::Duration timer_duration(0.05);
+    const ros::Duration timer_duration(0.1);
 
     _planner_clock_msg.header.stamp = ros::Time::now();
     _planner_clock_msg.cycle_start = ros::Time::now() + ros::Duration(start_delay);
-    _planner_clock_msg.cycle_end = ros::Time::now() + ros::Duration(start_delay);
+    _planner_clock_msg.cycle_end = ros::Time::now() + ros::Duration(start_delay) + _cycle_duration;
+    _planner_clock_msg.cycle_duration = _cycle_duration;
     DEBUG_VARS(_planner_clock_msg)
 
     _timer = private_nh.createTimer(timer_duration, &Derived::timer_callback, this);

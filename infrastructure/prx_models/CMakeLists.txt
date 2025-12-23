@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
 )
 
+find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
+
+set(mujoco_LIBRARY mujoco::mujoco)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -111,12 +115,15 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+set(mujoco_INCLUDE_DIRS "$ENV{MJ_PATH}/include/" CACHE PATH "MuJoCo include directory")
+
 catkin_package(
- INCLUDE_DIRS include
-#  LIBRARIES mujoco
+ INCLUDE_DIRS include # ${MJ_INCLUDE_DIR} #${MJ_LINK}
+ LIBRARIES ${mujoco_LIBRARY}
  CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime ml4kp_bridge
-#  DEPENDS system_lib
+ DEPENDS mujoco
 )
+MESSAGE(STATUS "MJ_INCLUDE_DIR: ${MJ_INCLUDE_DIR}")
 
 ###########
 ## Build ##
@@ -126,6 +133,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
+  ${mujoco_LIBRARY}
   # ${MJ_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
@@ -163,6 +171,13 @@ add_subdirectory(models/aruco_mip_36h12)
 #############
 ## Install ##
 #############
+
+file(GLOB SCRIPT_FILES ${PROJECT_SOURCE_DIR}/scripts/*.py)
+catkin_install_python(PROGRAMS
+  ${SCRIPT_FILES}
+  # scripts/mushr_open_loop_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
@@ -216,7 +231,10 @@ foreach(f_test ${TESTS_FILES})
   MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
   if(TARGET ${PROJECT_NAME}-test)
     MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test ${catkin_LIBRARIES} )
+    target_link_libraries(${PROJECT_NAME}-test
+      ${catkin_LIBRARIES} 
+      ${mujoco_LIBRARY}
+      )
   endif()
 endforeach()
 

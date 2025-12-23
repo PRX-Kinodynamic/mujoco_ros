@@ -30,7 +30,7 @@ using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
 using Params = prx_models::mushr_types::Control::params;
 using Polynomial = prx_models::mushr_types::Control::Poly;
 
-std::vector<std::pair<double, State>> read_file(const std::string file)
+std::vector<std::pair<double, State>> read_file(const std::string file, State& x0)
 {
   using prx::utilities::convert_to;
   using CsvReader = prx::utilities::csv_reader_t;
@@ -59,7 +59,9 @@ std::vector<std::pair<double, State>> read_file(const std::string file)
     const double angle{ prx::quaternion_to_euler(q)[2] };
     states.emplace_back(std::make_pair(dt, State(x, y, angle)));
   }
-  const State x0_inv{ states[0].second.inverse() };
+
+  x0 = states[0].second;
+  const State x0_inv{ x0.inverse() };
 
   for (auto& state : states)
   {
@@ -81,9 +83,10 @@ int main(int argc, char** argv)
   ros::NodeHandle nh("~");
 
   std::string filename;
-  // std::string file_out;
+  std::string file_out;
+
   PARAM_SETUP(nh, filename);
-  // PARAM_SETUP(nh, file_out);
+  PARAM_SETUP(nh, file_out);
 
   // prx::param_loader params{ prx::param_loader(params_file, "") };
 
@@ -100,7 +103,8 @@ int main(int argc, char** argv)
   gtsam::Values values;
   gtsam::NonlinearFactorGraph graph;
 
-  std::vector<std::pair<double, State>> z_traj{ read_file(filename) };
+  State z0;
+  std::vector<std::pair<double, State>> z_traj{ read_file(filename, z0) };
 
   const StateDot xdot_init{ StateDot::Zero() };
   gtsam::Key key_xt0{ gtsam::Symbol('X', 0) };
@@ -131,53 +135,65 @@ int main(int argc, char** argv)
   gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
   const gtsam::Values result{ optimizer.optimize() };
 
-  std::ofstream ofs("/Users/Gary/pracsys/catkin_ws/dbg.txt");
+  const double error{ graph.error(result) };
+  std::ofstream ofs(file_out.c_str());
+  ofs << "# Final Error: " << error << "\n";
+  ofs << "# dt x y theta xDot yDot thetaDot\n";
+
+  // Adding the initial state;
+  ofs << "0.0 ";
+  ofs << z0.x() << " " << z0.y() << " " << z0.angle() << " ";
+  ofs << "0.0 0.0 0.0 ";
+  ofs << "\n";
 
   for (int i = 0; i < z_traj.size() - 2; ++i)
   {
+    const double& dt{ z_traj[i].first };
     const gtsam::Key key_xt0{ gtsam::Symbol('X', i + 1) };
     const gtsam::Key key_xdot0{ gtsam::Symbol('D', i) };
-    const State xi{ result.at<State>(key_xt0) };
+    const State xi{ z0 * result.at<State>(key_xt0) };
     const StateDot xdot_i{ result.at<StateDot>(key_xdot0) };
+    ofs << dt << " ";
     ofs << xi.x() << " " << xi.y() << " " << xi.angle() << " ";
-    ofs << xdot_i[0] << " " << xdot_i[1] << " " << xdot_i[2] << "\n";
+    ofs << xdot_i[0] << " " << xdot_i[1] << " " << xdot_i[2] << " ";
+    ofs << "\n";
   }
   ofs.close();
   // result.print("result");
 
-  gtsam::Values values_sysid;
-  gtsam::NonlinearFactorGraph graph_sysid;
+  // gtsam::Values values_sysid;
+  // gtsam::NonlinearFactorGraph graph_sysid;
 
-  gtsam::Key key_params{ gtsam::Symbol('P', 0) };
+  // gtsam::Key key_params{ gtsam::Symbol('P', 0) };
 
-  Params params_init{ 1.50000, 0.20000, 0.90000, 0.90000, 1.05000 };
-  values_sysid.insert(key_params, params_init);
+  // Params params_init{ 1.50000, 0.20000, 0.90000, 0.90000, 1.05000 };
+  // values_sysid.insert(key_params, params_init);
 
-  Eigen::Vector2d ctrl{ Eigen::Vector2d::Zero() };
-  ctrl[prx_models::mushr_t::control::velocity_idx] = 0.5;
-  ctrl[prx_models::mushr_t::control::steering_idx] = -1.0;
+  // Eigen::Vector2d ctrl{ Eigen::Vector2d::Zero() };
+  // ctrl[prx_models::mushr_t::control::velocity_idx] = 0.5;
+  // ctrl[prx_models::mushr_t::control::steering_idx] = -1.0;
 
-  const Polynomial poly{ -0.4397, 3.773e-5, 0.8677, 5.8e-6 };
-  for (int i = 0; i < z_traj.size() - 2; ++i)
-  {
-    // gtsam::Key key_xt0{ gtsam::Symbol('X', i) };
-    // gtsam::Key key_xt1{ gtsam::Symbol('X', i + 1) };
-    const gtsam::Key key_xdot0{ gtsam::Symbol('D', i) };
-    const gtsam::Key key_xdot1{ gtsam::Symbol('D', i + 1) };
+  // const Polynomial poly{ -0.4397, 3.773e-5, 0.8677, 5.8e-6 };
+  // for (int i = 0; i < z_traj.size() - 2; ++i)
+  // {
+  //   // gtsam::Key key_xt0{ gtsam::Symbol('X', i) };
+  //   // gtsam::Key key_xt1{ gtsam::Symbol('X', i + 1) };
+  //   const gtsam::Key key_xdot0{ gtsam::Symbol('D', i) };
+  //   const gtsam::Key key_xdot1{ gtsam::Symbol('D', i + 1) };
 
-    const double& dt{ z_traj[i].first };
-    const StateDot xdot0{ result.at<StateDot>(key_xdot0) };
-    const StateDot xdot1{ result.at<StateDot>(key_xdot1) };
-    // mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
-    // const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
+  //   const double& dt{ z_traj[i].first };
+  //   const StateDot xdot0{ result.at<StateDot>(key_xdot0) };
+  //   const StateDot xdot1{ result.at<StateDot>(key_xdot1) };
+  //   // mushr_CtrlAccel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
+  //   // const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
 
-    graph_sysid.emplace_shared<prx_models::mushr_params_sysid_t>(key_params, xdot1, xdot0, ctrl, dt, poly, nullptr);
-  }
+  //   graph_sysid.emplace_shared<prx_models::mushr_params_sysid_t>(key_params, xdot1, xdot0, ctrl, dt, poly, nullptr);
+  // }
 
-  gtsam::LevenbergMarquardtOptimizer optimizer_sysid(graph_sysid, values_sysid, lm_params);
-  gtsam::Values result_sysid{ optimizer_sysid.optimize() };
+  // gtsam::LevenbergMarquardtOptimizer optimizer_sysid(graph_sysid, values_sysid, lm_params);
+  // gtsam::Values result_sysid{ optimizer_sysid.optimize() };
 
-  result_sysid.print("sysid");
+  // result_sysid.print("sysid");
 
   return 0;
 }

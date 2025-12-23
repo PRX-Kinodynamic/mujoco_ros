@@ -7,6 +7,7 @@
 
 #include <prx/utilities/general/constants.hpp>
 #include <prx/utilities/general/template_utils.hpp>
+#include <ml4kp_bridge/template_utils.hpp>
 
 #define DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
@@ -18,6 +19,12 @@ namespace variables
 inline static const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
 inline static std::ofstream ofs_log;
 }  // namespace variables
+
+// template <std::size_t I, typename TupleValue>
+// inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
+
+// template <std::size_t I, typename TupleValue>  // no-lint
+// inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
 
 template <typename Value, std::enable_if_t<prx::utilities::is_streamable<Value>::value, bool> = true>
 inline void print_value(std::ostream& stream, const Value& value)
@@ -34,6 +41,33 @@ inline void print_value(std::ostream& stream, const Value& value)
   {
     print_value(stream, e);
   }
+  // stream << "\n";
+}
+
+template <std::size_t I, typename TupleValue,
+          std::enable_if_t<(I == std::tuple_size<TupleValue>{}), bool> = true>  // no-lint
+inline void print_tuple(std::ostream& stream, const TupleValue& tuple)
+{
+}
+
+template <std::size_t I, typename TupleValue,
+          std::enable_if_t<(I < std::tuple_size<TupleValue>{}), bool> = true>  // no-lint
+inline void print_tuple(std::ostream& stream, const TupleValue& tuple)
+{
+  print_value(stream, I);
+  print_value(stream, ": ");
+  print_value(stream, std::get<I>(tuple));
+  print_tuple<I + 1>(stream, tuple);
+}
+
+template <typename TupleValue, std::enable_if_t<ml4kp_bridge::is_tuple<TupleValue>::value, bool> = true>
+inline void print_value(std::ostream& stream, const TupleValue& tuple)
+{
+  // for (auto e : value)
+  // for (int i = 0; i < std::tuple_size<TupleValue>{}; ++i)
+  // {
+  print_tuple<0>(stream, tuple);
+  // }
   // stream << "\n";
 }
 
@@ -85,6 +119,20 @@ inline void log_variables(std::string name, Vars... vars)
 }  // namespace dbg
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_VARS(...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
+#define ERROR_VARS(...)                                                                                                \
+  {                                                                                                                    \
+    std::cout << prx::constants::color::red;                                                                           \
+    dbg::print_variables(std::cout, false, #__VA_ARGS__, __VA_ARGS__);                                                 \
+    std::cout << prx::constants::color::normal;                                                                        \
+  };
+#define PRINT_ERROR(MSG)                                                                                               \
+  {                                                                                                                    \
+    std::cout << prx::constants::color::red;                                                                           \
+    const std::string msg{ MSG };                                                                                      \
+    std::cout << msg;                                                                                                  \
+    std::cout << prx::constants::color::normal;                                                                        \
+  };
+
 #define PRINT_MSG(MSG)                                                                                                 \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
@@ -94,15 +142,24 @@ inline void log_variables(std::string name, Vars... vars)
 #define PRINT_MSG_VARS(MSG, ...)                                                                                       \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
-    dbg::print_variables(std::cout, true, "msg", msg, #__VA_ARGS__, __VA_ARGS__);                                      \
+    std::string all_names = "msg, " + std::string(#__VA_ARGS__);                                                       \
+    dbg::print_variables(std::cout, true, all_names, msg, __VA_ARGS__);                                                \
   };
 
 #define PRINT_KEY(KEY)                                                                                                 \
   {                                                                                                                    \
-    const std::string key{ SF::formatter(KEY) };                                                                       \
-    dbg::print_variables(std::cout, true, #KEY, key);                                                                  \
+    const std::string _key{ SF::formatter(KEY) };                                                                      \
+    dbg::print_variables(std::cout, true, #KEY, _key);                                                                 \
   };
-#define PRINT_KEYS_(KEYS)                                                                                              \
+
+#define PRINT_KEY_ERROR(KEY)                                                                                           \
+  {                                                                                                                    \
+    std::cout << prx::constants::color::red;                                                                           \
+    const std::string _key{ SF::formatter(KEY) };                                                                      \
+    dbg::print_variables(std::cout, false, #KEY, _key);                                                                \
+    std::cout << prx::constants::color::normal;                                                                        \
+  };
+#define PRINT_KEYS_CONTAINER(KEYS)                                                                                     \
   {                                                                                                                    \
     std::cout << prx::constants::color::yellow << #KEYS << ": " << prx::constants::color::normal;                      \
     for (auto key : KEYS)                                                                                              \
@@ -112,6 +169,7 @@ inline void log_variables(std::string name, Vars... vars)
     }                                                                                                                  \
     dbg::print_variables(std::cout, true, "");                                                                         \
   };
+#define PRINT_KEYS_(KEYS) PRINT_KEYS_CONTAINER(KEYS)
 
 #define PRINT_MSG_ONCE(MSG)                                                                                            \
   static bool deprecated_print_once = []() {                                                                           \

@@ -3,6 +3,7 @@
 #include <map>
 #include <numeric>
 #include <prx_models/Tree.h>
+#include <utils/dbg_utils.hpp>
 
 namespace prx_models
 {
@@ -17,6 +18,11 @@ public:
   using Node = prx_models::Node;
 
   tree_msg_wrapper_t() {};
+
+  tree_msg_wrapper_t(const prx_models::Tree& msg)
+  {
+    copy(msg);
+  }
 
   tree_msg_wrapper_t(const prx_models::TreeConstPtr msg)
   {
@@ -47,8 +53,16 @@ public:
   void copy(const tree_msg_wrapper_t& other)
   {
     root = other.root;
-    nodes.insert(other.nodes.begin(), other.nodes.end());
-    edges.insert(other.edges.begin(), other.edges.end());
+    for (auto node : other.nodes)
+    {
+      nodes[node.first] = node.second;
+    }
+    for (auto edge : other.edges)
+    {
+      edges[edge.first] = edge.second;
+    }
+    // nodes.insert(other.nodes.begin(), other.nodes.end());
+    // edges.insert(other.edges.begin(), other.edges.end());
   }
 
   void copy(const prx_models::TreeConstPtr msg)
@@ -102,28 +116,58 @@ public:
     }
   }
 
+  void erase_child(const NodeIdx node_idx, const NodeIdx idx_to_remove)
+  {
+    Node& node{ nodes[node_idx] };
+    for (auto iter = node.children.begin(); iter != node.children.end(); iter++)
+    {
+      if ((*iter) == idx_to_remove)
+      {
+        node.children.erase(iter);
+        return;
+      }
+    }
+  }
+
+  void erase_edge(const EdgeIdx idx)
+  {
+    const auto edge_iter = edges.find(idx);
+    edges.erase(edge_iter);
+  }
+
   void erase_node(const NodeIdx idx)
   {
     if (nodes.size() == 0)
       return;
+    // PRINT_MSG("erase_node")
     // DEBUG_VARS(idx);
     const auto node_iter = nodes.find(idx);
+    // EdgeIdx parent_edge;
 
     if (idx == root)
     {
+      // PRINT_MSG("Removing root");
       // DEBUG_VARS(node_iter->second.children.size())
       // DEBUG_VARS(node_iter->second)
 
       root = node_iter->second.children[0];
+      nodes[root].parent = root;
+      erase_edge(nodes[root].parent_edge);
+      // parent_edge = nodes[root].parent_edge;
     }
     else
     {
+      // parent_edge = node_iter->second.parent_edge;
       const EdgeIdx parent_edge{ node_iter->second.parent_edge };
+      const NodeIdx parent_node{ edges[parent_edge].source };
+      erase_child(parent_node, idx);
 
-      const auto edge_iter = edges.find(parent_edge);
-
-      edges.erase(edge_iter);
+      // DEBUG_VARS(parent_edge, parent_node)
+      // nodes[edges[parent_edge].source].children.erase(idx);
+      erase_edge(parent_edge);
     }
+    // const auto edge_iter = edges.find(parent_edge);
+    // edges.erase(edge_iter);
 
     // DEBUG_PRINT
     nodes.erase(node_iter);
@@ -141,14 +185,25 @@ public:
   {
     os << "Root: " << obj.root << "\n";
     os << "Nodes:\n";
+    std::regex nl_re("\\n");
     for (auto n : obj.nodes)
     {
-      os << "\t" << n.first << ": " << n.second << "\n";
+      std::stringstream strstr;
+      strstr << n.second;
+      const std::string str{ strstr.str() };
+      os << "\t" << n.first << ":\n\t\t";
+      std::regex_replace(std::ostreambuf_iterator<char>(os), str.begin(), str.end() - 1, nl_re, "\n\t\t");
+      os << str.back();
     }
     os << "Edges:\n";
     for (auto e : obj.edges)
     {
-      os << "\t" << e.first << ": " << e.second << "\n";
+      std::stringstream strstr;
+      strstr << e.second;
+      const std::string str{ strstr.str() };
+      os << "\t" << e.first << ":\n\t\t";
+      std::regex_replace(std::ostreambuf_iterator<char>(os), str.begin(), str.end() - 1, nl_re, "\n\t\t");
+      os << str.back();
     }
     return os;
   }

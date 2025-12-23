@@ -11,6 +11,8 @@
 #include <prx_models/Graph.h>
 #include <prx_models/NodeEdge.h>
 #include <prx_models/Tree.h>
+
+#include <utils/dbg_utils.hpp>
 #include <motion_planning/motion_planning_types.hpp>
 
 namespace motion_planning
@@ -122,6 +124,20 @@ prx_models::Node& get_node(prx_models::Tree& tree, const std::size_t idx)
   return tree.nodes[0];  // dummy return, will never be reached
 }
 
+prx_models::Node get_node(const prx_models::Tree& tree, const std::size_t idx)
+{
+  DEBUG_VARS(tree.root, idx)
+  for (auto& node : tree.nodes)
+  {
+    if (node.index == idx)
+    {
+      return node;
+    }
+  }
+  prx_throw("[motion_planning::get_node] Node " << idx << " not found ");
+  return tree.nodes[0];  // dummy return, will never be reached
+}
+
 prx_models::Edge& get_edge(prx_models::Tree& tree, const std::size_t idx)
 {
   for (auto& edge : tree.edges)
@@ -136,6 +152,11 @@ prx_models::Edge& get_edge(prx_models::Tree& tree, const std::size_t idx)
 }
 
 // Given a tree, find the root node.
+prx_models::Node get_root(const prx_models::Tree& tree)
+{
+  return get_node(tree, tree.root);
+}
+
 prx_models::Node& get_root(prx_models::Tree& tree)
 {
   return get_node(tree, tree.root);
@@ -144,6 +165,7 @@ prx_models::Node& get_root(prx_models::Tree& tree)
 // Given a parent node (from a prx_models::Tree), create a child (edge-->node). next_index is the index of the child
 EdgeNodePair create_edge_node(prx_models::Node& parent, std::size_t& next_index)
 {
+  // DEBUG_VARS(next_index, parent)
   prx_models::Edge edge;
   prx_models::Node node;
 

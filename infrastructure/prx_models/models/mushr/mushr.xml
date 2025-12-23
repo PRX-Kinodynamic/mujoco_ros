@@ -13,6 +13,7 @@
   <!-- <include file="../obstacles/boxes.xml" /> -->
   <!-- <include file="../obstacles/turns.xml"/> -->
   <!-- <include file="../obstacles/walls.xml"/> -->
+  <include file="../obstacles/single_box.xml" />
   <include file="lab_markers.xml" />
   <!-- <include file="../aruco_mip_36h12/tags/aruco_inclined.xml"/> -->
   <asset>

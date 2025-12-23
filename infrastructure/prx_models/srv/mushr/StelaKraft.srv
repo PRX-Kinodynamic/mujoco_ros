@@ -1,0 +1,10 @@
+time deadline
+duration solution_duration # maximum
+bool use_contingency			 # should the sln_tree include a contingency plan
+prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
+
+---
+prx_models/Tree sln_tree
+int32 planner_output
+int32 TYPE_FAILURE=0
+int32 TYPE_SUCCESS=1

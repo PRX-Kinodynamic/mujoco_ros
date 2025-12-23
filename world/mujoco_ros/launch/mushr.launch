@@ -3,6 +3,7 @@
     <arg name="visualize_output" default="false"/>
     <arg name="publish_ground_truth_pose" default="true"/>
     <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>

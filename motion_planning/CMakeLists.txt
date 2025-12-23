@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -18,6 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2
 )
+
+set(MJ_LINK  mujoco::mujoco)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -167,6 +170,7 @@ foreach(f ${EXECUTABLE_FILES})
                      )
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
+                          ${MJ_LINK}
                         )
 endforeach()
 

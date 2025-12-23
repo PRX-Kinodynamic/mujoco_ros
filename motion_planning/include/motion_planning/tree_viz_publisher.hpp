@@ -52,9 +52,9 @@ public:
     _viz_nodes_topic_name = tree_topic_name + _viz_nodes_topic_name;
 
     // publishers
-    _viz_edges_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_edges_topic_name, 0);
+    _viz_edges_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_edges_topic_name, 1, true);
 
-    _viz_nodes_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_nodes_topic_name, 0);
+    _viz_nodes_publisher = private_nh.advertise<visualization_msgs::Marker>(_viz_nodes_topic_name, 1, true);
 
     // subscribers
     _tree_subscriber = private_nh.subscribe(tree_topic_name, 1, &Derived::get_graph, this);

@@ -8,7 +8,8 @@
     <arg name="robot_frame" default="robot"/>
     <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
     <arg name="collision_topic" default="/simulator/collision"/>
-    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
+    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/>
     <arg name="obstacle_mode" default="distance"/>
     <arg name="obstacle_distance_tolerance" default="0.5"/>
     <arg name="obstacle_factor_include_distance" default="0.5"/>
@@ -23,13 +24,18 @@
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
     <arg name="total_future_nodes" default="10"/>
     <arg name="total_past_nodes" default="10"/>
-    <arg name="time_as_variable" default="true"/>   
+    <arg name="time_as_variable" default="true"/> 
+    <arg name="replanner_solution_duration" default="1"/>
+    <arg name="cycle_duration" default="1.0"/>
+    <arg name="use_contingency" default="true"/>
+    <arg name="planner_clock_topic" default="/motion_planning/clock"/>
+    <arg name="total_replanning_calls" default="10000"/>
+    <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
 
-    <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/>
+    <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
 
-    <node pkg="nodelet" type="nodelet" name="StelaWindowedMushr" 
-        args="load motion_planning/StelaWindowedMushr stela_nodelet" 
-        output="log">
+    <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
+        output="screen">
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
         <param name="control_topic" value="$(arg control_topic)"/> 
         <param name="control_frequency" value="$(arg control_frequency)"/>
@@ -54,6 +60,12 @@
         <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
         <param name="time_as_variable" value="$(arg time_as_variable)"/>
         <param name="sensor_topic_name" value="/mushr/sensordata"/>
+        <param name="replanner_solution_duration" value="$(arg replanner_solution_duration)"/>
+        <param name="cycle_duration" value="$(arg cycle_duration)"/>
+        <param name="use_contingency" value="$(arg use_contingency)"/>
+        <param name="planner_clock_topic" value="$(arg planner_clock_topic)"/>
+        <param name="total_replanning_calls" value="$(arg total_replanning_calls)"/>
+        <param name="params_file" value="$(arg params_file)"/>
     </node> 
 
     <node pkg="nodelet" type="nodelet" name="stela_nodelet_aux"  args="manager" output="screen"/>
