@@ -19,7 +19,7 @@
 
 #include <prx_models/StelaKraft.h>
 
-struct replanner_t
+struct constant_plan_t
 {
   prx::system_ptr_t _plant;
   prx::param_loader params;
@@ -84,9 +84,13 @@ struct replanner_t
 
   ros::ServiceServer _replanning_service;
 
+  std::shared_ptr<prx::plan_t> _plan;
+  std::shared_ptr<prx::trajectory_t> _traj;
+
+  prx::space_point_t _start_state;
   bool _new_traj;
 
-  replanner_t(ros::NodeHandle& nh) : _new_traj(false)
+  constant_plan_t(ros::NodeHandle& nh) : _new_traj(false)
   {
     std::string params_file;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
@@ -118,13 +122,13 @@ struct replanner_t
 
     // Timers
     const ros::Duration timer_duration(0.01);
-    // _clock_timer = nh.createTimer(timer_duration, &replanner_t::timer_callback, this);
-    _tree_timer = nh.createTimer(timer_duration, &replanner_t::tree_publish_callback, this);
+    // _clock_timer = nh.createTimer(timer_duration, &constant_plan_t::timer_callback, this);
+    _tree_timer = nh.createTimer(timer_duration, &constant_plan_t::tree_publish_callback, this);
 
     _status.state = interface::ReplannerStatus::IDLE;
     _status_publisher.publish(_status);
 
-    _replanning_service = nh.advertiseService("/kraft/replan", &replanner_t::replan, this);
+    _replanning_service = nh.advertiseService("/kraft/replan", &constant_plan_t::replan, this);
 
     PRINT_MSG("Replanner Ready!");
   }
@@ -134,7 +138,7 @@ struct replanner_t
     if (_new_traj)
     {
       prx_models::Tree ros_tree;
-      tree_from_plan_traj(ros_tree, _plan, _traj);
+      tree_from_plan_traj(ros_tree, *_plan, *_traj);
       _tree_publisher.publish(ros_tree);
       _new_traj = false;
     }
@@ -193,33 +197,33 @@ struct replanner_t
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
     change_status(interface::ReplannerStatus::PREPROCESSING);
-    _traj.clear();
-    _plan.clear();
-    _step_plan.clear();
+    _traj->clear();
+    _plan->clear();
+    _step_plan->clear();
 
     ml4kp_bridge::copy(_start_state, request.root.point);
 
     change_status(interface::ReplannerStatus::PLANNING);
-    _sg->propagate(_start_state, _plan, _traj);
+    _system_group->propagate(_start_state, *_plan, *_traj);
 
     change_status(interface::ReplannerStatus::POSTPROCESSING);
 
-    const double plan_duration{ _plan.duration() };
-    const double traj_duration{ _traj.duration() };
+    const double plan_duration{ _plan->duration() };
+    const double traj_duration{ _traj->duration() };
     // DEBUG_VARS(plan_duration, traj_duration);
     if (plan_duration < request.solution_duration.toSec())
     {
-      _plan.copy_to(0, plan_duration, _step_plan);
+      _plan->copy_to(0, plan_duration, *_step_plan);
     }
     else
     {
-      _plan.copy_to(0, request.solution_duration.toSec(), _step_plan);
+      _plan->copy_to(0, request.solution_duration.toSec(), *_step_plan);
     }
 
     response.sln_tree.root = request.root.index;
     response.sln_tree.nodes.push_back(request.root);
     response.planner_output = prx_models::StelaKraft::Response::TYPE_SUCCESS;
-    tree_from_plan_traj(response.sln_tree, _step_plan, _traj);
+    tree_from_plan_traj(response.sln_tree, *_step_plan, *_traj);
     _sln_tree_publisher.publish(response.sln_tree);
 
     // swap(_full_tree, _dirt->tree());
@@ -240,7 +244,7 @@ int main(int argc, char** argv)
 
   ros::AsyncSpinner spinner(4);
 
-  replanner_t replanner(nh);
+  constant_plan_t replanner(nh);
   spinner.start();
   ros::waitForShutdown();
   spinner.stop();
