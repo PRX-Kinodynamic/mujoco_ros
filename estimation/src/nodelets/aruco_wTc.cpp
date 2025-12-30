@@ -29,15 +29,19 @@
 #include <aruco/aruco_nano.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace estimation
 {
-class aruco_wTc_nodelet_t : public nodelet::Nodelet
+
+template <class Base>
+class aruco_wTc_t : public Base
 {
+  using Derived = aruco_wTc_t<Base>;
   using Transform = Eigen::Transform<double, 3, Eigen::TransformTraits::Isometry>;
 
 public:
-  aruco_wTc_nodelet_t()
+  aruco_wTc_t()
     : _camera_matrix(3, 3, CV_64FC1)
     , _Tvec(3, 1, CV_64FC1)
     , _Rvec(1, 3, CV_64FC1)
@@ -62,40 +66,36 @@ private:
     goal_pose,
     tf,
     trajectory,
-    safety_radius,
     TOTAL  // Keep this one at the end to get the number of enums
   };
 
   virtual void onInit()
   {
-    ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
+    ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
 
     _img_topic_name = ros::this_node::getNamespace() + _img_topic_name;
-
     std::vector<double> camera_matrix;
     std::vector<double> dist_coeffs;
 
     std::string image_topic;
     std::string goal_pose_topic;
     std::string goal_rad_topic;
-    std::string trajectory_topic;
-    std::string safety_radius_topic;
+    std::string trajectory_topic{ "" };
     std::string camera_frame;
     std::string world_frame;
     std::string robot_frame;
     double robot_pose_offset;
 
-    NODELET_PARAM_SETUP(private_nh, dist_coeffs);
-    NODELET_PARAM_SETUP(private_nh, camera_matrix);
-    NODELET_PARAM_SETUP(private_nh, image_topic);
-    NODELET_PARAM_SETUP(private_nh, goal_pose_topic);
-    NODELET_PARAM_SETUP(private_nh, goal_rad_topic);
-    NODELET_PARAM_SETUP(private_nh, trajectory_topic);
-    NODELET_PARAM_SETUP(private_nh, safety_radius_topic);
-    NODELET_PARAM_SETUP(private_nh, camera_frame);
-    NODELET_PARAM_SETUP(private_nh, world_frame);
-    NODELET_PARAM_SETUP(private_nh, robot_frame);
-    NODELET_PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0])
+    PARAM_SETUP(private_nh, dist_coeffs);
+    PARAM_SETUP(private_nh, camera_matrix);
+    PARAM_SETUP(private_nh, image_topic);
+    PARAM_SETUP(private_nh, goal_pose_topic);
+    PARAM_SETUP(private_nh, goal_rad_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, trajectory_topic, trajectory_topic);
+    PARAM_SETUP(private_nh, camera_frame);
+    PARAM_SETUP(private_nh, world_frame);
+    PARAM_SETUP(private_nh, robot_frame);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, robot_pose_offset, _robot_pose_offset[0]);
 
     _robot_pose_offset[0] = robot_pose_offset;
     _camera_frame = camera_frame;
@@ -119,12 +119,13 @@ private:
     _cv_points[PointIdx::x_normal] = cv::Point3d(1, 0, 0);
     _cv_points[PointIdx::y_normal] = cv::Point3d(0, 1, 0);
     _cv_points[PointIdx::z_normal] = cv::Point3d(0, 0, 1);
-    _rgb_subscriber = private_nh.subscribe(image_topic, 1, &aruco_wTc_nodelet_t::get_image, this);
-    _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &aruco_wTc_nodelet_t::get_goal_pose, this);
-    _safety_radius_subscriber =
-        private_nh.subscribe(safety_radius_topic, 1, &aruco_wTc_nodelet_t::get_safety_radius, this);
-    _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &aruco_wTc_nodelet_t::get_goal_rad, this);
-    _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &aruco_wTc_nodelet_t::get_trajectory, this);
+    _rgb_subscriber = private_nh.subscribe(image_topic, 1, &Derived::get_image, this);
+    _goal_pose_subscriber = private_nh.subscribe(goal_pose_topic, 1, &Derived::get_goal_pose, this);
+    _goal_rad_subscriber = private_nh.subscribe(goal_rad_topic, 1, &Derived::get_goal_rad, this);
+    if (trajectory_topic != "")
+    {
+      _trajectory_subscriber = private_nh.subscribe(trajectory_topic, 1, &Derived::get_trajectory, this);
+    }
 
     _frame_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
   }
@@ -132,10 +133,6 @@ private:
   void get_trajectory(const ml4kp_bridge::TrajectoryStampedConstPtr message)
   {
     _cv_traj.clear();
-    if (message->trajectory.data.empty())
-    {
-      return;
-    }
     for (auto& state : message->trajectory.data)
     {
       // x,y,z: setting z=0 for now
@@ -150,13 +147,6 @@ private:
     _goal_rad = message->data;
     _msgs_received[PointIdx::goal_rad] = true;
   }
-
-  void get_safety_radius(const std_msgs::Float64ConstPtr message)
-  {
-    _safety_radius = message->data;
-    _msgs_received[PointIdx::safety_radius] = true;
-  }
-
   void get_goal_pose(const geometry_msgs::Pose2DConstPtr message)
   {
     _cv_points[PointIdx::goal_pose].x = message->x;
@@ -237,26 +227,6 @@ private:
         {
           cv::line(frame->image, _image_traj[i], _image_traj[i + 1], _color_rgb[0] + _color_rgb[2], 2);
         }
-        cv::circle(frame->image, _image_traj.front(), 1.0, _color_rgb[0], 3, cv::LineTypes::LINE_AA);
-      }
-
-      if (_msgs_received[PointIdx::robot_center] and _msgs_received[PointIdx::safety_radius])
-      {
-        // Calculate safety radius in image coordinates
-        cv::Point3d safety_point = _cv_points[PointIdx::robot_center] + cv::Point3d(_safety_radius, 0, 0);
-        cv::Point2d safety_point_img;
-        std::vector<cv::Point3d> safety_point_vec = { safety_point };
-        std::vector<cv::Point2d> safety_point_img_vec;
-        cv::projectPoints(safety_point_vec, _Rvec, _Tvec, _camera_matrix, _dist_coeffs, safety_point_img_vec);
-        safety_point_img = safety_point_img_vec[0];
-
-        // Calculate the radius in pixels
-        cv::Point2d rad_diff = safety_point_img - _image_points[PointIdx::robot_center];
-        double safety_rad_px = std::sqrt(rad_diff.ddot(rad_diff));
-
-        // Draw the safety radius around the robot center
-        cv::circle(frame->image, _image_points[PointIdx::robot_center], safety_rad_px, _safety_color, 2,
-                   cv::LineTypes::LINE_AA);
       }
 
       _frame_publisher.publish(frame);
@@ -272,7 +242,6 @@ private:
   ros::Subscriber _goal_pose_subscriber;
   ros::Subscriber _goal_rad_subscriber;
   ros::Subscriber _trajectory_subscriber;
-  ros::Subscriber _safety_radius_subscriber;
 
   ros::Publisher _frame_publisher;
 
@@ -287,9 +256,7 @@ private:
   const std::vector<cv::Scalar> _color_rgb;
 
   double _goal_rad;
-  double _safety_radius;
   const cv::Scalar _goal_color;
-  const cv::Scalar _safety_color{ 128, 128, 0, 128 };  // Teal with transparency
 
   std::vector<cv::Point3d> _cv_points;
   std::vector<cv::Point3d> _cv_traj;
@@ -300,6 +267,6 @@ private:
   cv::Mat _cv_world_rot;
   Eigen::Vector3d _robot_pose_offset;
 };
+using aruco_wTc_nodelet_t = aruco_wTc_t<nodelet::Nodelet>;
 }  // namespace estimation
-
 PLUGINLIB_EXPORT_CLASS(estimation::aruco_wTc_nodelet_t, nodelet::Nodelet);
