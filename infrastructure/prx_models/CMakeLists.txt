@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.15)
 project(prx_models)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   ml4kp_bridge
   cv_bridge
+  utils
 )
 
 find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)

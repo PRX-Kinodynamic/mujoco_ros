@@ -14,6 +14,8 @@
 
 #include <cv_bridge/cv_bridge.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
+
 // Nodelet to read from a physical camera and publish to '*Namespace*/camera/rgb' at a given framerate
 // As a nodelet, publishing to another nodelet in the same manager is equivalent to a pointer copy
 namespace perception
@@ -21,21 +23,26 @@ namespace perception
 class physical_camera_nodelet_t : public nodelet::Nodelet
 {
 public:
-  physical_camera_nodelet_t() : _frame(), _topic_name("/camera/rgb"), _header(){};
+  physical_camera_nodelet_t() : _frame(), _topic_name("/raw/rgb"), _header() {};
 
 private:
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
-    _topic_name = ros::this_node::getNamespace() + _topic_name;
     int height{ 0 };
     int width{ 0 };
     double frequency{ 30 };
     std::string camera{ 0 };
+    std::string camera_topic;
+    NODELET_PARAM_SETUP(private_nh, camera_topic);
     NODELET_PARAM_SETUP(private_nh, camera);
     NODELET_PARAM_SETUP(private_nh, height);
     NODELET_PARAM_SETUP(private_nh, width);
     NODELET_PARAM_SETUP(private_nh, frequency);
+    _topic_name = camera_topic + _topic_name;
+
+    DEBUG_VARS(_topic_name);
+
 #if __linux__
     // _cap.open(_camera_id, cv::CAP_V4L2);
     _cap.open(camera, cv::CAP_ANY);  // This is supposedly more general
@@ -43,6 +50,9 @@ private:
     _cap.open(std::stoi(camera), cv::CAP_ANY);
 #endif
 
+    DEBUG_VARS(frequency);
+
+    _cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     _cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     _cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
     _cap.set(cv::CAP_PROP_FPS, frequency);

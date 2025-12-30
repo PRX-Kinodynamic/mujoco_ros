@@ -15,8 +15,10 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   tf
   ml4kp_bridge
-  prx_models
+  # prx_models
 )
+
+cmake_policy(SET CMP0177 NEW)
 
 add_definitions("-O3")
 if (UNIX AND NOT APPLE)
@@ -88,6 +90,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
+  ml4kp_bridge
 )
 
 ################################################

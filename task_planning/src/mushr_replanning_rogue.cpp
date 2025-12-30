@@ -7,7 +7,7 @@
 #include "motion_planning/PlanningResult.h"
 #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -95,8 +95,7 @@ int main(int argc, char** argv)
 
   distance_function_t goal_dist = [](const space_point_t& a, const space_point_t& b) {
     double diff2 = (a->at(0) - b->at(0)) * (a->at(0) - b->at(0)) + (a->at(1) - b->at(1)) * (a->at(1) - b->at(1));
-    double angdiff2 = norm_angle_pi(a->at(2) - b->at(2)) *
-                      norm_angle_pi(a->at(2) - b->at(2));
+    double angdiff2 = norm_angle_pi(a->at(2) - b->at(2)) * norm_angle_pi(a->at(2) - b->at(2));
     diff2 += angdiff2;
     return sqrt(diff2);
   };
@@ -194,8 +193,9 @@ int main(int argc, char** argv)
 
   ros::AsyncSpinner spinner(2);
 
-  using PlannerService = mj_ros::planner_service_t<std::shared_ptr<prx::rogue_t>, prx::rogue_specification_t*,
-                                                   prx::rogue_query_t*, prx_models::MushrPlanner, prx_models::MushrObservation>;
+  using PlannerService =
+      mj_ros::planner_service_t<std::shared_ptr<prx::rogue_t>, prx::rogue_specification_t*, prx::rogue_query_t*,
+                                prx_models::MushrPlanner, prx_models::MushrObservation>;
   PlannerService planner_service(n, rogue, rogue_spec, rogue_query, propagate_dynamics, retain_previous);
 
   using PlannerClient = mj_ros::planner_client_t<prx_models::MushrPlanner, prx_models::MushrObservation>;

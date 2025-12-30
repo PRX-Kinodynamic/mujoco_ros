@@ -7,6 +7,7 @@
 #include <gtsam/nonlinear/NonlinearFactor.h>
 #include <gtsam/geometry/Pose2.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <utils/dbg_utils.hpp>
 // #include <utils/dbg_utils.hpp>
 
 #include <prx/simulation/plant.hpp>

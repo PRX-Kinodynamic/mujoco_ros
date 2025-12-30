@@ -2,13 +2,29 @@
 #      $ v4l2-ctl --device=/dev/videoN --all | grep Serial
 
 camera_id: "73B6FC82" 
+camera_name: "logitech_73B6FC82"
 camera: "/dev/video10"
 height: 1080 
 width: 1920
+
 frequency: 60
 display_video: true
-camera_matrix: [1.06662602e+03, 0, 9.34438762e+02, 0, 1.06702175e+03, 5.58367833e+02]
-dist_coeffs: [0.15133433, -0.3597004, -0.00049652, -0.00261917, 0.17594971]
+
+fx: &fx 1.1183e+03
+fy: &fy 1.1160e+03
+
+cx: &cx 960.7975
+cy: &cy 546.1369
+
+skew: &skew 0.0435
+
+K: [*fx, *skew, *cx, 0, *fy, *cy, 0, 0, 1]
+distortion: [0.0855, -0.1084, 0.0, 0.0, 0.0]
+
+pose:
+  quaternion: [0, 0, -1.0, 0.0]
+  position: [-0.5, 1.0, 2.0]
+# dist_coeffs: [0.15133433, -0.3597004, -0.00049652, -0.00261917, 0.17594971]
 
 
 

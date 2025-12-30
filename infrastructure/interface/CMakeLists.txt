@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf_conversions
   utils
+  rosbag
 )
 find_package(OpenCV REQUIRED )
 

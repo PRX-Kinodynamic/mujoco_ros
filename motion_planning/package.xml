@@ -60,10 +60,12 @@
   <build_depend>nodelet</build_depend>
   <build_depend>tf2_ros</build_depend>
   <build_depend>tf2</build_depend>
+  <build_depend>tf2</build_depend>
 
 
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>utils</build_export_depend>
 
   <exec_depend>roscpp</exec_depend>
   <exec_depend>std_msgs</exec_depend>
@@ -71,6 +73,7 @@
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>prx_models</exec_depend>
   <exec_depend>ml4kp_bridge</exec_depend>
+  <exec_depend>utils</exec_depend>
 
   <test_depend>rosunit</test_depend>
   <!-- The export tag contains other, unspecified, tags -->

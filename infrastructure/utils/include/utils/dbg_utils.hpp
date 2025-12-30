@@ -32,14 +32,24 @@ inline void print_value(std::ostream& stream, const Value& value)
   stream << value << " ";
 }
 
+template <typename PairValue, std::enable_if_t<ml4kp_bridge::is_pair<PairValue>::value, bool> = true>
+inline void print_value(std::ostream& stream, const PairValue& pair)
+{
+  print_value(stream, "First: ");
+  print_value(stream, pair.first);
+  print_value(stream, " Second: ");
+  print_value(stream, pair.second);
+}
+
 template <typename Value, std::enable_if_t<prx::utilities::is_iterable<Value>::value and
                                                not prx::utilities::is_streamable<Value>::value,
                                            bool> = true>
 inline void print_value(std::ostream& stream, const Value& value)
 {
-  for (auto e : value)
+  for (auto& e : value)
   {
     print_value(stream, e);
+    print_value(stream, "\n");
   }
   // stream << "\n";
 }

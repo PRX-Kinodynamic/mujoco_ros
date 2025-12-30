@@ -20,12 +20,11 @@ class queued_callback_t
 {
 public:
   using TupleQueue = std::queue<std::tuple<std::string, ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()){};
-  queued_callback_t(const std::string topic_name)
-    : _topic_name(topic_name)
-    , _t0(ros::Time::now()){
-      //  std::cout << "topic_name: " << _topic_name << std::endl;
-    };
+  queued_callback_t() : _t0(ros::Time::now()) {};
+  queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
+  {
+  }
+
   static inline std::mutex _queue_mutex;
   static inline TupleQueue _queue;
 
@@ -34,7 +33,15 @@ public:
     const ros::Time t_now{ ros::Time::now() };
     if (t_now > _t0)
     {
+      // const auto& map_str = event.getConnectionHeader();
+      // for (auto& pair : map_str)
+      // {
+      // DEBUG_VARS(_topic_name);
+      // DEBUG_VARS(event.getConnectionHeader());
+      // }
       const std::string topic{ event.getConnectionHeader().at("topic") };
+      // DEBUG_VARS(_topic_name, topic);
+      prx_assert(topic == _topic_name, "Topics don't match!");
       try
       {
         _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
@@ -44,6 +51,11 @@ public:
         std::cout << "Error at topic: " << _topic_name << std::endl;
       }
     }
+  }
+
+  std::string topic_name() const
+  {
+    return _topic_name;
   }
 
 private:

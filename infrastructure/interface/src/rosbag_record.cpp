@@ -66,10 +66,12 @@ std::size_t process_queue(rosbag::Bag& bag, const Queue& queue)
   {
     if (!queue[idx]._queue.empty())
     {
-      msgs_left += queue[idx]._queue.size();
-      auto msg = queue[idx]._queue.front();
-      bag.write(std::get<0>(msg), std::get<1>(msg), std::get<2>(msg));
+      const auto msg = queue[idx]._queue.front();
+      const std::string topic_name{ queue[idx].topic_name() };
+      bag.write(topic_name, std::get<1>(msg), std::get<2>(msg));
       queue[idx]._queue.pop();
+      msgs_left += queue[idx]._queue.size();
+      // DEBUG_VARS(queue.size(), idx, queue[idx]._queue.size(), queue[idx].topic_name(), topic_name);
     }
   }
   return msgs_left;
@@ -120,7 +122,7 @@ int main(int argc, char** argv)
   ROS_PARAM_SETUP(nh, rosbag_directory);
   ROS_PARAM_SETUP(nh, stop_topic);
 
-  std::vector<ros::Subscriber> subscribers;
+  // std::vector<ros::Subscriber> subscribers;
   utils::execution_status_t execution_status(nh, stop_topic);
 
   PRX_DEBUG_VARS(rosbag_directory);
@@ -159,7 +161,7 @@ int main(int argc, char** argv)
     DEBUG_VARS(topic_name, registred)
     // std::cout << "Unsupported topic '" << topic_name << "' type: " << topic_type << std::endl;
   }
-  DEBUG_VARS(subscribers.size());
+  // DEBUG_VARS(subscribers.size());
   std::thread thread_b(bag_writter);
   ros::AsyncSpinner spinner(4);
   spinner.start();

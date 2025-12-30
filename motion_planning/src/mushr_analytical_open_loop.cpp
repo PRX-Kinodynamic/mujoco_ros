@@ -11,7 +11,7 @@
 // #include "motion_planning/PlanningResult.h"
 // #include "mujoco_ros/Collision.h"
 // #include "std_msgs/Empty.h"
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <prx_models/mushr.hpp>
 #include <ros/ros.h>

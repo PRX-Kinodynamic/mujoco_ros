@@ -1,5 +1,6 @@
 #pragma once
 #include <std_msgs/Empty.h>
+#include <std_msgs/Bool.h>
 #include <utils/std_utils.hpp>
 namespace utils
 {

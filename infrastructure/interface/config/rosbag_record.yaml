@@ -1,12 +1,10 @@
-rosbag_directory: "/common/home/eg585/perception/stela_ws/bags"
-
 topics:
   - name: "/mushr/ml4kp_plan"
     type: "ml4kp_bridge::PlanStamped"
   - name: "/mushr/mux/ackermann_cmd_mux/output"
     type: "ackermann_msgs::AckermannDriveStamped"
   - name: "/perception/logitech_brio_73B6FC82/aruco/markers"
-    type: "interface/StampedMarkers"
+    type: "interface::StampedMarkers"
   - name: "/perception/logitech_brio_96214279/aruco/markers"
     type: "interface::StampedMarkers"
   - name: "/mushr/ml4kp_plan"

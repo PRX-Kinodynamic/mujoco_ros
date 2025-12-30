@@ -16,6 +16,7 @@
 #include <interface/StampedMarkers.h>
 #include <aruco/aruco_nano.h>
 #include <utils/rosparams_utils.hpp>
+#include <utils/dbg_utils.hpp>
 
 namespace perception
 {
@@ -24,21 +25,30 @@ class aruco_detection_nodelet_t : public nodelet::Nodelet
 public:
   aruco_detection_nodelet_t()
     : _publish_markers_img(false)
-    , _rgb_topic_name("/camera/rgb")
-    , _img_topic_name("/camera/markers")
-    , _markers_topic_name("/markers")
-    , _header(){};
+    , _rgb_topic_name("/raw/rgb")
+    , _img_topic_name("/aruco/rgb")
+    // , _markers_topic_name("/aruco/markers")
+    , _header() {};
 
 private:
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ getPrivateNodeHandle() };
-    _rgb_topic_name = ros::this_node::getNamespace() + _rgb_topic_name;
-    _img_topic_name = ros::this_node::getNamespace() + _img_topic_name;
-    _markers_topic_name = ros::this_node::getNamespace() + _markers_topic_name;
-
     bool publish_markers_img;
-    NODELET_PARAM_SETUP(private_nh, publish_markers_img);
+    std::string camera_topic;
+    std::string markers_topic_name;
+
+    PARAM_SETUP(private_nh, publish_markers_img);
+    PARAM_SETUP(private_nh, camera_topic);
+    PARAM_SETUP(private_nh, markers_topic_name);
+
+    _rgb_topic_name = camera_topic + _rgb_topic_name;
+    _img_topic_name = camera_topic + _img_topic_name;
+    // _markers_topic_name = camera_topic + _markers_topic_name;
+
+    DEBUG_VARS(markers_topic_name);
+    DEBUG_VARS(_rgb_topic_name);
+    DEBUG_VARS(_img_topic_name);
     _publish_markers_img = publish_markers_img;
 
     _header.seq = 0;
@@ -47,10 +57,10 @@ private:
 
     _markers_msg.header.seq = 0;
     _markers_msg.header.stamp = ros::Time::now();
-    _markers_msg.header.frame_id = _markers_topic_name;
+    _markers_msg.header.frame_id = markers_topic_name;
 
     _frame_marker_publisher = private_nh.advertise<sensor_msgs::Image>(_img_topic_name, 1);
-    _markers_publisher = private_nh.advertise<interface::StampedMarkers>(_markers_topic_name, 1);
+    _markers_publisher = private_nh.advertise<interface::StampedMarkers>(markers_topic_name, 1);
     _rgb_subscriber = private_nh.subscribe(_rgb_topic_name, 1, &aruco_detection_nodelet_t::detect, this);
   }
 
@@ -76,6 +86,13 @@ private:
         _markers_msg.markers.back().y3 = e[2].y;
         _markers_msg.markers.back().x4 = e[3].x;
         _markers_msg.markers.back().y4 = e[3].y;
+        for (int i = 0; i < 4; ++i)
+        {
+          // _markers_msg.markers.back().corners.push_back();
+          _markers_msg.markers.back().corners[i].x = e[i].x;
+          _markers_msg.markers.back().corners[i].y = e[i].y;
+          _markers_msg.markers.back().corners[i].z = 0.0;
+        }
       }
 
       _markers_publisher.publish(_markers_msg);
@@ -116,7 +133,6 @@ private:
   ros::Subscriber _rgb_subscriber;
 
   std::string _img_topic_name;
-  std::string _markers_topic_name;
   std::string _rgb_topic_name;
 
   std_msgs::Header _header;

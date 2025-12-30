@@ -1,7 +1,7 @@
 #include <thread>
 
 #include <ml4kp_bridge/defs.h>
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <prx_models/mushr.hpp>
 #include <ros/ros.h>

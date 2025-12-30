@@ -40,4 +40,52 @@
       Nodelet to publish mushr observation from aruco detection
     </description>
   </class>
+  <class
+      name="interface/AckermannFromSpacePointStampedNodelet"
+      type="interface::AckermannFromSpacePointStampedNodelet"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate spacepoint to ackermann msg
+    </description>
+  </class>
+	<class
+      name="interface/ControlVisualizationNodelet"
+      type="interface::ControlVisualizationNodelet"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
+  <class
+      name="interface/SensorDataStampedToFile"
+      type="interface::SensorDataStampedToFile"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
+  <class
+      name="interface/MushrObservationToMarkerNodelet"
+      type="interface::MushrObservationToMarkerNodelet"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
+  <class
+      name="interface/GraphVizPublisher"
+      type="interface::GraphVizPublisher"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
+  <class
+      name="interface/PlanToTreePublisher"
+      type="interface::PlanToTreePublisher"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
 </library>

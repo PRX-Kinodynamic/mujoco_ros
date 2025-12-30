@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   roslib
   prx_models
+  sensor_msgs
   nodelet
   tf
   tf_conversions
@@ -46,6 +47,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS} 
 )
+
 
 ## Nodeletes
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
@@ -121,6 +123,16 @@ catkin_install_python(PROGRAMS
 #############
 ## Testing ##
 #############
+
+file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
+set(gtest_disable_pthreads OFF)
+foreach(f_test ${TESTS_FILES})
+  get_filename_component(fname ${f_test} NAME_WE )
+  set(test_name "test_${fname}")
+  MESSAGE(STATUS "Test: ${test_name}")
+  catkin_add_gtest(${test_name} ${f_test})
+  target_link_libraries(${test_name} ${catkin_LIBRARIES}  )
+endforeach()
 
 ## Add gtest based cpp test target and link libraries
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_mujoco.cpp)

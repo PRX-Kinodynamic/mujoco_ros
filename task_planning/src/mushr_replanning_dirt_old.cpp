@@ -1,13 +1,13 @@
 #include <ml4kp_bridge/defs.h>
-#include "prx_models/MushrPlanner.h"
-#include "prx_models/mj_mushr.hpp"
-#include "control/MushrControlPropagation.h"
-#include "motion_planning/replanner_service.hpp"
-#include "motion_planning/planner_client.hpp"
-#include "motion_planning/PlanningResult.h"
-#include "mujoco_ros/Collision.h"
-#include "std_msgs/Empty.h"
-#include <utils/std_utils.cpp>
+#include <prx_models/MushrPlanner.h>
+#include <prx_models/mj_mushr.hpp>
+#include <control/MushrControlPropagation.h>
+#include <motion_planning/replanner_service.hpp>
+#include <motion_planning/planner_client.hpp>
+#include <motion_planning/PlanningResult.h>
+#include <mujoco_ros/Collision.h>
+#include <std_msgs/Empty.h>
+#include <utils/std_utils.hpp>
 
 #include <prx_models/mushr.hpp>
 #include <ros/ros.h>

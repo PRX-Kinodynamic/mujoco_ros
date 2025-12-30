@@ -19,12 +19,28 @@ inline void translate_msg(prx_models::MushrControl& ctrl_msg, const ml4kp_bridge
   translate_msg(ctrl_msg, point_msg.space_point);
 }
 
-inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
+inline void translate_msg(ackermann_msgs::AckermannDrive& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
 {
   using prx_models::mushr_t::control::steering_idx;
   using prx_models::mushr_t::control::velocity_idx;
-  ctrl_msg.drive.steering_angle = point_msg.point[steering_idx];
-  ctrl_msg.drive.speed = point_msg.point[velocity_idx];
+  ctrl_msg.steering_angle = point_msg.point[steering_idx];
+  ctrl_msg.speed = point_msg.point[velocity_idx];
+}
+
+inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
+{
+  translate_msg(ctrl_msg.drive, point_msg);
+  ctrl_msg.header.stamp = ros::Time::now();
+
+  // ctrl_msg.drive.steering_angle = point_msg.point[steering_idx];
+  // ctrl_msg.drive.speed = point_msg.point[velocity_idx];
+}
+
+inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg,
+                          const ml4kp_bridge::SpacePointStamped& point_msg)
+{
+  translate_msg(ctrl_msg, point_msg.space_point);
+  ctrl_msg.header = point_msg.header;
 }
 
 inline void translate_msg(prx_models::MushrPlan& mushr_plan, const ml4kp_bridge::PlanStamped& stamped_plan)

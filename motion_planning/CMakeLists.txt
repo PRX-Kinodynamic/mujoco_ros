@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   tf2_ros
   tf2
+  utils
 )
 
 set(MJ_LINK  mujoco::mujoco)

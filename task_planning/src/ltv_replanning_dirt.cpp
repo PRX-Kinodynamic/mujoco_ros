@@ -8,7 +8,7 @@
 #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
 #include "std_msgs/Bool.h"
-#include <utils/std_utils.cpp>
+#include <utils/std_utils.hpp>
 
 #include <ros/ros.h>
 #include <ros/package.h>
