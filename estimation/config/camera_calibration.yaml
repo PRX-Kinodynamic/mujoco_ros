@@ -1,0 +1,22 @@
+camera_0: &camera_0 "/perception/logitech_brio_73B6FC82/aruco/markers"
+camera_1: &camera_1 "/perception/logitech_brio_96214279/aruco/markers"
+
+# height: 0 
+height: 1080 
+width: 1920
+
+world_frame: "world"
+
+marker_size: 0.164
+# camera_frames: ["C0", "C1"]
+camera_frames: ["C0"]
+aruco_topics: [*camera_0, *camera_1]
+
+# markers_on_ground: [121, 80, 1]
+markers_on_ground: [121, 1]
+
+origin_marker: 121
+
+calibration_file: "/common/home/eg585/perception/stela_ws/data/world_calibration.yaml"
+# load_previous_calibration: true
+load_previous_calibration: false
