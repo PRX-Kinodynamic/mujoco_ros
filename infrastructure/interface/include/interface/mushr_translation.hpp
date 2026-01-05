@@ -24,16 +24,14 @@ inline void translate_msg(ackermann_msgs::AckermannDrive& ctrl_msg, const ml4kp_
   using prx_models::mushr_t::control::steering_idx;
   using prx_models::mushr_t::control::velocity_idx;
   ctrl_msg.steering_angle = point_msg.point[steering_idx];
-  ctrl_msg.speed = point_msg.point[velocity_idx];
+  // ctrl_msg.speed = point_msg.point[velocity_idx];
+  ctrl_msg.acceleration = point_msg.point[velocity_idx];
 }
 
 inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg, const ml4kp_bridge::SpacePoint& point_msg)
 {
   translate_msg(ctrl_msg.drive, point_msg);
   ctrl_msg.header.stamp = ros::Time::now();
-
-  // ctrl_msg.drive.steering_angle = point_msg.point[steering_idx];
-  // ctrl_msg.drive.speed = point_msg.point[velocity_idx];
 }
 
 inline void translate_msg(ackermann_msgs::AckermannDriveStamped& ctrl_msg,
