@@ -31,3 +31,4 @@
 #include <ml4kp_bridge/fg_ltv_sde.hpp>
 #include <ml4kp_bridge/param_loader_bridge.hpp>
 
+#include <ml4kp_bridge/gtsam_bridge.hpp>

@@ -1,5 +1,6 @@
 #include <fstream>
 #include <ros/ros.h>
+#include <ros/time.h>
 
 namespace utils
 {
@@ -23,13 +24,16 @@ public:
   void start()
   {
     _start = ros::WallTime::now();
+    _prev = ros::WallTime::now();
     _started = true;
   }
 
   ros::WallDuration checkpoint(const std::string msg = "")
   {
     const ros::WallTime now{ ros::WallTime::now() };
-    const ros::WallDuration dt{ now - _start };
+    const ros::WallDuration dt{ now - _prev };
+    _prev = now;
+
     if (msg != "")
     {
       _ofs << msg << " ";
@@ -40,15 +44,22 @@ public:
 
   ros::WallDuration end(const std::string msg = "")
   {
-    const ros::WallDuration dt{ checkpoint(msg) };
+    const ros::WallTime now{ ros::WallTime::now() };
+    const ros::WallDuration dt_total{ now - _start };
+    if (msg != "")
+    {
+      _ofs << msg << " ";
+    }
+    _ofs << dt_total << " ";
     _ofs << "\n";
     _started = false;
 
-    return dt;
+    return dt_total;
   }
 
 protected:
   ros::WallTime _start;
+  ros::WallTime _prev;
   bool _started;
 
   std::ofstream _ofs;
