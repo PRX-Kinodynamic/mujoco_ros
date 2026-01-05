@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(estimation)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # Mujoco-relates packages
 find_package(OpenCV REQUIRED )

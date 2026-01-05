@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(task_planning)
 set(CMAKE_CXX_STANDARD 17)
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 set(BUILD_WITH_ROGUE OFF CACHE BOOL "Build with RoGuE planner")
 if (BUILD_WITH_ROGUE)
