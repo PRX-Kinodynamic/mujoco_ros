@@ -15,12 +15,15 @@
             <param name="control_topology" value="EE" />
             <param name="publisher_topic" value="$(arg plan_from_file_topic)" />
         </node>
+
          <node pkg="nodelet" type="nodelet" name="plan_stepper_t" 
             args="load ml4kp_bridge/plan_stepper_t plan_from_file_nodelet_manager" 
             output="screen">
             <param name="subscriber_topic" value="$(arg plan_from_file_topic)" />
             <param name="publisher_topic" value="$(arg plan_stepper_topic)"/>
             <param name="frequency" value="10" />
+            <!-- <param if="$(arg simulation)"      name="stop_topic" value="/mushr/stop" /> -->
+            <param unless="$(arg simulation)"  name="stop_topic" value="/mushr/vesc/commands/reset" />
         </node>    
 
         <node if="$(arg simulation)" pkg="nodelet" type="nodelet" name="MushrFromSpacePointNodelet" 
@@ -31,13 +34,19 @@
             <param name="frequency" value="10" />
         </node>         
 
-        <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
-            args="load interface/AckermannFromSpacePointNodelet plan_from_file_nodelet_manager" 
+        <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointStampedNodelet" 
+            args="load interface/AckermannFromSpacePointStampedNodelet plan_from_file_nodelet_manager" 
             output="screen">
             <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
-            <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
+            <param name="subscriber_topic" value="$(arg plan_stepper_topic)_stamped" />
             <param name="frequency" value="10" />
-        </node>         
+        </node>       
+
+        <node unless="$(arg simulation)" pkg="interface" type="mushr_stop" name="MushrStop" 
+            output="screen">
+            <param name="stop_topic" value="/mushr/stop" />
+            <param name="control_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
+        </node>      
     </group>
   
 </launch>
