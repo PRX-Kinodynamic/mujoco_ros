@@ -1,0 +1,27 @@
+<launch>
+  <arg name="world_frame" default="world"/>
+  <arg name="robot_frame" default="Marker_0"/>
+  <arg name="file_id" default="test"/>
+  <arg name="output_dir" default="$(env ML4KP_ROS)/data/test"/>
+      
+	<node pkg="nodelet" type="nodelet" name="cameras_nodelet" args="manager" output="screen"/>
+
+  <node pkg="nodelet" type="nodelet" name="ArucoCameraToWorld"
+        args="load estimation/ArucoCameraToWorld cameras_nodelet" 
+        output="screen">
+    <param name="estimation_frequency" value="10" />
+    <rosparam command="load" file="$(find estimation)/config/camera_calibration.yaml" />
+    <rosparam command="load" ns="C0" file="$(find perception)/config/logitech_brio_73B6FC82.yaml" />
+    <rosparam command="load" ns="C1" file="$(find perception)/config/logitech_brio_96214279.yaml" />
+    <rosparam command="load" ns="initial_poses" file="$(find estimation)/config/initial_marker_poses.yaml" />
+  </node>
+
+  <node pkg="interface" type="real_mushr_data_sync" name="real_mushr_data_sync" 
+        output="screen" >
+    <param name="output_dir" value="$(arg output_dir)" />
+    <param name="file_id" value="$(arg file_id)" />
+    <param name="world_frame" value="$(arg world_frame)" />
+    <param name="robot_frame" value="$(arg robot_frame)" />
+  </node>
+
+</launch>

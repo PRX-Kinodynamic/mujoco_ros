@@ -1,0 +1,16 @@
+<launch>
+
+	<arg name="simulation" value="true" />
+	
+	<node pkg="nodelet" type="nodelet" name="aruco_nodelet" args="manager" output="screen"/>
+
+	<node pkg="nodelet" type="nodelet" name="ArucoCameraToWorld"
+    	args="load estimation/ArucoCameraToWorld aruco_nodelet" 
+			output="screen">
+    <param name="estimation_frequency" value="10" />
+		<rosparam command="load" file="$(find estimation)/config/camera_calibration.yaml" />
+		<rosparam command="load" ns="C0" file="$(find perception)/config/logitech_brio_73B6FC82.yaml" />
+		<rosparam command="load" ns="C1" file="$(find perception)/config/logitech_brio_96214279.yaml" />
+	</node>
+
+</launch>
