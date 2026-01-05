@@ -47,6 +47,16 @@
     	</node>
 
         <!-- camera To world -->
+        <node pkg="nodelet" type="nodelet" name="ArucoCameraToWorld"
+              args="load estimation/ArucoCameraToWorld cameras_nodelet" 
+              output="screen">
+            <param name="estimation_frequency" value="10" />
+            <rosparam command="load" file="$(find estimation)/config/camera_calibration.yaml" />
+            <rosparam command="load" ns="C0" file="$(find perception)/config/logitech_brio_73B6FC82.yaml" />
+            <rosparam command="load" ns="C1" file="$(find perception)/config/logitech_brio_96214279.yaml" />
+            <rosparam command="load" ns="initial_poses" file="$(find estimation)/config/initial_marker_poses.yaml" />
+        </node>
+
         <!-- <node pkg="nodelet" type="nodelet" name="aruco_cTw_camera0" output="screen"
           args="load estimation/aruco_cTw_nodelet_t cameras_nodelet">
             <rosparam command="load" file="$(arg camera0_config)" />
@@ -110,6 +120,13 @@
     <group ns="tools">
         <node pkg="nodelet" type="nodelet" name="tools_nodelet" args="manager" output="screen"/>
 
+        <node pkg="perception" type="camera_info_publisher.py" name="camera_info_publisher_C0" >
+            <rosparam command="load" file="$(find perception)/config/logitech_brio_73B6FC82.yaml" />
+        </node>
+
+        <node pkg="perception" type="camera_info_publisher.py" name="camera_info_publisher_C1" >
+            <rosparam command="load" file="$(find perception)/config/logitech_brio_96214279.yaml" />
+        </node>
         <!-- <node pkg="utils" type="multicam_world_calib" name="multicam_world_calib" output="screen">
             <rosparam command="load" file="$(find utils)/config/multicam_world_calib.yaml" />
         </node> -->

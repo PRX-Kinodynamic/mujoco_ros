@@ -3,7 +3,7 @@
 
 # id: "0"
 camera_id: "96214279"
-camera_name: "logitech_96214279"
+camera_name: "C1"
 camera: "/dev/video6"
 height: 1080 
 width: 1920
