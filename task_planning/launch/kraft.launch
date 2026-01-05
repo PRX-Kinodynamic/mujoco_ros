@@ -64,16 +64,6 @@
         <param name="use_contingency" value="$(arg use_contingency)"/>
         <param name="environment" value="$(arg environment)" />
 
-        <!-- <param name="" value=""/> -->
-        <!-- <param name="" value=""/> -->
-        <!-- <param name="" value=""/> -->
-        <!-- <param name="" value=""/> -->
-
-
-
-        <!-- <param name="retain_previous" value="$(arg retain_previous)"/> -->
-        <!-- <param name="id" value="$(arg id)"/> -->
-
     </node>
     </group>
         <!-- <node if="$(arg record)" pkg="rosbag" name="rosbag_record" type="record"  -->

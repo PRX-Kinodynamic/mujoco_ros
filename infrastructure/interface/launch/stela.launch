@@ -29,6 +29,7 @@
     <arg name="cycle_duration" default="1.0"/>
     <arg name="use_contingency" default="true"/>
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
+    <arg name="start_delay" default="20"/>
     <arg name="total_replanning_calls" default="10000"/>
     <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
 
@@ -66,6 +67,8 @@
         <param name="planner_clock_topic" value="$(arg planner_clock_topic)"/>
         <param name="total_replanning_calls" value="$(arg total_replanning_calls)"/>
         <param name="params_file" value="$(arg params_file)"/>
+        <param name="start_delay" value="$(arg start_delay)"/>
+        <rosparam command="load" file="$(find motion_planning)/config/mushr.yaml" />
     </node> 
 
     <node pkg="nodelet" type="nodelet" name="stela_nodelet_aux"  args="manager" output="screen"/>
@@ -92,6 +95,18 @@
         args="load motion_planning/TreeToPlanNodelet stela_nodelet_aux" 
         output="screen">
         <param name="tree_topic_name" value="$(arg estimated_tree_topic)" />
+        <!-- <param name="tree_topic_name" value="/mushr/sln/tree" /> -->
+        <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
+        <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
+    </node>  
+    
+
+    <node pkg="nodelet" type="nodelet" name="TreeToPlanNodeletSlnTree" 
+        args="load motion_planning/TreeToPlanNodelet stela_nodelet_aux" 
+        output="screen">
+        <!-- <param name="tree_topic_name" value="$(arg estimated_tree_topic)" /> -->
+        <param name="tree_topic_name" value="/mushr/sln/tree" />
+        <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
         <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
     </node>  
     

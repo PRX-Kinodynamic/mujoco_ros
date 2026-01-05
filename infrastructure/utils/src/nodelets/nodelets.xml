@@ -127,4 +127,20 @@
       Visualize Points in rviz from multiple topics
     </description>
   </class>
+  <class 
+      name="utils/AckermannDriveStampedToFile" 
+      type="utils::AckermannDriveStampedToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
+  <class 
+      name="utils/TfToFile" 
+      type="utils::TfToFile" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
 </library>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 // Ros
 #include <geometry_msgs/TransformStamped.h>
 
@@ -16,10 +18,12 @@
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <prx/factor_graphs/factors/quadratic_cost_factor.hpp>
 #include <prx/factor_graphs/lie_groups/lie_integrator.hpp>
+#include "prx_models/Edge.h"
 
 // Gtsam
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/PriorFactor.h>
+#include <ros/node_handle.h>
 
 namespace prx_models
 {
@@ -62,10 +66,29 @@ public:
   using PrxPlant = mushrFG_t;
 
   mushr_stela_t(ros::NodeHandle& nh)
-    : _idle_state(State::Zero()), _idle_state_dot(StateDot::Zero()), _idle_control(Control::Zero()), _idle_dt(0.1)
+    : _idle_state(State::Zero())
+    , _idle_state_dot(StateDot::Zero())
+    , _idle_control(Control::Zero())
+    , _idle_dt(0.1)
+    , _ctrl_lower_bound(Control::Zero())
+    , _ctrl_upper_bound(Control::Zero())
   {
     std::string sensor_topic_name;
+
     PARAM_SETUP(nh, sensor_topic_name)
+
+    ros::NodeHandle nh_ctrl(nh, "control_space");
+
+    std::vector<double> lower_bound;
+    std::vector<double> upper_bound;
+
+    PARAM_SETUP(nh_ctrl, lower_bound)
+    PARAM_SETUP(nh_ctrl, upper_bound)
+
+    _ctrl_lower_bound = Control(lower_bound.data());
+    _ctrl_upper_bound = Control(upper_bound.data());
+
+    // PARAM_SETUP(nh, sensor_topic_name)
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
   }
 
@@ -79,6 +102,28 @@ public:
     _last_observation.second = msg->header.stamp;
     _new_observation = true;
     // DEBUG_VARS(_new_observation)
+  }
+
+  void bound(ml4kp_bridge::SpacePoint& ctrl)
+  {
+    ctrl.point[0] = std::max(ctrl.point[0], _ctrl_lower_bound[0]);
+    ctrl.point[0] = std::min(ctrl.point[0], _ctrl_upper_bound[0]);
+
+    ctrl.point[1] = std::max(ctrl.point[1], _ctrl_lower_bound[1]);
+    ctrl.point[1] = std::min(ctrl.point[1], _ctrl_upper_bound[1]);
+  }
+
+  void bound(ml4kp_bridge::SpacePointStamped& ctrl)
+  {
+    bound(ctrl.space_point);
+  }
+
+  void bound(ml4kp_bridge::Plan& plan)
+  {
+    for (auto& step : plan.steps)
+    {
+      bound(step.control);
+    }
   }
 
   static GraphValues estimate_to_prior(const std::size_t idx, StateEstimates& estimates,
@@ -795,6 +840,9 @@ private:
   const Control _idle_control;
   const double _idle_dt;
   bool _new_observation;
+
+  Control _ctrl_lower_bound;
+  Control _ctrl_upper_bound;
 };
 // mushr_types::Ubar::params mushr_types::default_params = mushr_types::Ubar::params(0.9898, 0.4203, 0.6228);
 

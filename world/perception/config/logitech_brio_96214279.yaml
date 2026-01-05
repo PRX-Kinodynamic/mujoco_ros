@@ -10,19 +10,21 @@ width: 1920
 frequency: 50
 display_video: true
 
-fx: &fx 1.1993e+03
-fy: &fy 1.1992e+03
+fx: &fx 1.2338e+03
+fy: &fy 1.2349e+03
 
-cx: &cx 989.4715
-cy: &cy 566.5739
+cx: &cx 989.6463
+cy: &cy 579.6251
 
-skew: &skew 3.8743
+skew: &skew 0
 
 # camera_matrix: [1.10856930e+03, 0.0, 9.49330984e+02, 0, 1.10897817e+03, 5.74566862e+02]
 
-camera_matrix: [*fx, *skew, *cx, 0, *fy, *cy, 0, 0, 1]
-dist_coeffs: [0.0510, -0.1293, 0.0, 0.0, 0.0]
+K: [*fx, *skew, *cx, 0, *fy, *cy, 0, 0, 1]
+distortion: [0.0541, -0.1441, 0.0, 0.0, 0.0]
 
 pose:
-  quaternion: [0.0, 0.0, -1.0, 0.0] # w first
-  position: [-0.5, -1.0, 2.0]
+  # quaternion: [0.0, 0.0, 1.0, 0.0] # w first
+  # position: [+1.1, -0.55, 3.0]
+  quaternion: [-0.10359539736147116, 0.02044372275854933, 0.9943336636914191, 0.012272448746929924]
+  position: [2.04312615, -0.915187603, 2.98044712]

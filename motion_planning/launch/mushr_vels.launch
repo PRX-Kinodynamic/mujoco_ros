@@ -1,10 +1,14 @@
 <launch>
     <arg name="filename"/>
     <arg name="file_out"/>
+    <arg name="calculate_dt" default="false"/>
+    <arg name="output_in_origin" default="false"/>
 
     <node pkg="motion_planning" name="mushr_sysid" type="mushr_sysid" output="screen" required="true">
             <param name="filename" value="$(arg filename)"/>
             <param name="file_out" value="$(arg file_out)"/>
+            <param name="calculate_dt" value="$(arg calculate_dt)"/>
+            <param name="output_in_origin" value="$(arg output_in_origin)"/>
     </node>
     
     <!-- <include file="$(find control)/launch/mushr_control.launch" /> -->

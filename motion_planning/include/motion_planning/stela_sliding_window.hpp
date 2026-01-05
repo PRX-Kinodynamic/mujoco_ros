@@ -2,11 +2,13 @@
 #include <ml4kp_bridge/defs.h>
 
 #include <ros/ros.h>
+#include <ros/time.h>
 #include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 
+#include <prx/utilities/general/prx_assert.hpp>
 #include <utils/std_utils.hpp>
 
 #include <gtsam/nonlinear/ISAM2.h>
@@ -30,6 +32,9 @@
 #include <prx_models/StelaKraft.h>
 
 #include <utils/time_profiler.hpp>
+#include <vector>
+#include "utils/dbg_utils.hpp"
+#include "utils/rosparams_utils.hpp"
 
 #ifdef GTSAM_USE_TBB
 #include <tbb/global_control.h>
@@ -164,9 +169,11 @@ public:
     bool& use_contingency{ _use_contingency };
     int& total_replanning_calls{ _replanning_calls };
 
+    double start_delay;
     _lm_params.setVerbosityLM("SILENT");
     _lm_params.setMaxIterations(10);
 
+    PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
     PARAM_SETUP(private_nh, replanner_solution_duration);
     PARAM_SETUP(private_nh, cycle_duration);
@@ -205,6 +212,9 @@ public:
       prx::param_loader params{ prx::param_loader(params_file, "") };
       const std::vector<double> param_values{ params["/parameter_space/values"].as<std::vector<double>>() };
       RobotInterface::set_params(param_values);
+
+      // _ctrl_lower_bound = params["/control_space/lower_bound"].as<std::vector<double>>();
+      // _ctrl_upper_bound = params["/control_space/upper_bound"].as<std::vector<double>>();
     }
     if (obstacle_mode == "sdf")
     {
@@ -311,7 +321,7 @@ public:
 
     _planner_clock_msg.cycle_duration = ros::Duration(cycle_duration);
     _planner_clock_msg.header.stamp = ros::Time::now();
-    _planner_clock_msg.cycle_start = ros::Time::now() + ros::Duration(3.0);
+    _planner_clock_msg.cycle_start = ros::Time::now() + ros::Duration(start_delay);
     _planner_clock_msg.cycle_end = _planner_clock_msg.cycle_start + _planner_clock_msg.cycle_duration;
     DEBUG_VARS(_planner_clock_msg)
 
@@ -328,10 +338,6 @@ public:
   {
     to_file();
   }
-
-  // void replan_timer_callback(const ros::TimerEvent& event)
-  // {
-  // }
 
   void check_new_tree(const prx_models::Tree& new_tree)
   {
@@ -353,21 +359,21 @@ public:
     // DEBUG_VARS(_x_curr, _x_next)
     // PRINT_KEYS_CONTAINER(state_keys);
     _fg_mutex.lock();
+
     update_estimates<0>(estimates, _isam, state_keys);
-    // DEBUG_PRINT
     compute_covariances<0>(covariances, _isam, state_keys);
     _fg_mutex.unlock();
     // DEBUG_PRINT
 
-    DEBUG_VARS(_new_tree.nodes[_new_tree.root]);
-    DEBUG_VARS(estimates);
+    // DEBUG_VARS(_new_tree.nodes[_new_tree.root]);
+    // DEBUG_VARS(estimates);
 
     GraphValues graph_values_0{ RobotInterface::estimate_to_prior(curr_node_idx, estimates, covariances) };
 
     proposed_graph.push_back(graph_values_0.first);
     proposed_values.insert(graph_values_0.second);
 
-    // DEBUG_PRINT
+    // DEBUG_VARS(curr_node_idx)
     while (_new_tree.nodes[curr_node_idx].children.size() > 0)
     {
       // DEBUG_VARS(curr_node_idx)
@@ -385,10 +391,10 @@ public:
 
       curr_node_idx = child_idx;
     }
-    // DEBUG_PRINT
 
     try
     {
+      // DEBUG_PRINT
       gtsam::LevenbergMarquardtOptimizer optimizer(proposed_graph, proposed_values, _lm_params);
       const gtsam::Values result{ optimizer.optimize() };
       const double proposed_error{ proposed_graph.error(proposed_values) };
@@ -396,26 +402,34 @@ public:
       DEBUG_VARS(proposed_error, new_graph_error)
       _new_tree_available = new_graph_error < 1.0;
       _tree_valid = new_graph_error < 1.0;
-      DEBUG_VARS(_new_tree_available)
+      // DEBUG_VARS(_new_tree_available)
+      // DEBUG_PRINT
     }
     catch (gtsam::ValuesKeyDoesNotExist e)
     {
-      DEBUG_PRINT
+      // DEBUG_PRINT
       PRINT_MSG("check_new_tree");
       PRINT_KEYS(e.key())
       DEBUG_VARS(e.what())
       failure_to_file(e.what());
       throw e;
     }
+    // DEBUG_PRINT
   }
 
   void replanner_service_main()
   {
     while (ros::ok() and _replanning_calls > 0)
     {
+      // _planner_clock_msg.header.stamp = ;
+      // const bool call_replanner{ ros::Time::now() > _planner_clock_msg.cycle_end };
+      // const bool call_replanner{ ros::Time::now() > _end_of_next_cycle };
       if (_call_replanner and _planner_service_client.exists())
       {
-        // PRINT_MSG("Replanning!");
+        _call_replanner = false;
+
+        DEBUG_VARS(ros::Time::now())
+        PRINT_MSG("Replanning!");
         // DEBUG_VARS(_x_curr, _x_next);
         _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
         _planner_service_call.request.use_contingency = _use_contingency;
@@ -433,6 +447,7 @@ public:
             const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
             // const prx_models::Node& new_root{ _planner_service_call.response.sln_tree.nodes[root_idx] };
             // DEBUG_VARS(_x_curr, _x_next, new_root.index)
+            DEBUG_VARS(root_idx, _x_next, root_idx >= _x_next)
             if (root_idx >= _x_next)
             {
               check_new_tree(_planner_service_call.response.sln_tree);
@@ -446,12 +461,7 @@ public:
             // DEBUG_VARS(sln_root);
           }
         }
-        _call_replanner = false;
         _replanning_calls--;
-      }
-      else
-      {
-        ros::Duration(0.1).sleep();
       }
     }
     PRINT_MSG("Maxed out on replanning cycles!");
@@ -606,7 +616,7 @@ public:
     const double dt{ (event.current_real - event.last_real).toSec() };
     const double stela_frequency{ _freq_counter / dt };
     const double& target_frequency{ _control_frequency };
-    DEBUG_VARS(stela_frequency, target_frequency);
+    // DEBUG_VARS(stela_frequency, target_frequency);
     // const std::string frq{ "stela_frequency" };
     // DEBUG_VARS(stela_frequency, current_error);
     _freq_counter = 0;
@@ -738,7 +748,7 @@ public:
 
   void add_new_tree()
   {
-    DEBUG_VARS(_current_future_nodes, _total_future_nodes);
+    // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
     _tree.copy(_new_tree);
 
     // const prx_models::Node& new_node{ _new_tree.nodes[_new_tree.root] };
@@ -747,6 +757,10 @@ public:
     // DEBUG_VARS(new_node);
     // DEBUG_VARS(node);
 
+    //
+    // DEBUG_VARS(node)
+    // DEBUG_VARS(_tree)
+    prx_assert(node.children.size() > 0, "[Stela::add_new_tree] Node has no children!");
     _next_tree_edge = _tree.nodes[node.children[0]].parent_edge;
 
     for (; _current_future_nodes < _total_future_nodes; ++_current_future_nodes)
@@ -767,6 +781,7 @@ public:
         DEBUG_VARS(_tree);
       }
     }
+
     _state = stela_state_t::TREE_EXECUTING;
 
     // const std::function<bool(const gtsam::Factor*, double, size_t)> printCondition =
@@ -778,8 +793,10 @@ public:
 
   void update_from_replan_tree()
   {
+    // DEBUG_VARS(_new_tree_available)
     if (_new_tree_available)
     {
+      _new_tree_available = false;
       PRINT_MSG("Accepting tree and updating")
       // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
       const prx_models::Node& new_root{ _new_tree.nodes[_new_tree.root] };
@@ -789,8 +806,9 @@ public:
         // DEBUG_VARS(_x_queue);
         remove_future_factors(new_root.index);
         // DEBUG_VARS(_x_queue);
+
         add_new_tree();
-        DEBUG_VARS(_current_future_nodes, _total_future_nodes);
+        // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
         // DEBUG_VARS(_x_queue);
         // DEBUG_VARS(_estimated_tree)
         //
@@ -804,7 +822,6 @@ public:
       // if (_new_root.stamp > ros::Time::now() + eps_duration)
       // {
       // }
-      _new_tree_available = false;
     }
   }
 
@@ -827,21 +844,16 @@ public:
     _profiler.start();
 
     // print_stela_state();
-    // DEBUG_PRINT
 
     _fg_mutex.lock();
 
     update_from_replan_tree();
-    // DEBUG_PRINT
 
     add_observations();
-    // DEBUG_PRINT
 
     update_next_goal();
-    // DEBUG_PRINT
 
     update_estimated_tree();
-    // DEBUG_PRINT
 
     // if (_visualize)
     // {
@@ -858,7 +870,6 @@ public:
     publish_control();
 
     _fg_mutex.unlock();
-    // DEBUG_PRINT
 
     _estimated_tree_publisher.publish(_estimated_tree.to_msg());
     _estimated_traj_publisher.publish(_estimated_trajectory);
@@ -938,6 +949,7 @@ public:
         _estimated_tree.edges[edge_idx].plan.steps[0].duration.data = ros::Duration(dt);
         // _estimated_tree.edges[edge_idx].plan.steps[0].control.point = ros::Duration(dt);
         ml4kp_bridge::copy(_estimated_tree.edges[edge_idx].plan.steps[0].control, ui);
+        _robot->bound(_estimated_tree.edges[edge_idx].plan);
 
         // DEBUG_VARS(node_idx, node_next_idx, dt)
       }
@@ -1324,6 +1336,8 @@ public:
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
+    // _robot->bound_controls(_control_stamped);
+
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
     _stamped_control_publisher.publish(_control_stamped);
@@ -1613,7 +1627,7 @@ public:
     GraphValues graph_values{ RobotInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan,
                                                               _time_as_variable) };
 
-    graph_values.second.print("add_tree_node", SF::formatter);
+    // graph_values.second.print("add_tree_node", SF::formatter);
     obstacle_factors(graph_values.first, node_current.point, edge.target);
 
     check_factor_removal();

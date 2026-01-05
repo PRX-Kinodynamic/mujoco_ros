@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 project(utils)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -14,11 +14,14 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   nodelet
   tf
+  tf_conversions
   ml4kp_bridge
   # prx_models
 )
 
-cmake_policy(SET CMP0177 NEW)
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.31)
+  cmake_policy(SET CMP0177 NEW)
+endif()
 
 add_definitions("-O3")
 if (UNIX AND NOT APPLE)

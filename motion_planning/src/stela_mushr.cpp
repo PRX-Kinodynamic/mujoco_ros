@@ -16,14 +16,15 @@ int main(int argc, char** argv)
   const std::string node_name{ "MushrStela" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
+  ros::AsyncSpinner spinner(4);
 
   motion_planning::stela_windowed_t<prx_models::mushr_stela_t> stela;
   stela.onInit(nh);
 
-  ros::AsyncSpinner spinner(4);
   prx_assert(spinner.canStart(), "AsyncSpinner cannot start");
   spinner.start();
   stela.replanner_service_main();
+  spinner.stop();
 
   ros::waitForShutdown();
   // template <typename RobotInterface>
