@@ -9,4 +9,9 @@
       Nodelet to put poses in camera frame
     </description>
   </class>
+  <class name="estimation/ArucoCameraToWorld" type="estimation::ArucoCameraToWorld" base_class_type="nodelet::Nodelet">
+    <description> 
+      Nodelet to put poses in camera frame
+    </description>
+  </class>
 </library>

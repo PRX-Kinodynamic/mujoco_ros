@@ -242,7 +242,7 @@ struct calibrator_t
   using This = calibrator_t;
   using MarkersMap = std::map<std::size_t, interface::Marker>;
   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
-  using ArucoMarkerFactor = estimation::aruco_marker_factor_t;
+  using ArucoMarkerFactor = estimation::aruco_marker_factor_t<Camera>;
   using OnGroundFactor = estimation::on_ground_factor_t;
 
   std::string _world_frame;

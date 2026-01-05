@@ -9,6 +9,7 @@
 #include <prx/factor_graphs/plants/pusher_slider.hpp>
 #include <prx/factor_graphs/utilities/values_utilities.hpp>
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
+#include <gtsam/geometry/Pose3.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/inference/Key.h>
 #include <gtsam/nonlinear/Marginals.h>
@@ -91,11 +92,78 @@ private:
   const GroundMat _ground_mat;
 };
 
-class aruco_marker_factor_t : public gtsam::NoiseModelFactorN<gtsam::PinholeCamera<gtsam::Cal3DS2>, gtsam::Pose3>
+class above_ground_factor_t : public gtsam::NoiseModelFactorN<gtsam::Pose3>
 {
   using SE3 = gtsam::Pose3;
-  using CameraCalibration = gtsam::Cal3DS2;
-  using Camera = gtsam::PinholeCamera<CameraCalibration>;
+  using Base = gtsam::NoiseModelFactorN<SE3>;
+
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using GroundMat = Eigen::Matrix<double, 1, 6>;
+
+  using SF = prx::fg::symbol_factory_t;
+
+public:
+  above_ground_factor_t(const gtsam::Key key_x, const NoiseModel& cost_model = nullptr)
+    : Base(cost_model, key_x), _ground_mat((GroundMat() << 0, 0, 0, 0, 0, 1).finished())
+  {
+  }
+
+  virtual bool active(const gtsam::Values& values) const override
+  {
+    const SE3 state{ values.at<SE3>(this->template key<1>()) };
+    return state.translation().z() < 0;
+  }
+
+  virtual Eigen::VectorXd evaluateError(const SE3& x,  // no-lint
+                                        boost::optional<Eigen::MatrixXd&> Hx = boost::none) const override
+  {
+    Eigen::Matrix<double, 6, 6> xInv_H_x, twx_H_w, twx_H_xInv, l_H_twx;
+
+    // w * x^-1 = T
+    // w  = x * T
+    //
+    // I  = x * T
+
+    const SE3 x_inv{ x.inverse(xInv_H_x) };
+    // const SE3 Twx{ w.compose(x_inv, twx_H_w, twx_H_xInv) };
+
+    const Eigen::Vector<double, 6> logmap{ gtsam::Pose3::Logmap(x_inv, l_H_twx) };
+    const Eigen::Vector<double, 1> error(_ground_mat * logmap);
+
+    // DEBUG_VARS(Twx);
+    // DEBUG_VARS(logmap.transpose());
+    // DEBUG_VARS(error.transpose());
+    const GroundMat& err_H_l{ _ground_mat };
+    if (Hx)
+    {
+      *Hx = err_H_l * l_H_twx * xInv_H_x;
+    }
+    return error;
+  }
+
+  void print(const std::string& s, const gtsam::KeyFormatter& keyFormatter = SF::formatter) const override
+  {
+    std::cout << s << "Ground Factor: ";
+    std::cout << keyFormatter(this->template key<1>()) << " ";
+    if (this->noiseModel_)
+      this->noiseModel_->print("  noise model: ");
+    else
+      std::cout << "no noise model" << std::endl;
+    std::cout << "\n";
+  }
+
+private:
+  const GroundMat _ground_mat;
+};
+
+// Estimate the Pose of the camera and the poses of markers
+// Considers a camera with FIX (known) calibration.
+template <typename Camera>
+class aruco_marker_factor_t : public gtsam::NoiseModelFactorN<Camera, gtsam::Pose3>
+{
+  using SE3 = gtsam::Pose3;
+  // using CameraCalibration = gtsam::Cal3DS2;
+  // using Camera = gtsam::PinholeCamera<CameraCalibration>;
   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
   using SF = prx::fg::symbol_factory_t;
   using Pixel = Eigen::Vector2d;
@@ -143,34 +211,47 @@ public:
     Eigen::Matrix<double, 3, 6> cW_H_m;
     Eigen::Matrix<double, 2, Camera::dimension> pPT_H_cam;
     Eigen::Matrix<double, 2, 3> pPT_H_cW;
-    // Hx ? &p_H_x : nullptr,  // no-lint
-    // Hxdot ? &p_H_xdot : nullptr) };
+
     const Eigen::Vector3d corner_world{ marker.transformFrom(offset, Hmarker ? &cW_H_m : nullptr) };
 
-    // DEBUG_VARS(corner_world.transpose());
-    const Eigen::Vector2d pred_img_pt{ camera.project2(corner_world,                 // no-lint
-                                                       Hcam ? &pPT_H_cam : nullptr,  // no-lint
-                                                       Hmarker ? &pPT_H_cW : nullptr) };
-
-    // DEBUG_VARS(marker);
-    // DEBUG_VARS(corner_world.transpose());
-    // DEBUG_VARS(pred_img_pt.transpose());
-    if (Hcam)
+    try
     {
-      *Hcam = pPT_H_cam;
-    }
-    if (Hmarker)
-    {
-      *Hmarker = pPT_H_cW * cW_H_m;
-    }
+      const Eigen::Vector2d pred_img_pt{ camera.project2(corner_world,                 // no-lint
+                                                         Hcam ? &pPT_H_cam : nullptr,  // no-lint
+                                                         Hmarker ? &pPT_H_cW : nullptr) };
+      // DEBUG_VARS(marker);
+      // marker.print();
+      // DEBUG_VARS(corner_world.transpose());
+      // DEBUG_VARS(pred_img_pt.transpose());
+      if (Hcam)
+      {  //
+        *Hcam = pPT_H_cam;
+      }
+      if (Hmarker)
+      {
+        *Hmarker = pPT_H_cW * cW_H_m;
+      }
 
-    return pred_img_pt;
+      return pred_img_pt;
+    }
+    catch (gtsam::CheiralityException& e)
+    {
+      // PRINT_MSG("CheiralityException");
+      // DEBUG_VARS(corner_world.transpose());
+      // DEBUG_VARS(pred_img_pt.transpose());
+      if (Hcam)
+        *Hcam = Eigen::Matrix<double, 2, Camera::dimension>::Zero();
+      if (Hmarker)
+        *Hmarker = Eigen::Matrix<double, 2, 6>::Zero();
+      return gtsam::Vector2::Constant(2.0 * camera.calibration().fx());
+    }
   }
 
   virtual Eigen::VectorXd evaluateError(const Camera& camera, const SE3& marker,
                                         boost::optional<Eigen::MatrixXd&> Hcam = boost::none,
                                         boost::optional<Eigen::MatrixXd&> Hmarker = boost::none) const override
   {
+    // PRINT_KEY(this->template key<2>());
     const Eigen::Vector2d pt_pred{ predict(camera, marker, _offset, Hcam, Hmarker) };
     const Eigen::Vector2d error{ pt_pred - _z };
 
@@ -202,6 +283,61 @@ private:
   const Eigen::Vector3d _offset;
 };
 
+// Estimates the pose of a marker, where the camera is fixed (both pose and calibration).
+template <typename Camera>
+class aruco_marker_fix_camera_factor_t : public gtsam::NoiseModelFactorN<gtsam::Pose3>
+{
+  using SE3 = gtsam::Pose3;
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using SF = prx::fg::symbol_factory_t;
+  using Pixel = Eigen::Vector2d;
+
+  using Base = gtsam::NoiseModelFactor1<SE3>;
+  using ArucoMarkerFactor = aruco_marker_factor_t<Camera>;
+
+public:
+  aruco_marker_fix_camera_factor_t(const gtsam::Key key_marker, const Camera& camera, const Pixel meassurement,
+                                   const double marker_size, const int corner, const NoiseModel& cost_model = nullptr)
+    : Base(cost_model, key_marker)
+    , _camera(camera)
+    , _z(meassurement)
+    , _marker_size(marker_size)
+    , _corner(corner)
+    , _offset(ArucoMarkerFactor::compute_corner_offset(corner, marker_size))
+  {
+  }
+
+  virtual Eigen::VectorXd evaluateError(const SE3& marker,
+                                        boost::optional<Eigen::MatrixXd&> Hmarker = boost::none) const override
+  {
+    const Eigen::Vector2d pt_pred{ ArucoMarkerFactor::predict(_camera, marker, _offset, boost::none, Hmarker) };
+    const Eigen::Vector2d error{ pt_pred - _z };
+
+    return error;
+  }
+
+  void print(const std::string& s, const gtsam::KeyFormatter& keyFormatter = SF::formatter) const override
+  {
+    std::cout << s << "Aruco Marker (fix pose): ";
+    std::cout << keyFormatter(this->template key<1>()) << " ";
+    std::cout << "  Z: " << _z.transpose() << "\n";
+    std::cout << "  Marker size: " << _marker_size << "\n";
+    std::cout << "  Corner: " << _corner << "\n";
+    std::cout << "  Offset: " << _offset.transpose() << "\n";
+    if (this->noiseModel_)
+      this->noiseModel_->print("  noise model: ");
+    else
+      std::cout << "no noise model" << std::endl;
+    std::cout << "\n";
+  }
+
+private:
+  const Camera _camera;
+  const Eigen::Vector2d _z;
+  const double _marker_size;
+  const int _corner;
+  const Eigen::Vector3d _offset;
+};
 // Mi_Z_cj     = Mi_T_O * O_T_cj;
 // Observation =  SE3   *   SE3
 // O = origin frame

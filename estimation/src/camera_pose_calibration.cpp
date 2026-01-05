@@ -16,6 +16,8 @@
 #include <prx/factor_graphs/plants/pusher_slider.hpp>
 #include <prx/factor_graphs/utilities/values_utilities.hpp>
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
+#include <prx/utilities/general/type_conversions.hpp>
+
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/inference/Key.h>
 #include <gtsam/nonlinear/Marginals.h>
@@ -41,14 +43,15 @@ struct calibrator_t
   using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
   using SF = prx::fg::symbol_factory_t;
   using MarkersMap = std::map<std::size_t, interface::Marker>;
-  using ArucoMarkerFactor = estimation::aruco_marker_factor_t;
+  using ArucoMarkerFactor = estimation::aruco_marker_factor_t<Camera>;
   using OnGroundFactor = estimation::on_ground_factor_t;
+  // using prx::utilities::convert_to;
 
   std::string _world_frame;
   std::vector<ros::Subscriber> _marker_subscribers;
   std::vector<ros::Publisher> _cam_info_pubs;
 
-  std::map<std::size_t, MarkersMap> _markers;
+  std::map<std::string, MarkersMap> _markers;
 
   ros::Timer _fg_timer;
 
@@ -61,6 +64,7 @@ struct calibrator_t
   std::vector<Camera> _cameras;
   std::vector<int> _markers_on_ground;
   std::vector<std::string> _camera_frames;
+  std::map<int, gtsam::Pose3> _markers_poses;
   gtsam::LevenbergMarquardtParams _lm_params;
 
   tf2_ros::StaticTransformBroadcaster _static_broadcaster;
@@ -85,17 +89,23 @@ struct calibrator_t
     PARAM_SETUP(nh, markers_on_ground);
     PARAM_SETUP(nh, camera_frames);
 
-    DEBUG_VARS(marker_size);
-    DEBUG_VARS(aruco_topics);
+    // DEBUG_VARS(marker_size);
+    // DEBUG_VARS(aruco_topics);
 
-    // _lm_params.setMaxIterations(1);
-    _lm_params.setMaxIterations(100);
+    ros::NodeHandle nh_optimizer("~/optimizer/");
+    int iterations;
+    PARAM_SETUP(nh_optimizer, iterations);
+
+    _lm_params.setMaxIterations(iterations);
+    // _lm_params.setMaxIterations(100);
 
     // for (auto& topic_name : aruco_topics)
+    prx_assert(aruco_topics.size() == _camera_frames.size(), "camera frames and topics must be same size");
     for (int i = 0; i < aruco_topics.size(); ++i)
     {
+      // DEBUG_VARS(aruco_topics[i], _camera_frames[i]);
       _marker_subscribers.push_back(nh.subscribe<interface::StampedMarkers>(
-          aruco_topics[i], 1, boost::bind(&This::marker_callback, this, _1, i)));
+          aruco_topics[i], 1, boost::bind(&This::marker_callback, this, _1, _camera_frames[i])));
     }
 
     for (auto cam : _camera_frames)
@@ -108,13 +118,14 @@ struct calibrator_t
     _fg_timer = nh.createTimer(freq_timer, &This::timer_function, this);
   }
 
-  void marker_callback(const interface::StampedMarkersConstPtr msg, const std::size_t idx)
+  void marker_callback(const interface::StampedMarkersConstPtr msg, const std::string cam_id)
   {
     // _markers[idx] = *msg;
     for (int i = 0; i < msg->markers.size(); ++i)
     {
       const interface::Marker& marker{ msg->markers[i] };
-      _markers[idx][marker.id] = marker;
+      _markers[cam_id][marker.id] = marker;
+      // DEBUG_VARS(cam_id, marker);
     }
     // DEBUG_VARS(*msg);
   }
@@ -134,7 +145,7 @@ struct calibrator_t
     // PARAM_SETUP(nh, cameras);
 
     // for (auto cam : _cameras)
-    for (int ci = 0; ci < _cameras.size(); ++ci)
+    for (int ci = 0; ci < _camera_frames.size(); ++ci)
     {
       const std::string& camera_name{ _camera_frames[ci] };
       ros::NodeHandle nh("~/" + camera_name);
@@ -154,17 +165,6 @@ struct calibrator_t
       PARAM_SETUP(nh_pose, quaternion)
       PARAM_SETUP(nh_pose, position)
 
-      // Eigen::Matrix3d cam_K;  //{ K.data() };
-      // const Eigen::Vector<double, 5> cam_distortion{ distortion.data() };
-
-      // for (int i = 0; i < 3; ++i)
-      // {
-      //   for (int j = 0; j < 3; ++j)
-      //   {
-      //     cam_K(i, j) = K[i * 3 + j];
-      //   }
-      // }
-      // DEBUG_VARS(cam_distortion);
       sensor_msgs::CameraInfo msg;
       msg.header.stamp = ros::Time::now();
       msg.header.frame_id = camera_name;
@@ -200,11 +200,29 @@ struct calibrator_t
       const gtsam::Pose3 pose(cam_quat, cam_position);
       // gtsam::Pose3 pose(gtsam::Rot3(0, 0, -1, 0), Eigen::Vector3d(0.0, 0.0, 2.0));
 
-      const CameraCalibration calibration(fx, fy, s, u0, v0, k1, k2, p1, p2);
+      const Eigen::Vector<double, 9> calibration({ fx, fy, s, u0, v0, k1, k2, p1, p2 });
+      // const CameraCalibration calibration(fx, fy, s, u0, v0, k1, k2, p1, p2);
       _cameras.emplace_back(pose, calibration);
       // gtsam::PinholeCamera camera(pose, calibration);
     }
+
+    // run_calibration();
+    run_incremental_calibration();
     publish_cameras_tf();
+  }
+
+  static void pose_to_tf(geometry_msgs::TransformStamped& msg, const gtsam::Pose3& pose)
+  {
+    msg.transform.translation.x = pose.x();
+    msg.transform.translation.y = pose.y();
+    msg.transform.translation.z = pose.z();
+
+    // quat = tf.transformations.quaternion_from_matrix(mat)
+    const gtsam::Quaternion quat{ pose.rotation().toQuaternion() };
+    msg.transform.rotation.w = quat.w();
+    msg.transform.rotation.x = quat.x();
+    msg.transform.rotation.y = quat.y();
+    msg.transform.rotation.z = quat.z();
   }
 
   void publish_cameras_tf()  //
@@ -214,6 +232,8 @@ struct calibrator_t
       const std::string& camera_frame{ _camera_frames[i] };
       const Camera& camera{ _cameras[i] };
 
+      camera.print(camera_frame);
+
       geometry_msgs::TransformStamped static_transform_stamped;
       static_transform_stamped.header.frame_id = _world_frame;
       static_transform_stamped.child_frame_id = camera_frame;
@@ -221,118 +241,205 @@ struct calibrator_t
       static_transform_stamped.header.stamp = ros::Time::now();
 
       const gtsam::Pose3& pose{ camera.pose() };
-      static_transform_stamped.transform.translation.x = pose.x();
-      static_transform_stamped.transform.translation.y = pose.y();
-      static_transform_stamped.transform.translation.z = pose.z();
+      pose_to_tf(static_transform_stamped, pose);
 
-      // quat = tf.transformations.quaternion_from_matrix(mat)
-      const gtsam::Quaternion quat{ pose.rotation().toQuaternion() };
-      static_transform_stamped.transform.rotation.w = quat.w();
-      static_transform_stamped.transform.rotation.x = quat.x();
-      static_transform_stamped.transform.rotation.y = quat.y();
-      static_transform_stamped.transform.rotation.z = quat.z();
+      // static_transform_stamped.transform.translation.x = pose.x();
+      // static_transform_stamped.transform.translation.y = pose.y();
+      // static_transform_stamped.transform.translation.z = pose.z();
+
+      // // quat = tf.transformations.quaternion_from_matrix(mat)
+      // const gtsam::Quaternion quat{ pose.rotation().toQuaternion() };
+      // static_transform_stamped.transform.rotation.w = quat.w();
+      // static_transform_stamped.transform.rotation.x = quat.x();
+      // static_transform_stamped.transform.rotation.y = quat.y();
+      // static_transform_stamped.transform.rotation.z = quat.z();
 
       _static_broadcaster.sendTransform(static_transform_stamped);
+    }
+
+    // for (int i = 0; i < _markers_poses.size(); ++i)
+    for (auto pair : _markers_poses)
+    {
+      // DEBUG_VARS(pair.first);
+      // pair.second.print();
+      geometry_msgs::TransformStamped static_transform_stamped;
+      static_transform_stamped.header.frame_id = _world_frame;
+      static_transform_stamped.child_frame_id = "Marker_" + prx::utilities::convert_to<std::string>(pair.first);
+
+      static_transform_stamped.header.stamp = ros::Time::now();
+
+      // DEBUG_VARS();
+      pose_to_tf(static_transform_stamped, pair.second);
+      _static_broadcaster.sendTransform(static_transform_stamped);
+    }
+  }
+
+  void run_incremental_calibration()
+  {
+    gtsam::Values initial_values;
+    gtsam::NonlinearFactorGraph graph;
+
+    const NoiseModel origin_nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1e-4) };
+    const NoiseModel aruco_nm{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };    // in pixels
+    const NoiseModel ground_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-2) };  // in cm
+
+    const gtsam::Key origin_marker{ SF::create_hashed_symbol("marker_{", _origin_marker, "}") };
+
+    initial_values.insert(origin_marker, gtsam::Pose3());
+    graph.addPrior(origin_marker, gtsam::Pose3(), origin_nm);
+
+    for (int i = 0; i < _camera_frames.size(); ++i)
+    {
+      const std::string frame{ _camera_frames[i] };
+      const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", frame) };
+      initial_values.insert(key_cam_i, _cameras[i]);
+      for (int j = 0; j < 4; ++j)
+      {
+        const interface::Marker& marker{ _markers[frame][_origin_marker] };
+        const Eigen::Vector2d meassurement(marker.corners[j].x, marker.corners[j].y);
+        graph.emplace_shared<ArucoMarkerFactor>(key_cam_i, origin_marker, meassurement, _marker_size, j, aruco_nm);
+      }
+    }
+
+    for (int i = 0; i < _camera_frames.size(); ++i)
+    {
+      const std::string frame{ _camera_frames[i] };
+      const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", frame) };
+
+      // DEBUG_PRINT;
+
+      for (auto& marker_pair : _markers[frame])
+      {
+        const interface::Marker& marker{ marker_pair.second };
+
+        // std::vector<int> valid_markers = { 121, 36, 14 };
+        // if (std::find(valid_markers.begin(), valid_markers.end(), marker.id) == valid_markers.end())
+        // {
+        //   continue;
+        // }
+        const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker.id, "}") };
+
+        for (int j = 0; j < 4; ++j)
+        {
+          const Eigen::Vector2d meassurement(marker.corners[j].x, marker.corners[j].y);
+          graph.emplace_shared<ArucoMarkerFactor>(key_cam_i, key_marker_i, meassurement, _marker_size, j, aruco_nm);
+        }
+
+        if (std::find(_markers_on_ground.begin(), _markers_on_ground.end(), marker.id) != _markers_on_ground.end())
+        {
+          graph.emplace_shared<OnGroundFactor>(origin_marker, key_marker_i, ground_nm);
+        }  // if (initial_values.exists(key_marker_i))
+        // {
+        // }
+        if (not initial_values.exists(key_marker_i))
+        {
+          initial_values.insert(key_marker_i, gtsam::Pose3());
+        }
+
+        gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_values, _lm_params);
+        initial_values = optimizer.optimize();
+        update_estimation(initial_values);
+        publish_cameras_tf();
+        graph.printErrors(initial_values, "Graph", SF::formatter);
+        // PRINT_KEY(key_cam_i);
+        // PRINT_KEY(key_marker_i);
+        // int dummy;
+        // std::cin >> dummy;
+      }
     }
   }
 
   void run_calibration()
   {
-    // gtsam::Values initial_values;
-    // gtsam::NonlinearFactorGraph graph;
+    gtsam::Values initial_values;
+    gtsam::NonlinearFactorGraph graph;
 
-    // // gtsam::Pose3 pose(gtsam::Rot3(0, 0, -1, 0), Eigen::Vector3d(0.115589, 0.0677932, 1.81156));
-    // gtsam::Pose3 pose(gtsam::Rot3(0, 0, -1, 0), Eigen::Vector3d(1.0, 0.0, 2.0));
+    const gtsam::Key origin_marker{ SF::create_hashed_symbol("marker_{", _origin_marker, "}") };
+    for (int i = 0; i < _camera_frames.size(); ++i)
+    {
+      const std::string frame{ _camera_frames[i] };
+      const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", frame) };
+      // DEBUG_VARS(frame, key_cam_i);
 
-    // // CameraCalibration calibration(3699.77, 1892.07, -2.95666, 1418.38, 51.6949, 53.2221187, -1416.32391,
-    // -3.2468501,
-    // //                               -2.03022483);
+      // PRINT_KEY(key_cam_i)
+      initial_values.insert(key_cam_i, _cameras[i]);
+      // DEBUG_PRINT;
+      NoiseModel aruco_nm{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };  // in pixels
 
-    // // CameraCalibration calibration;
-    // CameraCalibration calibration(1.06662602e+03, 1.06702175e+03, 0.0, 9.34438762e+02, 5.58367833e+02,  // no-lint
-    //                               0.15133433, -0.3597004, -0.00049652, -0.00261917);
-    // // CameraCalibration calibration(1.06662602e+03, 1.06702175e+03, 1.0, 9.34438762e+02, 5.58367833e+02,  // no-lint
-    // //                               0.15133433, -0.3597004, -0.00049652, -0.00261917);
-    // // 0.15133433, -0.3597004, -0.00049652, -0.00261917, 0.17594971
-    // gtsam::PinholeCamera camera(pose, calibration);
+      for (auto& marker_pair : _markers[frame])
+      {
+        const interface::Marker& marker{ marker_pair.second };
 
-    // // int i{ 0 };
-    // const gtsam::Key origin_marker{ SF::create_hashed_symbol("marker_{", _origin_marker, "}") };
-    // for (int i = 0; i < _markers.size(); ++i)
-    // {
-    //   const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", i) };
+        //     // if (marker.id != 121)
+        //     // if (marker.id != 121 and marker.id != 1 and marker.id != 80)
+        // if (marker.id != 121 and marker.id != 1)
+        //
+        // if (marker.id != 121 and marker.id != 1 and marker.id != 80 and )
+        std::vector<int> valid_markers = { 121, 36, 14 };
+        if (std::find(valid_markers.begin(), valid_markers.end(), marker.id) == valid_markers.end())
+        {
+          continue;
+        }
+        const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker.id, "}") };
 
-    //   initial_values.insert(key_cam_i, camera);
+        // Eigen::Vector2d z_avg{ Eigen::Vector2d::Zero() };
+        for (int j = 0; j < 4; ++j)
+        {
+          //       // const Eigen::Vector2d meassurement(marker.corners[j].x, _height - marker.corners[j].y);
+          const Eigen::Vector2d meassurement(marker.corners[j].x, marker.corners[j].y);
+          graph.emplace_shared<ArucoMarkerFactor>(key_cam_i, key_marker_i, meassurement, _marker_size, j, aruco_nm);
+          // z_avg += meassurement;
+        }
+        // const Eigen::Vector3d position_init{ camera.backproject(z_avg / 4.0, camera.pose().z()) };
+        // initial_values.insert_or_assign(key_marker_i, gtsam::Pose3(gtsam::Rot3(), position_init));
+        initial_values.insert_or_assign(key_marker_i, gtsam::Pose3());
+      }
 
-    //   NoiseModel aruco_nm{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };  // in pixels
-
-    //   // const interface::Marker marker{ _markers[0].front() };
-    //   for (auto& marker_pair : _markers[i])
-    //   {
-    //     const interface::Marker& marker{ marker_pair.second };
-
-    //     // if (marker.id != 121)
-    //     // if (marker.id != 121 and marker.id != 1 and marker.id != 80)
-    //     if (marker.id != 121 and marker.id != 1)
-    //     {
-    //       continue;
-    //     }
-    //     const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker.id, "}") };
-
-    //     initial_values.insert_or_assign(key_marker_i, gtsam::Pose3());
-
-    //     for (int j = 0; j < 4; ++j)
-    //     {
-    //       // const Eigen::Vector2d meassurement(marker.corners[j].x, _height - marker.corners[j].y);
-    //       const Eigen::Vector2d meassurement(marker.corners[j].x, marker.corners[j].y);
-    //       graph.emplace_shared<ArucoMarkerFactor>(key_cam_i, key_marker_i, meassurement, _marker_size, j, aruco_nm);
-    //     }
-    //   }
-
-    //   NoiseModel ground_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-2) };  // in cm
-    //   for (auto& marker_id : _markers_on_ground)
-    //   {
-    //     const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker_id, "}") };
-    //     graph.emplace_shared<OnGroundFactor>(origin_marker, key_marker_i, ground_nm);
-    //   }
-    // }
-    // NoiseModel origin_nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1e-4) };
-    // graph.addPrior(origin_marker, gtsam::Pose3(), origin_nm);
+      NoiseModel ground_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-2) };  // in cm
+      for (auto& marker_id : _markers_on_ground)
+      {
+        const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker_id, "}") };
+        if (initial_values.exists(key_marker_i))
+        {
+          graph.emplace_shared<OnGroundFactor>(origin_marker, key_marker_i, ground_nm);
+        }
+      }
+    }
+    NoiseModel origin_nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1e-4) };
+    graph.addPrior(origin_marker, gtsam::Pose3(), origin_nm);
 
     // // graph.print("Graph", SF::formatter);
-    // gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_values, _lm_params);
-    // gtsam::Values result{ optimizer.optimize() };
+    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_values, _lm_params);
+    gtsam::Values result{ optimizer.optimize() };
 
     // result.print("Result", SF::formatter);
 
-    // graph.printErrors(result, "Graph", SF::formatter);
+    graph.printErrors(result, "Graph", SF::formatter);
+
+    update_estimation(result);
 
     // project_result(result);
   }
 
-  void project_result(const gtsam::Values values)
+  void update_estimation(const gtsam::Values& result)
   {
-    int i{ 0 };
-    const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", i) };
-
-    const Camera cam{ values.at<Camera>(key_cam_i) };
-
-    for (auto& marker_pair : _markers[i])
+    for (int i = 0; i < _camera_frames.size(); ++i)
     {
-      const interface::Marker& marker{ marker_pair.second };
-      const int marker_id{ marker.id };
-      const gtsam::Key marker_key{ SF::create_hashed_symbol("marker_{", marker_id, "}") };
+      const std::string frame{ _camera_frames[i] };
+      const gtsam::Key key_cam_i{ SF::create_hashed_symbol("Camera_", frame) };
 
-      // if (marker.id != 121 and marker.id != 1 and marker.id != 80)
-      if (marker.id != 121 and marker.id != 1)
+      _cameras[i] = result.at<Camera>(key_cam_i);
+      for (auto& marker_pair : _markers[frame])
       {
-        continue;
-      }
-      const gtsam::Pose3 marker_pose{ values.at<gtsam::Pose3>(marker_key) };
+        const interface::Marker& marker{ marker_pair.second };
 
-      // const Eigen::Vector3d offset{ Eigen::Vector3d::Zero() };
-      // const Eigen::Vector2d pixel{ ArucoMarkerFactor::predict(cam, marker_pose, offset) };
-      // DEBUG_VARS(marker_id, pixel[0], pixel[1])
+        const gtsam::Key key_marker_i{ SF::create_hashed_symbol("marker_{", marker.id, "}") };
+
+        if (result.exists(key_marker_i))
+        {
+          _markers_poses[marker.id] = result.at<gtsam::Pose3>(key_marker_i);
+        }
+      }
     }
   }
 };

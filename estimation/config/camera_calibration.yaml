@@ -8,15 +8,23 @@ width: 1920
 world_frame: "world"
 
 marker_size: 0.164
-# camera_frames: ["C0", "C1"]
-camera_frames: ["C0"]
+camera_frames: ["C0", "C1"]
+# camera_frames: ["C0"]
+# camera_frames: ["C1"]
 aruco_topics: [*camera_0, *camera_1]
+# aruco_topics: [ *camera_0]
+# aruco_topics: [ *camera_1]
 
-# markers_on_ground: [121, 80, 1]
-markers_on_ground: [121, 1]
+markers_on_ground: [121, 80, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 62, 127, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+# markers_on_ground: [121, 1, 80, 10]
+# markers_on_ground: [121, 36, 14]
 
 origin_marker: 121
 
 calibration_file: "/common/home/eg585/perception/stela_ws/data/world_calibration.yaml"
 # load_previous_calibration: true
 load_previous_calibration: false
+
+optimizer:
+  iterations: 100
+  verbosity_level: "SILENT"
