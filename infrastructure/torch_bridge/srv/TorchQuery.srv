@@ -1,0 +1,10 @@
+# Torch query service to have torch in a separate process, where the request is the input to a torch model and the response its output.
+int16 inputs 						  # The total (N) inputs of the model F(x0, x1, ..., xN-1)
+int16[] input_dimensions  # The dimensions of each input: if all are vectors then |input_dimensions| = N, if matrices then |input_dimensions| = 2*N, etc.
+float64[] data   					# The raw data as a single list. Stored as data: [x0^0, x0^1, x1^0,x1^1,x1^2] for N=2 and input_dimensions=[2,3]
+bool compute_jacobians    # If true, return jacobians
+---
+int16 outputs 					  # The total (M) outputs (y0,y1,..yM-1) = F(...)
+int16[] output_dimensions   # The dimensions of each output.
+float64[] result 					# The raw data as a single list (see input data)
+float64[] jacobians 			# Derivatives dy_i / dx_j. Stored as the input data, considering that each jacobian has dimension (ouput_dim_i x input_dim_j).
