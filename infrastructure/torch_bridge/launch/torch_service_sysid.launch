@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- 
+    Launch file for TorchServer with mushr_mujoco_sysid model.
+    
+    Usage:
+      roslaunch torch_bridge torch_service_sysid.launch exp_dir:=/path/to/experiment
+    
+    Required argument:
+      exp_dir: Path to experiment directory containing config.json, best.pt, standardizers.json
+    
+    Optional arguments:
+      service_name: ROS service name (default: /torch/service)
+      dt: Model timestep (default: 0.05)
+      device: cpu or cuda (default: cpu)
+      dtype: float32 or float64 (default: float32)
+      use_jit: Enable JIT tracing (default: false)
+      use_compile: Enable torch.compile (default: false)
+  -->
+
+  <!-- Required: experiment directory -->
+  <arg name="exp_dir" />
+
+  <!-- Optional parameters with defaults -->
+  <arg name="service_name" default="/torch/service" />
+  <arg name="dt" default="0.05" />
+  <arg name="device" default="cpu" />
+  <arg name="dtype" default="float32" />
+  <arg name="use_jit" default="false" />
+  <arg name="use_compile" default="auto" />  <!-- auto = smart default (enabled by default) -->
+  <arg name="use_tf32" default="false" />
+  <arg name="use_cudagraph" default="auto" />  <!-- auto = CUDA only -->
+  <arg name="warmup_iters" default="3" />
+
+  <!-- Launch the torch service server via wrapper to ensure correct Python env -->
+  <node name="torch_service_server" pkg="torch_bridge" type="torch_service_server_wrapper.sh" output="screen">
+    <param name="service_name" value="$(arg service_name)" />
+    <param name="exp_dir" value="$(arg exp_dir)" />
+    <param name="dt" value="$(arg dt)" />
+    <param name="device" value="$(arg device)" />
+    <param name="dtype" value="$(arg dtype)" />
+    <param name="use_jit" value="$(arg use_jit)" />
+    <param name="use_compile" value="$(arg use_compile)" />
+    <param name="use_tf32" value="$(arg use_tf32)" />
+    <param name="use_cudagraph" value="$(arg use_cudagraph)" />
+    <param name="warmup_iters" value="$(arg warmup_iters)" />
+  </node>
+
+</launch>

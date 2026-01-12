@@ -193,6 +193,13 @@ catkin_install_python(PROGRAMS
   ${SCRIPT_FILES}
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+# Install bash wrapper scripts
+install(PROGRAMS
+  scripts/torch_service_server_wrapper.sh
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
 

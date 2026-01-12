@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- 
+    Convenience launch file for the v3B_struct_h10_tf0_seed4 model.
+    This is the best-performing model from your experiments-v3.
+    
+    Usage:
+      roslaunch torch_bridge torch_service_v3B.launch
+    
+    You can override parameters:
+      roslaunch torch_bridge torch_service_v3B.launch device:=cuda use_compile:=true
+  -->
+
+  <!-- Default experiment directory (update this path if needed) -->
+  <arg name="exp_dir" default="/common/home/st1122/Projects/mushr_mujoco_sysid/experiments/experiments-v3/v3B_struct_h10_tf0_seed4/v3B_struct_h10_tf0_seed4" />
+
+  <!-- Optional parameters -->
+  <arg name="service_name" default="/torch/service" />
+  <arg name="dt" default="0.05" />
+  <arg name="device" default="cpu" />
+  <arg name="dtype" default="float32" />
+  <arg name="use_jit" default="false" />
+  <arg name="use_compile" default="auto" />  <!-- auto = smart default (enabled by default) -->
+  <arg name="use_tf32" default="false" />
+  <arg name="use_cudagraph" default="auto" />  <!-- auto = CUDA only -->
+  <arg name="warmup_iters" default="3" />
+
+  <!-- Include the main launch file -->
+  <include file="$(find torch_bridge)/launch/torch_service_sysid.launch">
+    <arg name="exp_dir" value="$(arg exp_dir)" />
+    <arg name="service_name" value="$(arg service_name)" />
+    <arg name="dt" value="$(arg dt)" />
+    <arg name="device" value="$(arg device)" />
+    <arg name="dtype" value="$(arg dtype)" />
+    <arg name="use_jit" value="$(arg use_jit)" />
+    <arg name="use_compile" value="$(arg use_compile)" />
+    <arg name="use_tf32" value="$(arg use_tf32)" />
+    <arg name="use_cudagraph" value="$(arg use_cudagraph)" />
+    <arg name="warmup_iters" value="$(arg warmup_iters)" />
+  </include>
+
+</launch>
