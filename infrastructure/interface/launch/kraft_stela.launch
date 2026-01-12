@@ -5,18 +5,18 @@
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/> -->
 
-	<include file="$(find mujoco_ros)/launch/mushr.launch">
-    <arg name="publish_ground_truth_pose" value="false" />
-    <arg name="environment" value="$(arg environment)" />
-  </include>
+	<!-- <include file="$(find mujoco_ros)/launch/mushr.launch"> -->
+    <!-- <arg name="publish_ground_truth_pose" value="false" /> -->
+    <!-- <arg name="environment" value="$(arg environment)" /> -->
+  <!-- </include> -->
 
   <include file="$(find interface)/launch/stela.launch">
     <arg name="input_tree_topic_name" default="/mushr/sln/tree_dbg"/>
     <arg name="environment" value="$(arg environment)" />
   </include>
 
-  <include file="$(find task_planning)/launch/fix_plan.launch">
-  </include>
+  <include file="$(find task_planning)/launch/fix_plan.launch"/>
+  
   <!-- <include file="$(find task_planning)/launch/kraft.launch"> -->
     <!-- <arg name="environment" value="$(arg environment)" /> -->
   <!-- </include> -->

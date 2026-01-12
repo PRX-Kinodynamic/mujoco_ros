@@ -33,8 +33,8 @@ state_space:
   # lower_bound: [-500, -500, -3.14159, -500,-500, -500] # empty
   # upper_bound: [ 500,  500,  3.14159,  500, 500,  500] # empty
 control_space:
-  lower_bound: [-0.5, -1.0]
-  upper_bound: [ 0.5,  1.0]
+  lower_bound: [-1.0, -1.0]
+  upper_bound: [ 1.0,  1.0]
   values: [0.0, 0.0]
 
 # -0.447324,0.2,0.00363154,0.9,1.05

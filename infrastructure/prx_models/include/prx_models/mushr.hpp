@@ -508,7 +508,7 @@ public:
     GraphValues graph_values;
     if (not _new_observation)
     {
-      // PRINT_MSG("[Mushr] No observation");
+      PRINT_MSG("[Mushr] No observation");
       return graph_values;
     }
 
@@ -524,8 +524,11 @@ public:
 
     const Observation& zi{ _last_observation.first };
     const double dt{ (_last_observation.second - ti).toSec() };
-    graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, z_noise, zi, dt);
 
+    PRINT_MSG("Adding Observation Factor")
+    DEBUG_VARS(dt, zi);
+    graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, z_noise, zi, dt);
+    // const Observation predicted{ ObservationFactor::predict(x0, xdot0, dt) };
     // DEBUG_VARS(dt);
     // zi.print("zi");
 

@@ -1,7 +1,10 @@
 #include <ml4kp_bridge/defs.h>
 
 #include <prx_models/MushrPlanner.h>
+#include <cstddef>
+#include <prx/simulation/playback/plan.hpp>
 #include <prx/simulation/system.hpp>
+#include <prx/utilities/spaces/space_snapshot.hpp>
 #include <prx_models/mj_mushr.hpp>
 #include <control/MushrControlPropagation.h>
 #include <motion_planning/replanner_service.hpp>
@@ -90,15 +93,16 @@ struct constant_plan_t
 
   ros::ServiceServer _replanning_service;
 
-  std::shared_ptr<prx::plan_t> _plan;
+  std::shared_ptr<prx::plan_t> _plan, _plan_aux;
   std::shared_ptr<prx::trajectory_t> _traj;
 
   prx::space_point_t _start_state;
   bool _new_traj;
 
+  ros::Time _past_stamp;
   utils::time_profiler_t _profiler;
 
-  constant_plan_t(ros::NodeHandle& nh) : _new_traj(false)
+  constant_plan_t(ros::NodeHandle& nh) : _new_traj(false), _past_stamp(0)
   {
     std::string params_file;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
@@ -177,6 +181,7 @@ struct constant_plan_t
     _param_space->init(params["/plant/parameter_space"]);
 
     _plan = std::make_shared<prx::plan_t>(_control_space);
+    _plan_aux = std::make_shared<prx::plan_t>(_control_space);
     _step_plan = std::make_shared<prx::plan_t>(_control_space);
     _traj = std::make_shared<prx::trajectory_t>(_state_space);
 
@@ -265,26 +270,86 @@ struct constant_plan_t
     _status_publisher.publish(_status);
   }
 
+  void advance_plan()
+  {
+    if (_past_stamp.isZero())
+      return;
+
+    PRINT_MSG("Moving plan!")
+    const ros::Time now{ ros::Time::now() };
+    double dt{ (now - _past_stamp).toSec() };
+    double accum_dt{ 0.0 };
+    _plan_aux->clear();
+    DEBUG_VARS(now, _past_stamp, dt)
+    DEBUG_VARS(*_plan)
+    // for (std::size_t i = 0; i < _plan->size(); ++i)
+    while (accum_dt < dt)
+    {
+      const double& curr_duration{ _plan->front().duration };
+      if (dt > curr_duration)
+      {
+        _plan_aux->copy_onto_back(_plan->front().control, curr_duration);
+        dt -= curr_duration;
+        accum_dt += curr_duration;
+        _plan->pop_front();
+      }
+      else
+      {
+        _plan_aux->copy_onto_back(_plan->front().control, dt);
+        _plan->front().duration -= dt;
+        break;
+      }
+    }
+    // std::size_t next_step{ 1 };
+    // while (next_step < _plan_aux->size())
+    // {
+    //   if (_control_space->equal_points((*_plan_aux)[next_step - 1].control, (*_plan_aux)[next_step].control))
+    //   {
+    //     (*_plan_aux)[next_step - 1].duration += (*_plan_aux)[next_step].duration;
+    //     (*_plan_aux)[next_step].duration = 0.0;
+    //   }
+    // }
+    DEBUG_VARS(*_plan_aux)
+    for (int i = 0; i < _plan_aux->size(); ++i)
+    {
+      const prx::plan_step_t& aux_ctrl{ (*_plan_aux)[i] };
+      if (_control_space->equal_points(aux_ctrl.control, _plan->back().control))
+      {
+        _plan->back().duration += aux_ctrl.duration;
+      }
+      else
+      {
+        _plan->copy_onto_back(aux_ctrl.control, aux_ctrl.duration);
+      }
+    }
+    // (*_plan) += (*_plan_aux);
+    DEBUG_VARS(*_plan)
+  }
+
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
-    _profiler.start();
+    // _profiler.start();
     // PRINT_MSG("Replanning...")
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
     change_status(interface::ReplannerStatus::PREPROCESSING);
 
+    // Remove the front of the plan and append it to the back.
+
+    advance_plan();
+
     _traj->clear();
-    // _plan->clear();
     _step_plan->clear();
 
     ml4kp_bridge::copy(_start_state, request.root.point);
 
-    _profiler.checkpoint("PREPROCESSING");
+    // _profiler.checkpoint("PREPROCESSING");
     change_status(interface::ReplannerStatus::PLANNING);
+
     _system_group->propagate(_start_state, *_plan, *_traj);
 
     // DEBUG_VARS(*_traj);
-    _profiler.checkpoint("PLANNING");
+    // _profiler.checkpoint("PLANNING");
     change_status(interface::ReplannerStatus::POSTPROCESSING);
 
     const double plan_duration{ _plan->duration() };
@@ -313,12 +378,12 @@ struct constant_plan_t
     // DEBUG_VARS(*_traj)
     _tree_publisher.publish(ros_tree);
 
-    _profiler.checkpoint("POSTPROCESSING");
+    // _profiler.checkpoint("POSTPROCESSING");
     change_status(interface::ReplannerStatus::IDLE);
 
     _new_traj = true;
-
-    _profiler.end("end");
+    _past_stamp = ros::Time::now();
+    // _profiler.end("end");
 
     return true;
   }

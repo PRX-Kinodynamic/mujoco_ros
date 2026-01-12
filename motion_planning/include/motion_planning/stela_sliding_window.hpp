@@ -341,6 +341,7 @@ public:
 
   void check_new_tree(const prx_models::Tree& new_tree)
   {
+    PRINT_MSG("check_new_tree")
     _new_tree = prx_models::tree_msg_wrapper_t(new_tree);
     // const std::size_t root_idx{ new_tree.root };
     // DEBUG_VARS(_estimated_tree.nodes[root_idx]);
@@ -428,7 +429,7 @@ public:
       {
         _call_replanner = false;
 
-        DEBUG_VARS(ros::Time::now())
+        // DEBUG_VARS(ros::Time::now())
         PRINT_MSG("Replanning!");
         // DEBUG_VARS(_x_curr, _x_next);
         _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
@@ -440,14 +441,14 @@ public:
           // DEBUG_VARS("Call successful!");
           if (_planner_service_call.response.planner_output == prx_models::StelaKraft::Response::TYPE_SUCCESS)
           {
-            DEBUG_VARS(_planner_service_call.response.planner_output);
+            // DEBUG_VARS(_planner_service_call.response.planner_output);
             // const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
             // const prx_models::Node sln_root{ motion_planning::get_root(_planner_service_call.response.sln_tree) };
             // _new_tree_available = false;
             const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
             // const prx_models::Node& new_root{ _planner_service_call.response.sln_tree.nodes[root_idx] };
             // DEBUG_VARS(_x_curr, _x_next, new_root.index)
-            DEBUG_VARS(root_idx, _x_next, root_idx >= _x_next)
+            // DEBUG_VARS(root_idx, _x_next, root_idx >= _x_next)
             if (root_idx >= _x_next)
             {
               check_new_tree(_planner_service_call.response.sln_tree);
@@ -706,6 +707,8 @@ public:
     // PRINT_KEYS_CONTAINER(all_keys);
     for (auto& fidx : all_indices)
     {
+      if (_isam.getFactorsUnsafe()[fidx] == nullptr)
+        continue;
       const gtsam::KeyVector& factor_keys{ _isam.getFactorsUnsafe()[fidx]->keys() };
       // PRINT_KEYS_CONTAINER(factor_keys);
       for (const gtsam::Key& key : factor_keys)
@@ -1294,10 +1297,12 @@ public:
         // {
         //   initialize_graph();
         // }
+        print_segment();
 
         // DEBUG_PRINT
         // _fg_mutex.lock();
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
+        print_segment();
         // _fg_mutex.unlock();
         // DEBUG_PRINT
 
@@ -1313,6 +1318,8 @@ public:
         _key_u01 = RobotInterface::keyU(_x_curr, _x_next);
         // _fg_mutex.lock();
         _u01 = _isam.calculateEstimate<Control>(_key_u01);
+        PRINT_MSG("Updated u01")
+        DEBUG_VARS(_x_curr, _x_next, _u01.transpose())
         // _fg_mutex.unlock();
 
         update_dt();
@@ -1336,11 +1343,14 @@ public:
     _next_node_time = _x0_start_time + ros::Duration(_dt01);
 
     ml4kp_bridge::copy(_control_stamped.space_point, _u01);
-    // _robot->bound_controls(_control_stamped);
+    _robot->bound(_control_stamped);
 
     _control_stamped.header.seq++;
     _control_stamped.header.stamp = ros::Time::now();
     _stamped_control_publisher.publish(_control_stamped);
+
+    PRINT_MSG("Published control")
+    DEBUG_VARS(_x_curr, _x_next, _u01.transpose())
   }
 
   void print_segment()
@@ -1623,7 +1633,7 @@ public:
       _active_nodes.insert(node_parent.index);
     }
 
-    DEBUG_VARS(edge.plan);
+    // DEBUG_VARS(edge.plan);
     GraphValues graph_values{ RobotInterface::node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan,
                                                               _time_as_variable) };
 
@@ -1648,6 +1658,8 @@ public:
     const gtsam::Key key_u01{ RobotInterface::keyU(edge.source, edge.target) };
     Control ui;
     calculate_estimate_safe(ui, key_u01);
+
+    PRINT_MSG("New node")
     PRINT_KEY(key_u01);
     DEBUG_VARS(ui.transpose());
 

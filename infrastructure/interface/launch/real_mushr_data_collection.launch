@@ -1,8 +1,10 @@
 <launch>
+  <!-- Used to convert data from aruco topics ==> TF ==> files (poses + ctrls)  -->
   <arg name="world_frame" default="world"/>
   <arg name="robot_frame" default="Marker_0"/>
   <arg name="file_id" default="test"/>
   <arg name="output_dir" default="$(env ML4KP_ROS)/data/test"/>
+  <arg name="bagfile" />
       
 	<node pkg="nodelet" type="nodelet" name="cameras_nodelet" args="manager" output="screen"/>
 
@@ -23,5 +25,8 @@
     <param name="world_frame" value="$(arg world_frame)" />
     <param name="robot_frame" value="$(arg robot_frame)" />
   </node>
+
+   <node pkg="rosbag" type="play" name="bag_player" output="screen" required="true"
+        args="--clock $(arg bagfile)"/> 
 
 </launch>

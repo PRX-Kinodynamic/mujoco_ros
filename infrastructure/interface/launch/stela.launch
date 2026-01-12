@@ -36,9 +36,10 @@
     <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
 
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
-        output="screen">
+        output="screen" required="true">
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
-        <param name="control_topic" value="$(arg control_topic)"/> 
+        <!-- <param name="control_topic" value="$(arg control_topic)"/>  -->
+        <param name="control_topic" value="/dummy"/> 
         <param name="control_frequency" value="$(arg control_frequency)"/>
         <param name="world_frame" value="$(arg world_frame)"/>
         <param name="robot_frame" value="$(arg robot_frame)"/>
