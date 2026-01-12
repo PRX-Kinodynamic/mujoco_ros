@@ -6,3 +6,5 @@
 /infrastructure/prx_models/models/aruco_mip_36h12/imgs/
 /infrastructure/prx_models/models/aruco_mip_36h12/tags/
 *.bag
+__pycache__/
+*.pyc
