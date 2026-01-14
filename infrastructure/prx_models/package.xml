@@ -57,11 +57,13 @@
   <build_depend>message_generation</build_depend>
   <build_depend>ml4kp_bridge</build_depend>
   <build_depend>utils</build_depend>
+  <build_depend>torch_bridge</build_depend>
 
   <build_export_depend>geometry_msgs</build_export_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>utils</build_export_depend>
+  <build_export_depend>torch_bridge</build_export_depend>
 
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

@@ -250,6 +250,7 @@ class SysidModelAdapter:
             xd_next: Predicted next velocity state, shape (3,)
         """
         # If fast session is available, use it (single compile boundary)
+
         if self._fast_session is not None:
             return self._fast_session.predict_one_numpy(xd0, ut)
 
@@ -281,6 +282,7 @@ class SysidModelAdapter:
 
             # Denormalize output
             xd_next = xd_next_norm * self._target_std_val + self._target_mean
+
 
         return xd_next[0].cpu().numpy()
 

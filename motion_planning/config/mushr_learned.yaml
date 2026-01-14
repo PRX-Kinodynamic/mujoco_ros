@@ -1,15 +1,15 @@
-name: "mushrFG"
-path: "mushrFG"
+name: "mushrLearnedMsgPassing"
+path: "mushrLearnedMsgPassing"
 
 vis_body: "body"
 
 control_steps: 
-  min: 20
-  max: 80
+  min: 2
+  max: 8
 
 # start_state: [1,-0.5,1.5707963268,0] # obstacle_0
 # start_state: [1,0,1.5707963268,0,0,0] # simple_obstacle && forest
-start_state: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # simple_obstacle && forest
+start_state: [0,0,0,0,0,0] # simple_obstacle && forest
 # start_state: [0,0,1.5707963268,0,0,0] # simple_obstacle && forest
 # start_state: [3.0, -1.0, 3.14156,0,0,0] # prx_lab - 1
 # start_state: [-3,-3,0,0]
@@ -40,8 +40,9 @@ control_space:
 
 # -0.447324,0.2,0.00363154,0.9,1.05
 parameter_space:
+  values: []
   # values: [.077,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0,0.0,0.0]
-  values: [.09,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Analytical Mushr
-  # values:   [.4,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Mj Mushr
+  # values: [.4,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Analytical Mushr
+  # values:   [.1,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,1.0] # Mj Mushr
   # values: [.75,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0,0.0,0.0]
   # values: [1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.0,0.0]

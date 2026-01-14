@@ -1,3 +1,4 @@
+#include <prx/simulation/system.hpp>
 #include <thread>
 // #include "mujoco_ros/control_listener.hpp"
 // #include "mujoco_ros/sensordata_publisher.hpp"
@@ -13,7 +14,7 @@
 // #include "std_msgs/Empty.h"
 #include <utils/std_utils.hpp>
 
-#include <prx_models/mushr.hpp>
+#include <prx_models/defs.hpp>
 #include <ros/ros.h>
 #include <ros/package.h>
 
@@ -54,16 +55,18 @@ int main(int argc, char** argv)
   std::string params_file;
   std::string file_out;
   std::string plan_file;
-
+  using prx::simulation_step;
+  // prx::simulation_step = 0.1;
+  // double simulation_step
   PARAM_SETUP(nh, params_file);
   PARAM_SETUP(nh, file_out);
   PARAM_SETUP(nh, plan_file);
+  PARAM_SETUP(nh, simulation_step);
 
   prx::param_loader params{ prx::param_loader(params_file, "") };
 
   const std::string plant_name{ params["/name"].as<std::string>() };
   const std::string plant_path{ params["/path"].as<std::string>() };
-  prx::simulation_step = 0.01;
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
 

@@ -14,7 +14,7 @@ import numpy as np
 import rospy
 from torch_bridge.srv import TorchQuery, TorchQueryResponse
 
-
+from torch_bridge.sysid_model_adapter import SysidModelAdapter
 
 class TorchServer:
     """ROS service server for sysid model inference."""
@@ -127,8 +127,14 @@ class TorchServer:
         self._call_count = 0
         self._jacobian_call_count = 0
 
+        self.sum_durations   = [0.0]*2
+        self.total_durations = [0]*2
+        self.max_duration = [0.0]*2
+        self.min_duration = [0.0]*2
+
     def service_callback(self, req):
         """Handle TorchQuery service requests."""
+        start = rospy.Time.now()
         response = TorchQueryResponse()
 
         try:
@@ -166,8 +172,10 @@ class TorchServer:
             xd0 = np.array(req.data[:3], dtype=np.float64)
             ut = np.array(req.data[3:5], dtype=np.float64)
 
+            jacs = 0
             # Inference
             if req.compute_jacobians:
+                jacs = 1
                 # Compute both value and jacobians
                 xd_next = self.adapter.predict(xd0, ut)
                 jac_x, jac_u = self.adapter.jacobians(xd0, ut)
@@ -201,9 +209,15 @@ class TorchServer:
 
             # Log statistics periodically
             if self._call_count % 1000 == 0:
+                avg_0 = self.sum_durations[0] / self.total_durations[0] if (self.total_durations[0] > 0) else 0.0
+                avg_1 = self.sum_durations[1] / self.total_durations[1] if (self.total_durations[1] > 0) else 0.0
                 rospy.loginfo(
                     f"Processed {self._call_count} calls "
-                    f"({self._jacobian_call_count} with jacobians)"
+                    f"({self._jacobian_call_count} with jacobians)."
+                    f"\tJacobians Without \t With "
+                    f"\tmin: {self.min_duration[0]}, {self.min_duration[1]}\n"
+                    f"\tmax: {self.max_duration[0]}, {self.max_duration[1]}\n"
+                    f"\tmean: {avg_0}, {avg_1} \n"
                 )
 
         except Exception as e:
@@ -215,6 +229,13 @@ class TorchServer:
             response.result = []
             response.jacobians = []
 
+        end = rospy.Time.now()
+        curr_duration = (end - start).to_sec()
+        self.sum_durations[jacs] += curr_duration
+        self.total_durations[jacs] += 1
+        self.max_duration[jacs] = max(self.max_duration[jacs], curr_duration)
+        self.min_duration[jacs] = min(self.max_duration[jacs], curr_duration)
+        
         return response
 
 

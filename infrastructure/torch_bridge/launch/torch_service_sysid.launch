@@ -23,7 +23,7 @@
 
   <!-- Optional parameters with defaults -->
   <arg name="service_name" default="/torch/service" />
-  <arg name="dt" default="0.05" />
+  <arg name="dt" default="0.01" />
   <arg name="device" default="cpu" />
   <arg name="dtype" default="float32" />
   <arg name="use_jit" default="false" />

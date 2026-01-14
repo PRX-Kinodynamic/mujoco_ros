@@ -17,7 +17,7 @@ struct data_collector_t
   ros::Timer _timer, _ctrl_timer;
   CtrlMsg _control;
   ros::Time _next_control_stamp;
-  // PlanMsg _plan;
+  PlanMsg _plan;
   std::vector<std::vector<double>> data;
   mj_ros::SimulatorPtr _sim;
   std::ofstream ofs;
@@ -29,7 +29,10 @@ struct data_collector_t
   int _step_duration_min, _step_duration_max;
   double _curr_plan_duration;
 
+  bool _random_ctrl;
+  std::size_t _plan_idx;
   controller_listener_t<CtrlMsg, PlanMsg> controller_listener;
+
   data_collector_t(ros::NodeHandle& nh, mj_ros::SimulatorPtr sim)
     : controller_listener(nh, sim->d)
     , _sim(sim)
@@ -39,6 +42,8 @@ struct data_collector_t
     , _step_duration_max(80)
     , _simulation_step(0.01)
     , _curr_plan_duration(0.0)
+    , _random_ctrl(true)
+    , _plan_idx(0)
   {
     // double& steering_angle{ control.steering_angle.data };
     // double& velocity{ control.velocity.data };
@@ -47,6 +52,8 @@ struct data_collector_t
 
     int& step_duration_min{ _step_duration_min };
     int& step_duration_max{ _step_duration_max };
+
+    bool& random_ctrl{ _random_ctrl };
     double frequency;
     std::string idx;
     std::string filename_prefix;
@@ -57,12 +64,25 @@ struct data_collector_t
     PARAM_SETUP(nh, filename_prefix);
     PARAM_SETUP(nh, idx);
     // PARAM_SETUP(nh, duration);
+    PARAM_SETUP_WITH_DEFAULT(nh, random_ctrl, random_ctrl);
     PARAM_SETUP_WITH_DEFAULT(nh, random_seed, random_seed);
     PARAM_SETUP_WITH_DEFAULT(nh, simulation_step, simulation_step);
     PARAM_SETUP_WITH_DEFAULT(nh, plan_duration, plan_duration);
     PARAM_SETUP_WITH_DEFAULT(nh, step_duration_min, step_duration_min);
     PARAM_SETUP_WITH_DEFAULT(nh, step_duration_max, step_duration_max);
 
+    DEBUG_VARS(random_ctrl)
+    if (_random_ctrl)
+    {
+      generate_random_plan();
+    }
+    else
+    {
+      std::string input_plan_filename;
+      PARAM_SETUP(nh, input_plan_filename);
+      read_plan(input_plan_filename);
+    }
+    DEBUG_VARS(_plan)
     prx::init_random(random_seed);
 
     DEBUG_VARS(filename_prefix);
@@ -82,51 +102,104 @@ struct data_collector_t
     _ctrl_timer = nh.createTimer(control_timer, &data_collector_t::plan_callback, this);
   }
 
-  void plan_callback(const ros::TimerEvent& event)
+  void generate_random_plan()
   {
+    double tot_dur{ 0.0 };
     const double ctrl_min{ -1.0 };
     const double ctrl_max{ 1.0 };
 
-    if (_curr_plan_duration <= _plan_duration)
+    while (tot_dur < _plan_duration)
     {
-      if (event.current_real > _next_control_stamp)
-      {
-        const int steps{ static_cast<int>(prx::uniform_random(_step_duration_min, _step_duration_max)) };
-        double dur{ steps * _simulation_step };
-        // DEBUG_VARS(_curr_plan_duration, steps, dur);
-        if (_curr_plan_duration + dur > _plan_duration)
-        {
-          _control.steering_angle.data = 0.0;
-          _control.velocity.data = 0.0;
-          _ofs_plan.close();
-          PRINT_MSG("Finished!");
-          ofs.close();
-          ros::shutdown();
-          // break;
-        }
-        else
-        {
-          // _plan.controls.emplace_back();
-          _control.steering_angle.data = prx::uniform_random(ctrl_min, ctrl_max);
-          _control.velocity.data = prx::uniform_random(ctrl_min, ctrl_max);
+      const int steps{ static_cast<int>(prx::uniform_random(_step_duration_min, _step_duration_max)) };
+      const double rand_duration{ steps * _simulation_step };
+      const double steering{ prx::uniform_random(ctrl_min, ctrl_max) };
+      const double vel{ prx::uniform_random(ctrl_min, ctrl_max) };
 
-          // prx::uniform_random(_plan.steps.back().control.point, ctrl_min, ctrl_max);
-          // _plan.durations.emplace_back();
-          _next_control_stamp = event.current_real + ros::Duration(dur);
+      tot_dur += rand_duration;
+      const double dur{ tot_dur > _plan_duration ? tot_dur - _plan_duration : rand_duration };
 
-          // # echo "${header}\n${steering_angle} ${velocity} ${duration}" > ${plan_filename}
+      _plan.controls.emplace_back();
+      _plan.durations.emplace_back();
 
-          _ofs_plan << _control.steering_angle.data << " ";
-          _ofs_plan << _control.velocity.data << " ";
-          _ofs_plan << dur << " ";
-          _ofs_plan << _curr_plan_duration << " ";
-          _ofs_plan << "\n";
-        }
-        _curr_plan_duration += dur;
-      }
+      _plan.controls.back().steering_angle.data = steering;
+      _plan.controls.back().velocity.data = vel;
+      _plan.durations.back().data = ros::Duration(dur);
+    }
+  }
+
+  void plan_callback(const ros::TimerEvent& event)
+  {
+    static bool _first{ true };
+    if (_first)
+    {
+      _first = false;
+      _next_control_stamp = event.current_real + _plan.durations[_plan_idx].data;
     }
 
-    controller_listener.apply_control(_control);
+    if (_plan_idx < _plan.controls.size())
+    {
+      // if(_plan.durations[_plan_idx] )
+      // if (_curr_duration + _plan.durations[_plan_idx] > _plan_duration)
+      if (event.current_real > _next_control_stamp)
+      {
+        _next_control_stamp = event.current_real + _plan.durations[_plan_idx].data;
+        _ofs_plan << _plan.controls[_plan_idx].steering_angle.data << " ";
+        _ofs_plan << _plan.controls[_plan_idx].velocity.data << " ";
+        _ofs_plan << _plan.durations[_plan_idx].data.toSec() << " ";
+        _ofs_plan << _curr_plan_duration << " ";
+        _ofs_plan << "\n";
+        _plan_idx++;
+        _curr_plan_duration += _plan.durations[_plan_idx].data.toSec();
+      }
+      controller_listener.apply_control(_plan.controls[_plan_idx]);
+    }
+    else
+    {
+      _ofs_plan.close();
+      PRINT_MSG("Finished!");
+      ofs.close();
+      ros::shutdown();
+      //   // break;
+    }
+
+    // if (_curr_plan_duration <= _plan_duration)
+    // {
+    //   if (event.current_real > _next_control_stamp)
+    //   {
+    // const int steps{ static_cast<int>(prx::uniform_random(_step_duration_min, _step_duration_max)) };
+    // double dur{ steps * _simulation_step };
+    // DEBUG_VARS(_curr_plan_duration, steps, dur);
+    // if (_curr_plan_duration + dur > _plan_duration)
+    // {
+    //   _control.steering_angle.data = 0.0;
+    //   _control.velocity.data = 0.0;
+    //   _ofs_plan.close();
+    //   PRINT_MSG("Finished!");
+    //   ofs.close();
+    //   ros::shutdown();
+    //   // break;
+    // }
+    // else
+    // {
+    //   if (_random_ctrl)
+    //   {
+    //     _control.steering_angle.data = prx::uniform_random(ctrl_min, ctrl_max);
+    //     _control.velocity.data = prx::uniform_random(ctrl_min, ctrl_max);
+    //   }
+    //   else
+    //   {
+    //   }
+    //   _next_control_stamp = event.current_real + ros::Duration(dur);
+
+    // _ofs_plan << _control.steering_angle.data << " ";
+    // _ofs_plan << _control.velocity.data << " ";
+    // _ofs_plan << dur << " ";
+    // _ofs_plan << _curr_plan_duration << " ";
+    // _ofs_plan << "\n";
+    // }
+    // _curr_plan_duration += dur;
+    //   }
+    // }
   }
 
   void timer_callback(const ros::TimerEvent& event)
@@ -153,25 +226,38 @@ struct data_collector_t
       // data.back().push_back(_sim->d->sensordata[i]);
     }
     ofs << "\n";
-
-    // if (elapsed > duration)
-    // {
-    //   PRINT_MSG("Finished!");
-    //   ofs.close();
-    //   ros::shutdown();
-    //   // exit(0);
-    // }
   }
 
-  void run()
+  void read_plan(const std::string filename)
   {
-    // ofs <<
-    //   if (curr_step % step == 0)
-    //   {
-    //     controller_listener.apply_control(control);
-    //     _message.raw_sensor_data[i].data = _sim->d->sensordata[i];
-    //   }
-    //   curr_step++;
+    using prx::utilities::convert_to;
+    using CsvReader = prx::utilities::csv_reader_t;
+    CsvReader reader(filename);
+
+    _plan_duration = 0.0;
+
+    while (reader.has_next_line())
+    {
+      auto line = reader.next_line();
+
+      if (line.size() == 0)
+        continue;
+      if (line[0][0] == '#')  // #steering velocity_desired duration
+        continue;
+      const double steering{ convert_to<double>(line[0]) };
+      const double velocity_desired{ convert_to<double>(line[1]) };
+      const double ctrl_duration{ convert_to<double>(line[2]) };
+
+      // const Eigen::Vector2d ctrl{ Eigen::Vector2d(velocity_desired, steering) };
+      _plan.controls.emplace_back();
+      _plan.durations.emplace_back();
+
+      _plan.controls.back().steering_angle.data = steering;
+      _plan.controls.back().velocity.data = velocity_desired;
+      _plan.durations.back().data = ros::Duration(ctrl_duration);
+      _plan_duration += ctrl_duration;
+      // plan.copy_onto_back(ctrl, plan_duration);
+    }
   }
 };
 // Mujoco-Ros visualization in (almost) RT:

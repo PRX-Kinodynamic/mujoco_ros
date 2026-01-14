@@ -10,6 +10,8 @@
     <arg name="idx" default="test"/>
     <arg name="random_seed" default="112392"/>
     <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
+    <arg name="random_ctrl" default="true"/>
+    <arg name="input_plan_filename" default=""/>
 
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="open_loop_data_collection" output="screen" required="true">
@@ -22,6 +24,8 @@
             <param name="idx" value="$(arg idx)"/>
             <param name="random_seed" value="$(arg random_seed)"/>
             <param name="visualize_sim" value="$(arg visualize_sim)"/>
+            <param name="random_ctrl" value="$(arg random_ctrl)"/>
+            <param name="input_plan_filename" value="$(arg input_plan_filename)"/>
             <!-- <param name="visualize_sim" value="$(arg visualize_sim)" /> -->
             <!-- <param name="visualize_output" value="$(arg visualize_output)" /> -->
             <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->

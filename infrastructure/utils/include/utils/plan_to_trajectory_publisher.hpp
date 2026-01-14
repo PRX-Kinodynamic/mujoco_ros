@@ -32,7 +32,7 @@ public:
 
     _plant_params = prx::param_loader(plant_ml4kp_params, "");
 
-    const std::string plant_name{ _plant_params["name"].as<>() };
+    const std::string plant_name{ _plant_params["name"].template as<>() };
     _plant = prx::system_factory_t::create_system(plant_name, plant_name);
     prx_assert(_plant != nullptr, "Plant is nullptr!");
     _plant->init(_plant_params);
@@ -49,7 +49,7 @@ public:
     _plan = std::make_shared<prx::plan_t>(_system_group->get_control_space());
     // subscribers
     _plan_subscriber = private_nh.subscribe(plan_topic_name, 1, &Derived::plan_callback, this);
-    ss->copy(_start_state, _plant_params["start_state"].as<std::vector<double>>());
+    ss->copy(_start_state, _plant_params["start_state"].template as<std::vector<double>>());
 
     // publishers
     _traj_publisher = private_nh.advertise<ml4kp_bridge::Trajectory>(traj_topic_name, 1, true);

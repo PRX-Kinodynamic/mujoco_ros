@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   ml4kp_bridge
   cv_bridge
   utils
+  torch_bridge
 )
 
 find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
@@ -121,7 +122,7 @@ set(mujoco_INCLUDE_DIRS "$ENV{MJ_PATH}/include/" CACHE PATH "MuJoCo include dire
 catkin_package(
  INCLUDE_DIRS include # ${MJ_INCLUDE_DIR} #${MJ_LINK}
  LIBRARIES ${mujoco_LIBRARY}
- CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime ml4kp_bridge
+ CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime ml4kp_bridge torch_bridge
  DEPENDS mujoco
 )
 MESSAGE(STATUS "MJ_INCLUDE_DIR: ${MJ_INCLUDE_DIR}")
