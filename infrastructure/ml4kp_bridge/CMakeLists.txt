@@ -134,6 +134,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
+find_package(GTest REQUIRED)
 
 ## Declare a C++ library
 # Consider all src to add to the library (no executables in this package)
