@@ -45,7 +45,13 @@ def _effective_key(info: dict) -> tuple:
     eff_use_compile = bool(info.get("use_compile", False))
     eff_use_cudagraph = bool(info.get("use_cudagraph", False))
     eff_use_jit = bool(info.get("use_jit", False)) if not using_fast else False
-    return (str(info.get("device", "")), using_fast, eff_use_jit, eff_use_compile, eff_use_cudagraph)
+    return (
+        str(info.get("device", "")),
+        using_fast,
+        eff_use_jit,
+        eff_use_compile,
+        eff_use_cudagraph,
+    )
 
 
 def _make_requested_variants() -> list[Variant]:
@@ -122,7 +128,9 @@ def _run_bench(adapter, *, num_warmup: int, num_iters: int, seed: int) -> np.nda
         ut_varied = ut + rng.normal(scale=0.05, size=(2,))
         _ = adapter.predict(xd0_varied, ut_varied)
 
-    is_cuda = getattr(adapter, "device", None) is not None and adapter.device.type == "cuda"
+    is_cuda = (
+        getattr(adapter, "device", None) is not None and adapter.device.type == "cuda"
+    )
     if is_cuda:
         import torch
 
@@ -150,7 +158,9 @@ def main() -> int:
     )
     parser.add_argument("--exp_dir", type=str, required=True)
     parser.add_argument("--dt", type=float, default=0.05)
-    parser.add_argument("--dtype", type=str, default="float32", choices=["float32", "float64"])
+    parser.add_argument(
+        "--dtype", type=str, default="float32", choices=["float32", "float64"]
+    )
     parser.add_argument(
         "--devices",
         type=str,
@@ -293,4 +303,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

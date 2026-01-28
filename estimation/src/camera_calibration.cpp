@@ -88,7 +88,8 @@ SE3 run_calibration(const std::vector<std::string> cameras,
   const gtsam::Key key_cB_T_O{ SF::create_hashed_symbol("Camera_", cB_frame) };
   PRINT_MSG("First");
   PRX_DBG_VARS(cA_frame, cB_frame)
-  PRINT_KEYS(key_cA_T_O, key_cB_T_O)
+  PRINT_KEYS(key_cA_T_O)
+  PRINT_KEYS(key_cB_T_O)
 
   bool first{ true };
   int idx{ 0 };
@@ -111,7 +112,8 @@ SE3 run_calibration(const std::vector<std::string> cameras,
         cA_T_O = mi_T_cA.inverse();
         cB_T_O = mi_T_cB.inverse();
 
-        PRINT_KEYS(key_cA_T_O, key_cB_T_O)
+        PRINT_KEYS(key_cA_T_O)
+        PRINT_KEYS(key_cB_T_O)
         initial_values.insert(key_cA_T_O, cA_T_O);
         initial_values.insert(key_cB_T_O, cB_T_O);
         first = false;

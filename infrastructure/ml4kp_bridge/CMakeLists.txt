@@ -11,6 +11,10 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 # Mujoco-relates packages
 find_package(Eigen3 REQUIRED)
 find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
+# Explicitly find Torch to ensure targets are available to downstream catkin packages
+if(DEFINED ENV{Torch_DIR})
+  find_package(Torch REQUIRED)
+endif()
 find_package(rostest REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
