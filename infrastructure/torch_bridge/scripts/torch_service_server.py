@@ -14,7 +14,8 @@ import numpy as np
 import rospy
 from torch_bridge.srv import TorchQuery, TorchQueryResponse
 
-from torch_bridge.sysid_model_adapter import SysidModelAdapter
+from sysid_model_adapter import SysidModelAdapter
+
 
 class TorchServer:
     """ROS service server for sysid model inference."""

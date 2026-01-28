@@ -19,6 +19,11 @@ find_package(catkin REQUIRED COMPONENTS
   # prx_models
 )
 
+# Find Torch to ensure targets are visible in this scope (needed for ML4KP dependencies)
+if(DEFINED ENV{Torch_DIR})
+  find_package(Torch REQUIRED)
+endif()
+
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.31)
   cmake_policy(SET CMP0177 NEW)
 endif()
