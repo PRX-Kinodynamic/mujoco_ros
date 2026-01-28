@@ -4,10 +4,9 @@
 #include <optional>
 #include <Eigen/Core>
 #include <torch/script.h>
-#include <c10/cuda/CUDAStream.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <ATen/cuda/CUDAGraph.h>
-#include <prx_models/mushr_factors.hpp>
+// #include <c10/cuda/CUDAStream.h>
+// #include <c10/cuda/CUDAGuard.h>
+// #include <ATen/cuda/CUDAGraph.h>
 
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
@@ -291,6 +290,12 @@ private:
 };
 
 
+// PlantT must have a static predict method with signature:
+//   StateDot predict(const StateDot& xd0, const Control& u, double dt,
+//                    const Params& params, const Poly& poly,
+//                    OptJacX Hxd0, OptJacU Hu, OptJacDt Hdt, OptJacParams Hparams)
+// where OptJac* are optional Jacobian output parameters (e.g., gtsam::OptionalJacobian or boost::optional)
+template <typename PlantT, typename Params, typename Poly>
 class StructuredSysidRuntime
 {
 public:
@@ -298,13 +303,18 @@ public:
   using Control = Eigen::Vector2d;
   using JacX = Eigen::Matrix3d;
   using JacU = Eigen::Matrix<double, 3, 2>;
-  using Params = prx_models::mushr_types::Control::params;
-  using Poly = prx_models::mushr_types::Control::Poly;
-  using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
+
+  // Configuration for plant parameter indices and constants
+  struct PlantConfig
+  {
+    std::size_t friction_idx;     // Index of friction in params vector
+    std::size_t vel_desired_idx;  // Index of velocity/acceleration gain in params vector
+    double wheelbase_L;           // Wheelbase length for GpuPlant
+  };
 
   StructuredSysidRuntime(const std::string& model_path, const Params& params, const Poly& poly,
-                         bool use_cuda = true, const std::string& dtype = "float64")
-      : params_(params), poly_(poly), model_path_(model_path),
+                         const PlantConfig& config, bool use_cuda = true, const std::string& dtype = "float64")
+      : params_(params), poly_(poly), config_(config), model_path_(model_path),
         device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
         use_cuda_(use_cuda && torch::cuda::is_available())
   {
@@ -453,16 +463,16 @@ public:
       xd1_out_cpu_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
 
       // Store plant parameters as GPU tensors
-      plant_friction_ = torch::tensor(params_[prx_models::mushr_types::Control::friction],
+      plant_friction_ = torch::tensor(params_[config_.friction_idx],
                                       torch::TensorOptions().dtype(dtype_).device(device_));
-      plant_accel_gain_ = torch::tensor(params_[prx_models::mushr_types::Control::vel_desired],
+      plant_accel_gain_ = torch::tensor(params_[config_.vel_desired_idx],
                                         torch::TensorOptions().dtype(dtype_).device(device_));
       plant_dt_ = torch::tensor(dt_, torch::TensorOptions().dtype(dtype_).device(device_));
 
       // Create GPU plant instance
       std::vector<double> poly_vec(poly_.begin(), poly_.end());
       gpu_plant_ = std::make_unique<GpuPlant>(
-          prx_models::mushr_types::Parameters::L, poly_vec, dtype_, device_);
+          config_.wheelbase_L, poly_vec, dtype_, device_);
 
       gpu_plant_initialized_ = true;
     }
@@ -745,9 +755,9 @@ public:
 
     // CPU plant dynamics
     Params adjusted_params = params_;
-    adjusted_params[prx_models::mushr_types::Control::friction] *= friction_k;
+    adjusted_params[config_.friction_idx] *= friction_k;
 
-    StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_);
+    StateDot xd1_plant = PlantT::predict(xd0, u_eff, dt_, adjusted_params, poly_);
 
     return xd1_plant + residual;
   }
