@@ -4,12 +4,9 @@
 #include <optional>
 #include <Eigen/Core>
 #include <torch/script.h>
-#include <boost/optional.hpp>
-// #include "boost/none_t.hpp"
 // #include <c10/cuda/CUDAStream.h>
 // #include <c10/cuda/CUDAGuard.h>
 // #include <ATen/cuda/CUDAGraph.h>
-// #include <prx_models/mushr_factors.hpp>
 
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
@@ -779,7 +776,7 @@ public:
     Params adjusted_params = params_;
     adjusted_params[StructuredParams::friction] *= friction_k;
 
-    StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_);
+    StateDot xd1_plant = PlantT::predict(xd0, u_eff, dt_, adjusted_params, poly_);
 
     return xd1_plant + residual;
   }
