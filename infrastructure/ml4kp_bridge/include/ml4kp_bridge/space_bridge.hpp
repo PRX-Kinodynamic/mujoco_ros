@@ -24,7 +24,8 @@ inline void copy(ml4kp_bridge::SpacePointStamped& msg, const prx::space_snapshot
 
 inline void copy(prx::space_snapshot_t& state, const ml4kp_bridge::SpacePoint& msg)
 {
-  ROS_ASSERT(state.size() == msg.point.size());
+  prx_assert(state.size() == msg.point.size(),
+             "[space_bridge::copy] mismatch sizes:\nTo " << state << "\nFrom:" << msg);
   for (std::size_t i = 0; i < msg.point.size(); ++i)
   {
     state[i] = msg.point[i];

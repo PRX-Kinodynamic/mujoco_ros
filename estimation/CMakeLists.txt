@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   utils
 )
 
+find_package(GTest REQUIRED)
 ###################################
 ## catkin specific configuration ##
 ###################################

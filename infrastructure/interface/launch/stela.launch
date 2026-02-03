@@ -10,7 +10,8 @@
     <arg name="collision_topic" default="/simulator/collision"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
     <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/>
-    <arg name="obstacle_mode" default="distance"/>
+    <arg name="obstacle_mode" default="none"/>
+    <!-- <arg name="obstacle_mode" default="sdf"/> -->
     <arg name="obstacle_distance_tolerance" default="0.5"/>
     <arg name="obstacle_factor_include_distance" default="0.5"/>
     <arg name="obstacle_sigma" default="1.0"/>
@@ -31,15 +32,21 @@
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
     <arg name="start_delay" default="20"/>
     <arg name="total_replanning_calls" default="10000"/>
-    <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+    <arg name="mushr_model"/>
+    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+    <arg name="params_file"/>
 
     <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
+    <!-- <remap to="dummy_stamped" from="$(arg control_topic)_stamped"/> -->
+        <!-- launch-prefix="lldb - -" -->
 
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
-        output="screen" required="true">
+        output="screen" required="true"
+        >
+        <param name="mushr_model" value="$(arg mushr_model)"/>
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
-        <!-- <param name="control_topic" value="$(arg control_topic)"/>  -->
-        <param name="control_topic" value="/dummy"/> 
+        <param name="control_topic" value="$(arg control_topic)"/> 
+        <!-- <param name="control_topic" value="/dummy"/>  -->
         <param name="control_frequency" value="$(arg control_frequency)"/>
         <param name="world_frame" value="$(arg world_frame)"/>
         <param name="robot_frame" value="$(arg robot_frame)"/>
@@ -61,6 +68,7 @@
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>
         <param name="total_past_nodes" value="$(arg total_past_nodes)"/>
         <param name="time_as_variable" value="$(arg time_as_variable)"/>
+        <!-- <param name="sensor_topic_name" value="/mushr/sensordata_DUMMY"/> -->
         <param name="sensor_topic_name" value="/mushr/sensordata"/>
         <param name="replanner_solution_duration" value="$(arg replanner_solution_duration)"/>
         <param name="cycle_duration" value="$(arg cycle_duration)"/>

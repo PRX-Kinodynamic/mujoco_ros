@@ -4,10 +4,12 @@
 #include <optional>
 #include <Eigen/Core>
 #include <torch/script.h>
-#include <c10/cuda/CUDAStream.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <ATen/cuda/CUDAGraph.h>
-#include <prx_models/mushr_factors.hpp>
+#include <boost/optional.hpp>
+// #include "boost/none_t.hpp"
+// #include <c10/cuda/CUDAStream.h>
+// #include <c10/cuda/CUDAGuard.h>
+// #include <ATen/cuda/CUDAGraph.h>
+// #include <prx_models/mushr_factors.hpp>
 
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
@@ -24,7 +26,7 @@ public:
   using JacU = Eigen::Matrix<double, 3, 2>;
 
   DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
-      : device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
+    : device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
   {
     try
     {
@@ -217,8 +219,10 @@ public:
       torch::Tensor Jx_t = tuple->elements()[1].toTensor();
       torch::Tensor Ju_t = tuple->elements()[2].toTensor();
       // Move tensors to CPU if on CUDA before accessing data pointer
-      if (Jx_t.is_cuda()) Jx_t = Jx_t.to(torch::kCPU);
-      if (Ju_t.is_cuda()) Ju_t = Ju_t.to(torch::kCPU);
+      if (Jx_t.is_cuda())
+        Jx_t = Jx_t.to(torch::kCPU);
+      if (Ju_t.is_cuda())
+        Ju_t = Ju_t.to(torch::kCPU);
 
       float* Jx_data = Jx_t.data_ptr<float>();
       float* Ju_data = Ju_t.data_ptr<float>();
@@ -242,8 +246,10 @@ public:
       torch::Tensor Jx_t = tuple->elements()[1].toTensor();
       torch::Tensor Ju_t = tuple->elements()[2].toTensor();
       // Move tensors to CPU if on CUDA before accessing data pointer
-      if (Jx_t.is_cuda()) Jx_t = Jx_t.to(torch::kCPU);
-      if (Ju_t.is_cuda()) Ju_t = Ju_t.to(torch::kCPU);
+      if (Jx_t.is_cuda())
+        Jx_t = Jx_t.to(torch::kCPU);
+      if (Ju_t.is_cuda())
+        Ju_t = Ju_t.to(torch::kCPU);
 
       double* Jx_data = Jx_t.data_ptr<double>();
       double* Ju_data = Ju_t.data_ptr<double>();
@@ -290,7 +296,15 @@ private:
   std::optional<torch::jit::Method> forward_with_jacobian_method_;
 };
 
+// struct StructuredParams
+// {
+//   const std::size_t params = ??;
+//   const std::size_t friction = ??;
+//   const std::size_t vel_desired = ??;
+//   const std::size_t L = ??;
+// }
 
+template <typename MushrPlant, typename Params, typename Poly, typename StructuredParams>
 class StructuredSysidRuntime
 {
 public:
@@ -298,15 +312,22 @@ public:
   using Control = Eigen::Vector2d;
   using JacX = Eigen::Matrix3d;
   using JacU = Eigen::Matrix<double, 3, 2>;
-  using Params = prx_models::mushr_types::Control::params;
-  using Poly = prx_models::mushr_types::Control::Poly;
-  using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
+  // template <typename T>
+  using OptionalJacX = boost::optional<JacX&>;
+  // template <typename T>
+  using OptionalJacU = boost::optional<JacU&>;
 
-  StructuredSysidRuntime(const std::string& model_path, const Params& params, const Poly& poly,
-                         bool use_cuda = true, const std::string& dtype = "float64")
-      : params_(params), poly_(poly), model_path_(model_path),
-        device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
-        use_cuda_(use_cuda && torch::cuda::is_available())
+  // using Params = prx_models::mushr_types::Control::params;
+  // using Poly = prx_models::mushr_types::Control::Poly;
+  // using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
+
+  StructuredSysidRuntime(const std::string& model_path, const Params& params, const Poly& poly, bool use_cuda = true,
+                         const std::string& dtype = "float64")
+    : params_(params)
+    , poly_(poly)
+    , model_path_(model_path)
+    , device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
+    , use_cuda_(use_cuda && torch::cuda::is_available())
   {
     try
     {
@@ -344,8 +365,8 @@ public:
     }
 
     // Allocate tensors for model I/O
-    xd_in_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).device(device_));
-    u_in_ = torch::empty({2}, torch::TensorOptions().dtype(dtype_).device(device_));
+    xd_in_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    u_in_ = torch::empty({ 2 }, torch::TensorOptions().dtype(dtype_).device(device_));
 
     // Pre-allocate IValue input vector to avoid allocation per call
     inputs_.reserve(2);
@@ -370,18 +391,18 @@ public:
     if (use_cuda_)
     {
       // Allocate pinned CPU tensors for fast async transfers
-      xd_in_cpu_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-      u_in_cpu_ = torch::empty({2}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      xd_in_cpu_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      u_in_cpu_ = torch::empty({ 2 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
 
       // Pre-allocate output tensors on GPU
-      u_eff_out_ = torch::empty({2}, torch::TensorOptions().dtype(dtype_).device(device_));
-      k_out_ = torch::empty({1}, torch::TensorOptions().dtype(dtype_).device(device_));
-      residual_out_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).device(device_));
+      u_eff_out_ = torch::empty({ 2 }, torch::TensorOptions().dtype(dtype_).device(device_));
+      k_out_ = torch::empty({ 1 }, torch::TensorOptions().dtype(dtype_).device(device_));
+      residual_out_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
 
       // Pinned output staging tensors
-      u_eff_out_cpu_ = torch::empty({2}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-      k_out_cpu_ = torch::empty({1}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-      residual_out_cpu_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      u_eff_out_cpu_ = torch::empty({ 2 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      k_out_cpu_ = torch::empty({ 1 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      residual_out_cpu_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
     }
 
     // Cache forward_with_jacobian method if available
@@ -396,47 +417,47 @@ public:
   {
     if (!use_cuda_)
       return;
+    ROS_ERROR("CUDA NOT SUPPORTED");
+    // c10::InferenceMode guard;
 
-    c10::InferenceMode guard;
+    // // Warmup iterations to stabilize CUDA state
+    // std::vector<torch::jit::IValue> inputs;
+    // inputs.push_back(xd_in_);
+    // inputs.push_back(u_in_);
 
-    // Warmup iterations to stabilize CUDA state
-    std::vector<torch::jit::IValue> inputs;
-    inputs.push_back(xd_in_);
-    inputs.push_back(u_in_);
-
-    for (int i = 0; i < warmup_iters; ++i)
-    {
-      auto result = module_.forward(inputs);
-      auto tuple = result.toTuple();
-      u_eff_out_.copy_(tuple->elements()[0].toTensor());
-      k_out_.copy_(tuple->elements()[1].toTensor());
-      residual_out_.copy_(tuple->elements()[2].toTensor());
-    }
+    // for (int i = 0; i < warmup_iters; ++i)
+    // {
+    //   auto result = module_.forward(inputs);
+    //   auto tuple = result.toTuple();
+    //   u_eff_out_.copy_(tuple->elements()[0].toTensor());
+    //   k_out_.copy_(tuple->elements()[1].toTensor());
+    //   residual_out_.copy_(tuple->elements()[2].toTensor());
+    // }
 
     // Create a non-default stream for graph capture (required by PyTorch)
-    at::cuda::CUDAStream capture_stream = at::cuda::getStreamFromPool(/*isHighPriority=*/false, device_.index());
-    capture_stream_.emplace(capture_stream);
+    // at::cuda::CUDAStream capture_stream = at::cuda::getStreamFromPool(/*isHighPriority=*/false, device_.index());
+    // capture_stream_.emplace(capture_stream);
 
     // Capture the graph on the non-default stream
-    {
-      c10::cuda::CUDAStreamGuard stream_guard(capture_stream);
-      capture_stream.synchronize();
+    // {
+    // c10::cuda::CUDAStreamGuard stream_guard(capture_stream);
+    // capture_stream.synchronize();
 
-      cuda_graph_.capture_begin();
+    // // cuda_graph_.capture_begin();
 
-      auto result = module_.forward(inputs);
-      auto tuple = result.toTuple();
-      u_eff_out_.copy_(tuple->elements()[0].toTensor());
-      k_out_.copy_(tuple->elements()[1].toTensor());
-      residual_out_.copy_(tuple->elements()[2].toTensor());
+    // auto result = module_.forward(inputs);
+    // auto tuple = result.toTuple();
+    // u_eff_out_.copy_(tuple->elements()[0].toTensor());
+    // k_out_.copy_(tuple->elements()[1].toTensor());
+    // residual_out_.copy_(tuple->elements()[2].toTensor());
 
-      cuda_graph_.capture_end();
-    }
+    // cuda_graph_.capture_end();
+    // }
 
     // Synchronize streams to ensure clean state
-    capture_stream.synchronize();
-    at::cuda::getCurrentCUDAStream().synchronize();
-    graph_captured_ = true;
+    // capture_stream.synchronize();
+    // at::cuda::getCurrentCUDAStream().synchronize();
+    // graph_captured_ = true;
   }
 
   // Enable/disable GPU-based plant dynamics (keeps everything on GPU, avoids CPU round-trip)
@@ -449,20 +470,19 @@ public:
     if (use_gpu_plant && !gpu_plant_initialized_)
     {
       // Pre-allocate final output tensor for GPU plant path
-      xd1_out_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).device(device_));
-      xd1_out_cpu_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+      xd1_out_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
+      xd1_out_cpu_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
 
       // Store plant parameters as GPU tensors
-      plant_friction_ = torch::tensor(params_[prx_models::mushr_types::Control::friction],
-                                      torch::TensorOptions().dtype(dtype_).device(device_));
-      plant_accel_gain_ = torch::tensor(params_[prx_models::mushr_types::Control::vel_desired],
-                                        torch::TensorOptions().dtype(dtype_).device(device_));
+      plant_friction_ =
+          torch::tensor(params_[StructuredParams::friction], torch::TensorOptions().dtype(dtype_).device(device_));
+      plant_accel_gain_ =
+          torch::tensor(params_[StructuredParams::vel_desired], torch::TensorOptions().dtype(dtype_).device(device_));
       plant_dt_ = torch::tensor(dt_, torch::TensorOptions().dtype(dtype_).device(device_));
 
       // Create GPU plant instance
       std::vector<double> poly_vec(poly_.begin(), poly_.end());
-      gpu_plant_ = std::make_unique<GpuPlant>(
-          prx_models::mushr_types::Parameters::L, poly_vec, dtype_, device_);
+      gpu_plant_ = std::make_unique<GpuPlant>(StructuredParams::L, poly_vec, dtype_, device_);
 
       gpu_plant_initialized_ = true;
     }
@@ -470,7 +490,10 @@ public:
     use_gpu_plant_ = use_gpu_plant;
   }
 
-  bool is_gpu_plant_enabled() const { return use_gpu_plant_; }
+  bool is_gpu_plant_enabled() const
+  {
+    return use_gpu_plant_;
+  }
 
   // Enable hybrid mode: CUDA+Graph for predict(), CPU for predict_with_jac()
   // This provides optimal latency for both paths based on benchmark results.
@@ -489,7 +512,8 @@ public:
       return;
     }
 
-    std::cout << "[StructuredSysidRuntime] Enabling hybrid mode (CUDA+Graph for predict, CPU for jacobians)" << std::endl;
+    std::cout << "[StructuredSysidRuntime] Enabling hybrid mode (CUDA+Graph for predict, CPU for jacobians)"
+              << std::endl;
 
     // Load a separate copy of the model on CPU for jacobians
     try
@@ -503,8 +527,8 @@ public:
     }
 
     // Allocate CPU tensors for jacobian path
-    cpu_xd_in_ = torch::empty({3}, torch::TensorOptions().dtype(dtype_).device(torch::kCPU));
-    cpu_u_in_ = torch::empty({2}, torch::TensorOptions().dtype(dtype_).device(torch::kCPU));
+    cpu_xd_in_ = torch::empty({ 3 }, torch::TensorOptions().dtype(dtype_).device(torch::kCPU));
+    cpu_u_in_ = torch::empty({ 2 }, torch::TensorOptions().dtype(dtype_).device(torch::kCPU));
 
     // Pre-allocate CPU input vector
     cpu_inputs_.reserve(2);
@@ -539,7 +563,10 @@ public:
     std::cout << "[StructuredSysidRuntime] Hybrid mode enabled successfully" << std::endl;
   }
 
-  bool is_hybrid_mode() const { return hybrid_mode_; }
+  bool is_hybrid_mode() const
+  {
+    return hybrid_mode_;
+  }
 
   StateDot predict(const StateDot& xd0, const Control& u)
   {
@@ -567,8 +594,9 @@ public:
       // Run neural network on GPU
       if (graph_captured_)
       {
-        c10::cuda::CUDAStreamGuard stream_guard(*capture_stream_);
-        cuda_graph_.replay();
+        ROS_ERROR("CUDA NOT SUPPORTED");
+        // c10::cuda::CUDAStreamGuard stream_guard(*capture_stream_);
+        // cuda_graph_.replay();
       }
       else
       {
@@ -585,12 +613,12 @@ public:
       // Run plant dynamics on GPU (no CPU round-trip!)
       // friction = base_friction * friction_k
       torch::Tensor adjusted_friction = plant_friction_ * k_out_.squeeze();
-      xd1_out_ = gpu_plant_->forward(xd_in_, u_eff_out_, adjusted_friction,
-                                      plant_accel_gain_, plant_dt_, residual_out_);
+      xd1_out_ =
+          gpu_plant_->forward(xd_in_, u_eff_out_, adjusted_friction, plant_accel_gain_, plant_dt_, residual_out_);
 
       // Only copy final result back to CPU
       xd1_out_cpu_.copy_(xd1_out_, /*non_blocking=*/true);
-      at::cuda::getCurrentCUDAStream().synchronize();
+      // at::cuda::getCurrentCUDAStream().synchronize();
 
       StateDot xd1;
       if (use_float32_)
@@ -609,10 +637,14 @@ public:
     double friction_k;
     StateDot residual;
 
+    if (use_cuda_)
+    {
+      ROS_ERROR("CUDA NOT SUPPORTED");
+    }
     if (use_cuda_ && graph_captured_)
     {
       // CUDA graph path with CPU plant
-      c10::cuda::CUDAStreamGuard stream_guard(*capture_stream_);
+      // c10::cuda::CUDAStreamGuard stream_guard(*capture_stream_);
 
       if (use_float32_)
       {
@@ -628,13 +660,13 @@ public:
       xd_in_.copy_(xd_in_cpu_, /*non_blocking=*/true);
       u_in_.copy_(u_in_cpu_, /*non_blocking=*/true);
 
-      cuda_graph_.replay();
+      // cuda_graph_.replay();
 
       u_eff_out_cpu_.copy_(u_eff_out_, /*non_blocking=*/true);
       k_out_cpu_.copy_(k_out_, /*non_blocking=*/true);
       residual_out_cpu_.copy_(residual_out_, /*non_blocking=*/true);
 
-      capture_stream_->synchronize();
+      // capture_stream_->synchronize();
 
       if (use_float32_)
       {
@@ -678,7 +710,7 @@ public:
       k_out_cpu_.copy_(k_out_, /*non_blocking=*/true);
       residual_out_cpu_.copy_(residual_out_, /*non_blocking=*/true);
 
-      at::cuda::getCurrentCUDAStream().synchronize();
+      // at::cuda::getCurrentCUDAStream().synchronize();
 
       if (use_float32_)
       {
@@ -721,22 +753,22 @@ public:
 
       if (use_float32_)
       {
-        const float* u_eff_data = elements[0].toTensor().data_ptr<float>();
+        const float* u_eff_data = elements[0].toTensor().template data_ptr<float>();
         u_eff(0) = u_eff_data[0];
         u_eff(1) = u_eff_data[1];
-        friction_k = elements[1].toTensor().data_ptr<float>()[0];
-        const float* res_data = elements[2].toTensor().data_ptr<float>();
+        friction_k = elements[1].toTensor().template data_ptr<float>()[0];
+        const float* res_data = elements[2].toTensor().template data_ptr<float>();
         residual(0) = res_data[0];
         residual(1) = res_data[1];
         residual(2) = res_data[2];
       }
       else
       {
-        const double* u_eff_data = elements[0].toTensor().data_ptr<double>();
+        const double* u_eff_data = elements[0].toTensor().template data_ptr<double>();
         u_eff(0) = u_eff_data[0];
         u_eff(1) = u_eff_data[1];
-        friction_k = elements[1].toTensor().data_ptr<double>()[0];
-        const double* res_data = elements[2].toTensor().data_ptr<double>();
+        friction_k = elements[1].toTensor().template data_ptr<double>()[0];
+        const double* res_data = elements[2].toTensor().template data_ptr<double>();
         residual(0) = res_data[0];
         residual(1) = res_data[1];
         residual(2) = res_data[2];
@@ -745,11 +777,35 @@ public:
 
     // CPU plant dynamics
     Params adjusted_params = params_;
-    adjusted_params[prx_models::mushr_types::Control::friction] *= friction_k;
+    adjusted_params[StructuredParams::friction] *= friction_k;
 
     StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_);
 
     return xd1_plant + residual;
+  }
+
+  StateDot operator()(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none,
+                      OptionalJacU jacU = boost::none)
+  {
+    const bool get_derivs{ jacX or jacU };
+
+    StateDot xd1;
+    if (get_derivs)
+    {
+      std::tie(xd1, *jacX, *jacU) = predict_with_jac(xd, u);
+    }
+    else
+    {
+      xd1 = predict(xd, u);
+    }
+
+    return xd1;
+    // using OptionalJacX = boost::optional<JacX&>;
+  }
+  //
+  StateDot call(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
+  {
+    return this->operator()(xd, u, jacX, jacU);
   }
 
   std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u)
@@ -817,13 +873,13 @@ public:
       J_r_u_cpu_.copy_(J_r_u_gpu_, /*non_blocking=*/true);
 
       // Single sync for all transfers
-      at::cuda::getCurrentCUDAStream().synchronize();
+      // at::cuda::getCurrentCUDAStream().synchronize();
 
       // Extract from pinned memory (no GPU sync needed, already done)
       if (use_float32_)
       {
         copy_from_pinned_f32(u_eff, u_eff_out_cpu_);
-        friction_k = k_out_cpu_.data_ptr<float>()[0];
+        friction_k = k_out_cpu_.template data_ptr<float>()[0];
         copy_from_pinned_f32(residual, residual_out_cpu_);
         copy_from_pinned_matrix_f32(J_ueff_x, J_ueff_x_cpu_);
         copy_from_pinned_matrix_f32(J_ueff_u, J_ueff_u_cpu_);
@@ -835,7 +891,7 @@ public:
       else
       {
         copy_from_pinned_f64(u_eff, u_eff_out_cpu_);
-        friction_k = k_out_cpu_.data_ptr<double>()[0];
+        friction_k = k_out_cpu_.template data_ptr<double>()[0];
         copy_from_pinned_f64(residual, residual_out_cpu_);
         copy_from_pinned_matrix_f64(J_ueff_x, J_ueff_x_cpu_);
         copy_from_pinned_matrix_f64(J_ueff_u, J_ueff_u_cpu_);
@@ -883,106 +939,153 @@ public:
       if (use_float32_)
       {
         // Extract outputs with direct pointer access
-        const float* u_eff_data = elements[0].toTensor().data_ptr<float>();
+        const float* u_eff_data = elements[0].toTensor().template data_ptr<float>();
         u_eff(0) = u_eff_data[0];
         u_eff(1) = u_eff_data[1];
-        friction_k = elements[1].toTensor().data_ptr<float>()[0];
-        const float* res_data = elements[2].toTensor().data_ptr<float>();
+        friction_k = elements[1].toTensor().template data_ptr<float>()[0];
+        const float* res_data = elements[2].toTensor().template data_ptr<float>();
         residual(0) = res_data[0];
         residual(1) = res_data[1];
         residual(2) = res_data[2];
 
         // Extract jacobians with direct pointer access (unrolled for small matrices)
-        const float* J_ueff_x_data = elements[3].toTensor().data_ptr<float>();
-        J_ueff_x(0, 0) = J_ueff_x_data[0]; J_ueff_x(0, 1) = J_ueff_x_data[1]; J_ueff_x(0, 2) = J_ueff_x_data[2];
-        J_ueff_x(1, 0) = J_ueff_x_data[3]; J_ueff_x(1, 1) = J_ueff_x_data[4]; J_ueff_x(1, 2) = J_ueff_x_data[5];
+        const float* J_ueff_x_data = elements[3].toTensor().template data_ptr<float>();
+        J_ueff_x(0, 0) = J_ueff_x_data[0];
+        J_ueff_x(0, 1) = J_ueff_x_data[1];
+        J_ueff_x(0, 2) = J_ueff_x_data[2];
+        J_ueff_x(1, 0) = J_ueff_x_data[3];
+        J_ueff_x(1, 1) = J_ueff_x_data[4];
+        J_ueff_x(1, 2) = J_ueff_x_data[5];
 
-        const float* J_ueff_u_data = elements[4].toTensor().data_ptr<float>();
-        J_ueff_u(0, 0) = J_ueff_u_data[0]; J_ueff_u(0, 1) = J_ueff_u_data[1];
-        J_ueff_u(1, 0) = J_ueff_u_data[2]; J_ueff_u(1, 1) = J_ueff_u_data[3];
+        const float* J_ueff_u_data = elements[4].toTensor().template data_ptr<float>();
+        J_ueff_u(0, 0) = J_ueff_u_data[0];
+        J_ueff_u(0, 1) = J_ueff_u_data[1];
+        J_ueff_u(1, 0) = J_ueff_u_data[2];
+        J_ueff_u(1, 1) = J_ueff_u_data[3];
 
-        const float* J_k_x_data = elements[5].toTensor().data_ptr<float>();
-        J_k_x(0, 0) = J_k_x_data[0]; J_k_x(0, 1) = J_k_x_data[1]; J_k_x(0, 2) = J_k_x_data[2];
+        const float* J_k_x_data = elements[5].toTensor().template data_ptr<float>();
+        J_k_x(0, 0) = J_k_x_data[0];
+        J_k_x(0, 1) = J_k_x_data[1];
+        J_k_x(0, 2) = J_k_x_data[2];
 
-        const float* J_k_u_data = elements[6].toTensor().data_ptr<float>();
-        J_k_u(0, 0) = J_k_u_data[0]; J_k_u(0, 1) = J_k_u_data[1];
+        const float* J_k_u_data = elements[6].toTensor().template data_ptr<float>();
+        J_k_u(0, 0) = J_k_u_data[0];
+        J_k_u(0, 1) = J_k_u_data[1];
 
-        const float* J_r_x_data = elements[7].toTensor().data_ptr<float>();
-        J_r_x(0, 0) = J_r_x_data[0]; J_r_x(0, 1) = J_r_x_data[1]; J_r_x(0, 2) = J_r_x_data[2];
-        J_r_x(1, 0) = J_r_x_data[3]; J_r_x(1, 1) = J_r_x_data[4]; J_r_x(1, 2) = J_r_x_data[5];
-        J_r_x(2, 0) = J_r_x_data[6]; J_r_x(2, 1) = J_r_x_data[7]; J_r_x(2, 2) = J_r_x_data[8];
+        const float* J_r_x_data = elements[7].toTensor().template data_ptr<float>();
+        J_r_x(0, 0) = J_r_x_data[0];
+        J_r_x(0, 1) = J_r_x_data[1];
+        J_r_x(0, 2) = J_r_x_data[2];
+        J_r_x(1, 0) = J_r_x_data[3];
+        J_r_x(1, 1) = J_r_x_data[4];
+        J_r_x(1, 2) = J_r_x_data[5];
+        J_r_x(2, 0) = J_r_x_data[6];
+        J_r_x(2, 1) = J_r_x_data[7];
+        J_r_x(2, 2) = J_r_x_data[8];
 
-        const float* J_r_u_data = elements[8].toTensor().data_ptr<float>();
-        J_r_u(0, 0) = J_r_u_data[0]; J_r_u(0, 1) = J_r_u_data[1];
-        J_r_u(1, 0) = J_r_u_data[2]; J_r_u(1, 1) = J_r_u_data[3];
-        J_r_u(2, 0) = J_r_u_data[4]; J_r_u(2, 1) = J_r_u_data[5];
+        const float* J_r_u_data = elements[8].toTensor().template data_ptr<float>();
+        J_r_u(0, 0) = J_r_u_data[0];
+        J_r_u(0, 1) = J_r_u_data[1];
+        J_r_u(1, 0) = J_r_u_data[2];
+        J_r_u(1, 1) = J_r_u_data[3];
+        J_r_u(2, 0) = J_r_u_data[4];
+        J_r_u(2, 1) = J_r_u_data[5];
       }
       else
       {
         // Extract outputs with direct pointer access (float64)
-        const double* u_eff_data = elements[0].toTensor().data_ptr<double>();
+        const double* u_eff_data = elements[0].toTensor().template data_ptr<double>();
         u_eff(0) = u_eff_data[0];
         u_eff(1) = u_eff_data[1];
-        friction_k = elements[1].toTensor().data_ptr<double>()[0];
-        const double* res_data = elements[2].toTensor().data_ptr<double>();
+        friction_k = elements[1].toTensor().template data_ptr<double>()[0];
+        const double* res_data = elements[2].toTensor().template data_ptr<double>();
         residual(0) = res_data[0];
         residual(1) = res_data[1];
         residual(2) = res_data[2];
 
         // Extract jacobians with direct pointer access (unrolled for small matrices)
-        const double* J_ueff_x_data = elements[3].toTensor().data_ptr<double>();
-        J_ueff_x(0, 0) = J_ueff_x_data[0]; J_ueff_x(0, 1) = J_ueff_x_data[1]; J_ueff_x(0, 2) = J_ueff_x_data[2];
-        J_ueff_x(1, 0) = J_ueff_x_data[3]; J_ueff_x(1, 1) = J_ueff_x_data[4]; J_ueff_x(1, 2) = J_ueff_x_data[5];
+        const double* J_ueff_x_data = elements[3].toTensor().template data_ptr<double>();
+        J_ueff_x(0, 0) = J_ueff_x_data[0];
+        J_ueff_x(0, 1) = J_ueff_x_data[1];
+        J_ueff_x(0, 2) = J_ueff_x_data[2];
+        J_ueff_x(1, 0) = J_ueff_x_data[3];
+        J_ueff_x(1, 1) = J_ueff_x_data[4];
+        J_ueff_x(1, 2) = J_ueff_x_data[5];
 
-        const double* J_ueff_u_data = elements[4].toTensor().data_ptr<double>();
-        J_ueff_u(0, 0) = J_ueff_u_data[0]; J_ueff_u(0, 1) = J_ueff_u_data[1];
-        J_ueff_u(1, 0) = J_ueff_u_data[2]; J_ueff_u(1, 1) = J_ueff_u_data[3];
+        const double* J_ueff_u_data = elements[4].toTensor().template data_ptr<double>();
+        J_ueff_u(0, 0) = J_ueff_u_data[0];
+        J_ueff_u(0, 1) = J_ueff_u_data[1];
+        J_ueff_u(1, 0) = J_ueff_u_data[2];
+        J_ueff_u(1, 1) = J_ueff_u_data[3];
 
-        const double* J_k_x_data = elements[5].toTensor().data_ptr<double>();
-        J_k_x(0, 0) = J_k_x_data[0]; J_k_x(0, 1) = J_k_x_data[1]; J_k_x(0, 2) = J_k_x_data[2];
+        const double* J_k_x_data = elements[5].toTensor().template data_ptr<double>();
+        J_k_x(0, 0) = J_k_x_data[0];
+        J_k_x(0, 1) = J_k_x_data[1];
+        J_k_x(0, 2) = J_k_x_data[2];
 
-        const double* J_k_u_data = elements[6].toTensor().data_ptr<double>();
-        J_k_u(0, 0) = J_k_u_data[0]; J_k_u(0, 1) = J_k_u_data[1];
+        const double* J_k_u_data = elements[6].toTensor().template data_ptr<double>();
+        J_k_u(0, 0) = J_k_u_data[0];
+        J_k_u(0, 1) = J_k_u_data[1];
 
-        const double* J_r_x_data = elements[7].toTensor().data_ptr<double>();
-        J_r_x(0, 0) = J_r_x_data[0]; J_r_x(0, 1) = J_r_x_data[1]; J_r_x(0, 2) = J_r_x_data[2];
-        J_r_x(1, 0) = J_r_x_data[3]; J_r_x(1, 1) = J_r_x_data[4]; J_r_x(1, 2) = J_r_x_data[5];
-        J_r_x(2, 0) = J_r_x_data[6]; J_r_x(2, 1) = J_r_x_data[7]; J_r_x(2, 2) = J_r_x_data[8];
+        const double* J_r_x_data = elements[7].toTensor().template data_ptr<double>();
+        J_r_x(0, 0) = J_r_x_data[0];
+        J_r_x(0, 1) = J_r_x_data[1];
+        J_r_x(0, 2) = J_r_x_data[2];
+        J_r_x(1, 0) = J_r_x_data[3];
+        J_r_x(1, 1) = J_r_x_data[4];
+        J_r_x(1, 2) = J_r_x_data[5];
+        J_r_x(2, 0) = J_r_x_data[6];
+        J_r_x(2, 1) = J_r_x_data[7];
+        J_r_x(2, 2) = J_r_x_data[8];
 
-        const double* J_r_u_data = elements[8].toTensor().data_ptr<double>();
-        J_r_u(0, 0) = J_r_u_data[0]; J_r_u(0, 1) = J_r_u_data[1];
-        J_r_u(1, 0) = J_r_u_data[2]; J_r_u(1, 1) = J_r_u_data[3];
-        J_r_u(2, 0) = J_r_u_data[4]; J_r_u(2, 1) = J_r_u_data[5];
+        const double* J_r_u_data = elements[8].toTensor().template data_ptr<double>();
+        J_r_u(0, 0) = J_r_u_data[0];
+        J_r_u(0, 1) = J_r_u_data[1];
+        J_r_u(1, 0) = J_r_u_data[2];
+        J_r_u(1, 1) = J_r_u_data[3];
+        J_r_u(2, 0) = J_r_u_data[4];
+        J_r_u(2, 1) = J_r_u_data[5];
       }
     }
 
     // Plant dynamics (same for both paths)
     Params adjusted_params = params_;
-    const double base_friction = params_[prx_models::mushr_types::Control::friction];
-    adjusted_params[prx_models::mushr_types::Control::friction] *= friction_k;
+    const double base_friction = params_[StructuredParams::friction];
+    adjusted_params[StructuredParams::friction] *= friction_k;
 
     JacX plant_Jx;
     JacU plant_Ju;
+    Eigen::MatrixXd dummy;
     Eigen::Matrix<double, 3, 5> plant_Hparams;
-    StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, boost::none, plant_Hparams);
+    StateDot xd1_plant =
+        MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, dummy, plant_Hparams);
 
     // Chain rule for friction
-    Eigen::Vector3d plant_H_friction = plant_Hparams.col(prx_models::mushr_types::Control::friction);
+    const Eigen::Vector3d& plant_H_friction{ plant_Hparams.col(StructuredParams::friction) };
     JacX Jx = plant_Jx + plant_Ju * J_ueff_x + J_r_x + plant_H_friction * base_friction * J_k_x;
     JacU Ju = plant_Ju * J_ueff_u + J_r_u + plant_H_friction * base_friction * J_k_u;
 
     return std::make_tuple(xd1_plant + residual, Jx, Ju);
   }
 
-  void set_dt(double dt) { dt_ = dt; }
-  double get_dt() const { return dt_; }
+  void set_dt(double dt)
+  {
+    dt_ = dt;
+  }
+  double get_dt() const
+  {
+    return dt_;
+  }
 
   bool has_jacobian_method() const
   {
     return module_.find_method("forward_with_jacobian").has_value();
   }
 
-  bool is_cuda_graph_enabled() const { return graph_captured_; }
+  bool is_cuda_graph_enabled() const
+  {
+    return graph_captured_;
+  }
 
 private:
   // Lazy initialization of jacobian staging tensors (only when first needed)
@@ -992,24 +1095,23 @@ private:
       return;
 
     // GPU tensors for receiving jacobian outputs from model
-    J_ueff_x_gpu_ = torch::empty({2, 3}, torch::TensorOptions().dtype(dtype_).device(device_));
-    J_ueff_u_gpu_ = torch::empty({2, 2}, torch::TensorOptions().dtype(dtype_).device(device_));
-    J_k_x_gpu_ = torch::empty({1, 3}, torch::TensorOptions().dtype(dtype_).device(device_));
-    J_k_u_gpu_ = torch::empty({1, 2}, torch::TensorOptions().dtype(dtype_).device(device_));
-    J_r_x_gpu_ = torch::empty({3, 3}, torch::TensorOptions().dtype(dtype_).device(device_));
-    J_r_u_gpu_ = torch::empty({3, 2}, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_ueff_x_gpu_ = torch::empty({ 2, 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_ueff_u_gpu_ = torch::empty({ 2, 2 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_k_x_gpu_ = torch::empty({ 1, 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_k_u_gpu_ = torch::empty({ 1, 2 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_r_x_gpu_ = torch::empty({ 3, 3 }, torch::TensorOptions().dtype(dtype_).device(device_));
+    J_r_u_gpu_ = torch::empty({ 3, 2 }, torch::TensorOptions().dtype(dtype_).device(device_));
 
     // Pinned CPU tensors for fast async transfer
-    J_ueff_x_cpu_ = torch::empty({2, 3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-    J_ueff_u_cpu_ = torch::empty({2, 2}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-    J_k_x_cpu_ = torch::empty({1, 3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-    J_k_u_cpu_ = torch::empty({1, 2}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-    J_r_x_cpu_ = torch::empty({3, 3}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
-    J_r_u_cpu_ = torch::empty({3, 2}, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_ueff_x_cpu_ = torch::empty({ 2, 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_ueff_u_cpu_ = torch::empty({ 2, 2 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_k_x_cpu_ = torch::empty({ 1, 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_k_u_cpu_ = torch::empty({ 1, 2 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_r_x_cpu_ = torch::empty({ 3, 3 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
+    J_r_u_cpu_ = torch::empty({ 3, 2 }, torch::TensorOptions().dtype(dtype_).pinned_memory(true));
 
     jacobian_tensors_initialized_ = true;
   }
-
 
   // Helper functions for pinned memory copies (no GPU transfer, just CPU pinned memory access)
   template <typename Derived>
@@ -1101,8 +1203,8 @@ private:
 
   // CUDA Graph members
   bool graph_captured_ = false;
-  at::cuda::CUDAGraph cuda_graph_;
-  std::optional<at::cuda::CUDAStream> capture_stream_;
+  // at::cuda::CUDAGraph cuda_graph_;
+  // std::optional<at::cuda::CUDAStream> capture_stream_;
 
   // Pinned CPU staging tensors (for fast async GPU transfers)
   torch::Tensor xd_in_cpu_;
@@ -1119,12 +1221,12 @@ private:
   // Jacobian staging tensors (lazy-initialized for zero overhead when not used)
   bool jacobian_tensors_initialized_ = false;
   // GPU tensors for jacobian outputs
-  torch::Tensor J_ueff_x_gpu_;   // 2x3
-  torch::Tensor J_ueff_u_gpu_;   // 2x2
-  torch::Tensor J_k_x_gpu_;      // 1x3
-  torch::Tensor J_k_u_gpu_;      // 1x2
-  torch::Tensor J_r_x_gpu_;      // 3x3
-  torch::Tensor J_r_u_gpu_;      // 3x2
+  torch::Tensor J_ueff_x_gpu_;  // 2x3
+  torch::Tensor J_ueff_u_gpu_;  // 2x2
+  torch::Tensor J_k_x_gpu_;     // 1x3
+  torch::Tensor J_k_u_gpu_;     // 1x2
+  torch::Tensor J_r_x_gpu_;     // 3x3
+  torch::Tensor J_r_u_gpu_;     // 3x2
   // Pinned CPU tensors for async transfer
   torch::Tensor J_ueff_x_cpu_;
   torch::Tensor J_ueff_u_cpu_;

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <prx/simulation/playback/plan.hpp>
 #include <prx/simulation/system.hpp>
+#include <prx/utilities/general/prx_assert.hpp>
 #include <prx/utilities/spaces/space_snapshot.hpp>
 #include <prx_models/mj_mushr.hpp>
 #include <control/MushrControlPropagation.h>
@@ -26,6 +27,7 @@
 #include <interface/PlannerClock.h>
 
 #include <prx_models/StelaKraft.h>
+#include <prx_models/defs.hpp>
 #include <utils/time_profiler.hpp>
 
 struct constant_plan_t
@@ -219,11 +221,14 @@ struct constant_plan_t
     // }
   }
 
-  void tree_from_plan_traj(prx_models::Tree& sln_tree, prx::plan_t& plan, prx::trajectory_t& traj)
+  void tree_from_plan_traj(prx_models::Tree& sln_tree, const prx::plan_t& plan, const prx::trajectory_t& traj)
   {
     if (traj.duration() < plan.duration())
     {
       PRINT_MSG("[Replanner::tree_from_plan_traj] Trajectory shorter than plan");
+      DEBUG_VARS(traj.duration(), plan.duration())
+      // DEBUG_VARS(plan)
+      // DEBUG_VARS(traj)
       return;
     }
 
@@ -322,6 +327,12 @@ struct constant_plan_t
         _plan->copy_onto_back(aux_ctrl.control, aux_ctrl.duration);
       }
     }
+    const double mult{ 1.0 / prx::simulation_step };
+    for (int i = 0; i < _plan->size(); ++i)
+    {
+      prx::plan_step_t& plan_step{ (*_plan)[i] };
+      plan_step.duration = std::round(plan_step.duration * mult) * prx::simulation_step;
+    }
     // (*_plan) += (*_plan_aux);
     DEBUG_VARS(*_plan)
   }
@@ -329,7 +340,7 @@ struct constant_plan_t
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
     // _profiler.start();
-    // PRINT_MSG("Replanning...")
+    PRINT_MSG("[mushr_constant_plan] Replanning...")
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
     change_status(interface::ReplannerStatus::PREPROCESSING);
@@ -341,12 +352,17 @@ struct constant_plan_t
     _traj->clear();
     _step_plan->clear();
 
+    DEBUG_VARS(_start_state->size(), request.root.point.point.size())
+    prx_assert(_start_state->size() == request.root.point.point.size(), "[mushr_constant_plan] Size mismatch ");
     ml4kp_bridge::copy(_start_state, request.root.point);
+    DEBUG_VARS(_start_state, request.root.point.point)
 
     // _profiler.checkpoint("PREPROCESSING");
     change_status(interface::ReplannerStatus::PLANNING);
 
     _system_group->propagate(_start_state, *_plan, *_traj);
+    DEBUG_VARS(_traj->size(), _plan->size())
+    DEBUG_VARS(_traj->duration(), _plan->duration())
 
     // DEBUG_VARS(*_traj);
     // _profiler.checkpoint("PLANNING");
@@ -368,8 +384,10 @@ struct constant_plan_t
     response.sln_tree.nodes.push_back(request.root);
     response.planner_output = prx_models::StelaKraft::Response::TYPE_SUCCESS;
 
+    // DEBUG_VARS(*_step_plan)
     tree_from_plan_traj(response.sln_tree, *_step_plan, *_traj);
     _sln_tree_publisher.publish(response.sln_tree);
+    // DEBUG_VARS(response.sln_tree)
 
     prx_models::Tree ros_tree;
     ros_tree.root = request.root.index;

@@ -18,8 +18,13 @@ namespace variables
 
 inline static const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
 inline static std::ofstream ofs_log;
+inline static std::string log_filename = "log.txt";
 }  // namespace variables
 
+inline void set_log_filename(const std::string filename)
+{
+  variables::log_filename = filename;
+}
 // template <std::size_t I, typename TupleValue>
 // inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
 
@@ -49,7 +54,7 @@ inline void print_value(std::ostream& stream, const Value& value)
   for (auto& e : value)
   {
     print_value(stream, e);
-    print_value(stream, "\n");
+    // print_value(stream, "\n");
   }
   // stream << "\n";
 }
@@ -116,19 +121,24 @@ inline void print_variables(std::ostream& stream, bool color, std::string name, 
 }
 
 template <class... Vars>
-inline void log_variables(std::string name, Vars... vars)
+inline void log_variables(const std::string fn_name, const std::string name, Vars... vars)
 {
   using dbg::variables::ofs_log;
   if (not ofs_log.is_open())
   {
-    ofs_log.open(dbg::variables::lib_path + "/log.txt");
+    const std::string log_filename{ dbg::variables::lib_path + dbg::variables::log_filename };
+    ofs_log.open(log_filename);
+
+    const std::string msg{ "Log set to: " + log_filename };
+    dbg::print_variables(std::cout, true, "msg", msg);
   }
+  ofs_log << "[ " << fn_name << " " << ros::Time::now() << " ] ";
   dbg::print_variables(ofs_log, false, name, vars...);
 }
 
 }  // namespace dbg
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
-#define LOG_VARS(...) dbg::log_variables(#__VA_ARGS__, __VA_ARGS__);
+#define LOG_VARS(...) dbg::log_variables(__FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
 #define ERROR_VARS(...)                                                                                                \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
@@ -143,6 +153,11 @@ inline void log_variables(std::string name, Vars... vars)
     std::cout << prx::constants::color::normal;                                                                        \
   };
 
+#define LOG_MSG(MSG)                                                                                                   \
+  {                                                                                                                    \
+    const std::string msg{ MSG };                                                                                      \
+    LOG_VARS(msg)                                                                                                      \
+  };
 #define PRINT_MSG(MSG)                                                                                                 \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
@@ -161,7 +176,11 @@ inline void log_variables(std::string name, Vars... vars)
     const std::string _key{ SF::formatter(KEY) };                                                                      \
     dbg::print_variables(std::cout, true, #KEY, _key);                                                                 \
   };
-
+#define LOG_KEY(KEY)                                                                                                   \
+  {                                                                                                                    \
+    const std::string _key{ SF::formatter(KEY) };                                                                      \
+    dbg::log_variables(__FUNCTION__, #KEY, _key);                                                                      \
+  };
 #define PRINT_KEY_ERROR(KEY)                                                                                           \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
@@ -179,6 +198,17 @@ inline void log_variables(std::string name, Vars... vars)
     }                                                                                                                  \
     dbg::print_variables(std::cout, true, "");                                                                         \
   };
+
+#define LOG_KEYS(...)                                                                                                  \
+  {                                                                                                                    \
+    std::vector<gtsam::Key> ks = { __VA_ARGS__ };                                                                      \
+    std::vector<std::string> keys;                                                                                     \
+    for (auto key : ks)                                                                                                \
+    {                                                                                                                  \
+      keys.push_back(SF::formatter(key));                                                                              \
+    }                                                                                                                  \
+    dbg::log_variables(__FUNCTION__, "Keys", keys);                                                                    \
+  }
 #define PRINT_KEYS_(KEYS) PRINT_KEYS_CONTAINER(KEYS)
 
 #define PRINT_MSG_ONCE(MSG)                                                                                            \

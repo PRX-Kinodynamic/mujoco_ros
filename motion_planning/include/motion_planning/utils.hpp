@@ -1,11 +1,30 @@
 #pragma once
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 
+#include <gtsam/linear/linearExceptions.h>
+#include <gtsam/nonlinear/ISAM2.h>
+
 namespace motion_planning
 {
 using SF = prx::fg::symbol_factory_t;
 
-template <typename StateType>
+template <typename StateType, std::enable_if_t<std::is_same<StateType, gtsam::Pose3>::value, bool> = true>
+void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
+{
+  const gtsam::Quaternion quat{ state.rotation().toQuaternion() };
+  ofs << SF::formatter(key) << " ";
+
+  ofs << state.x() << " ";
+  ofs << state.y() << " ";
+  ofs << state.z() << " ";
+
+  ofs << quat.w() << " ";
+  ofs << quat.x() << " ";
+  ofs << quat.y() << " ";
+  ofs << quat.z() << " ";
+}
+
+template <typename StateType, std::enable_if_t<std::is_same<StateType, prx::fg::SE2_t>::value, bool> = true>
 void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
 {
   using SF = prx::fg::symbol_factory_t;
@@ -17,16 +36,31 @@ void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateTyp
   }
 }
 
+template <typename StateType, std::enable_if_t<prx::utilities::is_iterable<StateType>::value, bool> = true>
+void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
+{
+  using SF = prx::fg::symbol_factory_t;
+
+  ofs << SF::formatter(key) << " ";
+  // for (int i = 0; i < state.size(); ++i)
+  // {
+  for (const auto& element : state)
+  {
+    ofs << element << " ";
+    // ofs << state[i] << " ";
+  }
+}
+
 template <std::size_t I, typename StateEstimates, typename StateKeys,
           std::enable_if_t<(I == std::tuple_size<StateEstimates>{}), bool> = true>
-inline void update_estimates(StateEstimates& state_estimates, gtsam::ISAM2& isam, const StateKeys& keys)
+inline void update_estimates(StateEstimates& state_estimates, const gtsam::ISAM2& isam, const StateKeys& keys)
 {
 }
 
 // StateEstimates is a tuple (std::tuple<...>) and I is the id of an element in the tuple
 template <std::size_t I, typename StateEstimates, typename StateKeys,
           std::enable_if_t<(I < std::tuple_size<StateEstimates>{}), bool> = true>  // no-lint
-inline void update_estimates(StateEstimates& state_estimates, gtsam::ISAM2& isam, const StateKeys& keys)
+inline void update_estimates(StateEstimates& state_estimates, const gtsam::ISAM2& isam, const StateKeys& keys)
 {
   using SF = prx::fg::symbol_factory_t;
   using EstimateType = typename std::tuple_element<I, StateEstimates>::type;
@@ -46,12 +80,14 @@ inline void update_estimates(StateEstimates& state_estimates, gtsam::ISAM2& isam
 }
 
 template <std::size_t I, typename StateKeys, std::enable_if_t<(I == std::tuple_size<StateKeys>{}), bool> = true>
-inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, gtsam::ISAM2& isam, const StateKeys& keys)
+inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, const gtsam::ISAM2& isam,
+                                const StateKeys& keys)
 {
 }
 
 template <std::size_t I, typename StateKeys, std::enable_if_t<(I < std::tuple_size<StateKeys>{}), bool> = true>
-inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, gtsam::ISAM2& isam, const StateKeys& keys)
+inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, const gtsam::ISAM2& isam,
+                                const StateKeys& keys)
 {
   try
   {
@@ -141,7 +177,7 @@ double compute_error(const StateEstimates& estimates, const StateKeys& keys, gts
   return cost[0] + compute_error<I + 1>(estimates, keys, isam, sbmp_values);
 }
 
-void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key, gtsam::ISAM2& isam)
+void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key, const gtsam::ISAM2& isam)
 {
   try
   {

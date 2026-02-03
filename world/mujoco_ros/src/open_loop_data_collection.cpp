@@ -1,12 +1,12 @@
 #include <thread>
-#include "mujoco_ros/control_listener.hpp"
-#include "mujoco_ros/sensordata_publisher.hpp"
-#include "mujoco_ros/Collision.h"
-#include "prx_models/mj_mushr.hpp"
+#include <mujoco_ros/control_listener.hpp>
+#include <mujoco_ros/sensordata_publisher.hpp>
+#include <mujoco_ros/Collision.h>
+#include <prx_models/mj_mushr.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 
-#include "mujoco_ros/camera_publisher.hpp"
+#include <mujoco_ros/camera_publisher.hpp>
 
 using CtrlMsg = prx_models::MushrControl;
 using PlanMsg = prx_models::MushrPlan;
@@ -72,6 +72,8 @@ struct data_collector_t
     PARAM_SETUP_WITH_DEFAULT(nh, step_duration_max, step_duration_max);
 
     DEBUG_VARS(random_ctrl)
+    prx::init_random(random_seed);
+    DEBUG_VARS(random_seed)
     if (_random_ctrl)
     {
       generate_random_plan();
@@ -83,7 +85,6 @@ struct data_collector_t
       read_plan(input_plan_filename);
     }
     DEBUG_VARS(_plan)
-    prx::init_random(random_seed);
 
     DEBUG_VARS(filename_prefix);
     DEBUG_VARS(simulation_step, plan_duration, step_duration_min, step_duration_max);
@@ -112,7 +113,8 @@ struct data_collector_t
     {
       const int steps{ static_cast<int>(prx::uniform_random(_step_duration_min, _step_duration_max)) };
       const double rand_duration{ steps * _simulation_step };
-      const double steering{ prx::uniform_random(ctrl_min, ctrl_max) };
+      // const double steering{ prx::uniform_random(ctrl_min, ctrl_max) };
+      const double steering{ 0.0 };
       const double vel{ prx::uniform_random(ctrl_min, ctrl_max) };
 
       tot_dur += rand_duration;
@@ -148,8 +150,8 @@ struct data_collector_t
         _ofs_plan << _plan.durations[_plan_idx].data.toSec() << " ";
         _ofs_plan << _curr_plan_duration << " ";
         _ofs_plan << "\n";
-        _plan_idx++;
         _curr_plan_duration += _plan.durations[_plan_idx].data.toSec();
+        _plan_idx++;
       }
       controller_listener.apply_control(_plan.controls[_plan_idx]);
     }

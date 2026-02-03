@@ -127,6 +127,7 @@ struct replanner_t
 
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
 
+    DEBUG_VARS(environment)
     // planner_replanning_service.set_preprocess_timeout(preprocess_timeout);
     // planner_replanning_service.set_postprocess_timeout(postprocess_timeout);
 
@@ -173,6 +174,7 @@ struct replanner_t
 
     _replanning_service = nh.advertiseService("/kraft/replan", &replanner_t::replan, this);
 
+    dbg::set_log_filename("log_replanning.txt");
     PRINT_MSG("Replanner Ready!");
   }
 
@@ -207,11 +209,13 @@ struct replanner_t
   {
     if (_new_tree)
     {
-      prx_models::Tree ros_tree;
-      motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _full_tree);
-      _full_tree.purge();
-      _tree_publisher.publish(ros_tree);
-      _new_tree = false;
+      // PRINT_MSG("FULL TREE PUBLISHING!")
+      // _new_tree = false;
+      // prx_models::Tree ros_tree;
+      // motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _full_tree);
+      // _tree_publisher.publish(ros_tree);
+      // _full_tree.purge();
+      // PRINT_MSG("FULL TREE PUBLISHED!!!!!!!")
     }
   }
 
@@ -388,11 +392,14 @@ struct replanner_t
     // ROS_WARN("Using default goal check");
   }
 
-  void tree_from_plan_traj(prx_models::Tree& sln_tree, prx::plan_t& plan, prx::trajectory_t& traj)
+  void tree_from_plan_traj(prx_models::Tree& sln_tree, const prx::plan_t& plan, const prx::trajectory_t& traj)
   {
     if (traj.duration() < plan.duration())
     {
       PRINT_MSG("[Replanner::tree_from_plan_traj] Trajectory shorter than plan");
+      DEBUG_VARS(traj.duration(), plan.duration())
+      // DEBUG_VARS(plan)
+      // DEBUG_VARS(traj)
       return;
     }
 
@@ -401,18 +408,6 @@ struct replanner_t
     double ti{ 0.0 };
     double curr_cost{ 0.0 };
 
-    // sln_tree.nodes.emplace_back();
-
-    // ml4kp_bridge::copy(sln_tree.nodes.back().point, traj.at(0.0, false));
-    // sln_tree.nodes.back().cost = curr_cost;
-    // sln_tree.nodes.back().index = current_idx;        //                    # id of the current node
-    // sln_tree.nodes.back().parent = current_idx;       //              # parent of the current node. Only used for
-    // Tree sln_tree.nodes.back().parent_edge = current_idx;  // # Edge id between the parent and this node. Only used
-    // for Tree uint64[] children
-    // current_idx++;
-    // DEBUG_VARS(plan);
-    // DEBUG_VARS(traj);
-
     for (std::size_t i = 0; i < plan.size(); ++i)
     {
       const prx::plan_step_t ps_i{ plan[i] };
@@ -420,10 +415,12 @@ struct replanner_t
       double dt_remaining{ ps_i.duration };
       while (dt_remaining > 0.0001)  // small epsilon
       {
+        // DEBUG_VARS(dt_remaining)
         motion_planning::EdgeNodePair edge_node{ motion_planning::create_edge_node(sln_tree.nodes.back(),
                                                                                    current_idx) };
 
         const double dt_curr{ std::min(_max_edge_duration, dt_remaining) };
+        // DEBUG_VARS(ti, dt_curr)
         const prx::space_point_t xi{ traj.at(ti + dt_curr, false) };
         edge_node.first.plan.steps.emplace_back();
 
@@ -436,10 +433,66 @@ struct replanner_t
         sln_tree.nodes.push_back(edge_node.second);
 
         dt_remaining = dt_remaining - _max_edge_duration;
+        ti += dt_curr;
       }
-      ti += ps_i.duration;
+      // ti += ps_i.duration;
     }
   }
+
+  // void tree_from_plan_traj(prx_models::Tree& sln_tree, prx::plan_t& plan, prx::trajectory_t& traj)
+  // {
+  //   if (traj.duration() < plan.duration())
+  //   {
+  //     PRINT_MSG("[Replanner::tree_from_plan_traj] Trajectory shorter than plan");
+  //     DEBUG_VARS(traj.duration(), plan.duration())
+  //     return;
+  //   }
+
+  //   std::size_t current_idx{ sln_tree.root + 1 };
+  //   // sln_tree.root = current_idx;
+  //   double ti{ 0.0 };
+  //   double curr_cost{ 0.0 };
+
+  //   // sln_tree.nodes.emplace_back();
+
+  //   // ml4kp_bridge::copy(sln_tree.nodes.back().point, traj.at(0.0, false));
+  //   // sln_tree.nodes.back().cost = curr_cost;
+  //   // sln_tree.nodes.back().index = current_idx;        //                    # id of the current node
+  //   // sln_tree.nodes.back().parent = current_idx;       //              # parent of the current node. Only used for
+  //   // Tree sln_tree.nodes.back().parent_edge = current_idx;  // # Edge id between the parent and this node. Only
+  //   used
+  //   // for Tree uint64[] children
+  //   // current_idx++;
+  //   // DEBUG_VARS(plan);
+  //   // DEBUG_VARS(traj);
+
+  //   for (std::size_t i = 0; i < plan.size(); ++i)
+  //   {
+  //     const prx::plan_step_t ps_i{ plan[i] };
+
+  //     double dt_remaining{ ps_i.duration };
+  //     while (dt_remaining > 0.0001)  // small epsilon
+  //     {
+  //       motion_planning::EdgeNodePair edge_node{ motion_planning::create_edge_node(sln_tree.nodes.back(),
+  //                                                                                  current_idx) };
+
+  //       const double dt_curr{ std::min(_max_edge_duration, dt_remaining) };
+  //       const prx::space_point_t xi{ traj.at(ti + dt_curr, false) };
+  //       edge_node.first.plan.steps.emplace_back();
+
+  //       ml4kp_bridge::copy(edge_node.first.plan.steps.back(), ps_i);
+  //       edge_node.first.plan.steps.back().duration.data = ros::Duration(dt_curr);
+
+  //       ml4kp_bridge::copy(edge_node.second.point, xi);
+
+  //       sln_tree.edges.push_back(edge_node.first);
+  //       sln_tree.nodes.push_back(edge_node.second);
+
+  //       dt_remaining = dt_remaining - _max_edge_duration;
+  //     }
+  //     ti += ps_i.duration;
+  //   }
+  // }
 
   void change_status(const int16_t new_status)
   {
@@ -452,21 +505,28 @@ struct replanner_t
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
+    LOG_MSG("START REPLANNING");
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
+    LOG_MSG("PREPROCESSING");
     // DEBUG_VARS(ros::Time::now(), request);
     change_status(interface::ReplannerStatus::PREPROCESSING);
     _dirt_query->clear_outputs();
     // const double& planning_duration{ _dirt_spec->planning_cycle_duration };
 
-    if (request.root.point.point.size() != _dirt_query->start_state->size())
-    {
-      return false;
-    }
+    prx_assert(_dirt_query->start_state->size() == request.root.point.point.size(),
+               "[mushr_replanning] Size "
+               "mismatch ");
+    // if (request.root.point.point.size() != _dirt_query->start_state->size())
+    // {
+    //   prx_warn("Start state of ");
+    //   return false;
+    // }
     ml4kp_bridge::copy(_dirt_query->start_state, request.root.point);
     // _state_space->copy(_dirt_query->start_state, _future_state);
-    DEBUG_VARS(_dirt_query->start_state);
-
+    // LOG_VARS(_dirt_query->start_state);
+    // LOG_VARS(*_dirt_spec)
+    // LOG_VARS(*_dirt_query)
     _step_traj->clear();
 
     _dirt->link_and_setup_spec(_dirt_spec.get());
@@ -476,9 +536,11 @@ struct replanner_t
     // const double preprocess_real_dt{ (ros::Time::now() - _cycle_start).toSec() };
     // const double time_limit{ planning_duration - preprocess_real_dt - _postprocess_timeout };
     // DEBUG_VARS(time_limit, planning_duration, preprocess_real_dt, _postprocess_timeout);
-    const ros::Duration dt_available{ request.deadline - ros::Time::now() };
+    const ros::Time start_plan_stamp{ ros::Time::now() };
+    const ros::Duration dt_available{ request.deadline - start_plan_stamp };
     const double time_limit{ dt_available.toSec() - _postprocess_timeout };
-    // DEBUG_VARS(time_limit);
+
+    LOG_VARS(request.deadline, dt_available, time_limit);
     if (time_limit <= 0)
     {
       change_status(interface::ReplannerStatus::IDLE);
@@ -488,10 +550,17 @@ struct replanner_t
     prx::condition_check_t checker("time", time_limit);
 
     change_status(interface::ReplannerStatus::PLANNING);
+    LOG_MSG("PLANNING");
 
     _dirt->resolve_query(&checker);
 
+    const ros::Time end{ ros::Time::now() };
+    const double real_plan_dt{ (end - start_plan_stamp).toSec() };
+    const double dt_diff{ time_limit - real_plan_dt };
     change_status(interface::ReplannerStatus::POSTPROCESSING);
+
+    LOG_VARS(real_plan_dt, dt_diff);
+    LOG_MSG("POSTPROCESSING");
 
     _dirt->fulfill_query();
 
@@ -514,17 +583,16 @@ struct replanner_t
       else
       {
         _dirt_query->solution_plan.copy_to(0, request.solution_duration.toSec(), *_step_plan);
-        // ml4kp_bridge::add_zero_control(_dirt_query->solution_plan,
-        //                                planning_duration - plan_duration + prx::simulation_step);
       }
 
       // bool valid{ true };
       response.sln_tree.root = request.root.index;
       response.sln_tree.nodes.push_back(request.root);
       response.planner_output = prx_models::StelaKraft::Response::TYPE_SUCCESS;
+
       tree_from_plan_traj(response.sln_tree, *_step_plan, _dirt_query->solution_traj);
       _sln_tree_publisher.publish(response.sln_tree);
-      // DEBUG_VARS(*_step_plan);
+      LOG_MSG("Result ready");
     }
     // else
     // {
@@ -539,13 +607,19 @@ struct replanner_t
     // prx_models::Tree ros_tree;
     // motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _dirt->tree());
     // _tree_publisher.publish(ros_tree);
-    swap(_full_tree, _dirt->tree());
-    _new_tree = true;
+    // swap(_full_tree, _dirt->tree());
+    // _new_tree = true;
+    // DEBUG_VARS(_new_tree)
+
+    prx_models::Tree ros_tree;
+    motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _dirt->tree());
+    _tree_publisher.publish(ros_tree);
     _dirt->reset();
+
+    LOG_MSG("IDLE");
+    change_status(interface::ReplannerStatus::IDLE);
     // if (!_retain_previous)
     //   _dirt_query->clear_outputs();
-
-    change_status(interface::ReplannerStatus::IDLE);
 
     // return true;
     return true;

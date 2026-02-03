@@ -2,7 +2,9 @@
     <arg name="visualize_sim" default="true"/>
     <arg name="visualize_output" default="false"/>
     <arg name="publish_ground_truth_pose" default="true"/>
-    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/>
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
+    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">

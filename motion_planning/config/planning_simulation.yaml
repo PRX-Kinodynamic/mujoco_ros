@@ -2,6 +2,9 @@ random_seed: 210896
 simulation_step: 0.1
 
 plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
+# plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_mujoco.yaml"
+# plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"
+
 # plant: !file "src/motion_planning/config/mushr.yaml"
 learned_controller: "controllers/mushr_analytical.yaml"
 feedback_controller: "controllers/mushr_stanley_sim.yaml"
@@ -11,7 +14,7 @@ feedback_controller: "controllers/mushr_stanley_sim.yaml"
 # environment: "environments/slip.yaml"
 # environment: "${DIRTMP_PATH}/resources/input_files/environments/boxes.yaml"
 # environment: "${DIRTMP_PATH}/resources/input_files/environments/empty.yaml"
-environment: "${DIRTMP_PATH}/resources/input_files/environments/wall.yaml"
+# environment: "${DIRTMP_PATH}/resources/input_files/environments/wall.yaml"
 # environment: "environments/turns.yaml"
 # environment: "environments/walls.yaml"
 safe_distance: 0.25

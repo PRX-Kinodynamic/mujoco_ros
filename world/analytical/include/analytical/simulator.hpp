@@ -173,9 +173,10 @@ protected:
     if (_plant_name == "fg_ltv_sde")
     {
       // _plant_name
+      prx_throw("Not implemented");
       // DEBUG_VARS(ros::Time::now());
-      prx::fg::ltv_sde_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
-      prx::fg::ltv_sde_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
+      // prx::fg::ltv_sde_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
+      // prx::fg::ltv_sde_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
       add_tf_noise(_tf_noise.transform);
 
       _tf_broadcaster.sendTransform(_tf_gt);
@@ -183,8 +184,9 @@ protected:
     }
     if (_plant_name == "mushrFG")
     {
-      prx_models::mushr_stela_t::copy(_tf_gt.transform, _state_msg.space_point.point);
-      prx_models::mushr_stela_t::copy(_tf_noise.transform, _state_msg.space_point.point);
+      prx_throw("Not implemented");
+      // prx_models::mushr_stela_t::copy(_tf_gt.transform, _state_msg.space_point.point);
+      // prx_models::mushr_stela_t::copy(_tf_noise.transform, _state_msg.space_point.point);
       add_tf_noise(_tf_noise.transform);
 
       _tf_broadcaster.sendTransform(_tf_gt);

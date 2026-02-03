@@ -69,6 +69,7 @@ int main(int argc, char** argv)
   const std::string plant_path{ params["/path"].as<std::string>() };
   auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
   prx_assert(plant != nullptr, "Failed to create plant");
+  plant->init(params);
 
   // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
   // std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacles.second };
@@ -80,22 +81,34 @@ int main(int argc, char** argv)
   auto ss = context.first->get_state_space();
   auto cs = context.first->get_control_space();
   auto ps = context.first->get_parameter_space();
-  std::vector<double> min_control_limits = params["/control_space/lower_bound"].as<std::vector<double>>();
-  std::vector<double> max_control_limits = params["/control_space/upper_bound"].as<std::vector<double>>();
-  std::vector<double> min_state_limits = params["/state_space/lower_bound"].as<std::vector<double>>();
-  std::vector<double> max_state_limits = params["/state_space/upper_bound"].as<std::vector<double>>();
-  ss->set_bounds(min_state_limits, max_state_limits);
-  cs->set_bounds(min_control_limits, max_control_limits);
-  std::vector<double> param_values = params["/parameter_space/values"].as<std::vector<double>>();
-  ps->copy_from(param_values);
+  // std::vector<double> min_control_limits = params["/control_space/lower_bound"].as<std::vector<double>>();
+  // std::vector<double> max_control_limits = params["/control_space/upper_bound"].as<std::vector<double>>();
+  // std::vector<double> min_state_limits = params["/state_space/lower_bound"].as<std::vector<double>>();
+  // std::vector<double> max_state_limits = params["/state_space/upper_bound"].as<std::vector<double>>();
+  // ss->set_bounds(min_state_limits, max_state_limits);
+  // cs->set_bounds(min_control_limits, max_control_limits);
+  // std::vector<double> param_values = params["/parameter_space/values"].as<std::vector<double>>();
+  // ps->copy_from(param_values);
   std::shared_ptr<prx::system_group_t> sg{ prx::system_group(context) };
 
   // std::vector<double> x0{ params["start_state"].as<std::vector<double>>() };
   // std::vector<double> steering{ -1.0, -0.75, -0.5, -0.25, -0.1, 0.1, 0.25, 0.5, 0.75, 1.0 };
 
   prx::space_point_t x0(ss->make_point());
-  x0->init(params["start_state"]);
+  if (params.exists("start_state"))
+  {
+    x0->init(params["start_state"]);
+  }
+  else
+  {
+    prx::plan_t init_plan(cs);
+    init_plan.copy_onto_back(Eigen::Vector2d::Zero(), 5.0);
 
+    ss->copy_to(x0);
+    sg->propagate(x0, init_plan, x0);
+  }
+  DEBUG_VARS(x0)
+  DEBUG_VARS(plant);
   prx::plan_t plan(cs);
 
   std::ofstream ofs(file_out.c_str());

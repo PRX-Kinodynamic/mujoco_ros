@@ -53,7 +53,7 @@ TEST(TestArucoMarkerFactors, testArucoMarkerFactorDerivatives)
   using SE3 = gtsam::Pose3;
   using CameraCalibration = gtsam::Cal3DS2;
   using Camera = gtsam::PinholeCamera<CameraCalibration>;
-  using ArucoMarkerFactor = estimation::aruco_marker_factor_t;
+  using ArucoMarkerFactor = estimation::aruco_marker_factor_t<Camera>;
   using Pixel = Eigen::Vector2d;
 
   const double tolerance{ 1e-5 };

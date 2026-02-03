@@ -1,7 +1,9 @@
-name: "mushrFG"
-path: "mushrFG"
+name: "mushrTorch"
+path: "mushrTorch"
 
 vis_body: "body"
+torch_model: "${MushrSysIdDir}/experiments/experiments-v3/v3B_struct_h10_tf0_seed4/v3B_struct_h10_tf0_seed4/structured_aux.ts.pt"
+nn_dt: 0.1
 
 control_steps: 
   min: 2
@@ -24,8 +26,8 @@ goal:
 state_space:
   # lower_bound: [-4.1, -2.5, -3.14159, -500,-500,-500] # prx_lab 1
   # upper_bound: [+3.5, +0.5,  3.14159,  500, 500, 500] # prx_lab 1
-  lower_bound: [-5000, -5000, -3.14159, -500,-500, -500] # forest & simple obs
-  upper_bound: [+5000, +5000,  3.14159,  500, 500,  500] # forest & simple obs
+  # lower_bound: [-5000, -5000, -3.14159, -500,-500, -500] # forest & simple obs
+  # upper_bound: [+5000, +5000,  3.14159,  500, 500,  500] # forest & simple obs
   # lower_bound: [-1, -1, -3.14159, -0.5]
   # upper_bound: [50, 25, 1, 1]
   # upper_bound: [50, 25, 0.5, 0.5]
@@ -40,8 +42,9 @@ control_space:
 
 # -0.447324,0.2,0.00363154,0.9,1.05
 parameter_space:
+  values: []
   # values: [.077,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0,0.0,0.0]
-  values: [.09,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Analytical Mushr
+  # values: [.09,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Analytical Mushr
   # values:   [.4,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0] # Mj Mushr
   # values: [.75,0.2,1.0,0.9,1.05,-0.4397,3.773e-5,0.8677,5.8e-6,0.0,0.0,0.0]
   # values: [1.50000,0.20000,0.90000,0.90000,1.05000,0.10450,0.02120,0.23570,0.04860,0.0,0.0,0.0]

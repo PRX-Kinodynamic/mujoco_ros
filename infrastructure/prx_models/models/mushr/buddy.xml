@@ -27,8 +27,12 @@
   </default>
   <worldbody>
     <!-- <body name="buddy" pos="1.0 0.0 0.25" euler="0 0 0"> -->
-    <!-- <body name="buddy" pos="1.0 0.0 0.25" euler="0 0 1.57"> -->
-    <body name="buddy" pos="0.0 0.0 0.25" euler="0 0 0">
+    <body name="buddy" pos="1.0 0.0 0.25" euler="0 0 1.57">
+    <!-- <body name="buddy" pos="0.0 0.0 0.25" euler="0 0 0"> -->
+    <!-- <body name="buddy" pos="0.0 0.0 0.25" euler="0 0 3.14159"> -->
+    <!-- <body name="buddy" pos="0.0 0.0 0.25" euler="0 0 1.57"> -->
+    <!-- <body name="buddy" pos="1.0 2.0 0.25" euler="0 0 0.0"> -->
+    <!-- <body name="buddy" pos="1.0 2.0 0.25" euler="0 0 1.57"> -->
     <!-- <body name="buddy" pos="1.0 0.0 0.25" euler="0 0 -1.0"> -->
       <!-- <body name="buddy" pos="1.75 1.0 0.25" euler="0 0 1.57"> -->
       <geom class="geom_aruco_mip_36h12_00000" pos="0 0 0.2" />

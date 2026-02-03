@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2
   utils
-  prx_models
+  # prx_models
 )
 
 catkin_python_setup()

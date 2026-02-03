@@ -3,6 +3,7 @@
 #include <ros/ros.h>
 
 #include <prx_models/Tree.h>
+#include <memory>
 #include <motion_planning/tree_bridge.hpp>
 
 #include <utils/dbg_utils.hpp>
@@ -14,6 +15,7 @@ template <typename PlannerService, typename RobotInterface>
 class planner_client_t
 {
 private:
+  std::shared_ptr<RobotInterface> _robot;
   ros::ServiceClient _service_client;
   ros::Subscriber _obs_subscriber;
   ros::Publisher _plan_publisher, _traj_publisher, _feedback_traj_publisher;
@@ -37,6 +39,7 @@ private:
 public:
   planner_client_t(ros::NodeHandle& nh, int control_dim) : _control_dim(control_dim), _use_complete_traj(false)
   {
+    _robot = std::make_shared<RobotInterface>();
     const std::string root{ ros::this_node::getNamespace() };
     const std::string service_name{ root + "/planner_service" };
 
@@ -166,7 +169,7 @@ public:
     goal.point.push_back(goal_configuration.x);
     goal.point.push_back(goal_configuration.y);
     goal.point.push_back(goal_configuration.theta);
-    return RobotInterface::distance(goal, _z0) < goal_radius.data;
+    return _robot->distance(goal, _z0) < goal_radius.data;
   }
 
   void call_service(const geometry_msgs::Pose2D& goal_configuration, const std_msgs::Float64& goal_radius,
