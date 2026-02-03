@@ -15,6 +15,7 @@ int main(int argc, char** argv)
   const std::string node_name{ "MuSHRSimulation" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle n;
+  ros::NodeHandle nh_priv("~");
   const std::string root{ ros::this_node::getNamespace() };
   const std::string node_name_prefix{ ros::this_node::getName() };
 
@@ -49,9 +50,18 @@ int main(int argc, char** argv)
         root + "/ml4kp_traj", 1000, &mj_ros::simulator_visualizer_t::set_trajectory_to_visualize, visualizer.get()));
   }
 
-  mj_ros::camera_rgb_publisher_t camera_publisher(n, sim, "observer_camera");
-  // mj_ros::run_simulation(sim, visualizer, 2, sensordata_publisher);
-  mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher, camera_publisher);
+  bool publish_camera{ true };
+  PARAM_SETUP_WITH_DEFAULT(nh_priv, publish_camera, publish_camera);
+
+  if (publish_camera)
+  {
+    mj_ros::camera_rgb_publisher_t camera_publisher(nh_priv, sim, "observer_camera");
+    mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher, camera_publisher);
+  }
+  else
+  {
+    mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher);
+  }
   // if (publish_ground_truth_pose)
   // {
   // }

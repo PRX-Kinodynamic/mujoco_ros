@@ -1,8 +1,10 @@
+#pragma once
 #include <unordered_set>
 #include <visualization_msgs/MarkerArray.h>
 
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
+#include <ml4kp_bridge/defs.h>
 #include <ml4kp_bridge/SendString.h>
 #include <std_srvs/Empty.h>
 
@@ -50,10 +52,12 @@ public:
       DEBUG_VARS(_environment_file);
       read_and_publish_environment(_environment_file);
     }
+    PRINT_MSG("Environment Publisher initialized")
   }
 
   bool reload_environment_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
   {
+    PRINT_MSG("Environment Publisher service called")
     read_and_publish_environment(_environment_file);
     return true;
   }

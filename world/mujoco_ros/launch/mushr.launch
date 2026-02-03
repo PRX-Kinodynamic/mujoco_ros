@@ -2,16 +2,21 @@
     <arg name="visualize_sim" default="true"/>
     <arg name="visualize_output" default="false"/>
     <arg name="publish_ground_truth_pose" default="true"/>
+    <arg name="publish_camera" default="true" />
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
     <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
+    <arg name="camera_config_file" default="$(find mujoco_ros)/config/mushr_mujoco_cam_0.yaml"/>
+    
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
             <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
             <param name="visualize_sim" value="$(arg visualize_sim)" />
             <param name="visualize_output" value="$(arg visualize_output)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
+            <param name="publish_camera" value="$(arg publish_camera)" />
+            <rosparam command="load" file="$(arg camera_config_file)" />
         </node>
     </group>
     <!-- <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" /> -->
@@ -31,6 +36,11 @@
 
     <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"
         args="0 0 0 0 0 0 1  marker_50 world" />
-    <!-- <include file="$(find control)/launch/mushr_control.launch" /> -->
+    
+    <node pkg="perception" type="camera_info_publisher.py" 
+        name="camera_info_publisher"
+        output="screen" required="true">
+        <rosparam command="load" file="$(arg camera_config_file)" />
+    </node>
 </launch>
 

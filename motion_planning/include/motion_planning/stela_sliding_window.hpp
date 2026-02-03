@@ -789,8 +789,8 @@ public:
       future_id++;
     }
 
-    DEBUG_VARS(_x_curr, _x_next, idx, future_id)
-    PRINT_KEYS_CONTAINER(all_keys);
+    // DEBUG_VARS(_x_curr, _x_next, idx, future_id)
+    // PRINT_KEYS_CONTAINER(all_keys);
     for (auto& fidx : all_indices)
     {
       if (_isam.getFactorsUnsafe()[fidx] == nullptr)

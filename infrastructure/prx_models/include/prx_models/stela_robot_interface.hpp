@@ -272,6 +272,7 @@ public:
     const gtsam::Key u01{ keyU(prev_id, curr_id) };
 
     NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-0) };
+    // NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-2) };
 
     const Observation& zi{ _last_observation.first };
     const double dt{ (_last_observation.second - ti).toSec() };

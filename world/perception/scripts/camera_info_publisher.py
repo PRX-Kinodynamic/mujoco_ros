@@ -73,6 +73,20 @@ class CameraInfoNode(object):
             self.camera_extrinsics = rospy.get_param("~camera_extrinsics")
             self.extrinsics_to_tf()
 
+
+        # print(f"params: {rospy.has_param('~pose/publish_static')}")
+        # print(f"publish_static: {rospy.has_param('~pose/publish_static')}")
+
+        if rospy.has_param('~pose/publish_static'):
+            publish_static = rospy.get_param("~pose/publish_static")
+            # print(f"publish_static: {publish_static}")
+            if publish_static:
+                position = rospy.get_param("~pose/position")
+                quaternion = rospy.get_param("~pose/quaternion")
+                position = np.array(position, np.float32)
+                quaternion = np.array(quaternion, np.float32)
+                self.pose_to_tf(position, quaternion)
+
     def extrinsics_to_matrix(self):
         extrinsic = np.zeros((4,4))
         for i in range(3):
@@ -80,6 +94,27 @@ class CameraInfoNode(object):
             extrinsic[i, j] = float(self.camera_extrinsics[4 * i + j]);
         extrinsic[3, 3] = 1.0
         return extrinsic
+
+    def pose_to_tf(self, position, quat):
+        self.broadcaster = tf2_ros.StaticTransformBroadcaster()
+        static_transformStamped = geometry_msgs.msg.TransformStamped()
+
+        static_transformStamped.header.stamp = rospy.Time.now()
+        static_transformStamped.header.frame_id = "world"
+        static_transformStamped.child_frame_id = self.camera_name 
+
+        static_transformStamped.transform.translation.x = position[0]
+        static_transformStamped.transform.translation.y = position[1]
+        static_transformStamped.transform.translation.z = position[2]
+
+        # quat = tf.transformations.quaternion_from_matrix(mat)
+        static_transformStamped.transform.rotation.w = quat[0]
+        static_transformStamped.transform.rotation.x = quat[1]
+        static_transformStamped.transform.rotation.y = quat[2]
+        static_transformStamped.transform.rotation.z = quat[3]
+
+        # print(static_transformStamped)
+        self.broadcaster.sendTransform(static_transformStamped)
 
     def extrinsics_to_tf(self):
 

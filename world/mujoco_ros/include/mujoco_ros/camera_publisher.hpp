@@ -1,14 +1,18 @@
 #pragma once
 #include "defs.h"
+#include "utils/dbg_utils.hpp"
 #include <sstream>
 #include <cstdio>
 #include <mutex>
 #include <thread>
 
 #include <cv_bridge/cv_bridge.h>
+#include <ros/rate.h>
 #include <opencv2/imgcodecs.hpp>
 
+#include <utils/rosparams_utils.hpp>
 #include <mujoco_ros/simulator.hpp>
+
 namespace mj_ros
 {
 class simulator_t;
@@ -16,15 +20,27 @@ class simulator_t;
 class camera_rgb_publisher_t
 {
 public:
-  camera_rgb_publisher_t(ros::NodeHandle& nh, SimulatorPtr sim, const std::string camera_name, double frequency = 30)
+  camera_rgb_publisher_t(ros::NodeHandle& nh, SimulatorPtr sim, const std::string camera_name, double freq = 10)
     : _sim(sim)
-    , _rate(frequency)
+    , _rate(freq)
     , _root(ros::this_node::getNamespace())
     , _topic_name(_root + "/camera/rgb")
     , _publisher(nh.advertise<sensor_msgs::Image>(_topic_name, 1000))
     , _cam_name(camera_name)
     , _header()
   {
+    double width{ 1280 };
+    double height{ 720 };
+    double frequency{ freq };
+
+    PARAM_SETUP_WITH_DEFAULT(nh, width, width);
+    PARAM_SETUP_WITH_DEFAULT(nh, height, height);
+    PARAM_SETUP_WITH_DEFAULT(nh, frequency, frequency);
+
+    _rate = ros::Rate(frequency);
+
+    DEBUG_VARS(height, width, frequency)
+
     mjv_defaultOption(&_mj_option);
     mjv_defaultScene(&_mj_scene);
     mjr_defaultContext(&_mj_context);
@@ -39,9 +55,9 @@ public:
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 // Macos works better if Null as 4th arg, this seems to be OS dependent
 #ifdef __APPLE__
-    _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), NULL, NULL);
+    _glfw_window = glfwCreateWindow(width, height, _cam_name.c_str(), NULL, NULL);
 #else
-    _glfw_window = glfwCreateWindow(1280, 720, _cam_name.c_str(), glfwGetPrimaryMonitor(), NULL);
+    _glfw_window = glfwCreateWindow(width, height, _cam_name.c_str(), glfwGetPrimaryMonitor(), NULL);
 #endif
 
     if (!_glfw_window)
@@ -63,8 +79,8 @@ public:
         _mj_viewport.bottom = 0;
         // _mj_viewport.width = _sim->m->cam_resolution[i];
         // _mj_viewport.height = _sim->m->cam_resolution[i + 1];
-        _mj_viewport.width = 1280;
-        _mj_viewport.height = 720;
+        _mj_viewport.width = width;
+        _mj_viewport.height = height;
         _mj_camera.type = mjtCamera::mjCAMERA_FIXED;                                   // camera type (mjtCamera)
         _mj_camera.fixedcamid = mj_name2id(_sim->m, mjOBJ_CAMERA, _cam_name.c_str());  // fixed camera id
         _cv_pixels = cv::Mat(_mj_viewport.height, _mj_viewport.width, CV_8UC3);

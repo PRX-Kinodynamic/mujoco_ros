@@ -1,0 +1,39 @@
+# Find ID of camera:
+#      $ v4l2-ctl --device=/dev/videoN --all | grep Serial
+
+# id: "0"
+camera_id: "mj_cam_0"
+camera_name: "MJ_C0"
+# camera: "/dev/video6"
+# 640, 480
+width: 320
+height: 240 
+
+frequency: 10
+display_video: true
+
+# For mujoco cams:
+# fovy = to_rads(70) = 1.22 
+# fx = fy = img_height / (2 * math.tan(fovy / 2))
+# fx = fy = 240 / (2 * tan(1.22  / 2)) = 171.6937494132
+
+fx: &fx 171.6937494132
+fy: &fy 171.6937494132
+
+cx: &cx 160
+cy: &cy 120
+
+skew: &skew 0
+
+# camera_matrix: [1.10856930e+03, 0.0, 9.49330984e+02, 0, 1.10897817e+03, 5.74566862e+02]
+
+K: [*fx, *skew, *cx, 0, *fy, *cy, 0, 0, 1]
+distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+pose:
+  publish_static: true # If true, published by camera_info_pub as static (no estimation)
+  # quaternion: [0.0, 0.0, 1.0, 0.0] # w first
+  # position: [+1.1, -0.55, 3.0]
+  quaternion: [0.0, 0.7070864379520586, 0.7071135623080639, 0.0 ]
+  # quaternion: [0.5, -0.5, 0.5, 0.5 ]
+  position: [1, 3.0, 5.0]
