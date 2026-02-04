@@ -11,6 +11,8 @@
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
 
+#include <ros/console.h>
+
 namespace torch_bridge
 {
 

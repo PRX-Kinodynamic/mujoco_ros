@@ -681,8 +681,10 @@ TEST(TestMushrFactors, testMushrMjFactor)
 
   const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
   const std::string mushr_mj_model{ lib_path + "/src/mujoco_ros/infrastructure/prx_models/models/mushr/mushr.xml" };
+  std::cout << "MJ mushr path: " << mushr_mj_model << "\n"; 
   const double h{ 0.01 };
   const mjModel* mj_model{ MushrXdotFactor::init_mj_model(mushr_mj_model) };
+  ASSERT_TRUE(mj_model != nullptr);
   mjData* mj_data{ MushrXdotFactor::init_mj_data(mj_model) };
 
   const MushrXdotFactor factor(1, 0, 2, 3, nullptr, mj_model, mj_data, h);
