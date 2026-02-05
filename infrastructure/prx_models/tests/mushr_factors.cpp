@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <ml4kp_bridge/defs.h>
+#include <prx/utilities/general/prx_assert.hpp>
 #include <prx/utilities/general/random.hpp>
 #include <prx_models/mushr_factors.hpp>
 #include <gtsam/base/numericalDerivative.h>
@@ -244,10 +245,10 @@ TEST(TestMushrFactors, testMushrCtrlAccel_Random)
     const bool expectedHdt_isApprox_actualHdt{ expectedHdt.isApprox(actualHdt, tolerance) };
     const bool expectedHu_isApprox_actualHu{ expectedHu.isApprox(actualHu, tolerance) };
 
-    PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
-    PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
-    PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
-    PRX_DBG_VARS(expectedHu_isApprox_actualHu);
+    // PRX_DBG_VARS(expectedHxd1_isApprox_actualHxd1);
+    // PRX_DBG_VARS(expectedHxd0_isApprox_actualHxd0);
+    // PRX_DBG_VARS(expectedHdt_isApprox_actualHdt);
+    // PRX_DBG_VARS(expectedHu_isApprox_actualHu);
 
     ASSERT_TRUE(expectedHxd1_isApprox_actualHxd1);
     ASSERT_TRUE(expectedHxd0_isApprox_actualHxd0);

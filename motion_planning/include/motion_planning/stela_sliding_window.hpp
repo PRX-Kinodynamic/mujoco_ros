@@ -359,6 +359,7 @@ public:
     to_file();
   }
 
+  // Get stats on the total number of validations
   bool check_new_tree(prx_models::tree_msg_wrapper_t& new_tree) const
   {
     // LOG_MSG("CHECKING NEW TREE")

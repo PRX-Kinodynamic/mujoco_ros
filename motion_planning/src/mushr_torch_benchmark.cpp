@@ -259,7 +259,7 @@ public:
     if (model_type == "structured")
     {
       structured_runtime_ = std::make_unique<StructuredSysidRuntime>(model_path, params, poly, use_cuda_, dtype_);
-      structured_runtime_->set_dt(dt);
+      // structured_runtime_->set_dt(dt);
       has_structured_runtime_ = true;
       ROS_INFO("Successfully loaded StructuredSysidRuntime with dt = % .4f ", dt);
       ROS_INFO(" Plant params : [ % .3f, % .3f, % .3f, % .3f, % .3f ] ", params[0], params[1], params[2], params[3],

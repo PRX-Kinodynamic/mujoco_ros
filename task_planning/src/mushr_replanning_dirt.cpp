@@ -7,6 +7,8 @@
 #include "motion_planning/PlanningResult.h"
 #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
+#include <fstream>
+#include <prx/utilities/general/type_conversions.hpp>
 #include <utils/std_utils.hpp>
 #include <motion_planning/tree_bridge.hpp>
 
@@ -97,6 +99,9 @@ struct replanner_t
   bool _new_tree;
   prx::tree_t _full_tree;
 
+  std::size_t _tot_replans;
+  std::string _tree_file_prefix;
+
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
     std::string params_file, estimation_tree_topic, planner_clock_topic;
@@ -110,6 +115,8 @@ struct replanner_t
     double& max_edge_duration{ _max_edge_duration };
 
     std::string& environment{ _environment };
+
+    // std::string& _tree_file_prefix{};
 
     PARAM_SETUP(nh, params_file);
     PARAM_SETUP(nh, heuristic_map_filename);
@@ -502,6 +509,12 @@ struct replanner_t
     // DEBUG_VARS(_status.state);
   }
 
+  void plan_to_file(const prx::plan_t& plan)
+  {
+    const std::string filename{ _tree_file_prefix + prx::utilities::convert_to<std::string>(_tot_replans) };
+    std::ofstream ofs(filename);
+  }
+
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
@@ -574,7 +587,9 @@ struct replanner_t
       _rest_of_plan->clear();
       const double plan_duration{ _dirt_query->solution_plan.duration() };
       const double traj_duration{ _dirt_query->solution_traj.duration() };
-      DEBUG_VARS(plan_duration, traj_duration);
+
+      plan_to_file(_dirt_query->solution_plan);
+      // DEBUG_VARS(plan_duration, traj_duration);
       if (plan_duration < request.solution_duration.toSec())
       {
         _dirt_query->solution_plan.copy_to(0, plan_duration, *_step_plan);
@@ -620,7 +635,7 @@ struct replanner_t
     change_status(interface::ReplannerStatus::IDLE);
     // if (!_retain_previous)
     //   _dirt_query->clear_outputs();
-
+    _tot_replans++;
     // return true;
     return true;
   }

@@ -31,7 +31,9 @@
             <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->
         </node>
     </group>
+    
     <!-- <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" /> -->
+
     <include file="$(find interface)/launch/mushr_interface.launch">
         <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" />
     </include>

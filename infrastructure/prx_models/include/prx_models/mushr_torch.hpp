@@ -118,7 +118,7 @@ public:
     const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
     const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
     _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
-    _nn_interface->set_dt(dt);
+    // _nn_interface->set_dt(dt);
   }
 
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(0 == Num), bool> = true>
@@ -129,7 +129,7 @@ public:
     const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
     const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
     _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
-    _nn_interface->set_dt(dt);
+    // _nn_interface->set_dt(dt);
   }
 
   ~mushr_torch_factor_t() override
@@ -143,22 +143,47 @@ public:
     Eigen::Matrix<double, 3, 2> xnn_H_u{ Eigen::Matrix<double, 3, 2>::Identity() };
     // auto xnn_H_xd = boost::make_optional(static_cast<bool>(Hxd), Eigen::Matrix<double, 3, 3>::Identity());
     const bool compute_derivative{ Hxd or Hu };
+    // DEBUG_VARS(compute_derivative)
     const double epsilon{ dt - _NN_DT };
     const double eps_rate{ epsilon / _NN_2 };
     const double one_p_eps{ 1.0 + eps_rate };
-    const StateDot xd_nn{ compute_derivative ? _nn_interface->call(xd, u) :  // no-lint
-                                               _nn_interface->call(xd, u, xnn_H_xd, xnn_H_u) };
+
+    // const StateDot xtest{ StateDot(std::nextafter(0.0, 1.0), 1.57607e-321, 1.57607e-321) };
+    // DEBUG_VARS(xtest.transpose())
+    const StateDot xd_nn{ compute_derivative ? _nn_interface->call(xd, u, xnn_H_xd, xnn_H_u) :  // no-lint
+                                               _nn_interface->call(xd, u) };
     // nullptr) };  // no-lint
     // no-lint Hu ? &xnn_H_u :
     // nullptr) };
 
     const StateDot xd_pred{ xd_nn * one_p_eps - xd * eps_rate };
     // DEBUG_VARS(xd_nn.transpose(), xd_pred.transpose())
-    auto xin = xd.transpose();
-    auto xNN = xd_nn.transpose();
-    auto uin = u.transpose();
-    DEBUG_VARS(dt, epsilon, _NN_DT, _NN_2)
-    DEBUG_VARS(xin, xNN, uin)
+    // auto xin = xd.transpose();
+    // auto xNN = xd_nn.transpose();
+    // auto uin = u.transpose();
+    // DEBUG_VARS(std::nextafter(0.0, 1.0));
+    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::lowest());
+    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::min());
+    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::max());
+    // DEBUG_VARS(dt, epsilon, _NN_DT, _NN_2)
+
+    // // std::bitset<64> x0_bin(xd[0]);
+    // DEBUG_VARS(xd[0], xd[1], xd[2])
+    // // DEBUG_VARS(x0_bin)
+    // DEBUG_VARS(xin, xNN, uin)
+
+    // uint8_t* bytePointer = (uint8_t*)&xd[0];
+
+    // for (std::size_t index = 0; index < sizeof(double); index++)
+    // {
+    //   uint8_t byte = bytePointer[index];
+
+    //   for (int bit = 0; bit < 8; bit++)
+    //   {
+    //     printf("%d", byte & 1);
+    //     byte >>= 1;
+    //   }
+    // }
 
     const Eigen::Matrix3d xpred_H_xnn{ one_p_eps * Eigen::Matrix3d::Identity() };
     if (Hxd)
@@ -630,8 +655,9 @@ public:
 
   virtual void propagate(const double simulation_step) override final
   {
+    Eigen::MatrixXd H0, H1;
     _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
-    _state_dot = _mushr_factor->predict(_state_dot, _ctrl, prx::simulation_step);
+    _state_dot = _mushr_factor->predict(_state_dot, _ctrl, prx::simulation_step, H0, H1);
   }
 
   virtual void update_configuration() override

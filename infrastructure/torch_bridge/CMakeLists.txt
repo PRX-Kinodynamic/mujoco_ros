@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2
   utils
+  ml4kp_bridge
   # prx_models
 )
 

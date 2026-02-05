@@ -3,6 +3,7 @@
 // #include "mujoco_ros/control_listener.hpp"
 // #include "mujoco_ros/sensordata_publisher.hpp"
 // #include "mujoco_ros/Collision.h"
+#include <Eigen/src/Core/Matrix.h>
 #include <ml4kp_bridge/defs.h>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
@@ -56,6 +57,10 @@ int main(int argc, char** argv)
   std::string file_out;
   std::string plan_file;
   using prx::simulation_step;
+
+  // Eigen::Vector3d vt;
+  DEBUG_VARS(std::numeric_limits<float>::lowest());
+  DEBUG_VARS(std::numeric_limits<float>::max());
   // prx::simulation_step = 0.1;
   // double simulation_step
   PARAM_SETUP(nh, params_file);

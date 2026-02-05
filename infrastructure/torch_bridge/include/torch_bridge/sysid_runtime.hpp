@@ -10,6 +10,7 @@
 #include <boost/optional.hpp>
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
+#include <utils/dbg_utils.hpp>
 
 namespace torch_bridge
 {
@@ -325,6 +326,7 @@ public:
     , model_path_(model_path)
     , device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
     , use_cuda_(use_cuda && torch::cuda::is_available())
+    , dt_(0.1)
   {
     try
     {
@@ -350,6 +352,7 @@ public:
     {
       dtype_ = torch::kFloat32;
       use_float32_ = true;
+      // PRINT_MSG("Using float32");
     }
     else if (dtype == "float64")
     {
@@ -930,6 +933,7 @@ public:
       {
         throw std::runtime_error("Model does not have 'forward_with_jacobian' method");
       }
+
       auto result = (*method)(inputs);
       const auto& elements = result.toTuple()->elements();
 
@@ -1052,10 +1056,11 @@ public:
 
     JacX plant_Jx;
     JacU plant_Ju;
-    Eigen::MatrixXd dummy;
+    // Eigen::MatrixXd dummy;
     Eigen::Matrix<double, 3, 5> plant_Hparams;
+
     StateDot xd1_plant =
-        MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, dummy, plant_Hparams);
+        MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, boost::none, plant_Hparams);
 
     // Chain rule for friction
     const Eigen::Vector3d& plant_H_friction{ plant_Hparams.col(StructuredParams::friction) };
@@ -1065,14 +1070,14 @@ public:
     return std::make_tuple(xd1_plant + residual, Jx, Ju);
   }
 
-  void set_dt(double dt)
-  {
-    dt_ = dt;
-  }
-  double get_dt() const
-  {
-    return dt_;
-  }
+  // void set_dt(double dt)
+  // {
+  //   dt_ = dt;
+  // }
+  // double get_dt() const
+  // {
+  //   return dt_;
+  // }
 
   bool has_jacobian_method() const
   {
@@ -1257,7 +1262,7 @@ private:
 
   Params params_;
   Poly poly_;
-  double dt_ = 0.05;
+  const double dt_;
 };
 
 }  // namespace torch_bridge
