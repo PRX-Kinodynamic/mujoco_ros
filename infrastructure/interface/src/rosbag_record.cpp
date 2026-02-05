@@ -36,6 +36,8 @@
 // #include <interface/defs.hpp>
 #include <interface/rosbag_record.hpp>
 #include <interface/StampedMarkers.h>
+#include <interface/node_status.hpp>
+#include "interface/NodeStatus.h"
 
 std::atomic<bool> stop = false;
 std::string rosbag_directory = "";
@@ -43,7 +45,6 @@ std::string rosbag_directory = "";
 interface::queues_t<std_msgs::String> string_queue;
 interface::queues_t<std_msgs::Int32> int32_queue;
 interface::queues_t<std_msgs::Float64> float64_queue;
-interface::queues_t<interface::StampedMarkers> stamped_markers_queue;
 interface::queues_t<geometry_msgs::TwistStamped> twist_stamped_queue;
 interface::queues_t<geometry_msgs::Pose2D> pose2d_queue;
 interface::queues_t<geometry_msgs::PoseStamped> pose_stamped_queue;
@@ -57,6 +58,8 @@ interface::queues_t<ml4kp_bridge::TrajectoryStamped> traj_st_queue;
 interface::queues_t<ml4kp_bridge::SpacePoint> spoint_queue;
 interface::queues_t<ml4kp_bridge::SpacePointStamped> spoint_st_queue;
 interface::queues_t<tf2_msgs::TFMessage> tf_queue;
+interface::queues_t<interface::StampedMarkers> stamped_markers_queue;
+interface::queues_t<interface::NodeStatus> node_status_queue;
 
 template <typename Queue>
 std::size_t process_queue(rosbag::Bag& bag, const Queue& queue)
@@ -97,7 +100,7 @@ void bag_writter()
     msgs_left =
         process_all_queues(bag, stamped_markers_queue, string_queue, twist_stamped_queue, ackermann_drive_stamped_queue,
                            image_queue, imu_queue, plan_queue, plan_st_queue, traj_queue, traj_st_queue, spoint_queue,
-                           spoint_st_queue, float64_queue, pose2d_queue, tf_queue);
+                           spoint_st_queue, float64_queue, pose2d_queue, tf_queue, node_status_queue);
     if (stop)
     {
       ROS_INFO_STREAM_ONCE("Remaining messages: " << msgs_left);
@@ -157,6 +160,7 @@ int main(int argc, char** argv)
     registred |= pose_stamped_queue.register_topic(topic_name, topic_type, "geometry_msgs::PoseStamped", nh);
     registred |= float64_queue.register_topic(topic_name, topic_type, "std_msgs::Float64", nh);
     registred |= tf_queue.register_topic(topic_name, topic_type, "tf2_msgs::TFMessage", nh);
+    registred |= node_status_queue.register_topic(topic_name, topic_type, "interface::NodeStatus", nh);
 
     DEBUG_VARS(topic_name, registred)
     // std::cout << "Unsupported topic '" << topic_name << "' type: " << topic_type << std::endl;

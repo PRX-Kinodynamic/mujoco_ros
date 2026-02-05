@@ -8,9 +8,12 @@
 #include <geometry_msgs/Pose2D.h>
 #include <std_msgs/Float64.h>
 #include <ml4kp_bridge/defs.h>
+#include "interface/NodeStatus.h"
 #include "mujoco_ros/Collision.h"
+#include "utils/dbg_utils.hpp"
 
 #include <utils/rosparams_utils.hpp>
+#include <interface/node_status.hpp>
 
 namespace mj_ros
 {
@@ -34,8 +37,12 @@ private:
 
   GLFWwindow* window;
 
+  std::shared_ptr<interface::node_status_t> _node_status;
+
   simulator_t(const std::string node_name, ros::NodeHandle& nh)
   {
+    _node_status = interface::node_status_t::create(nh);
+
     std::string model_path;
 
     utils::get_param_and_check(nh, node_name + "/model_path", model_path);
@@ -62,6 +69,8 @@ private:
       std::cout << d->qpos[i] << " ";
     }
     std::cout << std::endl;
+
+    _node_status->status(interface::NodeStatus::RUNNING);
   }
 
 protected:
@@ -115,8 +124,29 @@ public:
     ros::Rate rate(1.0 / m->opt.timestep);
     while (ros::ok())
     {
-      step_simulation();
-      rate.sleep();
+      if (_node_status->status() == interface::NodeStatus::RUNNING)
+      {
+        step_simulation();
+        rate.sleep();
+      }
+      else if (_node_status->status() == interface::NodeStatus::RESET)
+      {
+        reset_simulation();
+      }
+      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      {
+        PRINT_MSG("[mj_ros::simulator_t] Finished, exiting...")
+        return;
+      }
+      else if (_node_status->status() == interface::NodeStatus::PAUSED)
+      {
+        rate.sleep();
+      }
+      else
+      {
+        auto invalid_status = _node_status;
+        DEBUG_VARS(invalid_status);
+      }
     }
   }
 
@@ -188,18 +218,16 @@ public:
 
   void reset_simulation(const std_msgs::Empty::ConstPtr& msg)
   {
-    _mj_reset_mutex.lock();
-
     ROS_INFO("Resetting simulation.");
     reset_simulation();
-
-    _mj_reset_mutex.unlock();
   }
 
   void reset_simulation()
   {
+    _mj_reset_mutex.lock();
     mj_resetData(m, d);
     collision_in_history = false;
+    _mj_reset_mutex.unlock();
   }
 };
 
