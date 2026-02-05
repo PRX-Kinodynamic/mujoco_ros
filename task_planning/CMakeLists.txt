@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   utils
   tf2_ros
   tf2
+  torch_bridge
 )
 
 ## System dependencies are found with CMake's conventions

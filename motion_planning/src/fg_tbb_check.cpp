@@ -15,6 +15,10 @@
 #include <prx/factor_graphs/utilities/default_parameters.hpp>
 #include "utils/dbg_utils.hpp"
 
+#ifdef GTSAM_USE_TBB
+#include <tbb/global_control.h>
+#endif
+
 using Parameters = prx_models::mushr_types::Control::params;
 using Poly = prx_models::mushr_types::Control::Poly;
 using XdotIntegrationTimeFactor = prx_models::mushr_CtrlAccel_t<double>;
@@ -30,6 +34,20 @@ int main(int argc, char** argv)
 {
   const std::string node_name{ "FgTbbCheck" };
   ros::init(argc, argv, node_name);
+  ros::NodeHandle nh("~");
+
+  std::string output_file;
+  PARAM_SETUP(nh, output_file);
+
+  std::ofstream ofs(output_file);
+
+#ifdef GTSAM_USE_TBB
+  PRINT_MSG("USING TBB");
+
+  int max_threads;
+  PARAM_SETUP(nh, max_threads);
+  tbb::global_control tbb_control(tbb::global_control::max_allowed_parallelism, max_threads);
+#endif
 
   Parameters params{ .75, 0.2, 0.99, 0.90, 1.05 };
   Poly poly{ -0.4397, 3.773e-5, 0.8677, 5.8e-6 };
@@ -101,10 +119,19 @@ int main(int argc, char** argv)
   {
     total_time += dts[i];
     total_iters += iters[i];
+    ofs << iters[i] << " ";
+    ofs << dts[i] << " ";
+    ofs << "\n";
   }
+  ofs.close();
 
   const double avg_time_per_iter{ total_time / total_iters };
   DEBUG_VARS(total_time, total_iters, avg_time_per_iter);
 
-  return 0;
+#ifndef __APPLE__
+  std::quick_exit(EXIT_SUCCESS);
+#else
+  exit(0);
+#endif
+  // return 0;
 }

@@ -130,7 +130,7 @@ catkin_package(
  INCLUDE_DIRS include ${TORCH_INCLUDE_DIRS}
  LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
-#  DEPENDS system_lib
+ # DEPENDS ${TORCH_LIBRARIES}
 )
 
 ###########
@@ -154,9 +154,10 @@ add_library(${PROJECT_NAME} INTERFACE)
 add_dependencies(${PROJECT_NAME} 
 	${${PROJECT_NAME}_EXPORTED_TARGETS}
        	${catkin_EXPORTED_TARGETS}
-	${TORCH_LIBRARIES}
+	# ${TORCH_LIBRARIES}
 	)
 
+target_link_libraries(${PROJECT_NAME} INTERFACE ${TORCH_LIBRARIES})
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide

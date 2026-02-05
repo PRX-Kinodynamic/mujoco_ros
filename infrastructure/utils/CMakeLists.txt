@@ -30,7 +30,7 @@ endif()
 
 add_definitions("-O3")
 if (UNIX AND NOT APPLE)
-  MESSAGE(STATUS "Setting Eigen SIMD speedups")
+  # MESSAGE(STATUS "Setting Eigen SIMD speedups")
   list(APPEND BUILD_FLAGS "-fPIC")
 endif()
 # add_definitions("-g")

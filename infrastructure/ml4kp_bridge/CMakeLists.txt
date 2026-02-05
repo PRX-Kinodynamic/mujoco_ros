@@ -25,6 +25,26 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
 )
 
+MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
+if (CMAKE_BUILD_TYPE MATCHES Release)
+  # -03 <- Turn on all optims
+  # -march=native <- Turn on eigen vectorization optimizations
+  set(BUILD_FLAGS "-O3")
+  # MESSAGE(STATUS "MARCH NATIVE: ${BUILD_WITH_SIMD}")
+  # if (${GTSAM_BUILD_WITH_MARCH_NATIVE})
+    list(APPEND BUILD_FLAGS "-march=native")
+    MESSAGE(WARNING "USING MARCH NATIVE")
+    # endif()
+  add_definitions(-DRELEASE_BUILD)
+elseif(CMAKE_BUILD_TYPE MATCHES Debug)
+  set(BUILD_FLAGS "-O0 -fno-inline -g")
+  # list(APPEND BUILD_FLAGS "-fsanitize=address")
+  add_definitions(-DDEBUG_BUILD)
+endif()
+
+MESSAGE(STATUS "Build Flags: ${BUILD_FLAGS}")
+add_definitions(${BUILD_FLAGS})
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

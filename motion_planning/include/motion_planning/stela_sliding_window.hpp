@@ -132,6 +132,7 @@ public:
     , _call_replanner(false)
     , _fg_initialized(false)
     , _new_tree_available(false)
+    , _validate_replanner_sln(true)
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
 #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
@@ -171,6 +172,7 @@ public:
     bool& visualize{ _visualize };
     bool& using_stepper{ _using_stepper };
     bool& time_as_variable{ _time_as_variable };
+    bool& validate_replanner_sln{ _validate_replanner_sln };
     int& total_future_nodes{ _total_future_nodes };
     int& total_past_nodes{ _total_past_nodes };
     int estimation_pub_freq{ 30 };
@@ -207,6 +209,7 @@ public:
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
     PARAM_SETUP(private_nh, estimated_trajectory_topic)
     PARAM_SETUP(private_nh, planner_clock_topic);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, validate_replanner_sln, validate_replanner_sln)
     PARAM_SETUP_WITH_DEFAULT(private_nh, visualize, visualize)
     PARAM_SETUP_WITH_DEFAULT(private_nh, time_as_variable, time_as_variable)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
@@ -513,13 +516,8 @@ public:
             // if (root_idx >= _x_next)
             // {
             prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
-            _new_tree_available = check_new_tree(wrapped_tree);
-            // LOG_VARS(_new_tree_available)
+            _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
             const ros::Time plan_validated_stamp{ ros::Time::now() };
-            // const double plan_received_dt{ (plan_received_stamp - start_plan_stamp).toSec() };
-            // const double plan_validated_dt{ (plan_validated_stamp - start_plan_stamp).toSec() };
-            // const double validation_dt{ plan_validated_dt - plan_received_dt };
-            // LOG_VARS(plan_received_dt, plan_validated_dt, validation_dt);
             if (_new_tree_available)
             {
               _new_tree = wrapped_tree;
@@ -2484,6 +2482,7 @@ private:
   interface::StelaStatus _status;
   ros::Publisher _replanning_status_publisher, _isam_status_publisher;
 
+  bool _validate_replanner_sln;
 #ifdef GTSAM_USE_TBB
   tbb::global_control _tbb_control;
 #endif

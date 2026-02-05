@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2
   utils
+  torch_bridge
 )
 
 set(MJ_LINK  mujoco::mujoco)
@@ -116,7 +117,7 @@ generate_messages(
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge
+ CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge torch_bridge
 #  DEPENDS system_lib
 )
 
