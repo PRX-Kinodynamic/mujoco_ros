@@ -12,6 +12,8 @@
 #include "gpu_plant.hpp"
 #include <utils/dbg_utils.hpp>
 
+#include <ros/console.h>
+
 namespace torch_bridge
 {
 
