@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   utils
   torch_bridge
+  interface
 )
 
 set(MJ_LINK  mujoco::mujoco)

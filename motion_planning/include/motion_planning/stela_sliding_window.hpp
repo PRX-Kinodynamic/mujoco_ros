@@ -1,5 +1,4 @@
 #include <chrono>
-#include <Eigen/src/Core/Matrix.h>
 #include <gtsam/nonlinear/ISAM2Result.h>
 #include <gtsam/nonlinear/NonlinearFactor.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -13,6 +12,7 @@
 #include <std_msgs/Bool.h>
 
 #include <iterator>
+#include <memory>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <string>
 #include <utils/std_utils.hpp>
@@ -40,9 +40,11 @@
 
 #include <utils/time_profiler.hpp>
 #include <vector>
-#include "prx_models/Node.h"
-#include "utils/dbg_utils.hpp"
-#include "utils/rosparams_utils.hpp"
+#include <prx_models/Node.h>
+#include <utils/dbg_utils.hpp>
+#include <utils/rosparams_utils.hpp>
+#include <interface/NodeStatus.h>
+#include <interface/node_status.hpp>
 
 #ifdef GTSAM_USE_TBB
 #include <tbb/global_control.h>
@@ -189,6 +191,8 @@ public:
     double start_delay;
     _lm_params.setVerbosityLM("SILENT");
     _lm_params.setMaxIterations(1);
+
+    _node_status = interface::node_status_t::create(private_nh);
 
     PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
@@ -353,8 +357,9 @@ public:
 
     // update_estimated_tree();
     change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
+    _node_status->status(interface::NodeStatus::RUNNING);
 
-    PRINT_MSG("Stela Ready")
+    PRINT_MSG("Stela Running")
   }
 
   ~stela_windowed_t()
@@ -455,6 +460,20 @@ public:
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)
     {
+      if (_node_status->status() == interface::NodeStatus::RUNNING)
+      {
+        // keep going...
+      }
+      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      {
+        PRINT_MSG("[stela] Finished signal received. Exiting...")
+        break;
+      }
+      else
+      {
+        auto invalid_status = _node_status;
+        DEBUG_VARS(invalid_status);
+      }
       // _planner_clock_msg.header.stamp = ;
       // const bool call_replanner{ ros::Time::now() > _planner_clock_msg.cycle_end };
       // const bool call_replanner{ ros::Time::now() > _end_of_next_cycle };
@@ -2482,6 +2501,7 @@ private:
   interface::StelaStatus _status;
   ros::Publisher _replanning_status_publisher, _isam_status_publisher;
 
+  std::shared_ptr<interface::node_status_t> _node_status;
   bool _validate_replanner_sln;
 #ifdef GTSAM_USE_TBB
   tbb::global_control _tbb_control;
