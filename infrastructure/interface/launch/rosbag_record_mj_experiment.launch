@@ -1,0 +1,22 @@
+<launch>
+    <arg name="stop_topic" value="/tools/stop"/>
+    <arg name="experiment_id" default=""/>
+    <arg name="camera0_topic" default="/perception/logitech_brio_73B6FC82/aruco/rgb"/>
+    <arg name="camera1_topic" default="/perception/logitech_brio_96214279/aruco/rgb"/>
+
+    <arg name="rosbag_directory" />
+    <arg name="record_video" default="true"/>
+    <arg name="rosbag_prefix" default=""/>
+
+    <group ns="tools">
+        <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen"
+        launch-prefix="gdb -ex run --args"
+            >
+            <rosparam command="load" file="$(find interface)/config/rosbag_mj_experiments.yaml" />
+            <param name="rosbag_directory" value="$(arg rosbag_directory)"/>
+            <param name="node_id" value="rosbag_recorder"/>
+            <param name="rosbag_prefix" value="$(arg rosbag_prefix)"/>
+        </node>
+    </group>
+  
+</launch>

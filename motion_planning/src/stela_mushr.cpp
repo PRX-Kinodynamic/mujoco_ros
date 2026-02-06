@@ -10,6 +10,7 @@
 #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_mujoco.hpp>
 #include <motion_planning/stela_sliding_window.hpp>
+#include "utils/dbg_utils.hpp"
 
 template <typename MushrModel>
 void run(ros::NodeHandle& nh)
@@ -44,11 +45,16 @@ int main(int argc, char** argv)
   {
     run<prx_models::mushr_mujoco_stela_t>(nh);
   }
+#ifndef TORCH_NOT_BUILT
   else if (mushr_model == "torch")
   {
     run<prx_models::mushr_torch_stela_t>(nh);
   }
-
+#endif
+  else
+  {
+    PRINT_MSG("Invalid mushr type: " + mushr_model)
+  }
   ros::waitForShutdown();
   // template <typename RobotInterface>
 

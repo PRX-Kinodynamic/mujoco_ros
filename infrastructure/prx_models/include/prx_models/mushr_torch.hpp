@@ -1,3 +1,5 @@
+#ifndef TORCH_NOT_BUILT
+
 #pragma once
 
 #include <limits>
@@ -273,7 +275,7 @@ public:
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
 
-  mushr_torch_stela_t() : Base() {};
+  mushr_torch_stela_t() : Base(){};
 
   mushr_torch_stela_t(ros::NodeHandle& nh) : Base(nh)
   {
@@ -630,7 +632,7 @@ public:
     configurations["body"]->setIdentity();
   }
 
-  ~mushr_torch_t() {};
+  ~mushr_torch_t(){};
 
   virtual void init(const prx::param_loader& params) override
   {
@@ -682,3 +684,5 @@ protected:
 };
 }  // namespace prx_models
 PRX_REGISTER_SYSTEM(prx_models::mushr_torch_t, mushrTorch)
+
+#endif

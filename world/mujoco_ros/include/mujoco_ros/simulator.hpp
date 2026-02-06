@@ -132,6 +132,8 @@ public:
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
         reset_simulation();
+        _node_status->status(interface::NodeStatus::RUNNING);
+        rate.sleep();
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {

@@ -26,6 +26,15 @@ find_package(catkin REQUIRED COMPONENTS
   torch_bridge
 )
 
+if(DEFINED ENV{Torch_DIR})
+  MESSAGE(STATUS "Torch_DIR defined!")
+  find_package(Torch REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+else()
+  message("Please download libtorch C++, place in external folder and setup the enviornmental variable Torch_DIR accordingly.")
+  add_definitions(-DTORCH_NOT_BUILT)
+endif()
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

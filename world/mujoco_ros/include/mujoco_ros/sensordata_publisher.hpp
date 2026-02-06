@@ -2,7 +2,9 @@
 
 #include <ros/ros.h>
 
-#include "mujoco_ros/defs.h"
+#include <mujoco_ros/defs.h>
+#include <interface/SensorDataStamped.h>
+#include <mujoco_ros/simulator.hpp>
 
 namespace mj_ros
 {

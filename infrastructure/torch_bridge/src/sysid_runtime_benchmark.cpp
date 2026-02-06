@@ -1,3 +1,4 @@
+#ifndef TORCH_NOT_BUILT
 #include <chrono>
 #include <cstdlib>
 #include <numeric>
@@ -570,3 +571,8 @@ int main(int argc, char** argv)
   exit(0);
 #endif
 }
+#else
+int main()
+{
+}
+#endif

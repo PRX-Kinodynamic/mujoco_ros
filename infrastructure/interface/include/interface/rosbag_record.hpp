@@ -1,5 +1,5 @@
 #pragma once
-#include <any>
+#include <rosbag/bag.h>
 #include <utils/std_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <utils/rosparams_utils.hpp>
@@ -7,10 +7,15 @@
 
 namespace interface
 {
-void init_bag(rosbag::Bag* bag, const std::string rosbag_directory)
+inline void init_bag(rosbag::Bag* bag, const std::string rosbag_directory, const std::string prefix = "")
 {
   std::ostringstream bag_name;
-  bag_name << rosbag_directory << "/b_" << utils::timestamp() << ".bag";
+  bag_name << rosbag_directory << "/b_";
+  if (prefix != "")
+  {
+    bag_name << prefix << "_";
+  }
+  bag_name << utils::timestamp() << ".bag";
   bag->open(bag_name.str(), rosbag::bagmode::Write);
   ROS_INFO_STREAM("Bag name: " << bag_name.str());
 }
@@ -19,8 +24,8 @@ template <typename Msg>
 class queued_callback_t
 {
 public:
-  using TupleQueue = std::queue<std::tuple<std::string, ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()) {};
+  using TupleQueue = std::queue<std::tuple<ros::Time, typename Msg::ConstPtr>>;
+  queued_callback_t() : _t0(ros::Time::now()){};
   queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
   {
   }
@@ -39,12 +44,16 @@ public:
       // DEBUG_VARS(_topic_name);
       // DEBUG_VARS(event.getConnectionHeader());
       // }
-      const std::string topic{ event.getConnectionHeader().at("topic") };
-      // DEBUG_VARS(_topic_name, topic);
-      prx_assert(topic == _topic_name, "Topics don't match!");
+
+      // DEBUG_VARS(event.getMessage())
+      // DEBUG_VARS(event.getConnectionHeader())
+      // DEBUG_VARS(event.getConnectionHeader().at("topic"))
+      // const std::string topic = event.getConnectionHeader().at("topic");
+      // DEBUG_VARS(_topic_name, topic, topic == _topic_name);
+      // prx_assert(topic == _topic_name, "Topics don't match. Expected: " << _topic_name << " Got: " << topic);
       try
       {
-        _queue.push(std::make_tuple(topic, t_now, event.getMessage()));
+        _queue.push(std::make_tuple(t_now, event.getMessage()));
       }
       catch (...)
       {

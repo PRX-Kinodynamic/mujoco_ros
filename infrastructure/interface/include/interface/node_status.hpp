@@ -27,9 +27,10 @@ class node_status_t
     else
     {
       _status_publisher = nh.advertise<interface::NodeStatus>(current_topic, 1, true);
-      _timer = nh.createTimer(ros::Rate(1.0), &This::update, this);
-      _status_publisher.publish(_msg);
+      _timer = nh.createTimer(ros::Rate(2.0), &This::update, this);
       _status_subscriber = nh.subscribe(change_topic, 1, &This::callback, this);
+
+      _status_publisher.publish(_msg);
     }
     // DEBUG_VARS(change_topic)
   }

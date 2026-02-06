@@ -25,12 +25,14 @@ catkin_python_setup()
 find_package(Eigen3 CONFIG REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
+MESSAGE(STATUS "Torch_DIR: ${Torch_DIR}")
 if(DEFINED ENV{Torch_DIR})
+  MESSAGE(STATUS "Torch_DIR defined!")
   find_package(Torch REQUIRED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 else()
   message("Please download libtorch C++, place in external folder and setup the enviornmental variable Torch_DIR accordingly.")
-  add_definitions(TORCH_NOT_BUILT)
+  add_definitions(-DTORCH_NOT_BUILT)
 endif()
 
 ## System dependencies are found with CMake's conventions
