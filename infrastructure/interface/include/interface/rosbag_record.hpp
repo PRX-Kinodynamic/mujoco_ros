@@ -25,9 +25,18 @@ class queued_callback_t
 {
 public:
   using TupleQueue = std::queue<std::tuple<ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()){};
+  queued_callback_t() : _t0(ros::Time::now()) {};
   queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
   {
+  }
+
+  void pause(const bool p)
+  {
+    _pause = p;
+  }
+  void reset()
+  {
+    _t0 = ros::Time::now();
   }
 
   static inline std::mutex _queue_mutex;
@@ -35,6 +44,9 @@ public:
 
   void callback(const ros::MessageEvent<Msg const>& event)
   {
+    if (_pause)
+      return;
+
     const ros::Time t_now{ ros::Time::now() };
     if (t_now > _t0)
     {
@@ -69,7 +81,9 @@ public:
 
 private:
   std::string _topic_name;
-  const ros::Time _t0;
+  ros::Time _t0;
+
+  bool _pause;
 };
 
 template <typename Msg>
@@ -91,6 +105,22 @@ public:
       status = true;
     }
     return status;
+  }
+
+  void pause(const bool p)
+  {
+    for (int i = 0; i < size(); ++i)
+    {
+      _queues[i].pause(p);
+    }
+  }
+
+  void reset()
+  {
+    for (int i = 0; i < size(); ++i)
+    {
+      _queues[i].reset();
+    }
   }
 
   std::size_t size() const

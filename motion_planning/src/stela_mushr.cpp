@@ -10,7 +10,7 @@
 #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_mujoco.hpp>
 #include <motion_planning/stela_sliding_window.hpp>
-#include "utils/dbg_utils.hpp"
+#include <utils/dbg_utils.hpp>
 
 template <typename MushrModel>
 void run(ros::NodeHandle& nh)
