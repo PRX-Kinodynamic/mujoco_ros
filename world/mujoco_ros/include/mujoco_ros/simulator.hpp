@@ -37,12 +37,16 @@ private:
 
   GLFWwindow* window;
 
+  ros::Publisher _collision_pub;
   std::shared_ptr<interface::node_status_t> _node_status;
 
   simulator_t(const std::string node_name, ros::NodeHandle& nh)
   {
     _node_status = interface::node_status_t::create(nh);
 
+    std::string collision_topic;
+    PARAM_SETUP(nh, collision_topic)
+    _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
     std::string model_path;
 
     utils::get_param_and_check(nh, node_name + "/model_path", model_path);
@@ -177,6 +181,9 @@ public:
           if (!(collision_body1.find("free") != std::string::npos ^ collision_body2.find("free") != std::string::npos))
           {
             collision_in_history = true;
+            std_msgs::Bool msg;
+            msg.data = true;
+            _collision_pub.publish(msg);
           }
         }
       }
