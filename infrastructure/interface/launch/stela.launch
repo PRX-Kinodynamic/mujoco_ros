@@ -23,7 +23,7 @@
     <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
-    <arg name="total_future_nodes" default="10"/>
+    <arg name="total_future_nodes" default="15"/>
     <arg name="total_past_nodes" default="10"/>
     <arg name="time_as_variable" default="true"/> 
     <arg name="replanner_solution_duration" default="1"/>
@@ -35,6 +35,7 @@
     <arg name="mushr_model"/>
     <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
     <arg name="params_file"/>
+    <arg name="validate_replanner_sln" default="true"/>
 
     <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
     <!-- <remap to="dummy_stamped" from="$(arg control_topic)_stamped"/> -->
@@ -44,6 +45,7 @@
         output="screen" required="true"
         >
         <param name="node_id" value="stela"/>
+        <param name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
         <param name="mushr_model" value="$(arg mushr_model)"/>
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
         <param name="control_topic" value="$(arg control_topic)"/> 

@@ -271,7 +271,7 @@ public:
     const gtsam::Key xdot1{ keyXdot(1, curr_id) };
     const gtsam::Key u01{ keyU(prev_id, curr_id) };
 
-    NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-0) };
+    NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-2) };
     // NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-2) };
 
     const Observation& zi{ _last_observation.first };
