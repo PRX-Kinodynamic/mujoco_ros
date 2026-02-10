@@ -371,7 +371,7 @@ public:
   bool check_new_tree(prx_models::tree_msg_wrapper_t& new_tree) const
   {
     // LOG_MSG("CHECKING NEW TREE")
-    const ros::WallTime start{ ros::WallTime::now() };
+    // const ros::WallTime start{ ros::WallTime::now() };
 
     gtsam::Values proposed_values;
     gtsam::NonlinearFactorGraph proposed_graph;
@@ -382,14 +382,14 @@ public:
     // std::vector<Eigen::MatrixXd> covariances;
     // const StateKeys state_keys{ _robot->keyState(1, curr_node_idx) };
 
-    const ros::WallTime estimation_start_stamp{ ros::WallTime::now() };
+    // const ros::WallTime estimation_start_stamp{ ros::WallTime::now() };
     // _fg_mutex.lock();
 
     // update_estimates<0>(estimates, _isam, state_keys);
     // compute_covariances<0>(covariances, _isam, state_keys);
 
     // _fg_mutex.unlock();
-    const ros::WallTime estimation_stamp{ ros::WallTime::now() };
+    // const ros::WallTime estimation_stamp{ ros::WallTime::now() };
 
     GraphValues graph_values_0{ _robot->estimate_to_prior(curr_node_idx, _replanning_root_estimates,
                                                           _replanning_root_covariances) };
@@ -411,13 +411,13 @@ public:
 
       curr_node_idx = child_idx;
     }
-    const ros::WallTime fg_built_stamp{ ros::WallTime::now() };
+    // const ros::WallTime fg_built_stamp{ ros::WallTime::now() };
 
     try
     {
       gtsam::LevenbergMarquardtOptimizer optimizer(proposed_graph, proposed_values, _lm_params);
       const gtsam::Values result{ optimizer.optimize() };
-      const double initial_error{ proposed_graph.error(proposed_values) };
+      // const double initial_error{ proposed_graph.error(proposed_values) };
       const double validation_error{ optimizer.error() };
 
       const bool accept_tree{ validation_error < 1.0 };
@@ -427,14 +427,15 @@ public:
 
       const ros::WallTime optimization_stamp{ ros::WallTime::now() };
 
-      const std::size_t total_iterations{ optimizer.iterations() };
-      const std::size_t total_factors{ proposed_graph.size() };
-      const std::size_t total_variables{ proposed_values.size() };
-      const double estimation_dt{ (estimation_stamp - estimation_start_stamp).toSec() };
-      const double fg_built_dt{ (fg_built_stamp - estimation_stamp).toSec() };
-      const double optim_dt{ (optimization_stamp - fg_built_stamp).toSec() };
-      LOG_VARS(estimation_dt, fg_built_dt, optim_dt, total_iterations, total_factors, total_variables, validation_error,
-               initial_error);
+      // const std::size_t total_iterations{ optimizer.iterations() };
+      // const std::size_t total_factors{ proposed_graph.size() };
+      // const std::size_t total_variables{ proposed_values.size() };
+      // const double estimation_dt{ (estimation_stamp - estimation_start_stamp).toSec() };
+      // const double fg_built_dt{ (fg_built_stamp - estimation_stamp).toSec() };
+      // const double optim_dt{ (optimization_stamp - fg_built_stamp).toSec() };
+      // LOG_VARS(estimation_dt, fg_built_dt, optim_dt, total_iterations, total_factors, total_variables,
+      // validation_error, initial_error);
+      LOG_VARS(validation_error, accept_tree);
       // _new_tree_available = new_graph_error < 1.0;
       // _tree_valid = new_graph_error < 1.0;
       return accept_tree;
@@ -541,7 +542,7 @@ public:
             {
               _new_tree = wrapped_tree;
 
-              // LOG_MSG("Tree checked and accepted")
+              LOG_MSG("Tree checked and accepted")
               // LOG_VARS(_new_tree_available)
               // LOG_VARS(_new_tree)
               // _new_tree = prx_models::tree_msg_wrapper_t(_planner_service_call.response.sln_tree);
@@ -793,7 +794,7 @@ public:
     gtsam::FactorIndices all_indices;
     while (future_id <= _x_queue.back())
     {
-      // LOG_VARS(future_id)
+      LOG_VARS(future_id)
       const gtsam::FactorIndices& indices{ _inserted_factors[future_id] };
       all_indices.insert(all_indices.end(), indices.begin(), indices.end());
 
@@ -883,7 +884,7 @@ public:
       // if (_tree.nodes[edge.target].children.size() > 0)
       // if (_tree_valid)
       // {
-      // LOG_VARS(edge.target)
+      LOG_VARS(_current_future_nodes)
       add_tree_node();
       // LOG_VARS(_estimated_tree.nodes.size())
       // }
@@ -914,7 +915,7 @@ public:
       // LOG_MSG("Accepting tree and updating")
       // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
       const prx_models::Node& new_root{ _new_tree.nodes[_new_tree.root] };
-      LOG_VARS(_x_curr, new_root.index, _x_next)
+      LOG_VARS(_new_tree_available, _x_curr, new_root.index, _x_next)
       if (new_root.index >= _x_next)
       {
         change_status(stela_thread_t::ISAM, interface::StelaStatus::ADDING_TREE);
