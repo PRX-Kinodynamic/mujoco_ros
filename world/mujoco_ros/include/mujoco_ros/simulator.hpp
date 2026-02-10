@@ -37,6 +37,7 @@ private:
 
   GLFWwindow* window;
 
+  ros::Timer _timer;
   ros::Publisher _collision_pub;
   std::shared_ptr<interface::node_status_t> _node_status;
 
@@ -44,12 +45,19 @@ private:
   {
     _node_status = interface::node_status_t::create(nh);
 
-    std::string collision_topic;
-    PARAM_SETUP(nh, collision_topic)
-    _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
     std::string model_path;
+    std::string collision_topic;
 
-    utils::get_param_and_check(nh, node_name + "/model_path", model_path);
+    PARAM_SETUP(nh, collision_topic)
+    PARAM_SETUP(nh, model_path)
+
+    DEBUG_VARS(model_path)
+    DEBUG_VARS(collision_topic)
+
+    _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
+    _timer = nh.createTimer(ros::Duration(1.0), &simulator_t::timer_callback, this);
+
+    // utils::get_param_and_check(nh, node_name + "/model_path", model_path);
 
     ROS_INFO("Loading model from %s", model_path.c_str());
     std::string error;
@@ -75,6 +83,7 @@ private:
     std::cout << std::endl;
 
     _node_status->status(interface::NodeStatus::RUNNING);
+    DEBUG_VARS(_node_status)
   }
 
 protected:
@@ -188,6 +197,13 @@ public:
         }
       }
     }
+  }
+
+  void timer_callback(const ros::TimerEvent& event)
+  {
+    std_msgs::Bool msg;
+    msg.data = collision_in_history;
+    _collision_pub.publish(msg);
   }
 
   bool in_collision(mujoco_ros::Collision::Request& req, mujoco_ros::Collision::Response& res)

@@ -7,8 +7,6 @@
   <arg name="goal" default="[1.0, 5.0, 0.0]"/>
   <arg name="goal_radius" default="0.5"/>
   <arg name="timeout" default="120"/>
-  <arg name="sensor_topic_name" default=""/>
-  <arg name="collision_topic_name" default=""/>
   <arg name="experiment" default="test"/>
   <arg name="file_prefix" default="$(env ML4KP_ROS)/data/experiments/test"/>
   <arg name="total_experiments" default="1"/>
@@ -28,7 +26,7 @@
       <param name="mj_node_id" value="mujoco"/>
       <param name="rosbag_node_id" value="rosbag_recorder"/>
       <param name="sensor_topic_name" value="/mushr/sensordata"/>
-      <param name="collision_topic_name" value="/simulator/collision"/>
+      <param name="collision_topic_name" value="/mushr/collision"/>
   </node>
 
   <!-- <include file="$(find interface)/launch/stela.launch"> -->

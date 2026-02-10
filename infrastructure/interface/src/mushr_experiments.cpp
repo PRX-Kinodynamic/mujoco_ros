@@ -75,6 +75,8 @@ struct runner_t
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
     _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
 
+    _mj_status->request_status(interface::NodeStatus::RESET);
+
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
     init();
   }
@@ -96,7 +98,7 @@ struct runner_t
         if (node_stat->status() == interface::NodeStatus::READY)
         {
           auto& waiting_for_node = *node_stat;
-          DEBUG_VARS(waiting_for_node)
+          // DEBUG_VARS(waiting_for_node)
           node_stat->request_status(interface::NodeStatus::RUNNING);
         }
         else if (node_stat->status() == interface::NodeStatus::RUNNING)
@@ -151,9 +153,6 @@ struct runner_t
 
   void record(const std::string reason)
   {
-    _node_status->status(interface::NodeStatus::RESET);
-    call_reset();
-
     const double dt{ (ros::WallTime::now() - _start).toSec() };
     _ofs << dt << " ";
     _ofs << reason << " ";
@@ -162,10 +161,13 @@ struct runner_t
     _ofs << _state[2] << " ";
     _ofs << "\n";
 
+    const std::string msg{ "[Mushr Experiment]" };
+    DEBUG_VARS(msg, reason, _curr_experiment, _total_experiments);
     _curr_experiment++;
 
     if (_curr_experiment == _total_experiments)
     {
+      _node_status->status(interface::NodeStatus::FINISH);
       _ofs.close();
       for (auto stat : _all_ns)
       {
@@ -174,6 +176,9 @@ struct runner_t
       ros::Duration(1.).sleep();
       ros::shutdown();
     }
+    _node_status->status(interface::NodeStatus::RESET);
+    call_reset();
+    _initializing = true;
   }
 
   void collision_callback(const std_msgs::BoolConstPtr msg)
