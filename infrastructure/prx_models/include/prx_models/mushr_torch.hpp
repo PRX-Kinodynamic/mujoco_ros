@@ -154,10 +154,15 @@ public:
     // DEBUG_VARS(xtest.transpose())
     const StateDot xd_nn{ compute_derivative ? _nn_interface->call(xd, u, xnn_H_xd, xnn_H_u) :  // no-lint
                                                _nn_interface->call(xd, u) };
-    // nullptr) };  // no-lint
-    // no-lint Hu ? &xnn_H_u :
-    // nullptr) };
 
+    // if (compute_derivative)
+    // {
+    //   auto uin = u.transpose();
+    //   auto xin = xd.transpose();
+    //   DEBUG_VARS(xin, uin)
+    //   DEBUG_VARS(xnn_H_xd)
+    //   DEBUG_VARS(xnn_H_u)
+    // }
     const StateDot xd_pred{ xd_nn * one_p_eps - xd * eps_rate };
     // DEBUG_VARS(xd_nn.transpose(), xd_pred.transpose())
     // auto xin = xd.transpose();
@@ -275,9 +280,11 @@ public:
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
 
-  mushr_torch_stela_t() : Base(){};
+  mushr_torch_stela_t() : Base() {};
 
-  mushr_torch_stela_t(ros::NodeHandle& nh) : Base(nh)
+  mushr_torch_stela_t(ros::NodeHandle& nh)
+    : Base(nh, State::Zero(), StateDot::Zero(), Control::Zero(), 0.1, Control(-1.0, -1.0), Control(1.0, 1.0))
+  // , _idle_state_dot(StateDot::Zero()), _idle_state(State::Zero()), _idle_control(Control::Zero())
   {
     std::string sensor_topic_name;
 
@@ -341,6 +348,7 @@ public:
     // mjData* mj_data;
     // const mushr_mujoco_types_t::StateHidden state_in;
     // const mushr_mujoco_types_t::StateDotHidden stateDot_in;
+    DEBUG_VARS(_idle_state_dot.transpose())
 
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
                                                          _torch_model_path, _nn_dt);
@@ -632,7 +640,7 @@ public:
     configurations["body"]->setIdentity();
   }
 
-  ~mushr_torch_t(){};
+  ~mushr_torch_t() {};
 
   virtual void init(const prx::param_loader& params) override
   {

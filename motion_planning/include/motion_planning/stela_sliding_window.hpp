@@ -1844,12 +1844,15 @@ public:
 
   void initialize_graph()
   {
+    DEBUG_PRINT
     _x_curr = 0;
     _x_next = 1;
     // const prx_models::Node& root_node{ _tree.nodes[_tree.root] };
     const GraphValues root_graph_values{ _robot->idle_root(_x_curr) };
     _values.insert(root_graph_values.second);
     _isam2_result = _isam.update(root_graph_values.first, root_graph_values.second);
+
+    DEBUG_PRINT
 
     insert_factors(_x_curr, _x_next);
     // insert_factors(_x_curr, _x_next);
@@ -1858,15 +1861,19 @@ public:
     // _isam2_result.newFactorsIndices.begin(), _isam2_result.newFactorsIndices.end());
 
     GraphValues graph_values{ _robot->idle_state_to_fg(_x_curr, _x_next, _time_as_variable) };
+    DEBUG_PRINT
 
     _values.insert(graph_values.second);
 
+    DEBUG_PRINT
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
+    DEBUG_PRINT
 
     insert_factors(_x_curr, _x_next);
 
     // _inserted_factors[_x_curr].insert(_inserted_factors[_x_curr].end(),  // no-lint
     // _isam2_result.newFactorsIndices.begin(), _isam2_result.newFactorsIndices.end());
+    DEBUG_PRINT
 
     std::size_t next_node_index{ _x_curr };
     _active_nodes.insert(_x_curr);
@@ -1875,6 +1882,7 @@ public:
     _estimated_tree.edges.clear();
 
     _tree.clear();
+    DEBUG_PRINT
 
     _estimated_tree.root = next_node_index;
     // _estimated_tree.nodes[next_node_index]=
@@ -1885,12 +1893,14 @@ public:
     next_node_index++;
     EdgeNodePair edge_node{ motion_planning::create_edge_node(_estimated_tree.nodes[next_node_index - 1],
                                                               next_node_index) };
+    DEBUG_PRINT
 
     edge_node.first.plan.steps.emplace_back();
     _robot->plan_step(edge_node.first.plan.steps.back(), _robot->idle_control(), _robot->idle_dt());
 
     _estimated_tree.edges[edge_node.first.index] = edge_node.first;
     _estimated_tree.nodes[edge_node.second.index] = edge_node.second;
+    DEBUG_PRINT
 
     // _tree.copy(_estimated_tree);  // copy only the initialization
     _current_future_nodes = 1;
@@ -1917,6 +1927,7 @@ public:
 
     _state = stela_state_t::IDLE;
 
+    DEBUG_PRINT
     // DEBUG_VARS(_estimated_tree);
     PRINT_MSG("Stela Windowed IDLE Initialized");
   }
