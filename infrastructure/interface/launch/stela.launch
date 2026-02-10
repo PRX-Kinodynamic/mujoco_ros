@@ -30,7 +30,7 @@
     <arg name="cycle_duration" default="1.0"/>
     <arg name="use_contingency" default="true"/>
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
-    <arg name="start_delay" default="20"/>
+    <arg name="start_delay" default="5"/>
     <arg name="total_replanning_calls" default="10000"/>
     <arg name="mushr_model"/>
     <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
