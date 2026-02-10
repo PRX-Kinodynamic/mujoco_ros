@@ -109,10 +109,11 @@ struct bag_writer_t
   ros::Timer _timer;
 
   int _bag_num;
+  bool _first;
 
   std::shared_ptr<interface::node_status_t> _node_status;
 
-  bag_writer_t(ros::NodeHandle& nh) : rosbag_directory(""), rosbag_prefix(""), _bag_num(0)
+  bag_writer_t(ros::NodeHandle& nh) : rosbag_directory(""), rosbag_prefix(""), _bag_num(0), _first(true)
   {
     PARAM_SETUP(nh, topics);
     PARAM_SETUP(nh, rosbag_directory);
@@ -124,7 +125,7 @@ struct bag_writer_t
     _timer = nh.createTimer(ros::Duration(1.0 / 30.0), &bag_writer_t::timer_callback, this);
     init_bag();
 
-    _node_status->status(interface::NodeStatus::RUNNING);
+    _node_status->status(interface::NodeStatus::READY);
   }
 
   void init_bag()
@@ -253,34 +254,50 @@ struct bag_writer_t
 
   // template <typename Q, typename... Queues>
   template <typename TupleQueue, std::size_t... Is>
-  void pause_all_queues(const bool pause, TupleQueue& qs, std::index_sequence<Is...>)
+  void pause_queues_impl(const bool pause, TupleQueue& qs, std::index_sequence<Is...>)
   {
-    // std::apply([](auto&&... args){}, qs);
-    // q.pause();
-    // std::get<Is>(qs).pause();
     (std::get<Is>(qs).pause(pause), ...);
   }
 
+  void pause_queues(const bool pause)
+  {
+    auto qs = all_qs();
+    const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
+    pause_queues_impl(pause, qs, std::make_index_sequence<qs_size>{});
+  }
   // template <typename Q, typename... Queues>
   template <typename TupleQueue, std::size_t... Is>
-  void reset_all_queues(TupleQueue& qs, std::index_sequence<Is...>)
+  void reset_queues_impl(TupleQueue& qs, std::index_sequence<Is...>)
   {
-    // q.reset();
     (std::get<Is>(qs).reset(), ...);
-    // (reset_all_queues(queues), ...);
+  }
+
+  void reset_queues()
+  {
+    auto qs = all_qs();
+    const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
+    reset_queues_impl(qs, std::make_index_sequence<qs_size>{});
   }
 
   void timer_callback(const ros::TimerEvent& event)
   {
     if (_node_status->status() == interface::NodeStatus::RUNNING)
     {
+      if (_first)
+      {
+        pause_queues(false);
+        reset_queues();
+      }
       write();
+    }
+    else if (_node_status->status() == interface::NodeStatus::READY)
+    {
+      _first = true;
+      pause_queues(true);
     }
     else if (_node_status->status() == interface::NodeStatus::RESET)
     {
-      auto qs = all_qs();
-      const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-      pause_all_queues(true, qs, std::make_index_sequence<qs_size>{});
+      pause_queues(true);
       write();
       _node_status->status(interface::NodeStatus::WAITING);
     }
@@ -291,19 +308,12 @@ struct bag_writer_t
       {
         bag.close();
         init_bag();
-        auto qs = all_qs();
-        const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-        pause_all_queues(false, qs, std::make_index_sequence<qs_size>{});
-        reset_all_queues(qs, std::make_index_sequence<qs_size>{});
-
-        _node_status->status(interface::NodeStatus::RUNNING);
+        _node_status->status(interface::NodeStatus::READY);
       }
     }
     else if (_node_status->status() == interface::NodeStatus::FINISH)
     {
-      auto qs = all_qs();
-      const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-      pause_all_queues(true, qs, std::make_index_sequence<qs_size>{});
+      pause_queues(true);
       const std::size_t msgs_left{ write() };
 
       if (msgs_left == 0)
@@ -311,8 +321,6 @@ struct bag_writer_t
         bag.close();
         ros::shutdown();
       }
-      // stop = true;
-      // break;
     }
     else
     {

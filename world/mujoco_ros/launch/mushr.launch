@@ -18,6 +18,7 @@
             <param name="publish_camera" value="$(arg publish_camera)" />
             <param name="node_id" value="mujoco" />
             <param name="node_id" value="/mushr/collision" />
+            <param name="collision_topic" value="/simulator/collision"/>
             <rosparam command="load" file="$(arg camera_config_file)" />
         </node>
     </group>
