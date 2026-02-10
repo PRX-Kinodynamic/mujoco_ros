@@ -357,7 +357,8 @@ public:
 
     // update_estimated_tree();
     change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
-    _node_status->status(interface::NodeStatus::RUNNING);
+
+    _node_status->status(interface::NodeStatus::READY);
 
     PRINT_MSG("Stela Running")
   }
@@ -463,7 +464,28 @@ public:
     {
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
+        _reset_start = ros::WallTime::ZERO;
         // keep going...
+      }
+      else if (_node_status->status() == interface::NodeStatus::RESET)
+      {
+        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+        if (_reset_start.isZero())
+        {
+          _reset_start = ros::WallTime::now();
+        }
+        else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
+        {
+          _node_status->status(interface::NodeStatus::RUNNING);
+        }
+
+        continue;
+      }
+      else if (_node_status->status() == interface::NodeStatus::READY)
+      {
+        // Waiting for signal to start replanning
+        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+        continue;
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {
@@ -2504,6 +2526,9 @@ private:
 
   std::shared_ptr<interface::node_status_t> _node_status;
   bool _validate_replanner_sln;
+
+  ros::WallTime _reset_start;
+
 #ifdef GTSAM_USE_TBB
   tbb::global_control _tbb_control;
 #endif

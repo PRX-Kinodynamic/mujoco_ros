@@ -69,6 +69,7 @@ struct bag_writer_t
   interface::queues_t<std_msgs::Int32> int32_queue;
   interface::queues_t<std_msgs::Float64> float64_queue;
   interface::queues_t<std_msgs::Bool> bool_queue;
+  interface::queues_t<std_msgs::Empty> empty_queue;
 
   interface::queues_t<geometry_msgs::TwistStamped> twist_stamped_queue;
   interface::queues_t<geometry_msgs::Pose2D> pose2d_queue;
@@ -109,10 +110,11 @@ struct bag_writer_t
   ros::Timer _timer;
 
   int _bag_num;
+  bool _first;
 
   std::shared_ptr<interface::node_status_t> _node_status;
 
-  bag_writer_t(ros::NodeHandle& nh) : rosbag_directory(""), rosbag_prefix(""), _bag_num(0)
+  bag_writer_t(ros::NodeHandle& nh) : rosbag_directory(""), rosbag_prefix(""), _bag_num(0), _first(true)
   {
     PARAM_SETUP(nh, topics);
     PARAM_SETUP(nh, rosbag_directory);
@@ -120,11 +122,12 @@ struct bag_writer_t
 
     _node_status = interface::node_status_t::create(nh);
     register_topics(nh);
+    pause_queues(true);
 
-    _timer = nh.createTimer(ros::Duration(1.0 / 30.0), &bag_writer_t::timer_callback, this);
+    // _timer = nh.createTimer(ros::Duration(1.0 / 100.0), &bag_writer_t::timer_callback, this);
     init_bag();
 
-    _node_status->status(interface::NodeStatus::RUNNING);
+    _node_status->status(interface::NodeStatus::READY);
   }
 
   void init_bag()
@@ -151,6 +154,7 @@ struct bag_writer_t
       registred |= float64_queue.register_topic(topic_name, topic_type, "std_msgs::Float64", nh);
       registred |= int32_queue.register_topic(topic_name, topic_type, "std_msgs::int32", nh);
       registred |= string_queue.register_topic(topic_name, topic_type, "std_msgs::string", nh);
+      registred |= empty_queue.register_topic(topic_name, topic_type, "std_msgs::Empty", nh);
 
       registred |= ackermann_drive_stamped_queue.register_topic(topic_name, topic_type,
                                                                 "ackermann_msgs::AckermannDriveStamped", nh);
@@ -196,7 +200,7 @@ struct bag_writer_t
 
   auto all_qs()
   {
-    return std::forward_as_tuple(float64_queue, string_queue, int32_queue, bool_queue,               // std_msgs
+    return std::forward_as_tuple(float64_queue, string_queue, int32_queue, bool_queue, empty_queue,  // std_msgs
                                  ackermann_drive_stamped_queue,                                      // ackermann
                                  image_queue, imu_queue, cam_info_queue,                             // Sensor::msgs
                                  twist_stamped_queue, pose2d_queue, pose_stamped_queue,              // geometry_msgs
@@ -253,71 +257,89 @@ struct bag_writer_t
 
   // template <typename Q, typename... Queues>
   template <typename TupleQueue, std::size_t... Is>
-  void pause_all_queues(const bool pause, TupleQueue& qs, std::index_sequence<Is...>)
+  void pause_queues_impl(const bool pause, TupleQueue& qs, std::index_sequence<Is...>)
   {
-    // std::apply([](auto&&... args){}, qs);
-    // q.pause();
-    // std::get<Is>(qs).pause();
     (std::get<Is>(qs).pause(pause), ...);
   }
 
+  void pause_queues(const bool pause)
+  {
+    auto qs = all_qs();
+    const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
+    pause_queues_impl(pause, qs, std::make_index_sequence<qs_size>{});
+  }
   // template <typename Q, typename... Queues>
   template <typename TupleQueue, std::size_t... Is>
-  void reset_all_queues(TupleQueue& qs, std::index_sequence<Is...>)
+  void reset_queues_impl(TupleQueue& qs, std::index_sequence<Is...>)
   {
-    // q.reset();
     (std::get<Is>(qs).reset(), ...);
-    // (reset_all_queues(queues), ...);
   }
 
-  void timer_callback(const ros::TimerEvent& event)
+  void reset_queues()
   {
-    if (_node_status->status() == interface::NodeStatus::RUNNING)
-    {
-      write();
-    }
-    else if (_node_status->status() == interface::NodeStatus::RESET)
-    {
-      auto qs = all_qs();
-      const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-      pause_all_queues(true, qs, std::make_index_sequence<qs_size>{});
-      write();
-      _node_status->status(interface::NodeStatus::WAITING);
-    }
-    else if (_node_status->status() == interface::NodeStatus::WAITING)
-    {
-      const std::size_t msgs_left{ write() };
-      if (msgs_left == 0)
-      {
-        bag.close();
-        init_bag();
-        auto qs = all_qs();
-        const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-        pause_all_queues(false, qs, std::make_index_sequence<qs_size>{});
-        reset_all_queues(qs, std::make_index_sequence<qs_size>{});
+    auto qs = all_qs();
+    const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
+    reset_queues_impl(qs, std::make_index_sequence<qs_size>{});
+  }
 
-        _node_status->status(interface::NodeStatus::RUNNING);
-      }
-    }
-    else if (_node_status->status() == interface::NodeStatus::FINISH)
+  // void timer_callback(const ros::TimerEvent& event)
+  void run()
+  {
+    while (ros::ok())
     {
-      auto qs = all_qs();
-      const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-      pause_all_queues(true, qs, std::make_index_sequence<qs_size>{});
-      const std::size_t msgs_left{ write() };
-
-      if (msgs_left == 0)
+      if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
-        bag.close();
-        ros::shutdown();
+        if (_first)
+        {
+          pause_queues(false);
+          reset_queues();
+          _first = false;
+        }
+        // const std::size_t msgs_left{ write() };
+        // DEBUG_VARS(msgs_left)
+
+        write();
       }
-      // stop = true;
-      // break;
-    }
-    else
-    {
-      auto invalid_status = _node_status;
-      DEBUG_VARS(invalid_status);
+      else if (_node_status->status() == interface::NodeStatus::READY)
+      {
+        _first = true;
+        pause_queues(true);
+      }
+      else if (_node_status->status() == interface::NodeStatus::RESET)
+      {
+        PRINT_MSG("RESET!")
+        pause_queues(true);
+        write();
+        _node_status->status(interface::NodeStatus::WAITING);
+      }
+      else if (_node_status->status() == interface::NodeStatus::WAITING)
+      {
+        pause_queues(true);
+        const std::size_t msgs_left{ write() };
+        DEBUG_VARS(msgs_left)
+        if (msgs_left == 0)
+        {
+          bag.close();
+          init_bag();
+          _node_status->status(interface::NodeStatus::READY);
+        }
+      }
+      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      {
+        pause_queues(true);
+        const std::size_t msgs_left{ write() };
+
+        if (msgs_left == 0)
+        {
+          bag.close();
+          ros::shutdown();
+        }
+      }
+      else
+      {
+        auto invalid_status = _node_status;
+        DEBUG_VARS(invalid_status);
+      }
     }
   }
 
@@ -391,10 +413,14 @@ int main(int argc, char** argv)
   // DEBUG_VARS(subscribers.size());
   // std::thread thread_b(bag_writter);
   bag_writer_t bag_writter(nh);
-  // ros::AsyncSpinner spinner(4);
-  ros::MultiThreadedSpinner spinner(4);
-  spinner.spin();
-  // ros::waitForShutdown();
+  ros::AsyncSpinner spinner(4);
+  // ros::MultiThreadedSpinner spinner(4);
+  // spinner.spin();
+  spinner.start();
+
+  bag_writter.run();
+  ros::waitForShutdown();
+  spinner.stop();
 
   // node_status.status(interface::NodeStatus::RUNNING);
   // while (ros::ok())
@@ -420,7 +446,6 @@ int main(int argc, char** argv)
   // }
   // stop = true;
   // ROS_INFO_STREAM("Joining bag writter thread");
-  // spinner.stop();
   // thread_b.join();
 
   return 0;

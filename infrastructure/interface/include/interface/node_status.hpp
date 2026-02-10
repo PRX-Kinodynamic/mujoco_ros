@@ -1,3 +1,4 @@
+
 #pragma once
 
 // Ros
@@ -16,6 +17,7 @@ class node_status_t
 
   void init(ros::NodeHandle& nh, const std::string node_id)
   {
+    _node_id = node_id;
     _msg.status = NodeStatus::INITIALIZING;
 
     const std::string current_topic{ "/nodes/status/" + node_id + "/current" };
@@ -23,6 +25,7 @@ class node_status_t
     if (_observer)
     {
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
+      _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, true);
     }
     else
     {
@@ -60,6 +63,11 @@ public:
   static std::shared_ptr<node_status_t> create(ros::NodeHandle& nh, Ts... args)
   {
     return std::make_shared<node_status_t>(nh, args...);
+  }
+
+  std::string id() const
+  {
+    return _node_id;
   }
 
   void update(const ros::TimerEvent& t)
@@ -112,7 +120,7 @@ public:
       default:
         prx_throw("[node_status_t] Status unknown");
     }
-    ost << str;
+    ost << "[" << obj._node_id << "]: " << str;
     return ost;
   }
 
@@ -120,6 +128,19 @@ public:
   {
     ost << *obj;
     return ost;
+  }
+
+  inline void request_status(const StatusType status)
+  {
+    if (_observer)
+    {
+      _msg.status = status;
+      _change_publisher.publish(_msg);
+    }
+    else
+    {
+      ROS_WARN("[node_status_t] Request change status on remote node while not being observer");
+    }
   }
 
   inline StatusType status() const
@@ -144,9 +165,12 @@ private:
 
   interface::NodeStatus _msg;
 
+  std::string _node_id;
+
   bool _observer;  // Monitor another node
 
   ros::Timer _timer;
+  ros::Publisher _change_publisher;
   ros::Publisher _status_publisher;
   ros::Subscriber _status_subscriber;
 };

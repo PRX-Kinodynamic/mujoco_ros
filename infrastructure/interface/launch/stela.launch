@@ -43,6 +43,7 @@
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
         output="screen" required="true"
         >
+        <param name="node_id" value="stela"/>
         <param name="mushr_model" value="$(arg mushr_model)"/>
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
         <param name="control_topic" value="$(arg control_topic)"/> 
