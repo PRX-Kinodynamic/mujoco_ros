@@ -11,11 +11,12 @@ inline void init_bag(rosbag::Bag* bag, const std::string rosbag_directory, const
 {
   std::ostringstream bag_name;
   bag_name << rosbag_directory << "/b_";
+  bag_name << utils::timestamp();
   if (prefix != "")
   {
-    bag_name << prefix << "_";
+    bag_name << "_" << prefix;
   }
-  bag_name << utils::timestamp() << ".bag";
+  bag_name << ".bag";
   bag->open(bag_name.str(), rosbag::bagmode::Write);
   ROS_INFO_STREAM("Bag name: " << bag_name.str());
 }
@@ -47,7 +48,7 @@ public:
     if (_pause)
       return;
 
-    const ros::Time t_now{ ros::Time::now() };
+    const ros::Time t_now{ event.getReceiptTime() };
     if (t_now > _t0)
     {
       // const auto& map_str = event.getConnectionHeader();
@@ -101,7 +102,7 @@ public:
     {
       _queues.emplace_back(topic_name);
       // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
-      _subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      _subscribers.push_back(nh.subscribe(topic_name, 10000, &QCallback::callback, &_queues.back()));
       status = true;
     }
     return status;

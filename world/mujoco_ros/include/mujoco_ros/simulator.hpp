@@ -137,6 +137,11 @@ public:
     ros::Rate rate(1.0 / m->opt.timestep);
     while (ros::ok())
     {
+      if (_node_status->new_request())
+      {
+        _node_status->status(_node_status->requested_status());
+        _node_status->request_acknowledged();
+      }
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
         step_simulation();

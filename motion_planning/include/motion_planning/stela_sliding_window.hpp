@@ -456,11 +456,61 @@ public:
     return false;
   }
 
+  void manage_node_status()
+  {
+    if (_node_status->new_request())
+    {
+      const interface::node_status_t::StatusType current_status{ _node_status->status() };
+      const interface::node_status_t::StatusType req_status{ _node_status->requested_status() };
+      if (current_status == interface::NodeStatus::RUNNING)
+      {
+        _node_status->status(req_status);
+        _node_status->request_acknowledged();
+      }
+      else if (current_status == interface::NodeStatus::RESET)
+      {
+        if (req_status == interface::NodeStatus::RUNNING)
+        {
+          change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+          if (_reset_start.isZero())
+          {
+            _reset_start = ros::WallTime::now();
+          }
+          else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
+          {
+            LOG_MSG("Leaving RESET")
+            _node_status->status(interface::NodeStatus::RUNNING);
+            _reset_start = ros::WallTime::ZERO;
+            _node_status->request_acknowledged();
+          }
+        }
+        else if (req_status == interface::NodeStatus::FINISH)
+        {
+          _node_status->status(req_status);
+          _node_status->request_acknowledged();
+        }
+        else
+        {
+          auto invalid_request = req_status;
+          DEBUG_VARS(current_status, invalid_request)
+          _node_status->request_acknowledged();
+        }
+      }
+      else
+      {
+        auto invalid_request = req_status;
+        DEBUG_VARS(current_status, invalid_request)
+        _node_status->request_acknowledged();
+      }
+    }
+  }
+
   void replanner_service_main()
   {
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)
     {
+      manage_node_status();
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
         _reset_start = ros::WallTime::ZERO;
@@ -468,33 +518,24 @@ public:
       }
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
-        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
-        if (_reset_start.isZero())
-        {
-          _reset_start = ros::WallTime::now();
-        }
-        else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
-        {
-          _node_status->status(interface::NodeStatus::RUNNING);
-        }
+        // LOG_MSG("RESET")
+        // change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+        // if (_reset_start.isZero())
+        // {
+        //   _reset_start = ros::WallTime::now();
+        // }
+        // else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
+        // {
+        //   LOG_MSG("Leaving RESET")
+        //   _node_status->status(interface::NodeStatus::RUNNING);
+        // }
 
-        continue;
-      }
-      else if (_node_status->status() == interface::NodeStatus::READY)
-      {
-        // Waiting for signal to start replanning
-        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
         continue;
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {
         PRINT_MSG("[stela] Finished signal received. Exiting...")
         break;
-      }
-      else
-      {
-        auto invalid_status = _node_status;
-        DEBUG_VARS(invalid_status);
       }
       // _planner_clock_msg.header.stamp = ;
       // const bool call_replanner{ ros::Time::now() > _planner_clock_msg.cycle_end };
