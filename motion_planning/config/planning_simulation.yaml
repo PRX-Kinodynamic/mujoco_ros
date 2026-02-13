@@ -1,9 +1,9 @@
 random_seed: 210896
 simulation_step: 0.1
 
-plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
+# plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
 # plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_mujoco.yaml"
-# plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"
+plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"
 
 # plant: !file "src/motion_planning/config/mushr.yaml"
 learned_controller: "controllers/mushr_analytical.yaml"

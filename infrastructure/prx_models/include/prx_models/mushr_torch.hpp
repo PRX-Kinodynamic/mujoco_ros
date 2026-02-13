@@ -323,6 +323,7 @@ public:
   virtual GraphValues idle_state_to_fg(const std::size_t parent, const std::size_t child,
                                        const bool time_as_variable = true) override
   {
+    using StateStateDotTimeFactor = prx_models::mushr_x_xdot_t;
     using IntegrationFactor = mushr_torch_factor_t<double>;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
     GraphValues graph_values;
@@ -352,6 +353,7 @@ public:
 
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
                                                          _torch_model_path, _nn_dt);
+    graph_values.first.emplace_shared<StateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
     graph_values.first.addPrior(k_t01, _idle_dt, dt_noise);
 
