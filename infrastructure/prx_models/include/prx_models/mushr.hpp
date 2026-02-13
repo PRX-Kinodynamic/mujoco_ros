@@ -402,7 +402,7 @@ public:
     // DEBUG_VARS(SF::formatter(k_t01), dt);
 
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
-    NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
+    // NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
     NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e0) };
     NoiseModel dt_limit_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };

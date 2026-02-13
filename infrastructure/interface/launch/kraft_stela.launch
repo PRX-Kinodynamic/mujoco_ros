@@ -4,6 +4,7 @@
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
   <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
+  <arg name="validate_replanner_sln" default="true"/>
 
 	<!-- <include file="$(find mujoco_ros)/launch/mushr.launch"> -->
     <!-- <arg name="publish_ground_truth_pose" value="false" /> -->
@@ -13,6 +14,8 @@
   <include file="$(find interface)/launch/stela.launch">
     <arg name="input_tree_topic_name" default="/mushr/sln/tree_dbg"/>
     <arg name="environment" value="$(arg environment)" />
+    <arg name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
+
     <!-- <arg name="mushr_model" value="analytical" /> -->
     <arg name="mushr_model" value="torch" />
     <!-- <arg name="mushr_model" value="mujoco" /> -->
