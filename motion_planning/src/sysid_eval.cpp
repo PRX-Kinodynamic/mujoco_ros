@@ -420,8 +420,8 @@ public:
   using Runtime = torch_bridge::StructuredSysidRuntime<MushrPlant, Params, Poly, StructuredParams>;
 
   SysidEvaluator(const std::string& model_path, const Params& params, const Poly& poly, double dt,
-                 bool use_cuda = false, const std::string& dtype = "float32", bool use_normalized_plant = true)
-    : runtime_(model_path, params, poly, use_cuda, dtype, use_normalized_plant), dt_(dt)
+                 bool use_cuda = false, const std::string& dtype = "float32")
+    : runtime_(model_path, params, poly, use_cuda, dtype), dt_(dt)
   {
   }
 
@@ -560,7 +560,6 @@ void run_evaluation(ros::NodeHandle& nh)
   int rollout_horizon = 10;
   bool use_cuda = torch::cuda::is_available();  // Auto-detect CUDA
   std::string dtype = "float32";
-  bool use_normalized_plant = true;  // Default: match python-model semantics
 
   nh.getParam("exp_dir", exp_dir);
   nh.getParam("data_eval_dir", data_eval_dir);
@@ -570,7 +569,6 @@ void run_evaluation(ros::NodeHandle& nh)
   nh.getParam("rollout_horizon", rollout_horizon);
   nh.getParam("use_cuda", use_cuda);  // Can override auto-detect
   nh.getParam("dtype", dtype);
-  nh.getParam("use_normalized_plant", use_normalized_plant);
 
   if (exp_dir.empty())
   {
@@ -610,10 +608,9 @@ void run_evaluation(ros::NodeHandle& nh)
   ROS_INFO_STREAM("Data eval dir: " << data_eval_dir);
   ROS_INFO_STREAM("Device: " << (use_cuda ? "CUDA" : "CPU"));
   ROS_INFO_STREAM("dt=" << dt << ", total_time=" << total_time << ", rollout_horizon=" << rollout_horizon);
-  ROS_INFO_STREAM("use_normalized_plant=" << (use_normalized_plant ? "true (matches python-model)" : "false (raw-plant)"));
 
   SysidEvaluator<MushrPlant, Params, Poly, StructuredParams> evaluator(model_path.string(), params, poly, dt, use_cuda,
-                                                                       dtype, use_normalized_plant);
+                                                                       dtype);
 
   // Find trajectory indices
   fs::path mj_dir = fs::path(data_eval_dir) / "mj_trajs";
