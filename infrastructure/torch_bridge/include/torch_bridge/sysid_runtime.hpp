@@ -322,13 +322,14 @@ public:
   // using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
 
   StructuredSysidRuntime(const std::string& model_path, const Params& params, const Poly& poly, bool use_cuda = true,
-                         const std::string& dtype = "float64")
+                         const std::string& dtype = "float64", bool use_normalized_plant = false)
     : params_(params)
     , poly_(poly)
     , model_path_(model_path)
     , device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
     , use_cuda_(use_cuda && torch::cuda::is_available())
     , dt_(0.1)
+    , use_normalized_plant_(use_normalized_plant)
   {
     try
     {
@@ -412,14 +413,22 @@ public:
     {
       forward_with_jacobian_method_.emplace(module_.get_method("forward_with_jacobian"));
     }
+
+    // Extract standardizer buffers from TorchScript module if using normalized plant semantics
+    if (use_normalized_plant_)
+    {
+      extract_standardizers_from_module();
+      std::cout << "[StructuredSysidRuntime] Using normalized-plant semantics (matches python-model)" << std::endl;
+    }
   }
 
   // Capture CUDA graph for predict() - call once after construction
+  // NOTE: CUDA graph capture is currently disabled, but standard CUDA inference works
   void warmup_cuda_graph(int warmup_iters = 3)
   {
     if (!use_cuda_)
       return;
-    ROS_ERROR("CUDA NOT SUPPORTED");
+    ROS_WARN_ONCE("CUDA graph capture disabled, using standard CUDA inference");
     // c10::InferenceMode guard;
 
     // // Warmup iterations to stabilize CUDA state
@@ -575,7 +584,8 @@ public:
     c10::InferenceMode guard;
 
     // GPU plant path: run everything on GPU, only copy final result back
-    if (use_cuda_ && use_gpu_plant_)
+    // Note: GPU plant currently not supported with normalized-plant mode
+    if (use_cuda_ && use_gpu_plant_ && !use_normalized_plant_)
     {
       // Copy inputs to pinned memory
       if (use_float32_)
@@ -596,7 +606,7 @@ public:
       // Run neural network on GPU
       if (graph_captured_)
       {
-        ROS_ERROR("CUDA NOT SUPPORTED");
+        // CUDA graph replay path (currently disabled)
         // c10::cuda::CUDAStreamGuard stream_guard(*capture_stream_);
         // cuda_graph_.replay();
       }
@@ -639,10 +649,6 @@ public:
     double friction_k;
     StateDot residual;
 
-    if (use_cuda_)
-    {
-      ROS_ERROR("CUDA NOT SUPPORTED");
-    }
     if (use_cuda_ && graph_captured_)
     {
       // CUDA graph path with CPU plant
@@ -778,12 +784,42 @@ public:
     }
 
     // CPU plant dynamics
-    Params adjusted_params = params_;
-    adjusted_params[StructuredParams::friction] *= friction_k;
+    if (use_normalized_plant_)
+    {
+      // Normalized-plant semantics (matches python-model):
+      // 1. Normalize raw inputs
+      StateDot xd0_norm = (xd0 - input_mean_x_).cwiseProduct(inv_input_std_x_);
+      Control u_eff_norm = (u_eff - input_mean_u_).cwiseProduct(inv_input_std_u_);
+      StateDot residual_norm = (residual - target_mean_).cwiseProduct(inv_target_std_);
 
-    StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_);
+      // 2. Run plant on normalized inputs with identity params/poly and friction_k applied
+      Params params_identity;
+      params_identity.setConstant(1.0);
+      params_identity[StructuredParams::friction] *= friction_k;
+      
+      Poly poly_identity;
+      poly_identity.setZero();
+      poly_identity[2] = 1.0;  // Identity polynomial: delta = 1.0 * x
 
-    return xd1_plant + residual;
+      StateDot xd1_plant_norm = MushrPlant::predict(xd0_norm, u_eff_norm, dt_, params_identity, poly_identity);
+
+      // 3. Add residual in normalized space
+      StateDot xd1_norm = xd1_plant_norm + residual_norm;
+
+      // 4. Unstandardize to raw space
+      StateDot xd1_raw = xd1_norm.cwiseProduct(target_std_) + target_mean_;
+      return xd1_raw;
+    }
+    else
+    {
+      // Raw-plant semantics (original behavior):
+      Params adjusted_params = params_;
+      adjusted_params[StructuredParams::friction] *= friction_k;
+
+      StateDot xd1_plant = MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_);
+
+      return xd1_plant + residual;
+    }
   }
 
   StateDot operator()(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none,
@@ -1051,25 +1087,109 @@ public:
       }
     }
 
-    // Plant dynamics (same for both paths)
-    Params adjusted_params = params_;
-    const double base_friction = params_[StructuredParams::friction];
-    adjusted_params[StructuredParams::friction] *= friction_k;
+    // Plant dynamics and Jacobians
+    if (use_normalized_plant_)
+    {
+      // Normalized-plant semantics (matches python-model):
+      
+      // 1. Normalize raw inputs
+      StateDot xd0_norm = (xd0 - input_mean_x_).cwiseProduct(inv_input_std_x_);
+      Control u_eff_norm = (u_eff - input_mean_u_).cwiseProduct(inv_input_std_u_);
+      StateDot residual_norm = (residual - target_mean_).cwiseProduct(inv_target_std_);
 
-    JacX plant_Jx;
-    JacU plant_Ju;
-    // Eigen::MatrixXd dummy;
-    Eigen::Matrix<double, 3, 5> plant_Hparams;
+      // 2. Convert TorchScript Jacobians to normalized-space derivatives
+      // J_ueff_norm_x_raw = diag(1/input_std_u) * J_ueff_x_raw
+      Eigen::Matrix<double, 2, 3> J_ueff_norm_x_raw;
+      for (int i = 0; i < 2; ++i)
+      {
+        for (int j = 0; j < 3; ++j)
+        {
+          J_ueff_norm_x_raw(i, j) = inv_input_std_u_(i) * J_ueff_x(i, j);
+        }
+      }
 
-    StateDot xd1_plant =
-        MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, boost::none, plant_Hparams);
+      // J_ueff_norm_u_raw = diag(1/input_std_u) * J_ueff_u_raw
+      Eigen::Matrix<double, 2, 2> J_ueff_norm_u_raw;
+      for (int i = 0; i < 2; ++i)
+      {
+        for (int j = 0; j < 2; ++j)
+        {
+          J_ueff_norm_u_raw(i, j) = inv_input_std_u_(i) * J_ueff_u(i, j);
+        }
+      }
 
-    // Chain rule for friction
-    const Eigen::Vector3d& plant_H_friction{ plant_Hparams.col(StructuredParams::friction) };
-    JacX Jx = plant_Jx + plant_Ju * J_ueff_x + J_r_x + plant_H_friction * base_friction * J_k_x;
-    JacU Ju = plant_Ju * J_ueff_u + J_r_u + plant_H_friction * base_friction * J_k_u;
+      // J_r_norm_x_raw = diag(1/target_std) * J_r_x_raw
+      JacX J_r_norm_x_raw = inv_target_std_.asDiagonal() * J_r_x;
 
-    return std::make_tuple(xd1_plant + residual, Jx, Ju);
+      // J_r_norm_u_raw = diag(1/target_std) * J_r_u_raw
+      JacU J_r_norm_u_raw = inv_target_std_.asDiagonal() * J_r_u;
+
+      // 3. Run plant on normalized inputs with identity params/poly and friction_k applied
+      Params params_identity;
+      params_identity.setConstant(1.0);
+      const double base_friction = 1.0;
+      params_identity[StructuredParams::friction] *= friction_k;
+
+      Poly poly_identity;
+      poly_identity.setZero();
+      poly_identity[2] = 1.0;  // Identity polynomial: delta = 1.0 * x
+
+      JacX plant_Jx_norm;
+      JacU plant_Ju_norm;
+      Eigen::Matrix<double, 3, 5> plant_Hparams;
+
+      StateDot xd1_plant_norm = MushrPlant::predict(xd0_norm, u_eff_norm, dt_, params_identity, poly_identity,
+                                                      plant_Jx_norm, plant_Ju_norm, boost::none, plant_Hparams);
+
+      // 4. Chain rule in normalized space (including friction sensitivity)
+      // dx_norm/dx_raw = diag(1/input_std_x)
+      const Eigen::Vector3d& plant_H_friction = plant_Hparams.col(StructuredParams::friction);
+      
+      // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_norm_x_raw + H_friction * base_friction * J_k_x + J_r_norm_x_raw
+      JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + 
+                         plant_Ju_norm * J_ueff_norm_x_raw + 
+                         plant_H_friction * base_friction * J_k_x + 
+                         J_r_norm_x_raw;
+
+      // Ju_norm_raw = plant_Ju * J_ueff_norm_u_raw + H_friction * base_friction * J_k_u + J_r_norm_u_raw
+      JacU Ju_norm_raw = plant_Ju_norm * J_ueff_norm_u_raw + 
+                         plant_H_friction * base_friction * J_k_u + 
+                         J_r_norm_u_raw;
+
+      // 5. Unstandardize output Jacobians
+      // Jx_raw = diag(target_std) * Jx_norm_raw
+      JacX Jx_raw = target_std_.asDiagonal() * Jx_norm_raw;
+      
+      // Ju_raw = diag(target_std) * Ju_norm_raw
+      JacU Ju_raw = target_std_.asDiagonal() * Ju_norm_raw;
+
+      // 6. Compute forward value
+      StateDot xd1_norm = xd1_plant_norm + residual_norm;
+      StateDot xd1_raw = xd1_norm.cwiseProduct(target_std_) + target_mean_;
+
+      return std::make_tuple(xd1_raw, Jx_raw, Ju_raw);
+    }
+    else
+    {
+      // Raw-plant semantics (original behavior):
+      Params adjusted_params = params_;
+      const double base_friction = params_[StructuredParams::friction];
+      adjusted_params[StructuredParams::friction] *= friction_k;
+
+      JacX plant_Jx;
+      JacU plant_Ju;
+      Eigen::Matrix<double, 3, 5> plant_Hparams;
+
+      StateDot xd1_plant =
+          MushrPlant::predict(xd0, u_eff, dt_, adjusted_params, poly_, plant_Jx, plant_Ju, boost::none, plant_Hparams);
+
+      // Chain rule for friction
+      const Eigen::Vector3d& plant_H_friction{ plant_Hparams.col(StructuredParams::friction) };
+      JacX Jx = plant_Jx + plant_Ju * J_ueff_x + J_r_x + plant_H_friction * base_friction * J_k_x;
+      JacU Ju = plant_Ju * J_ueff_u + J_r_u + plant_H_friction * base_friction * J_k_u;
+
+      return std::make_tuple(xd1_plant + residual, Jx, Ju);
+    }
   }
 
   // void set_dt(double dt)
@@ -1265,6 +1385,59 @@ private:
   Params params_;
   Poly poly_;
   const double dt_;
+
+  // Normalized plant mode
+  bool use_normalized_plant_ = false;
+  Eigen::Vector3d input_mean_x_;
+  Eigen::Vector2d input_mean_u_;
+  Eigen::Vector3d input_std_x_;
+  Eigen::Vector2d input_std_u_;
+  Eigen::Vector3d target_mean_;
+  Eigen::Vector3d target_std_;
+  Eigen::Vector3d inv_input_std_x_;
+  Eigen::Vector2d inv_input_std_u_;
+  Eigen::Vector3d inv_target_std_;
+
+  void extract_standardizers_from_module()
+  {
+    try
+    {
+      auto input_mean = module_.attr("input_mean").toTensor().to(torch::kCPU).to(torch::kFloat64);
+      auto input_std = module_.attr("input_std").toTensor().to(torch::kCPU).to(torch::kFloat64);
+      auto target_mean = module_.attr("target_mean").toTensor().to(torch::kCPU).to(torch::kFloat64);
+      auto target_std = module_.attr("target_std").toTensor().to(torch::kCPU).to(torch::kFloat64);
+
+      auto input_mean_acc = input_mean.accessor<double, 1>();
+      auto input_std_acc = input_std.accessor<double, 1>();
+      auto target_mean_acc = target_mean.accessor<double, 1>();
+      auto target_std_acc = target_std.accessor<double, 1>();
+
+      for (int i = 0; i < 3; ++i)
+      {
+        input_mean_x_(i) = input_mean_acc[i];
+        input_std_x_(i) = input_std_acc[i];
+        inv_input_std_x_(i) = 1.0 / input_std_acc[i];
+        target_mean_(i) = target_mean_acc[i];
+        target_std_(i) = target_std_acc[i];
+        inv_target_std_(i) = 1.0 / target_std_acc[i];
+      }
+
+      for (int i = 0; i < 2; ++i)
+      {
+        input_mean_u_(i) = input_mean_acc[3 + i];
+        input_std_u_(i) = input_std_acc[3 + i];
+        inv_input_std_u_(i) = 1.0 / input_std_acc[3 + i];
+      }
+
+      std::cout << "[StructuredSysidRuntime] Extracted standardizers from TorchScript module" << std::endl;
+    }
+    catch (const c10::Error& e)
+    {
+      throw std::runtime_error("Failed to extract standardizer buffers from TorchScript module: " +
+                               std::string(e.what()) +
+                               ". Ensure the model was exported with StructuredAuxDeployModule.");
+    }
+  }
 };
 
 }  // namespace torch_bridge

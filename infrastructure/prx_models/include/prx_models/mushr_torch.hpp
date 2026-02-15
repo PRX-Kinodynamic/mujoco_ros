@@ -114,23 +114,25 @@ class mushr_torch_factor_t
 public:
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(1 == Num), bool> = true>
   mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
-                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
+                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1,
+                       const bool use_normalized_plant = true)
     : Base(cost_model, xd1, xd0, u, dt), _dt(-1), _NN_DT(nn_dt), _NN_2(nn_dt * nn_dt)
   {
     const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
     const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32", use_normalized_plant);
     // _nn_interface->set_dt(dt);
   }
 
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(0 == Num), bool> = true>
   mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const double& dt,
-                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
+                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1,
+                       const bool use_normalized_plant = true)
     : Base(cost_model, xd1, xd0, u), _dt(dt), _NN_DT(nn_dt), _NN_2(nn_dt * nn_dt)
   {
     const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
     const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32", use_normalized_plant);
     // _nn_interface->set_dt(dt);
   }
 
