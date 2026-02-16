@@ -728,7 +728,7 @@ public:
     Params params_identity;
     params_identity.setConstant(1.0);
     params_identity[StructuredParams::friction] *= friction_k;
-    
+
     Poly poly_identity;
     poly_identity.setZero();
     poly_identity[2] = 1.0;  // Identity polynomial: delta = 1.0 * x
@@ -1009,7 +1009,7 @@ public:
     }
 
     // Plant dynamics and Jacobians (normalized-plant semantics)
-    
+
     // 1. Normalize raw inputs
     StateDot xd0_norm = (xd0 - input_mean_x_).cwiseProduct(inv_input_std_x_);
     Control u_eff_norm = (u_eff - input_mean_u_).cwiseProduct(inv_input_std_u_);
@@ -1057,27 +1057,24 @@ public:
     Eigen::Matrix<double, 3, 5> plant_Hparams;
 
     StateDot xd1_plant_norm = MushrPlant::predict(xd0_norm, u_eff_norm, dt_, params_identity, poly_identity,
-                                                    plant_Jx_norm, plant_Ju_norm, boost::none, plant_Hparams);
+                                                  plant_Jx_norm, plant_Ju_norm, boost::none, plant_Hparams);
 
     // 4. Chain rule in normalized space (including friction sensitivity)
     // dx_norm/dx_raw = diag(1/input_std_x)
     const Eigen::Vector3d& plant_H_friction = plant_Hparams.col(StructuredParams::friction);
-    
-    // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_norm_x_raw + H_friction * base_friction * J_k_x + J_r_norm_x_raw
-    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + 
-                       plant_Ju_norm * J_ueff_norm_x_raw + 
-                       plant_H_friction * base_friction * J_k_x + 
-                       J_r_norm_x_raw;
+
+    // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_norm_x_raw + H_friction * base_friction * J_k_x
+    // + J_r_norm_x_raw
+    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + plant_Ju_norm * J_ueff_norm_x_raw +
+                       plant_H_friction * base_friction * J_k_x + J_r_norm_x_raw;
 
     // Ju_norm_raw = plant_Ju * J_ueff_norm_u_raw + H_friction * base_friction * J_k_u + J_r_norm_u_raw
-    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_norm_u_raw + 
-                       plant_H_friction * base_friction * J_k_u + 
-                       J_r_norm_u_raw;
+    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_norm_u_raw + plant_H_friction * base_friction * J_k_u + J_r_norm_u_raw;
 
     // 5. Unstandardize output Jacobians
     // Jx_raw = diag(target_std) * Jx_norm_raw
     JacX Jx_raw = target_std_.asDiagonal() * Jx_norm_raw;
-    
+
     // Ju_raw = diag(target_std) * Ju_norm_raw
     JacU Ju_raw = target_std_.asDiagonal() * Ju_norm_raw;
 
@@ -1302,10 +1299,10 @@ private:
       auto target_mean = module_.attr("target_mean").toTensor().to(torch::kCPU).to(torch::kFloat64);
       auto target_std = module_.attr("target_std").toTensor().to(torch::kCPU).to(torch::kFloat64);
 
-      auto input_mean_acc = input_mean.accessor<double, 1>();
-      auto input_std_acc = input_std.accessor<double, 1>();
-      auto target_mean_acc = target_mean.accessor<double, 1>();
-      auto target_std_acc = target_std.accessor<double, 1>();
+      auto input_mean_acc = input_mean.template accessor<double, 1>();
+      auto input_std_acc = input_std.template accessor<double, 1>();
+      auto target_mean_acc = target_mean.template accessor<double, 1>();
+      auto target_std_acc = target_std.template accessor<double, 1>();
 
       for (int i = 0; i < 3; ++i)
       {
@@ -1328,9 +1325,9 @@ private:
     }
     catch (const c10::Error& e)
     {
-      throw std::runtime_error("Failed to extract standardizer buffers from TorchScript module: " +
-                               std::string(e.what()) +
-                               ". Ensure the model was exported with StructuredAuxDeployModule.");
+      throw std::runtime_error(
+          "Failed to extract standardizer buffers from TorchScript module: " + std::string(e.what()) +
+          ". Ensure the model was exported with StructuredAuxDeployModule.");
     }
   }
 };
