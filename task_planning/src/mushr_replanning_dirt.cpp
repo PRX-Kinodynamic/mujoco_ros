@@ -1,4 +1,5 @@
 #include <ml4kp_bridge/defs.h>
+#include <prx_models/defs.hpp>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
 #include "control/MushrControlPropagation.h"
@@ -226,26 +227,6 @@ struct replanner_t
     }
   }
 
-  // void clock_callback(const interface::PlannerClockConstPtr msg)
-  // {
-  //   // if (_next_replan_end.isZero())
-  //   // {
-  //   //   _next_replan_start = msg->cycle_end;
-  //   //   // _next_replan_end = msg->cycle_end;
-  //   // }
-  //   if (_current_cycle != msg->cycle)
-  //   {
-  //     _current_cycle = msg->cycle;
-  //     _cycle_end = msg->cycle_end;
-  //     _cycle_start = msg->cycle_start;
-  //     _cycle_duration = msg->cycle_duration;
-
-  //     // _cycle_update = true;
-  //     // _start_replanning = true;
-  //     // DEBUG_VARS(*msg);
-  //   }
-  // }
-
   void observation_callback(prx_models::TreePtr msg)
   {
     if (msg->nodes.size() > 0)
@@ -284,6 +265,8 @@ struct replanner_t
     const std::string plant_name{ params["/plant/name"].as<std::string>() };
     const std::string plant_path{ params["/plant/path"].as<std::string>() };
     _plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    _plant->init(params["/plant"]);
+
     prx_assert(_plant != nullptr, "Failed to create plant");
 
     // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());

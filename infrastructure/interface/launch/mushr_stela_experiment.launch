@@ -5,8 +5,9 @@
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
   <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
   <arg name="goal" default="[1.0, 5.0, 0.0]"/>
-  <arg name="goal_radius" default="0.5"/>
+  <arg name="goal_radius" default="1.0"/>
   <arg name="timeout" default="120"/>
+  <!-- <arg name="timeout" default="60"/> -->
   <arg name="experiment" default="test"/>
   <arg name="file_prefix" default="$(env ML4KP_ROS)/data/experiments/test"/>
   <arg name="total_experiments" default="1"/>

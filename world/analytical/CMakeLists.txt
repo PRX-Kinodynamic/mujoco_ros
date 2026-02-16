@@ -15,6 +15,11 @@ find_package(catkin REQUIRED COMPONENTS
   prx_models
 )
 
+if(DEFINED ENV{Torch_DIR})
+  find_package(Torch REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+endif()
+
 set(BUILD_FLAGS "-O3")
 if (UNIX AND NOT APPLE)
   MESSAGE(STATUS "Setting Eigen SIMD speedups")

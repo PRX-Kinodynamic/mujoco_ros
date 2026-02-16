@@ -22,6 +22,11 @@ find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
 
 set(mujoco_LIBRARY mujoco::mujoco)
 
+if(DEFINED ENV{Torch_DIR})
+  find_package(Torch REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+endif()
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

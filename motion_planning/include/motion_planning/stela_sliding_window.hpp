@@ -457,11 +457,61 @@ public:
     return false;
   }
 
+  void manage_node_status()
+  {
+    if (_node_status->new_request())
+    {
+      const interface::node_status_t::StatusType current_status{ _node_status->status() };
+      const interface::node_status_t::StatusType req_status{ _node_status->requested_status() };
+      if (current_status == interface::NodeStatus::RUNNING)
+      {
+        _node_status->status(req_status);
+        _node_status->request_acknowledged();
+      }
+      else if (current_status == interface::NodeStatus::RESET)
+      {
+        if (req_status == interface::NodeStatus::RUNNING)
+        {
+          change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+          if (_reset_start.isZero())
+          {
+            _reset_start = ros::WallTime::now();
+          }
+          else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
+          {
+            LOG_MSG("Leaving RESET")
+            _node_status->status(interface::NodeStatus::RUNNING);
+            _reset_start = ros::WallTime::ZERO;
+            _node_status->request_acknowledged();
+          }
+        }
+        else if (req_status == interface::NodeStatus::FINISH)
+        {
+          _node_status->status(req_status);
+          _node_status->request_acknowledged();
+        }
+        else
+        {
+          auto invalid_request = req_status;
+          DEBUG_VARS(current_status, invalid_request)
+          _node_status->request_acknowledged();
+        }
+      }
+      else
+      {
+        auto invalid_request = req_status;
+        DEBUG_VARS(current_status, invalid_request)
+        _node_status->request_acknowledged();
+      }
+    }
+  }
+
   void replanner_service_main()
   {
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)
     {
+      manage_node_status();
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
         _reset_start = ros::WallTime::ZERO;
@@ -469,34 +519,24 @@ public:
       }
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
-        _tree_valid = false;
-        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
-        if (_reset_start.isZero())
-        {
-          _reset_start = ros::WallTime::now();
-        }
-        else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
-        {
-          _node_status->status(interface::NodeStatus::RUNNING);
-        }
+        // LOG_MSG("RESET")
+        // change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
+        // if (_reset_start.isZero())
+        // {
+        //   _reset_start = ros::WallTime::now();
+        // }
+        // else if ((ros::WallTime::now() - _reset_start).toSec() > 30.0)
+        // {
+        //   LOG_MSG("Leaving RESET")
+        //   _node_status->status(interface::NodeStatus::RUNNING);
+        // }
 
-        continue;
-      }
-      else if (_node_status->status() == interface::NodeStatus::READY)
-      {
-        // Waiting for signal to start replanning
-        change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
         continue;
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {
         PRINT_MSG("[stela] Finished signal received. Exiting...")
         break;
-      }
-      else
-      {
-        auto invalid_status = _node_status;
-        DEBUG_VARS(invalid_status);
       }
       // _planner_clock_msg.header.stamp = ;
       // const bool call_replanner{ ros::Time::now() > _planner_clock_msg.cycle_end };
@@ -1804,6 +1844,7 @@ public:
 
   void initialize_graph()
   {
+    DEBUG_PRINT
     _x_curr = 0;
     _x_next = 1;
 
@@ -1811,13 +1852,18 @@ public:
     _values.insert(root_graph_values.second);
     _isam2_result = _isam.update(root_graph_values.first, root_graph_values.second);
 
+    DEBUG_PRINT
+
     insert_factors(_x_curr, _x_next);
 
     GraphValues graph_values{ _robot->idle_state_to_fg(_x_curr, _x_next, _time_as_variable) };
+    DEBUG_PRINT
 
     _values.insert(graph_values.second);
 
+    DEBUG_PRINT
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
+    DEBUG_PRINT
 
     insert_factors(_x_curr, _x_next);
 
@@ -1828,6 +1874,7 @@ public:
     _estimated_tree.edges.clear();
 
     _tree.clear();
+    DEBUG_PRINT
 
     _estimated_tree.root = next_node_index;
     _estimated_tree.nodes[next_node_index].index = next_node_index;
@@ -1837,12 +1884,14 @@ public:
     next_node_index++;
     EdgeNodePair edge_node{ motion_planning::create_edge_node(_estimated_tree.nodes[next_node_index - 1],
                                                               next_node_index) };
+    DEBUG_PRINT
 
     edge_node.first.plan.steps.emplace_back();
     _robot->plan_step(edge_node.first.plan.steps.back(), _robot->idle_control(), _robot->idle_dt());
 
     _estimated_tree.edges[edge_node.first.index] = edge_node.first;
     _estimated_tree.nodes[edge_node.second.index] = edge_node.second;
+    DEBUG_PRINT
 
     _current_future_nodes = 1;
 

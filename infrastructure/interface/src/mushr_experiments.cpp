@@ -93,39 +93,38 @@ struct runner_t
       // const interface::NodeStatus rosbag_ns{ rosbag_status->status() };  // == interface::NodeStatus::READY;
 
       int tot_running{ 0 };
+      if (_stela_status->status() == interface::NodeStatus::RUNNING)
+      {
+        // _mj_status->request_status(interface::NodeStatus::RESET);
+        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
+      }
+      else
+      {
+        _stela_status->request_status(interface::NodeStatus::RUNNING);
+        _rosbag_status->request_status(interface::NodeStatus::PAUSED);
+      }
       for (auto node_stat : _all_ns)
       {
-        if (node_stat->status() == interface::NodeStatus::READY)
-        {
-          auto& waiting_for_node = *node_stat;
-          // DEBUG_VARS(waiting_for_node)
-          node_stat->request_status(interface::NodeStatus::RUNNING);
-        }
-        else if (node_stat->status() == interface::NodeStatus::RUNNING)
+        if (node_stat->status() == interface::NodeStatus::RUNNING)
         {
           tot_running++;
-        }
-        else
-        {
-          auto& waiting_for_node = *node_stat;
-          DEBUG_VARS(waiting_for_node)
         }
       }
       if (_all_ns.size() == tot_running)
       {
         _initializing = false;
         _start = ros::WallTime::now();
-
-        // record("");
       }
     }
     else if (_collision)  // Collision detected
     {
       record("collision");
+      _collision = false;
     }
     else if (_goal_reached)  // Goal Reached
     {
       record("goal_reached");
+      _goal_reached = false;
     }
     else if ((now - _start).toSec() > _timeout)  // timeout check
     {
@@ -173,11 +172,12 @@ struct runner_t
       {
         stat->request_status(interface::NodeStatus::FINISH);
       }
-      ros::Duration(1.).sleep();
+      ros::Duration(5.).sleep();
       ros::shutdown();
     }
     _node_status->status(interface::NodeStatus::RESET);
     call_reset();
+    ros::Duration(5.).sleep();  // sleep for resets to happen
     _initializing = true;
   }
 

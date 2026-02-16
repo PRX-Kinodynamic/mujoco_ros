@@ -15,6 +15,7 @@
             <param name="rosbag_directory" value="$(arg rosbag_directory)"/>
             <param name="node_id" value="rosbag_recorder"/>
             <param name="rosbag_prefix" value="$(arg rosbag_prefix)"/>
+            <param name="verbose" value="true"/>
         </node>
     </group>
   

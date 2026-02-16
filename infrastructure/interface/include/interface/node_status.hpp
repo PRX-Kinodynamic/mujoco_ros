@@ -13,19 +13,19 @@ namespace interface
 class node_status_t
 {
   using This = node_status_t;
-  using StatusType = uint8_t;
 
   void init(ros::NodeHandle& nh, const std::string node_id)
   {
     _node_id = node_id;
     _msg.status = NodeStatus::INITIALIZING;
+    _new_request = false;
 
     const std::string current_topic{ "/nodes/status/" + node_id + "/current" };
     const std::string change_topic{ "/nodes/status/" + node_id + "/change" };
     if (_observer)
     {
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
-      _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, true);
+      _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, false);
     }
     else
     {
@@ -39,6 +39,7 @@ class node_status_t
   }
 
 public:
+  using StatusType = uint8_t;
   // using NodeSatus = interface::NodeStatus;
 
   // TODO: Should move it to private
@@ -80,7 +81,9 @@ public:
   {
     try
     {
-      status_change(msg->status);
+      _requested_status = msg->status;
+      _new_request = true;
+      // status_change(msg->status);
     }
     catch (std::exception)
     {
@@ -143,6 +146,21 @@ public:
     }
   }
 
+  inline bool new_request() const
+  {
+    return _new_request;
+  }
+
+  inline void request_acknowledged()
+  {
+    _new_request = false;
+  }
+
+  inline StatusType requested_status() const
+  {
+    return _requested_status;
+  }
+
   inline StatusType status() const
   {
     return _msg.status;
@@ -166,6 +184,9 @@ private:
   interface::NodeStatus _msg;
 
   std::string _node_id;
+
+  bool _new_request;
+  StatusType _requested_status;
 
   bool _observer;  // Monitor another node
 
