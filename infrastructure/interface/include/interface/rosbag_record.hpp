@@ -61,6 +61,7 @@ public:
   }
   void reset()
   {
+    PRINT_MSG("[rosbag_queue_t] RESETTING");
     _queue_mutex.lock();
     _total_msgs = 0;
     _t0 = ros::Time::now();

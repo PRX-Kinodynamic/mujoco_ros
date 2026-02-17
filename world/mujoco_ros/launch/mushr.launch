@@ -10,8 +10,9 @@
     <arg name="camera_config_file" default="$(find mujoco_ros)/config/mushr_mujoco_cam_0.yaml"/>
     
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen">
-            <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/>
+        <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen" required="true">
+            <!-- <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/> -->
+            <param name="model_path" type="string" value="$(find prx_models)/models/mushr/single_obstacle.xml"/>
             <param name="visualize_sim" value="$(arg visualize_sim)" />
             <param name="visualize_output" value="$(arg visualize_output)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />

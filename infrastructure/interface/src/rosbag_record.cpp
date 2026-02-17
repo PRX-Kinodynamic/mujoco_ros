@@ -268,24 +268,24 @@ struct bag_writer_t
     std::size_t msgs_left{ 0 };
     try
     {
-      for (std::size_t idx = 0; idx < queue.size(); ++idx)
+      // for (std::size_t idx = 0; idx < queue.size(); ++idx)
+      // {
+      if (!queue.empty())
       {
-        if (!queue.empty())
-        {
-          // const auto msg = queue[idx]._queue.front();
-          const auto msg = queue.get_next();
-          // const std::string topic_name{ queue[idx].topic_name() };
-          // const ros::Time& ti{ std::get<0>(msg) };
-          const std::string topic_name{ msg.getConnectionHeaderPtr()->at("topic") };
+        // const auto msg = queue[idx]._queue.front();
+        const auto msg = queue.get_next();
+        // const std::string topic_name{ queue[idx].topic_name() };
+        // const ros::Time& ti{ std::get<0>(msg) };
+        const std::string topic_name{ msg.getConnectionHeaderPtr()->at("topic") };
 
-          // auto msg_p = *(msg.getConnectionHeaderPtr());
-          // LOG_VARS(topic_name, msg_p)
-          // bag.write(topic_name, ti, std::get<1>(msg));
-          bag.write(topic_name, msg);
-          // queue[idx]._queue.pop();
-          msgs_left += queue.size();
-        }
+        // auto msg_p = *(msg.getConnectionHeaderPtr());
+        // LOG_VARS(topic_name, msg_p)
+        // bag.write(topic_name, ti, std::get<1>(msg));
+        bag.write(topic_name, msg);
+        // queue[idx]._queue.pop();
+        msgs_left += queue.size();
       }
+      // }
     }
     catch (const std::exception& ex)
     {
@@ -435,43 +435,44 @@ struct bag_writer_t
     return msgs_left;
   }
 
-  void bag_write()
-  {
-    interface::init_bag(&bag, rosbag_directory, rosbag_prefix);
+  // void bag_write()
+  // {
+  //   interface::init_bag(&bag, rosbag_directory, rosbag_prefix);
 
-    ros::Time msg_t;
+  //   ros::Time msg_t;
 
-    std::size_t msgs_left{ 0 };
+  //   std::size_t msgs_left{ 0 };
 
-    while (msgs_left > 0)
-    {
-      auto qs = _qs.all_qs();
-      const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-      // auto seq = std::make_index_sequence<qs_size>{};
-      msgs_left = process_all_queues(qs, std::make_index_sequence<qs_size>{});
-      // msgs_left = std::apply(&process_all_queues, all_qs());
-      // msgs_left = process_all_queues(bag,                                                    // no-lint
-      //                                float64_queue, string_queue, int32_queue, bool_queue,   // std_msgs
-      //                                ackermann_drive_stamped_queue,                          // ackermann
-      //                                image_queue, imu_queue, cam_info_queue,                 // Sensor::msgs
-      //                                twist_stamped_queue, pose2d_queue, pose_stamped_queue,  // geometry_msgs
-      //                                plan_queue, plan_st_queue, traj_queue, traj_st_queue,   // ml4kp
-      //                                spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
-      //                                prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         //
-      //                                prx_models 1 prx_mushr_obs_queue, // prx_models 2 tf_queue, // TF
-      //                                stamped_markers_queue, node_status_queue, planner_clock_queue,      // interface
-      //                                1 stela_status_queue, ctrls_plot_queue, sensor_data_stamped_queue,    //
-      //                                interface 2 marker_queue, marker_array_queue // vis_msgs
-      // );
-      if (stop)
-      {
-        ROS_INFO_STREAM_ONCE("Remaining messages: " << msgs_left);
-      }
-    }
+  //   while (msgs_left > 0)
+  //   {
+  //     auto qs = _qs.all_qs();
+  //     const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
+  //     // auto seq = std::make_index_sequence<qs_size>{};
+  //     msgs_left = process_all_queues(qs, std::make_index_sequence<qs_size>{});
+  //     // msgs_left = std::apply(&process_all_queues, all_qs());
+  //     // msgs_left = process_all_queues(bag,                                                    // no-lint
+  //     //                                float64_queue, string_queue, int32_queue, bool_queue,   // std_msgs
+  //     //                                ackermann_drive_stamped_queue,                          // ackermann
+  //     //                                image_queue, imu_queue, cam_info_queue,                 // Sensor::msgs
+  //     //                                twist_stamped_queue, pose2d_queue, pose_stamped_queue,  // geometry_msgs
+  //     //                                plan_queue, plan_st_queue, traj_queue, traj_st_queue,   // ml4kp
+  //     //                                spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
+  //     //                                prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         //
+  //     //                                prx_models 1 prx_mushr_obs_queue, // prx_models 2 tf_queue, // TF
+  //     //                                stamped_markers_queue, node_status_queue, planner_clock_queue,      //
+  //     interface
+  //     //                                1 stela_status_queue, ctrls_plot_queue, sensor_data_stamped_queue,    //
+  //     //                                interface 2 marker_queue, marker_array_queue // vis_msgs
+  //     // );
+  //     if (stop)
+  //     {
+  //       ROS_INFO_STREAM_ONCE("Remaining messages: " << msgs_left);
+  //     }
+  //   }
 
-    bag.close();
-    ROS_INFO_STREAM("Rosbag closed.");
-  }
+  //   bag.close();
+  //   ROS_INFO_STREAM("Rosbag closed.");
+  // }
 };
 int main(int argc, char** argv)
 {

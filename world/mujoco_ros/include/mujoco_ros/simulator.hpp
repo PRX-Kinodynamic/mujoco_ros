@@ -113,6 +113,11 @@ public:
     }
   }
 
+  inline interface::node_status_t::StatusType status() const
+  {
+    return _node_status->status();
+  }
+
   void set_control(const std::vector<double>& control)
   {
     if (control.size() != m->nu)
@@ -169,7 +174,7 @@ public:
         DEBUG_VARS(invalid_status);
       }
     }
-    ros::shutdown();
+    // ros::shutdown();
   }
 
   void step_simulation()
@@ -384,6 +389,11 @@ public:
       _sim->_mj_reset_mutex.unlock();
 
       r.sleep();
+
+      if (_sim->status() == interface::NodeStatus::FINISH)
+      {
+        break;
+      }
     }
     ros::shutdown();
   }

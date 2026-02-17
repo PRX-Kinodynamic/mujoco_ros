@@ -3,7 +3,8 @@
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
-  <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
+  <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/> -->
+  <!-- <arg name="environment" default="$(env ML4KP_ROS)/src/mujoco_ros/infrastructure/prx_models/models/environments/single_obstacle.yaml"/> -->
   <arg name="goal" default="[1.0, 5.0, 1.57]"/>
   <arg name="goal_radius" default="1.0"/>
   <arg name="timeout" default="120"/>
