@@ -1,3 +1,5 @@
+#ifndef TORCH_NOT_BUILT
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -171,3 +173,15 @@ int main(int argc, char** argv)
     return 1;
   }
 }
+
+#else
+
+#include <iostream>
+
+int main()
+{
+  std::cerr << "Torch not built. Cannot run sysid_eval." << std::endl;
+  return 1;
+}
+
+#endif

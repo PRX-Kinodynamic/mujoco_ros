@@ -1,5 +1,7 @@
 #pragma once
 #include <rosbag/bag.h>
+#include <atomic>
+#include <cstddef>
 #include <utils/std_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <utils/rosparams_utils.hpp>
@@ -22,13 +24,35 @@ inline void init_bag(rosbag::Bag* bag, const std::string rosbag_directory, const
 }
 
 template <typename Msg>
-class queued_callback_t
+class rosbag_queue_t
 {
+  using This = rosbag_queue_t<Msg>;
+  using Subscribers = std::vector<ros::Subscriber>;
+
 public:
-  using TupleQueue = std::queue<std::tuple<ros::Time, typename Msg::ConstPtr>>;
-  queued_callback_t() : _t0(ros::Time::now()) {};
-  queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
+  Subscribers _subscribers;
+  using Element = ros::MessageEvent<Msg>;
+  // using Element = ros::MessageEvent<std::pair<std::string, Msg>>;
+  // using Element = std::tuple<ros::Time, typename Msg::ConstPtr>;
+  using TupleQueue = std::queue<Element>;
+
+  rosbag_queue_t(const std::string type) : _expected_type(type), _t0(ros::Time::now()){};
+
+  // queued_callback_t() : _t0(ros::Time::now()){};
+  // queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
+  // {
+  // }
+  bool register_topic(const std::string& topic_name, const std::string topic_type, ros::NodeHandle& nh)
   {
+    bool status{ false };
+    if (topic_type == _expected_type)  // Must be a nicer way of checking MsgType/topic_type == expected
+    {
+      // _queues.emplace_back(topic_name);
+      // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+      _subscribers.push_back(nh.subscribe(topic_name, 10000, &This::callback, this));
+      status = true;
+    }
+    return status;
   }
 
   void pause(const bool p)
@@ -37,11 +61,11 @@ public:
   }
   void reset()
   {
+    _queue_mutex.lock();
+    _total_msgs = 0;
     _t0 = ros::Time::now();
+    _queue_mutex.unlock();
   }
-
-  static inline std::mutex _queue_mutex;
-  static inline TupleQueue _queue;
 
   void callback(const ros::MessageEvent<Msg const>& event)
   {
@@ -49,99 +73,141 @@ public:
       return;
 
     const ros::Time t_now{ event.getReceiptTime() };
-    if (t_now > _t0)
+    if (not t_now.isZero() and t_now > _t0)
     {
-      // const auto& map_str = event.getConnectionHeader();
-      // for (auto& pair : map_str)
-      // {
-      // DEBUG_VARS(_topic_name);
-      // DEBUG_VARS(event.getConnectionHeader());
-      // }
-
-      // DEBUG_VARS(event.getMessage())
-      // DEBUG_VARS(event.getConnectionHeader())
-      // DEBUG_VARS(event.getConnectionHeader().at("topic"))
-      // const std::string topic = event.getConnectionHeader().at("topic");
-      // DEBUG_VARS(_topic_name, topic, topic == _topic_name);
-      // prx_assert(topic == _topic_name, "Topics don't match. Expected: " << _topic_name << " Got: " << topic);
       try
       {
-        _queue.push(std::make_tuple(t_now, event.getMessage()));
+        _queue_mutex.lock();
+
+        // auto topic_name = event.getConnectionHeaderPtr()->at("topic");
+
+        _queue.push(event);
+        // _queue.push(std::make_tuple(t_now, event.getMessage()));
+        _total_msgs++;
+        _queue_mutex.unlock();
       }
       catch (...)
       {
-        std::cout << "Error at topic: " << _topic_name << std::endl;
+        std::cout << "Error at [queued_callback_t]" << std::endl;
       }
     }
   }
 
-  std::string topic_name() const
+  std::size_t total_msgs() const
   {
-    return _topic_name;
+    // _queue_mutex.lock();
+    // const std::size_t msgs{ _total_msgs };
+    // _queue_mutex.unlock();
+    return _total_msgs;
+    // return msgs;
+    // return 1;
+  }
+  // std::string topic_name() const
+  // {
+  //   return _topic_name;
+  // }
+
+  std::size_t size() const
+  {
+    return _queue.size();
+  }
+  bool empty() const
+  {
+    return _queue.empty();
   }
 
-private:
-  std::string _topic_name;
+  Element get_next()
+  {
+    _queue_mutex.lock();
+    const Element msg{ _queue.front() };
+    _queue.pop();
+    _queue_mutex.unlock();
+    return msg;
+  }
+
+protected:
+  static inline std::mutex _queue_mutex;
+  static inline TupleQueue _queue;
+
+  static inline std::atomic<std::size_t> _total_msgs;
+  // std::size_t _total_msgs;
+  // std::string _topic_name;
+  std::string _expected_type;
   ros::Time _t0;
 
   bool _pause;
 };
 
-template <typename Msg>
-class queues_t
-{
-public:
-  using QCallback = queued_callback_t<Msg>;
-  using Subscribers = std::vector<ros::Subscriber>;
+// template <typename Msg>
+// class queues_t
+// {
+// public:
+//   using QCallback = queued_callback_t<Msg>;
+//   using Subscribers = std::vector<ros::Subscriber>;
 
-  bool register_topic(const std::string& topic_name, const std::string topic_type, const std::string expected_type,
-                      ros::NodeHandle& nh)
-  {
-    bool status{ false };
-    if (topic_type == expected_type)  // Must be a nicer way of checking MsgType/topic_type == expected
-    {
-      _queues.emplace_back(topic_name);
-      // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
-      _subscribers.push_back(nh.subscribe(topic_name, 10000, &QCallback::callback, &_queues.back()));
-      status = true;
-    }
-    return status;
-  }
+//   queues_t(const std::string type) : _expected_type(type)
+//   {
+//   }
 
-  void pause(const bool p)
-  {
-    for (int i = 0; i < size(); ++i)
-    {
-      _queues[i].pause(p);
-    }
-  }
+//   bool register_topic(const std::string& topic_name, const std::string topic_type, ros::NodeHandle& nh)
+//   {
+//     bool status{ false };
+//     if (topic_type == _expected_type)  // Must be a nicer way of checking MsgType/topic_type == expected
+//     {
+//       // _queues.emplace_back(topic_name);
+//       // subscribers.push_back(nh.subscribe(topic_name, 100, &QCallback::callback, &_queues.back()));
+//       _subscribers.push_back(nh.subscribe(topic_name, 10000, &QCallback::callback, &_queues.back()));
+//       status = true;
+//     }
+//     return status;
+//   }
 
-  void reset()
-  {
-    for (int i = 0; i < size(); ++i)
-    {
-      _queues[i].reset();
-    }
-  }
+//   void pause(const bool p)
+//   {
+//     for (int i = 0; i < size(); ++i)
+//     {
+//       _queues[i].pause(p);
+//     }
+//   }
 
-  std::size_t size() const
-  {
-    return _queues.size();
-  }
+//   void reset()
+//   {
+//     for (int i = 0; i < size(); ++i)
+//     {
+//       _queues[i].reset();
+//     }
+//   }
 
-  QCallback operator[](const std::size_t& idx) const
-  {
-    return _queues[idx];
-  }
+//   std::size_t size() const
+//   {
+//     return _queues.size();
+//   }
 
-  QCallback& operator[](const std::size_t& idx)
-  {
-    return _queues[idx];
-  }
+//   QCallback operator[](const std::size_t& idx) const
+//   {
+//     return _queue;
+//   }
 
-private:
-  std::vector<QCallback> _queues;
-  Subscribers _subscribers;
-};
+//   QCallback& operator[](const std::size_t& idx)
+//   {
+//     return _queue;
+//   }
+//   std::size_t total_msgs() const
+//   {
+//     std::size_t tot{ 0 };
+//     for (int i = 0; i < size(); ++i)
+//     {
+//       // tot += 1;
+//       tot += _queue.total_msgs();
+//     }
+//     return tot;
+//   }
+
+// private:
+//   // std::vector<QCallback> _queues;
+//   QCallback _queue;
+//   Subscribers _subscribers;
+//   std::string _expected_type;
+// };
 
 }  // namespace interface

@@ -14,12 +14,13 @@
 #include <interface/SensorDataStamped.h>
 #include <prx_models/mushr_factors.hpp>
 #include <prx_models/mushr.hpp>
+#include "utils/dbg_utils.hpp"
 
 struct runner_t
 {
   using State = prx_models::mushr_types::State::type;
 
-  ros::Timer _timer;
+  ros::Timer _timer, _verbose_timer;
   ros::Subscriber _sensor_subscriber, _collision_subscriber;
 
   State _state, _goal;
@@ -37,7 +38,10 @@ struct runner_t
 
   int _curr_experiment, _total_experiments;
 
-  runner_t(ros::NodeHandle& nh) : _collision(false), _goal_reached(false), _initializing(true), _curr_experiment(0)
+  Eigen::Vector3d _error;
+
+  runner_t(ros::NodeHandle& nh)
+    : _collision(false), _goal_reached(false), _initializing(true), _curr_experiment(0), _error(10, 10, 10)
   {
     std::string sensor_topic_name, collision_topic_name;
     std::string stela_node_id, mj_node_id, rosbag_node_id;
@@ -75,45 +79,59 @@ struct runner_t
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
     _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
 
-    _mj_status->request_status(interface::NodeStatus::RESET);
-
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
+    _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
     init();
+    _mj_status->request_status(interface::NodeStatus::RESET);
+  }
+
+  ~runner_t()
+  {
+    _node_status->status(interface::NodeStatus::FINISH);
+    ros::Duration(1.0).sleep();
+  }
+
+  void verbose_timer_callback(const ros::TimerEvent& event)
+  {
+    const double time_remaining{ (ros::WallTime::now() - _start).toSec() };
+    const double& timeout{ _timeout };
+    const auto goal_error = _error.transpose();
+    DEBUG_VARS(time_remaining, timeout, goal_error);
   }
 
   void timer_callback(const ros::TimerEvent& event)
   {
     const ros::WallTime now(ros::WallTime::now());
+
     if (_initializing)  // Start
     {
       _node_status->status(interface::NodeStatus::INITIALIZING);
-      // bool start_experiment{ true };
-      // const interface::NodeStatus mj_ns{ mj_status->status() };
-      // const interface::NodeStatus stela_ns{ stela_status->status() };    // == interface::NodeStatus::READY;
-      // const interface::NodeStatus rosbag_ns{ rosbag_status->status() };  // == interface::NodeStatus::READY;
 
       int tot_running{ 0 };
-      if (_stela_status->status() == interface::NodeStatus::RUNNING)
+      if (_mj_status->status() == interface::NodeStatus::RUNNING and
+          _rosbag_status->status() == interface::NodeStatus::RUNNING and
+          _stela_status->status() == interface::NodeStatus::RUNNING)
       {
-        // _mj_status->request_status(interface::NodeStatus::RESET);
-        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
+        PRINT_MSG("ALL RUNNING ");
+        _initializing = false;
+      }
+      else if (_mj_status->status() == interface::NodeStatus::RUNNING and
+               _rosbag_status->status() == interface::NodeStatus::RUNNING)
+      {
+        // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
+        _stela_status->request_status(interface::NodeStatus::RUNNING);
+        _start = ros::WallTime::now();
       }
       else
       {
-        _stela_status->request_status(interface::NodeStatus::RUNNING);
-        _rosbag_status->request_status(interface::NodeStatus::PAUSED);
-      }
-      for (auto node_stat : _all_ns)
-      {
-        if (node_stat->status() == interface::NodeStatus::RUNNING)
-        {
-          tot_running++;
-        }
-      }
-      if (_all_ns.size() == tot_running)
-      {
-        _initializing = false;
+        // DEBUG_VARS(_mj_status)
+        // DEBUG_VARS(_rosbag_status)
+        // DEBUG_VARS(_stela_status)
         _start = ros::WallTime::now();
+        _mj_status->request_status(interface::NodeStatus::RUNNING);
+        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
+        ros::Duration(1.0).sleep();
+        // _stela_status->request_status(interface::NodeStatus::RUNNING);
       }
     }
     else if (_collision)  // Collision detected
@@ -148,6 +166,8 @@ struct runner_t
   {
     std::string file_path{ _file_prefix + "_" + utils::timestamp() + ".txt" };
     _ofs.open(file_path);
+    ros::Duration(5.0).sleep();
+    _mj_status->request_status(interface::NodeStatus::RESET);
   }
 
   void record(const std::string reason)
@@ -197,8 +217,8 @@ struct runner_t
     if (not _goal_reached)
     {
       const State between{ _state.between(_goal) };
-      const Eigen::VectorXd error{ State::Logmap(between) };
-      _goal_reached = error.norm() < _goal_radius;
+      _error = State::Logmap(between);
+      _goal_reached = _error.norm() < _goal_radius;
     }
   }
 };

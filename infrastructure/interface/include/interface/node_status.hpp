@@ -6,6 +6,7 @@
 
 #include <interface/NodeStatus.h>
 #include <utils/rosparams_utils.hpp>
+#include "utils/dbg_utils.hpp"
 
 namespace interface
 {
@@ -26,6 +27,8 @@ class node_status_t
     {
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
       _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, false);
+      _timer = nh.createTimer(ros::Rate(2.0), &This::update, this);
+      status_change(NodeStatus::TIMEOUT);
     }
     else
     {
@@ -73,7 +76,17 @@ public:
 
   void update(const ros::TimerEvent& t)
   {
-    _status_publisher.publish(_msg);
+    if (_observer)
+    {
+      if ((ros::Time::now() - _last_status_stamp).toSec() < 5.0)
+      {
+        status_change(NodeStatus::TIMEOUT);
+      }
+    }
+    else
+    {
+      _status_publisher.publish(_msg);
+    }
   }
 
   // TODO: add option to call custom function to check status
@@ -81,8 +94,16 @@ public:
   {
     try
     {
-      _requested_status = msg->status;
-      _new_request = true;
+      if (_observer)
+      {
+        status_change(msg->status);
+        // DEBUG_VARS(*this)
+      }
+      else
+      {
+        _requested_status = msg->status;
+        _new_request = true;
+      }
       // status_change(msg->status);
     }
     catch (std::exception)
@@ -120,6 +141,9 @@ public:
       case NodeStatus::ERROR:
         str = "RESET";
         break;
+      case NodeStatus::TIMEOUT:
+        str = "TIMEOUT";
+        break;
       default:
         prx_throw("[node_status_t] Status unknown");
     }
@@ -137,8 +161,8 @@ public:
   {
     if (_observer)
     {
-      _msg.status = status;
-      _change_publisher.publish(_msg);
+      _msg_req.status = status;
+      _change_publisher.publish(_msg_req);
     }
     else
     {
@@ -176,12 +200,14 @@ private:
   {
     const StatusType current{ _msg.status };
 
+    _last_status_stamp = ros::Time::now();
     _msg.status = new_status;
     if (not _observer)
       _status_publisher.publish(_msg);
   }
 
-  interface::NodeStatus _msg;
+  ros::Time _last_status_stamp;
+  interface::NodeStatus _msg, _msg_req;
 
   std::string _node_id;
 

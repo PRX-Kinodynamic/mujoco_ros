@@ -75,6 +75,6 @@ topics:
     type: "visualization_msgs::Marker"
   - name: "/mushr/tree/nodes/marker"
     type: "visualization_msgs::Marker"
-
-
+  - name: "/kraft/status"
+    type: "interface::ReplannerStatus"
 

@@ -26,6 +26,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include <ros/ros.h>
 #include <Eigen/Dense>
@@ -490,9 +491,8 @@ public:
 
   // N-step rollout evaluation
   void evaluate_n_step_rollout(const std::vector<StateDot>& gt_xd, const std::vector<Eigen::Vector3d>& gt_pose,
-                               const std::vector<Control>& controls, int horizon,
-                               std::vector<double>& final_pos_errors, std::vector<double>& final_vel_errors,
-                               std::vector<double>& final_angle_errors)
+                               const std::vector<Control>& controls, int horizon, std::vector<double>& final_pos_errors,
+                               std::vector<double>& final_vel_errors, std::vector<double>& final_angle_errors)
   {
     int T = static_cast<int>(gt_xd.size());
     int num_rollouts = T - horizon;
@@ -806,7 +806,8 @@ void run_evaluation(ros::NodeHandle& nh)
 
     all_nstep_final_pos_errors.insert(all_nstep_final_pos_errors.end(), nstep_final_pos.begin(), nstep_final_pos.end());
     all_nstep_final_vel_errors.insert(all_nstep_final_vel_errors.end(), nstep_final_vel.begin(), nstep_final_vel.end());
-    all_nstep_final_angle_errors.insert(all_nstep_final_angle_errors.end(), nstep_final_angle.begin(), nstep_final_angle.end());
+    all_nstep_final_angle_errors.insert(all_nstep_final_angle_errors.end(), nstep_final_angle.begin(),
+                                        nstep_final_angle.end());
 
     valid_trajs++;
 
@@ -1199,6 +1200,8 @@ int main(int argc, char** argv)
 }
 
 #else
+
+#include <iostream>
 
 int main()
 {

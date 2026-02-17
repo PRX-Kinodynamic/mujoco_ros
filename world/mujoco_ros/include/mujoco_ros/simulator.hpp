@@ -6,6 +6,7 @@
 #include <thread>
 
 #include <geometry_msgs/Pose2D.h>
+#include <ros/init.h>
 #include <std_msgs/Float64.h>
 #include <ml4kp_bridge/defs.h>
 #include "interface/NodeStatus.h"
@@ -168,6 +169,7 @@ public:
         DEBUG_VARS(invalid_status);
       }
     }
+    ros::shutdown();
   }
 
   void step_simulation()

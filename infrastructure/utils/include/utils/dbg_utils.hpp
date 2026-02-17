@@ -158,6 +158,13 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
     const std::string msg{ MSG };                                                                                      \
     LOG_VARS(msg)                                                                                                      \
   };
+
+#define LOG_LINE()                                                                                                     \
+  {                                                                                                                    \
+    const auto line = __LINE__;                                                                                        \
+    LOG_VARS(line)                                                                                                     \
+  };
+
 #define PRINT_MSG(MSG)                                                                                                 \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \

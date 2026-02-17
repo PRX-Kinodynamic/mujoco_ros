@@ -23,7 +23,8 @@ class environment_publisher_t : public Base
   using Derived = environment_publisher_t<Base>;
 
 public:
-  environment_publisher_t() : _viz_env_name("/environment_marker_array"), _reload_service_name("/environment/reload")
+  environment_publisher_t()
+    : _viz_env_name("/environment_marker_array"), _reload_service_name("/environment/reload"), _msg_valid(false)
   {
   }
 
@@ -42,6 +43,8 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, 1.0, 0.0 }));
     PARAM_SETUP_WITH_DEFAULT(private_nh, environment_file, "");
 
+    _timer = private_nh.createTimer(ros::Rate(1.0), &Derived::update, this);
+
     // publishers
     _environment_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(_viz_env_name, 1, true);
 
@@ -53,6 +56,11 @@ public:
       read_and_publish_environment(_environment_file);
     }
     PRINT_MSG("Environment Publisher initialized")
+  }
+  void update(const ros::TimerEvent& t)
+  {
+    if (_msg_valid)
+      _environment_publisher.publish(_msg);
   }
 
   bool reload_environment_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
@@ -72,7 +80,6 @@ protected:
 
   void read_and_publish_environment(const std::string filename)
   {
-    visualization_msgs::MarkerArray msg{};
     const prx::PairNameObstacles obstacles{ prx::load_obstacles(filename) };
     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacles.second };
     const std::vector<std::string> obstacle_names{ obstacles.first };
@@ -144,13 +151,13 @@ protected:
             marker.scale.y = geom_params[0] * 2.0;  // Ros needs diameter, prx in rad
             marker.scale.z = geom_params[0] * 2.0;
           }
-          msg.markers.push_back(marker);
+          _msg.markers.push_back(marker);
         }
       }
 
       // msg.markers.push_back(marker);
     }
-    _environment_publisher.publish(msg);
+    _msg_valid = true;
   }
 
   using Color = std::array<double, 4>;
@@ -173,6 +180,9 @@ protected:
     return Color{ alpha, red, blue, green };
   }
 
+  bool _msg_valid;
+  visualization_msgs::MarkerArray _msg;
+
   std::string _environment_file;
 
   // Topic names
@@ -184,6 +194,8 @@ protected:
 
   // Publishers
   ros::Publisher _environment_publisher;
+
+  ros::Timer _timer;
 
   ros::ServiceServer _reload_service;
 };
