@@ -358,7 +358,7 @@ public:
     // update_estimated_tree();
     change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
 
-    _node_status->status(interface::NodeStatus::READY);
+    _node_status->status(interface::NodeStatus::PAUSED);
 
     PRINT_MSG("Stela Running")
   }
@@ -468,6 +468,11 @@ public:
         _node_status->status(req_status);
         _node_status->request_acknowledged();
       }
+      else if (current_status == interface::NodeStatus::PAUSED)
+      {
+        _node_status->status(req_status);
+        _node_status->request_acknowledged();
+      }
       else if (current_status == interface::NodeStatus::RESET)
       {
         if (req_status == interface::NodeStatus::RUNNING)
@@ -517,6 +522,10 @@ public:
         _reset_start = ros::WallTime::ZERO;
         // keep going...
       }
+      else if (_node_status->status() == interface::NodeStatus::PAUSED)
+      {
+        continue;
+      }
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
         // LOG_MSG("RESET")
@@ -537,6 +546,12 @@ public:
       {
         PRINT_MSG("[stela] Finished signal received. Exiting...")
         break;
+      }
+      else
+      {
+        auto invalid_status = _node_status;
+        DEBUG_VARS(invalid_status);
+        continue;
       }
       // _planner_clock_msg.header.stamp = ;
       // const bool call_replanner{ ros::Time::now() > _planner_clock_msg.cycle_end };
