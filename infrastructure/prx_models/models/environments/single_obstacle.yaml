@@ -1,0 +1,51 @@
+environment:
+    type: obstacle
+    root_configuration:
+      position: [0,0,0]
+      orientation: [0,0,0,1]
+    geometries:
+      -
+        name: obstacle_0
+        collision_geometry:
+          type: box
+          dims: [ .2, .2, .2]
+          material: 0x0015ff
+        config:
+          position: [1, 2.5, .1]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_down
+        collision_geometry:
+          type: box
+          dims: [2.5, .1, .2]
+          material: 0x0015ff
+        config:
+          position: [1, -1, .1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_up
+        collision_geometry:
+          type: box
+          dims: [2.5, .1, .2]
+          material: 0x0015ff
+        config:
+          position: [1, 6, .1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_left
+        collision_geometry:
+          type: box
+          dims: [ .1, 7, .1]
+          material: 0x0015ff
+        config:
+          position: [-.25, 2.5, .1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_right
+        collision_geometry:
+          type: box
+          dims: [ .1, 7, .1]
+          material: 0x0015ff
+        config:
+          position: [2.25, 2.5, .1]
+          orientation: [0,0,0,1]
