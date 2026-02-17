@@ -16,12 +16,12 @@
     <arg name="environment" value="$(arg environment)" />
     <arg name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
 
-    <!-- <arg name="mushr_model" value="analytical" /> -->
-    <arg name="mushr_model" value="torch" />
+    <arg name="mushr_model" value="analytical" />
+    <!-- <arg name="mushr_model" value="torch" /> -->
     <!-- <arg name="mushr_model" value="mujoco" /> -->
-    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+    <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
     <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_mujoco.yaml"/> -->
-    <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/>
+    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/> -->
   </include>
 
   <!-- <include file="$(find task_planning)/launch/fix_plan.launch"/> -->
