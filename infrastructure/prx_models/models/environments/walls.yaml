@@ -1,22 +1,9 @@
 environment:
-    name: "single_obstacle"
     type: obstacle
-    bounds:
-      min: [ -0.3, -1., -1]
-      max: [ +2.3, +6.,  1]
     root_configuration:
       position: [0,0,0]
       orientation: [0,0,0,1]
     geometries:
-      -
-        name: obstacle_0
-        collision_geometry:
-          type: box
-          dims: [ .2, .2, .2]
-          material: 0x0015ff
-        config:
-          position: [1, 2.5, .1]
-          orientation: [0,0,0,1]
       - 
         name: wall_down
         collision_geometry:

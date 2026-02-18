@@ -1,7 +1,7 @@
 #pragma once
-#include <unordered_set>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <prx/utilities/general/prx_assert.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
@@ -24,7 +24,11 @@ class environment_publisher_t : public Base
 
 public:
   environment_publisher_t()
-    : _viz_env_name("/environment_marker_array"), _reload_service_name("/environment/reload"), _msg_valid(false)
+    : _viz_env_name("/environment_marker_array")
+    , _reload_service_name("/environment/reload")
+    , _bounds_name("/bounds")
+    , _msg_valid(false)
+    , _bounds_valid(false)
   {
   }
 
@@ -33,56 +37,119 @@ public:
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
     // ros::NodeHandle private_nh("~");
 
-    std::string& environment_file{ _environment_file };
+    std::string& environment{ _environment_file };
+    // std::string& environment_file{ _environment_file };
     std::vector<double> color{};
 
     // _tree_topic_name = ros::this_node::getNamespace() + _tree_topic_name;
+    _bounds_name = ros::this_node::getNamespace() + _bounds_name;
     _viz_env_name = ros::this_node::getNamespace() + _viz_env_name;
     _reload_service_name = ros::this_node::getNamespace() + _reload_service_name;
 
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, 1.0, 0.0 }));
-    PARAM_SETUP_WITH_DEFAULT(private_nh, environment_file, "");
 
+    // This assumes "environment" is a string that has the content of the yaml file
+    // This is, it was read by ros param as:
+    // This setup allows to specify the environment once and be read in multiple programs
+    // <param name="environment" textfile="$(find PACKAGE)/PATH/TO/ENVIRONMENT.yaml" />
+    GLOBAL_PARAM_SETUP(environment);
+
+    // DEBUG_VARS(environment)
     _timer = private_nh.createTimer(ros::Rate(1.0), &Derived::update, this);
 
     // publishers
+    _bounds_publisher = private_nh.advertise<visualization_msgs::Marker>(_bounds_name, 1, true);
     _environment_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(_viz_env_name, 1, true);
 
-    _reload_service = private_nh.advertiseService(_reload_service_name, &Derived::reload_environment_callback, this);
+    _params.from_string(_environment_file);
 
-    if (environment_file != "")
-    {
-      DEBUG_VARS(_environment_file);
-      read_and_publish_environment(_environment_file);
-    }
+    prx_assert(_params.exists("environment"), "Params: 'environment' needed");
+    prx_assert(_params.exists("environment/name"), "Params: 'environment/name' needed");
+    prx_assert(_params.exists("environment/bounds"), "Params: 'environment/bounds' needed");
+
+    const std::string environment_name{ _params["environment/name"].as<std::string>() };
+
+    DEBUG_VARS(environment_name)
+
+    read_and_publish_environment();
+    // }
     PRINT_MSG("Environment Publisher initialized")
   }
   void update(const ros::TimerEvent& t)
   {
     if (_msg_valid)
       _environment_publisher.publish(_msg);
+    if (_bounds_valid)
+      _bounds_publisher.publish(_bounds_marker);
   }
 
-  bool reload_environment_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
-  {
-    PRINT_MSG("Environment Publisher service called")
-    read_and_publish_environment(_environment_file);
-    return true;
-  }
+  // bool reload_environment_callback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+  // {
+  //   PRINT_MSG("Environment Publisher service called")
+  //   read_and_publish_environment(_environment_file);
+  //   return true;
+  // }
 
 protected:
-  bool filename_callback(ml4kp_bridge::SendString::Request& request, ml4kp_bridge::SendString::Response& response)
+  // bool filename_callback(ml4kp_bridge::SendString::Request& request, ml4kp_bridge::SendString::Response& response)
+  // {
+  //   PRINT_MSG("NOT SUPPORTED");
+  //   // const std::string filename{ request.string };
+  //   // read_and_publish_environment(filename);
+  //   return true;
+  // }
+  void publish_bounds(prx::obstacle_loader_t& obstacle_loader)
   {
-    const std::string filename{ request.string };
-    read_and_publish_environment(filename);
-    return true;
+    std::vector<double> max_bounds{ _params["environment/bounds/max"].as<std::vector<double>>() };
+    std::vector<double> min_bounds{ _params["environment/bounds/min"].as<std::vector<double>>() };
+    // std::vector<double> position{ _params["environment/root_configuration/position"].as<std::vector<double>>() };
+    // std::vector<double> orientation{ _params["environment/root_configuration/orientation"].as<std::vector<double>>()
+    // };
+
+    const double x_diff{ max_bounds[0] - min_bounds[0] };
+    const double y_diff{ max_bounds[1] - min_bounds[1] };
+    const double z_diff{ max_bounds[2] - min_bounds[2] };
+
+    const double x_half{ (max_bounds[0] + min_bounds[0]) / 2.0 };
+    const double y_half{ (max_bounds[1] + min_bounds[1]) / 2.0 };
+    const double z_half{ (max_bounds[2] + min_bounds[2]) / 2.0 };
+
+    _bounds_marker.header.frame_id = "world";
+    _bounds_marker.header.stamp = ros::Time();
+    _bounds_marker.ns = "bounds";
+    _bounds_marker.id = 0;
+    _bounds_marker.action = visualization_msgs::Marker::ADD;
+
+    _bounds_marker.pose.position.x = x_half;
+    _bounds_marker.pose.position.y = y_half;
+    _bounds_marker.pose.position.z = z_half;
+    _bounds_marker.pose.orientation.x = 0.0;
+    _bounds_marker.pose.orientation.y = 0.0;
+    _bounds_marker.pose.orientation.z = 0.0;
+    _bounds_marker.pose.orientation.w = 1.0;
+    _bounds_marker.color.a = 0.1;  // Don't forget to set the alpha!
+    _bounds_marker.color.r = 1.0;
+    _bounds_marker.color.g = 0.0;
+    _bounds_marker.color.b = 0.0;
+
+    _bounds_marker.type = visualization_msgs::Marker::CUBE;
+    _bounds_marker.scale.x = x_diff;
+    _bounds_marker.scale.y = y_diff;
+    _bounds_marker.scale.z = z_diff;
+
+    _bounds_valid = true;
   }
 
-  void read_and_publish_environment(const std::string filename)
+  void read_and_publish_environment()
   {
-    const prx::PairNameObstacles obstacles{ prx::load_obstacles(filename) };
-    const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacles.second };
-    const std::vector<std::string> obstacle_names{ obstacles.first };
+    // DEBUG_VARS(pl)
+
+    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(_params) };
+    publish_bounds(obstacle_loader);
+    // const prx::PairNameObstacles obstacles{ prx::obstacle_loader_t(pl) };
+
+    const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles() };
+    const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
 
     for (int i = 0; i < obstacle_list.size(); ++i)
     {
@@ -157,6 +224,9 @@ protected:
 
       // msg.markers.push_back(marker);
     }
+
+    // const Eigen::Vector min_bounds{ obstacle_loader.min_bounds() };
+    // const Eigen::Vector max_bounds{ obstacle_loader.max_bounds() };
     _msg_valid = true;
   }
 
@@ -180,7 +250,12 @@ protected:
     return Color{ alpha, red, blue, green };
   }
 
-  bool _msg_valid;
+  visualization_msgs::Marker _bounds_marker;
+
+  prx::param_loader _params;
+
+  bool _msg_valid, _bounds_valid;
+  std::string _bounds_name;
   visualization_msgs::MarkerArray _msg;
 
   std::string _environment_file;
@@ -193,7 +268,7 @@ protected:
   ros::Subscriber _tree_subscriber;
 
   // Publishers
-  ros::Publisher _environment_publisher;
+  ros::Publisher _environment_publisher, _bounds_publisher;
 
   ros::Timer _timer;
 

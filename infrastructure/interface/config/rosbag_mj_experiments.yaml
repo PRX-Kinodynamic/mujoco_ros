@@ -27,6 +27,8 @@ topics:
     type: "interface::PlannerClock"
   - name: "/environment_marker_array"
     type: "visualization_msgs::MarkerArray"
+  - name: "/bounds"
+    type: "visualization_msgs::Marker"
   - name: "/mushr/collision"
     type: "std_msgs::Bool"
   - name: "/stela/isam/status"

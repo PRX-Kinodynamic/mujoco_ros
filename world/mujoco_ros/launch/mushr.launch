@@ -5,14 +5,17 @@
     <arg name="publish_camera" default="true" />
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
-    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
-    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/> -->
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/> -->
+    <arg name="environment" default="empty"/>
     <arg name="camera_config_file" default="$(find mujoco_ros)/config/mushr_mujoco_cam_0.yaml"/>
     
+    <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
+
     <group ns="mushr">
         <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen" required="true">
             <!-- <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/> -->
-            <param name="model_path" type="string" value="$(find prx_models)/models/mushr/single_obstacle.xml"/>
+            <param name="model_path" type="string" value="$(find prx_models)/models/mushr/$(arg environment).xml"/>
             <param name="visualize_sim" value="$(arg visualize_sim)" />
             <param name="visualize_output" value="$(arg visualize_output)" />
             <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
@@ -33,7 +36,7 @@
     <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
         args="load utils/EnvironmentPublisher mj_nodelet" 
         output="screen">
-        <param name="environment_file" value="$(arg environment)" />
+        <!-- <param name="environment_file" value="$(find prx_models)/models/environments/$(arg environment).yaml" /> -->
         <!-- <param name="publisher_topic" value="/mushr/control" /> -->
         <!-- <param name="frequency" value="100" /> -->
     </node>   

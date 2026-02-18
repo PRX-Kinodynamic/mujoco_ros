@@ -1,5 +1,5 @@
 environment:
-    name: "single_obstacle"
+    name: "movable"
     type: obstacle
     bounds:
       min: [ -0.3, -1., -1]
@@ -12,10 +12,10 @@ environment:
         name: obstacle_0
         collision_geometry:
           type: box
-          dims: [ .2, .2, .2]
+          dims: [ 1., 1., .2]
           material: 0x0015ff
         config:
-          position: [1, 2.5, .1]
+          position: [0.5, 2.0, .1]
           orientation: [0,0,0,1]
       - 
         name: wall_down
@@ -39,7 +39,7 @@ environment:
         name: wall_left
         collision_geometry:
           type: box
-          dims: [ .1, 7, .1]
+          dims: [ .1, 7, .2]
           material: 0x0015ff
         config:
           position: [-.25, 2.5, .1]
@@ -48,7 +48,7 @@ environment:
         name: wall_right
         collision_geometry:
           type: box
-          dims: [ .1, 7, .1]
+          dims: [ .1, 7, .2]
           material: 0x0015ff
         config:
           position: [2.25, 2.5, .1]

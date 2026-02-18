@@ -9,10 +9,10 @@
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
 #define ROS_PARAM_SETUP(nh, var) (utils::get_param_and_check(nh, GET_VARIABLE_NAME(var), var))
-#define GLOBAL_PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, "/" #var, var)
 #define PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, GET_VARIABLE_NAME(var), var)
 #define NODELET_PARAM_SETUP(nh, var) PARAM_NAME_SETUP(nh, GET_VARIABLE_NAME(var), var)
 #define PARAM_SETUP_WITH_DEFAULT(nh, var, default_value) NODELET_PARAM_SETUP_WITH_DEFAULT(nh, var, default_value)
+#define GLOBAL_PARAM_SETUP(var) (utils::get_global_param_and_check(GET_VARIABLE_NAME(var), var))
 
 namespace utils
 {
@@ -31,6 +31,13 @@ void get_param_and_check(ros::NodeHandle& nh, const std::string var_name, T& var
     ROS_FATAL_STREAM(ros_namespace << ": Parameter " << var_name << " is needed.");
     exit(-1);
   }
+}
+
+template <typename T>
+void get_global_param_and_check(const std::string var_name, T& var)
+{
+  ros::NodeHandle nh("");
+  get_param_and_check(nh, var_name, var);
 }
 
 inline void get_value(int& value, const XmlRpc::XmlRpcValue& input)
