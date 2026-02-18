@@ -131,11 +131,12 @@ struct replanner_t
 
     PARAM_SETUP(nh, sbmp_full_tree_topic);
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
-    PARAM_SETUP(nh, environment);
+    // PARAM_SETUP(nh, environment);
 
+    GLOBAL_PARAM_SETUP(environment);
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
 
-    DEBUG_VARS(environment)
+    // DEBUG_VARS(environment)
     // planner_replanning_service.set_preprocess_timeout(preprocess_timeout);
     // planner_replanning_service.set_postprocess_timeout(postprocess_timeout);
 
@@ -269,10 +270,17 @@ struct replanner_t
 
     prx_assert(_plant != nullptr, "Failed to create plant");
 
+    prx::param_loader env_params;
+    env_params.from_string(_environment);
+
+    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
     // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
-    auto obstacles = prx::load_obstacles(_environment);
-    _obstacle_list = obstacles.second;
-    _obstacle_names = obstacles.first;
+    // auto obstacles = prx::load_obstacles(_environment);
+    _obstacle_list = obstacle_loader.get_obstacles();
+    _obstacle_names = obstacle_loader.get_names();
+
+    //     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles() };
+    // const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
 
     const std::vector<prx::system_ptr_t> all_systems{ { _plant } };
     const std::vector<std::shared_ptr<prx::movable_object_t>> all_obstacles{ { _obstacle_list } };

@@ -194,6 +194,8 @@ public:
 
     _node_status = interface::node_status_t::create(private_nh);
 
+    GLOBAL_PARAM_SETUP(environment)
+
     PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
     PARAM_SETUP(private_nh, replanner_solution_duration);
@@ -207,7 +209,6 @@ public:
     PARAM_SETUP(private_nh, robot_frame);
     PARAM_SETUP(private_nh, output_dir)
     PARAM_SETUP(private_nh, collision_topic)
-    PARAM_SETUP(private_nh, environment)
     PARAM_SETUP(private_nh, obstacle_mode)
     PARAM_SETUP(private_nh, obstacle_distance_tolerance)
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
@@ -247,11 +248,12 @@ public:
       if (sdf_params == "")
         prx_throw("No SDF params!");
       prx::param_loader sdf_param_loader{};
-      sdf_param_loader = Sdf::default_parameters();
-      sdf_param_loader.add_file(sdf_params);
-      sdf_param_loader["environment"].set(environment);
+      sdf_param_loader.add_string(environment);
+      // sdf_param_loader = Sdf::default_parameters();
+      // sdf_param_loader.add_file(sdf_params);
+      // sdf_param_loader["environment"].set(environment);
       // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
-      _sdf = Sdf::create(sdf_param_loader);
+      _sdf = Sdf::create(sdf_param_loader["environment"]);
     }
 
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
