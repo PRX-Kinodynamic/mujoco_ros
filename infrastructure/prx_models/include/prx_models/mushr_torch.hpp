@@ -349,7 +349,7 @@ public:
     // mjData* mj_data;
     // const mushr_mujoco_types_t::StateHidden state_in;
     // const mushr_mujoco_types_t::StateDotHidden stateDot_in;
-    DEBUG_VARS(_idle_state_dot.transpose())
+    // DEBUG_VARS(_idle_state_dot.transpose())
 
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
                                                          _torch_model_path, _nn_dt);

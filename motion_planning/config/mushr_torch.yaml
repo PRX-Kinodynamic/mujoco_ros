@@ -4,9 +4,9 @@ path: "mushrTorch"
 vis_body: "body"
 # torch_model: "${MushrSysIdDir}/experiments/experiments-v3/v3B_struct_h10_tf0_seed4/v3B_struct_h10_tf0_seed4/structured_aux.ts.pt"
 # torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/S03_structured_aux.ts.pt"
-# torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/S06_structured_aux.ts.pt"
+torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/S06_structured_aux.ts.pt"
 # torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/S09_structured_aux.ts.pt"
-torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/v3B_structured_aux.ts.pt"
+# torch_model: "${ML4KP_ROS}/src/mujoco_ros/infrastructure/prx_models/models/learned_mushr/v3B_structured_aux.ts.pt"
 nn_dt: 0.1
 
 control_steps: 

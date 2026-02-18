@@ -367,7 +367,8 @@ struct replanner_t
     };
 
     _dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-      return _dirt_spec->distance_function(s, s2) / 0.62;
+      // return _dirt_spec->distance_function(s, s2) / 0.62;
+      return 0.0;
     };
   }
 

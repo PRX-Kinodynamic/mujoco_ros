@@ -9,7 +9,7 @@
     <arg name="data_dir" default="$(env ML4KP_ROS)/data/test"/>
     <arg name="collision_topic" default="/simulator/collision"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
-    <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/>
+    <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
     <arg name="obstacle_mode" default="none"/>
     <!-- <arg name="obstacle_mode" default="sdf"/> -->
     <arg name="obstacle_distance_tolerance" default="0.5"/>
@@ -42,7 +42,7 @@
         <!-- launch-prefix="lldb - -" -->
 
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
-        output="screen" required="true"
+        output="screen" respawn="true"
         >
         <param name="node_id" value="stela"/>
         <param name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
@@ -55,7 +55,7 @@
         <param name="robot_frame" value="$(arg robot_frame)"/>
         <param name="output_dir" value="$(arg data_dir)"/>
         <param name="collision_topic" value="$(arg collision_topic)"/>
-        <param name="environment" value="$(arg environment)"/>
+        <!-- <param name="environment" value="$(arg environment)"/> -->
         <param name="obstacle_mode" value="$(arg obstacle_mode)"/>
         <param name="obstacle_distance_tolerance" value="$(arg obstacle_distance_tolerance)"/>
         <param name="obstacle_factor_include_distance" value="$(arg obstacle_factor_include_distance)"/>
@@ -65,7 +65,7 @@
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
         <param name="sdf_params" value="$(arg sdf_params)"/>
-        <param name="sdf/environment" value="$(arg environment)"/>
+        <!-- <param name="sdf/environment" value="$(arg environment)"/> -->
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
         <param name="total_future_nodes" value="$(arg total_future_nodes)"/>

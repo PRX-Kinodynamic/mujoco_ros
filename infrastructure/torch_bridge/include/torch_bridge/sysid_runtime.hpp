@@ -34,14 +34,14 @@ public:
       module_.eval();
 
       // Log which device is being used
-      if (device_.is_cuda())
-      {
-        std::cout << "[DirectSysidRuntime] Using CUDA device" << std::endl;
-      }
-      else
-      {
-        std::cout << "[DirectSysidRuntime] Using CPU device" << std::endl;
-      }
+      // if (device_.is_cuda())
+      // {
+      //   std::cout << "[DirectSysidRuntime] Using CUDA device" << std::endl;
+      // }
+      // else
+      // {
+      //   std::cout << "[DirectSysidRuntime] Using CPU device" << std::endl;
+      // }
     }
     catch (const c10::Error& e)
     {
@@ -336,14 +336,14 @@ public:
       module_.eval();
 
       // Log which device is being used
-      if (device_.is_cuda())
-      {
-        std::cout << "[StructuredSysidRuntime] Using CUDA device" << std::endl;
-      }
-      else
-      {
-        std::cout << "[StructuredSysidRuntime] Using CPU device" << std::endl;
-      }
+      // if (device_.is_cuda())
+      // {
+      //   std::cout << "[StructuredSysidRuntime] Using CUDA device" << std::endl;
+      // }
+      // else
+      // {
+      //   std::cout << "[StructuredSysidRuntime] Using CPU device" << std::endl;
+      // }
     }
     catch (const c10::Error& e)
     {
@@ -415,7 +415,7 @@ public:
 
     // Extract standardizer buffers from TorchScript module
     extract_standardizers_from_module();
-    std::cout << "[StructuredSysidRuntime] Using normalized-plant semantics" << std::endl;
+    // std::cout << "[StructuredSysidRuntime] Using normalized-plant semantics" << std::endl;
   }
 
   // Capture CUDA graph for predict() - call once after construction
@@ -1321,7 +1321,7 @@ private:
         inv_input_std_u_(i) = 1.0 / input_std_acc[3 + i];
       }
 
-      std::cout << "[StructuredSysidRuntime] Extracted standardizers from TorchScript module" << std::endl;
+      // std::cout << "[StructuredSysidRuntime] Extracted standardizers from TorchScript module" << std::endl;
     }
     catch (const c10::Error& e)
     {

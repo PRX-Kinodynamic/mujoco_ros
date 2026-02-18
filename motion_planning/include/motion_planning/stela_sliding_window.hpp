@@ -151,7 +151,7 @@ public:
     std::string input_tree_topic_name;
     std::string control_topic;
     std::string collision_topic;
-    std::string environment;
+    // std::string environment;
     std::string estimated_tree_topic;
     double obstacle_sigma{ 1.0 };
     double observation_frquency{ 30 };
@@ -194,7 +194,7 @@ public:
 
     _node_status = interface::node_status_t::create(private_nh);
 
-    GLOBAL_PARAM_SETUP(environment)
+    // GLOBAL_PARAM_SETUP(environment);
 
     PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
@@ -223,7 +223,6 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, report_control_frequency, report_control_frequency)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_future_nodes, total_future_nodes)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_past_nodes, total_past_nodes)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
     PARAM_SETUP_WITH_DEFAULT(private_nh, using_stepper, using_stepper)
     PARAM_SETUP_WITH_DEFAULT(private_nh, estimation_pub_freq, estimation_pub_freq);
     PARAM_SETUP_WITH_DEFAULT(private_nh, observation_frquency, observation_frquency);
@@ -247,13 +246,16 @@ public:
     {
       if (sdf_params == "")
         prx_throw("No SDF params!");
-      prx::param_loader sdf_param_loader{};
-      sdf_param_loader.add_string(environment);
-      // sdf_param_loader = Sdf::default_parameters();
+
+      // prx::param_loader sdf_param_loader{};
+      // sdf_param_loader.add_string(environment);
+      // // sdf_param_loader["environment/name"] = environment_name;
+
+      // // sdf_param_loader = Sdf::default_parameters();
       // sdf_param_loader.add_file(sdf_params);
       // sdf_param_loader["environment"].set(environment);
       // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
-      _sdf = Sdf::create(sdf_param_loader["environment"]);
+      _sdf = Sdf::create(private_nh);
     }
 
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
@@ -304,9 +306,9 @@ public:
     _prev_header.stamp = ros::Time::now();
     _next_node_time = ros::Time::now();
 
-    auto obstacles = prx::load_obstacles(environment);
+    // auto obstacles = prx::load_obstacles(environment);
     // _obstacle_list = obstacles.second;
-    _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
+    // _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
     _robot_collision_ptr = _robot->collision_geometry();
     _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
@@ -515,6 +517,9 @@ public:
 
   void replanner_service_main()
   {
+    const bool& STELA_VALIDATING_REPLANNING_SLN{ _validate_replanner_sln };
+    DEBUG_VARS(STELA_VALIDATING_REPLANNING_SLN)
+
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)
     {
@@ -2499,7 +2504,7 @@ private:
   typename ObstacleFactor::ToleranceResult _obstacle_tolerance_result;
   typename ObstacleFactor::DistanceResult _obstacle_distance_result;
   gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
-  std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
+  // std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
   visualization_msgs::Marker _obstacles_marker;
 
   const std::string _name{};

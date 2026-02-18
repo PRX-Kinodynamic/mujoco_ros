@@ -92,22 +92,27 @@ class signed_distance_field_t
     return success;
   }
 
-  virtual void init(const prx::param_loader& params)
+  virtual void init()
   {
     bool initialized{ false };
-    if (params.exists("geometry"))
-    {
-      _robot_collision_info = std::make_shared<prx::fg::collision_info_t>(params["geometry"]);
-    }
-    _resolution = params.exists("resolution") ? params["resolution"].as<double>() : 0.0;
-    _environment = params.exists("environment") ? params["environment"].as<std::string>() : "None";
 
-    if (params.exists("directory"))
+    // auto sdf_params = _params["sdf"];
+    if (_params.exists("sdf/geometry"))
     {
-      const std::string dir{ params.exists("directory") ? params["directory"].as<std::string>() : "None" };
-      std::filesystem::path path(_environment);
-      _file = dir + "/" + path.stem().string() + ".txt";
-      const bool force_recompute{ params.exists("force_recompute") ? params["force_recompute"].as<bool>() : false };
+      _robot_collision_info = std::make_shared<prx::fg::collision_info_t>(_params["sdf/geometry"]);
+    }
+    _resolution = _params.exists("sdf/resolution") ? _params["sdf/resolution"].as<double>() : 0.0;
+    // _environment = _params.exists("environment") ? _params["environment"].as<std::string>() : "None";
+
+    // sdf_param_loader["environment/name"] = environment_name;
+    if (_params.exists("sdf/directory") and _params.exists("environment/name"))
+    {
+      _file = _params["sdf/directory"].as<std::string>() + "/" + _params["environment/name"].as<std::string>() + ".txt";
+      // const std::string dir{ params.exists("directory") ? params["directory"].as<std::string>() : "None" };
+      // std::filesystem::path path(_environment);
+      // _file = dir + "/" + path.stem().string() + ".txt";
+      const bool force_recompute{ _params.exists("sdf/force_recompute") ? _params["sdf/force_recompute"].as<bool>() :
+                                                                          false };
       if (not force_recompute)
       {
         initialized = from_file();
@@ -157,10 +162,18 @@ class signed_distance_field_t
     using ObstacleFactor = prx::fg::obstacle_factor_t<State, configuration_from_state>;
     using MatrixXb = Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic>;
     // DEBUG_VARS(_environment);
-    auto prx_obstacles = prx::load_obstacles(_environment);
-    std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ prx_obstacles.second };
-    std::vector<std::string> obstacle_names{ prx_obstacles.first };
-    const prx::EnvironmentBounds bounds{ prx::obstacle_loader_t::bounds_from_yaml(_environment) };
+
+    // std::string environment;
+    // prx::param_loader params;
+    // GLOBAL_PARAM_SETUP(environment);
+    // params.from_string(environment);
+
+    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(_params) };
+    const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles() };
+    const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
+
+    // const prx::EnvironmentBounds bounds{ prx::obstacle_loader_t::bounds_from_yaml(_environment) };
+    const prx::EnvironmentBounds bounds{ obstacle_loader.bounds() };
 
     std::vector<CollisionInfoPtr> obstacles{};
     for (auto obstacle : obstacle_list)
@@ -292,14 +305,24 @@ class signed_distance_field_t
   }
 
 public:
-  signed_distance_field_t(const prx::param_loader& params)
+  signed_distance_field_t(ros::NodeHandle& nh)
   {
-    init(params);
+    std::string environment;
+    std::string sdf_params_file;
+
+    PARAM_SETUP(nh, sdf_params_file)
+    GLOBAL_PARAM_SETUP(environment);
+
+    _params.from_string(environment);
+    _params["sdf"].add_file(sdf_params_file);
+
+    _params["sdf"].print();
+    init();
   }
 
-  static std::shared_ptr<signed_distance_field_t> create(const prx::param_loader& params)
+  static std::shared_ptr<signed_distance_field_t> create(ros::NodeHandle& nh)
   {
-    return std::make_shared<signed_distance_field_t>(params);
+    return std::make_shared<signed_distance_field_t>(nh);
   }
 
   virtual ~signed_distance_field_t() {};
@@ -311,8 +334,9 @@ public:
     prx::param_loader params;
     params["geometry"] = CollisionInfo::default_parameters();
     params["resolution"].set(0.1);
-    params["environment"].set("environments/empty.yaml");
+    // params["environment"].set("environments/empty.yaml");
     params["directory"].set("/tmp");
+    params["force_recompute"].set(false);
     return params;
   }
 
@@ -385,9 +409,14 @@ public:
       }
     }
     ofs.close();
+
+    const std::string SDF_FILE_CREATED{ _file };
+    DEBUG_VARS(SDF_FILE_CREATED);
   }
 
 protected:
+  prx::param_loader _params;
+
   Eigen::MatrixXd _sdf;
   Eigen::MatrixXd _sdf_dx;
   Eigen::MatrixXd _sdf_dy;
@@ -396,7 +425,7 @@ protected:
   State _max_bound;
   double _resolution;
 
-  std::string _environment;
+  // std::string _environment;
   std::string _file;
 
   CollisionInfoPtr _robot_collision_info;
