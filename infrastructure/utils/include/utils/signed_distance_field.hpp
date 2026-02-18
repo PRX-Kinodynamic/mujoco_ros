@@ -414,6 +414,32 @@ public:
     DEBUG_VARS(SDF_FILE_CREATED);
   }
 
+  State min_bound() const
+  {
+    return _min_bound;
+  }
+
+  State max_bound() const
+  {
+    return _max_bound;
+  }
+
+  double resolution() const
+  {
+    return _resolution;
+  }
+
+  int rows() const
+  {
+    // The dims are switched
+    return _sdf.cols();
+  }
+
+  int cols() const
+  {
+    return _sdf.rows();
+  }
+
 protected:
   prx::param_loader _params;
 

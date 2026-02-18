@@ -10,8 +10,8 @@
     <arg name="collision_topic" default="/simulator/collision"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
-    <arg name="obstacle_mode" default="none"/>
-    <!-- <arg name="obstacle_mode" default="sdf"/> -->
+    <!-- <arg name="obstacle_mode" default="none"/> -->
+    <arg name="obstacle_mode" default="sdf"/> 
     <arg name="obstacle_distance_tolerance" default="0.5"/>
     <arg name="obstacle_factor_include_distance" default="0.5"/>
     <arg name="obstacle_sigma" default="1.0"/>
@@ -23,19 +23,18 @@
     <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
-    <arg name="total_future_nodes" default="15"/>
+    <arg name="total_future_nodes" default="10"/>
     <arg name="total_past_nodes" default="10"/>
     <arg name="time_as_variable" default="true"/> 
     <arg name="replanner_solution_duration" default="1"/>
     <arg name="cycle_duration" default="1.0"/>
     <arg name="use_contingency" default="true"/>
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
-    <arg name="start_delay" default="5"/>
+    <arg name="start_delay" default="20"/>
     <arg name="total_replanning_calls" default="10000"/>
     <arg name="mushr_model"/>
     <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
     <arg name="params_file"/>
-    <arg name="validate_replanner_sln" default="true"/>
 
     <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
     <!-- <remap to="dummy_stamped" from="$(arg control_topic)_stamped"/> -->
@@ -45,7 +44,6 @@
         output="screen" respawn="true"
         >
         <param name="node_id" value="stela"/>
-        <param name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
         <param name="mushr_model" value="$(arg mushr_model)"/>
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
         <param name="control_topic" value="$(arg control_topic)"/> 
@@ -118,6 +116,15 @@
         output="screen">
         <!-- <param name="tree_topic_name" value="$(arg estimated_tree_topic)" /> -->
         <param name="tree_topic_name" value="/mushr/sln/tree" />
+        <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
+        <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
+    </node>  
+
+    <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
+        args="load motion_planning/SdfToGridPublisher stela_nodelet_aux" 
+        output="screen">
+        <param name="sdf_params" value="$(arg sdf_params)" />
+        <param name="grid_topicname" value="/stela/sdf/vis" />
         <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
         <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
     </node>  

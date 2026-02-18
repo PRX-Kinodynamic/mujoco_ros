@@ -13,9 +13,7 @@
 
   <include file="$(find interface)/launch/stela.launch">
     <arg name="input_tree_topic_name" default="/mushr/sln/tree_dbg"/>
-    <!-- <arg name="environment" value="$(arg environment)" /> -->
-    <arg name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
-
+    
     <arg name="mushr_model" value="analytical" />
     <!-- <arg name="mushr_model" value="torch" /> -->
     <!-- <arg name="mushr_model" value="mujoco" /> -->

@@ -13,6 +13,8 @@
 
 #include <iterator>
 #include <memory>
+#include <prx/simulation/playback/plan.hpp>
+#include <prx/simulation/playback/trajectory.hpp>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <string>
 #include <utils/std_utils.hpp>
@@ -134,7 +136,8 @@ public:
     , _call_replanner(false)
     , _fg_initialized(false)
     , _new_tree_available(false)
-    , _validate_replanner_sln(true)
+    , _validation_plan_feasibility(false)
+    , _validation_collision_only(false)
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
 #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
@@ -174,7 +177,8 @@ public:
     bool& visualize{ _visualize };
     bool& using_stepper{ _using_stepper };
     bool& time_as_variable{ _time_as_variable };
-    bool& validate_replanner_sln{ _validate_replanner_sln };
+    bool& validation_plan_feasibility{ _validation_plan_feasibility };
+    bool& validation_collision_only{ _validation_collision_only };
     int& total_future_nodes{ _total_future_nodes };
     int& total_past_nodes{ _total_past_nodes };
     int estimation_pub_freq{ 30 };
@@ -214,7 +218,8 @@ public:
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
     PARAM_SETUP(private_nh, estimated_trajectory_topic)
     PARAM_SETUP(private_nh, planner_clock_topic);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, validate_replanner_sln, validate_replanner_sln)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, validation_plan_feasibility, validation_plan_feasibility)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, validation_collision_only, validation_collision_only)
     PARAM_SETUP_WITH_DEFAULT(private_nh, visualize, visualize)
     PARAM_SETUP_WITH_DEFAULT(private_nh, time_as_variable, time_as_variable)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
@@ -226,6 +231,23 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, using_stepper, using_stepper)
     PARAM_SETUP_WITH_DEFAULT(private_nh, estimation_pub_freq, estimation_pub_freq);
     PARAM_SETUP_WITH_DEFAULT(private_nh, observation_frquency, observation_frquency);
+
+    if (validation_plan_feasibility and validation_collision_only)
+    {
+      prx_throw("Both replanning validations cannot be on!")
+    }
+    else if (validation_plan_feasibility)
+    {
+      PRINT_MSG("Using Plan Feasibility Validation")
+    }
+    else if (validation_collision_only)
+    {
+      PRINT_MSG("Using Collision Validation")
+    }
+    else
+    {
+      PRINT_MSG("No Replanning Validation")
+    }
 
     _planner_service_call.request.solution_duration = ros::Duration(replanner_solution_duration);
 
@@ -625,7 +647,23 @@ public:
             // if (root_idx >= _x_next)
             // {
             prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
-            _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
+
+            if (_validation_collision_only)
+            {
+              _new_tree_available =
+                  _robot->propagate_plan(_replanning_root_estimates, wrapped_tree);  // check_new_tree(wrapped_tree);
+              // bool propagate_plan(_replanning_root_estimates, wrapped_tree);
+            }
+            else if (_validation_plan_feasibility)
+            {
+              _new_tree_available = check_new_tree(wrapped_tree);
+              // _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
+            }
+            else
+            {
+              _new_tree_available = true;
+            }
+
             const ros::Time plan_validated_stamp{ ros::Time::now() };
             if (_new_tree_available)
             {
@@ -2575,7 +2613,8 @@ private:
   ros::Publisher _replanning_status_publisher, _isam_status_publisher;
 
   std::shared_ptr<interface::node_status_t> _node_status;
-  bool _validate_replanner_sln;
+  // bool _validate_replanner_sln;
+  bool _validation_plan_feasibility, _validation_collision_only;
 
   ros::WallTime _reset_start;
 

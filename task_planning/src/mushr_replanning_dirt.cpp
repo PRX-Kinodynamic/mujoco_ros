@@ -21,6 +21,7 @@
 #include <interface/PlannerClock.h>
 
 #include <prx_models/StelaKraft.h>
+#include <prx_models/tree_utils.hpp>
 
 // Function to calculate safe distance based on speed
 template <typename ParamsType>
@@ -391,52 +392,52 @@ struct replanner_t
     // ROS_WARN("Using default goal check");
   }
 
-  void tree_from_plan_traj(prx_models::Tree& sln_tree, const prx::plan_t& plan, const prx::trajectory_t& traj)
-  {
-    if (traj.duration() < plan.duration())
-    {
-      PRINT_MSG("[Replanner::tree_from_plan_traj] Trajectory shorter than plan");
-      DEBUG_VARS(traj.duration(), plan.duration())
-      // DEBUG_VARS(plan)
-      // DEBUG_VARS(traj)
-      return;
-    }
+  // void tree_from_plan_traj(prx_models::Tree& sln_tree, const prx::plan_t& plan, const prx::trajectory_t& traj)
+  // {
+  //   if (traj.duration() < plan.duration())
+  //   {
+  //     PRINT_MSG("[Replanner::tree_from_plan_traj] Trajectory shorter than plan");
+  //     DEBUG_VARS(traj.duration(), plan.duration())
+  //     // DEBUG_VARS(plan)
+  //     // DEBUG_VARS(traj)
+  //     return;
+  //   }
 
-    std::size_t current_idx{ sln_tree.root + 1 };
-    // sln_tree.root = current_idx;
-    double ti{ 0.0 };
-    double curr_cost{ 0.0 };
+  //   std::size_t current_idx{ sln_tree.root + 1 };
+  //   // sln_tree.root = current_idx;
+  //   double ti{ 0.0 };
+  //   double curr_cost{ 0.0 };
 
-    for (std::size_t i = 0; i < plan.size(); ++i)
-    {
-      const prx::plan_step_t ps_i{ plan[i] };
+  //   for (std::size_t i = 0; i < plan.size(); ++i)
+  //   {
+  //     const prx::plan_step_t ps_i{ plan[i] };
 
-      double dt_remaining{ ps_i.duration };
-      while (dt_remaining > 0.0001)  // small epsilon
-      {
-        // DEBUG_VARS(dt_remaining)
-        motion_planning::EdgeNodePair edge_node{ motion_planning::create_edge_node(sln_tree.nodes.back(),
-                                                                                   current_idx) };
+  //     double dt_remaining{ ps_i.duration };
+  //     while (dt_remaining > 0.0001)  // small epsilon
+  //     {
+  //       // DEBUG_VARS(dt_remaining)
+  //       motion_planning::EdgeNodePair edge_node{ motion_planning::create_edge_node(sln_tree.nodes.back(),
+  //                                                                                  current_idx) };
 
-        const double dt_curr{ std::min(_max_edge_duration, dt_remaining) };
-        // DEBUG_VARS(ti, dt_curr)
-        const prx::space_point_t xi{ traj.at(ti + dt_curr, false) };
-        edge_node.first.plan.steps.emplace_back();
+  //       const double dt_curr{ std::min(_max_edge_duration, dt_remaining) };
+  //       // DEBUG_VARS(ti, dt_curr)
+  //       const prx::space_point_t xi{ traj.at(ti + dt_curr, false) };
+  //       edge_node.first.plan.steps.emplace_back();
 
-        ml4kp_bridge::copy(edge_node.first.plan.steps.back(), ps_i);
-        edge_node.first.plan.steps.back().duration.data = ros::Duration(dt_curr);
+  //       ml4kp_bridge::copy(edge_node.first.plan.steps.back(), ps_i);
+  //       edge_node.first.plan.steps.back().duration.data = ros::Duration(dt_curr);
 
-        ml4kp_bridge::copy(edge_node.second.point, xi);
+  //       ml4kp_bridge::copy(edge_node.second.point, xi);
 
-        sln_tree.edges.push_back(edge_node.first);
-        sln_tree.nodes.push_back(edge_node.second);
+  //       sln_tree.edges.push_back(edge_node.first);
+  //       sln_tree.nodes.push_back(edge_node.second);
 
-        dt_remaining = dt_remaining - _max_edge_duration;
-        ti += dt_curr;
-      }
-      // ti += ps_i.duration;
-    }
-  }
+  //       dt_remaining = dt_remaining - _max_edge_duration;
+  //       ti += dt_curr;
+  //     }
+  //     // ti += ps_i.duration;
+  //   }
+  // }
 
   // void tree_from_plan_traj(prx_models::Tree& sln_tree, prx::plan_t& plan, prx::trajectory_t& traj)
   // {
@@ -597,7 +598,7 @@ struct replanner_t
       response.sln_tree.nodes.push_back(request.root);
       response.planner_output = prx_models::StelaKraft::Response::TYPE_SUCCESS;
 
-      tree_from_plan_traj(response.sln_tree, *_step_plan, _dirt_query->solution_traj);
+      prx_models::tree_from_plan_traj(response.sln_tree, *_step_plan, _dirt_query->solution_traj, _max_edge_duration);
       _sln_tree_publisher.publish(response.sln_tree);
       LOG_MSG("Result ready");
     }
