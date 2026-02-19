@@ -232,15 +232,16 @@ catkin_install_python(PROGRAMS
 ## Add gtest based cpp test target and link libraries
 file(GLOB TESTS_FILES ${PROJECT_SOURCE_DIR}/tests/*.cpp)
 
-message(STATUS "TEST HERE")
 foreach(f_test ${TESTS_FILES})
-  catkin_add_gtest(${PROJECT_NAME}-test ${f_test})
-  MESSAGE(STATUS "${PROJECT_NAME}-test ${f_test}")
-  if(TARGET ${PROJECT_NAME}-test)
-    MESSAGE(STATUS "TARGET  ${PROJECT_NAME}-test ")
-    target_link_libraries(${PROJECT_NAME}-test
-      ${catkin_LIBRARIES} 
+  GET_FILENAME_COMPONENT(test_name ${f_test} NAME_WE)
+  set(test_target ${PROJECT_NAME}-${test_name})
+  catkin_add_gtest(${test_target} ${f_test})
+  MESSAGE(STATUS "${test_target} ${f_test}")
+  if(TARGET ${test_target})
+    target_link_libraries(${test_target}
+      ${catkin_LIBRARIES}
       ${mujoco_LIBRARY}
+      ${TORCH_LIBRARIES}
       )
   endif()
 endforeach()
