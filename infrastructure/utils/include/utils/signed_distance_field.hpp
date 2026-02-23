@@ -1,4 +1,5 @@
 #pragma once
+#include <Eigen/src/Core/Matrix.h>
 #include <ros/callback_queue.h>
 #include <utils/dbg_utils.hpp>
 
@@ -438,6 +439,11 @@ public:
   int cols() const
   {
     return _sdf.rows();
+  }
+
+  const Eigen::MatrixXd& sdf_matrix() const
+  {
+    return _sdf;
   }
 
 protected:

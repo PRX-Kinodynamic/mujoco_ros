@@ -350,6 +350,7 @@ public:
   //
   bool propagate_plan(const StateEstimates& estimates, prx_models::tree_msg_wrapper_t& new_tree)
   {
+    return false;
   }
 
   static void log_params()

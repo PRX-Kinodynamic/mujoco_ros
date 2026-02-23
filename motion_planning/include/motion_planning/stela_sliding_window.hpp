@@ -266,8 +266,8 @@ public:
     // _robot->log_params();
     if (obstacle_mode == "sdf")
     {
-      if (sdf_params == "")
-        prx_throw("No SDF params!");
+      // if (sdf_params == "")
+      //   prx_throw("No SDF params!");
 
       // prx::param_loader sdf_param_loader{};
       // sdf_param_loader.add_string(environment);
@@ -539,8 +539,8 @@ public:
 
   void replanner_service_main()
   {
-    const bool& STELA_VALIDATING_REPLANNING_SLN{ _validate_replanner_sln };
-    DEBUG_VARS(STELA_VALIDATING_REPLANNING_SLN)
+    // const bool& STELA_VALIDATING_REPLANNING_SLN{ _validate_replanner_sln };
+    // DEBUG_VARS(STELA_VALIDATING_REPLANNING_SLN)
 
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)

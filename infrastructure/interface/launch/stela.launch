@@ -20,7 +20,7 @@
     <arg name="report_control_frequency" default="true"/>
     <arg name="visualize" default="true"/>
     <arg name="estimated_tree_topic" default="/stela/estimation/tree"/>
-    <arg name="sdf_params" default="$(find utils)/config/sdf.yaml"/>
+    <arg name="sdf_params_file" default="$(find utils)/config/sdf.yaml"/>
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
     <arg name="total_future_nodes" default="10"/>
@@ -62,7 +62,7 @@
         <param name="report_control_frequency" value="$(arg report_control_frequency)"/>
         <param name="visualize" value="$(arg visualize)"/>
         <param name="estimated_tree_topic" value="$(arg estimated_tree_topic)"/>
-        <param name="sdf_params" value="$(arg sdf_params)"/>
+        <param name="sdf_params_file" value="$(arg sdf_params_file)"/>
         <!-- <param name="sdf/environment" value="$(arg environment)"/> -->
         <param name="estimated_trajectory_topic" value="$(arg estimated_trajectory)"/>
         <param name="estimation_pub_freq" value="15"/>
@@ -123,7 +123,7 @@
     <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
         args="load motion_planning/SdfToGridPublisher stela_nodelet_aux" 
         output="screen">
-        <param name="sdf_params" value="$(arg sdf_params)" />
+        <param name="sdf_params_file" value="$(arg sdf_params_file)" />
         <param name="grid_topicname" value="/stela/sdf/vis" />
         <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
         <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->

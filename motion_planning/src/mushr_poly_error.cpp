@@ -1,3 +1,4 @@
+#include <fstream>
 #include <iterator>
 #include <prx/simulation/playback/plan.hpp>
 #include <prx/simulation/system.hpp>
@@ -42,8 +43,8 @@ void read_plan(const std::string filename, prx::plan_t& plan)
 
     const double steering{ convert_to<double>(line[0]) };
     const double velocity_desired{ convert_to<double>(line[1]) };
-    // const double plan_duration{ convert_to<double>(line[2]) };
-    const double plan_duration{ 1.0 };
+    const double plan_duration{ convert_to<double>(line[2]) };
+    // const double plan_duration{ 1.0 };
 
     const Eigen::Vector2d ctrl{ Eigen::Vector2d(velocity_desired, steering) };
     plan.copy_onto_back(ctrl, plan_duration);
@@ -69,7 +70,7 @@ void read_traj(const std::string filename, prx::trajectory_t& traj)
     // # x y theta xDot yDot thetaDot
     for (int i = 0; i < 6; ++i)
     {
-      xin[i] = convert_to<double>(line[i]);
+      xin[i] = convert_to<double>(line[i + 1]);
     }
     traj.push_back(xin);
     // states.push_back(xin);
@@ -99,6 +100,7 @@ int main(int argc, char** argv)
   std::string file_out;
   std::string plan_file;
   std::string traj_file;
+  std::string errors_filename;
   prx::simulation_step = 0.1;
 
   // Eigen::Vector3d vt;
@@ -110,8 +112,10 @@ int main(int argc, char** argv)
   PARAM_SETUP(nh, plan_file);
   PARAM_SETUP(nh, traj_file);
   PARAM_SETUP(nh, file_out);
+  PARAM_SETUP(nh, errors_filename);
   // PARAM_SETUP(nh, simulation_step);
 
+  std::ofstream ofs(errors_filename.c_str());
   prx::param_loader params{ prx::param_loader(params_file, "") };
 
   const std::string plant_name{ params["/name"].as<std::string>() };
@@ -148,22 +152,31 @@ int main(int argc, char** argv)
   prx::trajectory_t traj(ss);
   prx::trajectory_t traj_in(ss);
 
-  std::ofstream ofs(file_out.c_str());
-
   read_plan(plan_file, plan);
   read_traj(traj_file, traj_in);
 
+  // DEBUG_VARS(plan)
   plan.expand();
+  // DEBUG_VARS(plan)
+  // DEBUG_VARS(plan.size())
 
   int plan_idx{ 0 };
   for (; plan_idx < 9; ++plan_idx)
   {
+    // DEBUG_VARS(plan_idx)
     const auto plan_step = plan[plan_idx];
     partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
   }
 
-  for (int i = 0; i < traj_in.size() - 10; ++i, ++plan_idx)
+  auto traj_opt = std::ofstream::trunc;
+  // std::ofstream ofs_traj(file_out.c_str());
+
+  // DEBUG_VARS(plan.duration(), traj_in.duration())
+  for (int i = 0; i < traj_in.size() - 11; ++i, ++plan_idx)
   {
+    if (plan_idx >= plan.size())
+      break;
+    // DEBUG_VARS(x0, partial_plan)
     ss->copy(x0, traj_in[i]);
     sg->propagate(x0, partial_plan, traj);
 
@@ -171,24 +184,21 @@ int main(int argc, char** argv)
     const auto plan_step = plan[plan_idx];
     partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
 
-    const Eigen::Vector3d xy_gt{ Vec(traj_in[i + 10]) };
-    const Eigen::Vector3d xy_pred{ Vec(traj.back()) };
+    const Eigen::Vector3d xy_gt{ Vec(traj_in[i + 10]).head(3) };
+    const Eigen::Vector3d xy_pred{ Vec(traj.back()).head(3) };
     const double xy_err{ (xy_gt - xy_pred).head(2).norm() };
     const double th_diff{ xy_gt[2] - xy_pred[2] };
     const double th_err{ std::atan2(std::sin(th_diff), std::cos(th_diff)) };
 
     ofs << xy_err << " ";
     ofs << th_err << "\n";
-  }
 
-  // double res{ angle };
-  //   if (angle < min_angle or max_angle < angle)
-  //   {
-  //     // Eqs. 116,117 on micro lie theory
-  //     const double r21{ std::sin(angle) };
-  //     const double r11{ std::cos(angle) };
-  //     res = min_angle + std::atan2(r21, r11);
-  //   }
+    // ofs_traj << x0 << "\n";
+    // traj.to_file()
+    // traj.to_file(file_out, traj_opt);
+    // traj_opt = std::ofstream::app;
+  }
+  ofs.close();
 
   //   return res;
   // DEBUG_VARS(x0)

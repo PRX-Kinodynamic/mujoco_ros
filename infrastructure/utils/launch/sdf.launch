@@ -1,0 +1,17 @@
+<launch>
+   
+    <arg name="sdf_params_file" default="$(find utils)/config/sdf.yaml"/>
+
+    <node pkg="nodelet" type="nodelet" name="sdf_nodelet" args="manager"
+    		 output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
+        args="load utils/SdfToGridPublisher sdf_nodelet" 
+        output="screen">
+        <param name="sdf_params_file" value="$(arg sdf_params_file)" />
+        <param name="grid_topicname" value="/sdf/vis" />
+    </node>  
+    
+
+</launch>
+
