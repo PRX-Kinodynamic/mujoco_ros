@@ -1,3 +1,4 @@
+#include <memory>
 #ifndef TORCH_NOT_BUILT
 #pragma once
 
@@ -42,22 +43,23 @@ public:
 
   // Convenience: dispatch to predict() or predict_with_jac() based on whether
   // jacobian references are supplied.
-  StateDot call(const StateDot& xd, const Control& u,
-                OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
+  StateDot call(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
   {
     const bool get_derivs{ jacX || jacU };
     if (get_derivs)
     {
       auto [xd1, Jx, Ju] = predict_with_jac(xd, u);
-      if (jacX) *jacX = Jx;
-      if (jacU) *jacU = Ju;
+      if (jacX)
+        *jacX = Jx;
+      if (jacU)
+        *jacU = Ju;
       return xd1;
     }
     return predict(xd, u);
   }
 
-  StateDot operator()(const StateDot& xd, const Control& u,
-                      OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
+  StateDot operator()(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none,
+                      OptionalJacU jacU = boost::none)
   {
     return call(xd, u, jacX, jacU);
   }
@@ -181,8 +183,9 @@ public:
 
     if (!result.isTensor())
     {
-      throw std::runtime_error("DirectSysidRuntime: model forward() must return a Tensor, not a Tuple. "
-                               "Use StructuredSysidRuntime for structured models.");
+      throw std::runtime_error(
+          "DirectSysidRuntime: model forward() must return a Tensor, not a Tuple. "
+          "Use StructuredSysidRuntime for structured models.");
     }
     torch::Tensor output = result.toTensor();
 
@@ -198,7 +201,7 @@ public:
     return xd1;
   }
 
-  std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
+  virtual std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -345,7 +348,6 @@ template <typename MushrPlant, typename Params, typename Poly, typename Structur
 class StructuredSysidRuntime : public SysidRuntimeBase
 {
 public:
-
   // using Params = prx_models::mushr_types::Control::params;
   // using Poly = prx_models::mushr_types::Control::Poly;
   // using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
@@ -775,7 +777,7 @@ public:
 
   // call() and operator() are inherited from SysidRuntimeBase
 
-  std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
+  virtual std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -1046,15 +1048,11 @@ public:
     const Eigen::Vector3d& plant_H_friction = plant_Hparams.col(StructuredParams::friction);
 
     // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_x + H_friction * base_friction * J_k_x + J_r_x
-    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() +
-                       plant_Ju_norm * J_ueff_x +
-                       plant_H_friction * base_friction * J_k_x +
-                       J_r_x;
+    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + plant_Ju_norm * J_ueff_x +
+                       plant_H_friction * base_friction * J_k_x + J_r_x;
 
     // Ju_norm_raw = plant_Ju * J_ueff_u + H_friction * base_friction * J_k_u + J_r_u
-    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_u +
-                       plant_H_friction * base_friction * J_k_u +
-                       J_r_u;
+    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_u + plant_H_friction * base_friction * J_k_u + J_r_u;
 
     // Unstandardize output Jacobians
     JacX Jx_raw = target_std_.asDiagonal() * Jx_norm_raw;
@@ -1416,7 +1414,7 @@ inline ModelMeta read_model_meta(const std::string& model_path)
   namespace fs = std::filesystem;
 
   // Try embedded metadata first
-  std::unordered_map<std::string, std::string> extra_files = {{"metadata.json", ""}};
+  std::unordered_map<std::string, std::string> extra_files = { { "metadata.json", "" } };
   try
   {
     torch::jit::load(model_path, torch::kCPU, extra_files);
@@ -1473,20 +1471,17 @@ inline ModelMeta read_model_meta(const std::string& model_path)
 /// Reads model_type and dtype from metadata embedded in the model file.
 /// Supports both direct and structured models.
 template <typename MushrPlant, typename Params, typename Poly, typename StructuredParams>
-std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(
-    const std::string& model_path,
-    const Params& params,
-    const Poly& poly,
-    bool use_cuda = false,
-    const std::string& dtype_override = "")
+std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(const std::string& model_path, const Params& params,
+                                                       const Poly& poly, bool use_cuda = false,
+                                                       const std::string& dtype_override = "")
 {
   ModelMeta meta = read_model_meta(model_path);
   const std::string& dtype = dtype_override.empty() ? meta.dtype : dtype_override;
 
   if (meta.model_type == "structured")
   {
-    return std::make_unique<StructuredSysidRuntime<MushrPlant, Params, Poly, StructuredParams>>(
-        model_path, params, poly, use_cuda, dtype);
+    return std::make_unique<StructuredSysidRuntime<MushrPlant, Params, Poly, StructuredParams>>(model_path, params,
+                                                                                                poly, use_cuda, dtype);
   }
 
   return std::make_unique<DirectSysidRuntime>(model_path, use_cuda, dtype);
@@ -1494,10 +1489,8 @@ std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(
 
 /// Creates a SysidRuntimeBase for direct models only. Throws if the model
 /// is a structured model.
-inline std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(
-    const std::string& model_path,
-    bool use_cuda = false,
-    const std::string& dtype_override = "")
+inline std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(const std::string& model_path, bool use_cuda = false,
+                                                              const std::string& dtype_override = "")
 {
   ModelMeta meta = read_model_meta(model_path);
 

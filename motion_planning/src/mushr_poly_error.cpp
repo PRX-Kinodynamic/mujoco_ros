@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <fstream>
 #include <iterator>
 #include <prx/simulation/playback/plan.hpp>
@@ -103,20 +104,35 @@ int main(int argc, char** argv)
   std::string errors_filename;
   prx::simulation_step = 0.1;
 
+  int traj_step;
   // Eigen::Vector3d vt;
   // DEBUG_VARS(std::numeric_limits<float>::lowest());
   // DEBUG_VARS(std::numeric_limits<float>::max());
   // prx::simulation_step = 0.1;
   // double simulation_step
+
   PARAM_SETUP(nh, params_file);
   PARAM_SETUP(nh, plan_file);
   PARAM_SETUP(nh, traj_file);
   PARAM_SETUP(nh, file_out);
   PARAM_SETUP(nh, errors_filename);
-  // PARAM_SETUP(nh, simulation_step);
+  PARAM_SETUP(nh, traj_step);
+
+  prx::param_loader params{ prx::param_loader(params_file, "") };
+
+  std::string model_type{ "" };
+  PARAM_SETUP_WITH_DEFAULT(nh, model_type, model_type);
+  // params.print();
+  if (model_type != "")
+  {
+    // PARAM_SETUP(nh, simulation_step);
+    // DEBUG_VARS(model_type)
+
+    params["/torch/type"].set(model_type);
+  }
+  // params.print();
 
   std::ofstream ofs(errors_filename.c_str());
-  prx::param_loader params{ prx::param_loader(params_file, "") };
 
   const std::string plant_name{ params["/name"].as<std::string>() };
   const std::string plant_path{ params["/path"].as<std::string>() };
@@ -158,10 +174,10 @@ int main(int argc, char** argv)
   // DEBUG_VARS(plan)
   plan.expand();
   // DEBUG_VARS(plan)
-  // DEBUG_VARS(plan.size())
-
+  DEBUG_VARS(plan.size())
+  traj_step = std::min(plan.size(), static_cast<std::size_t>(traj_step));
   int plan_idx{ 0 };
-  for (; plan_idx < 9; ++plan_idx)
+  for (; plan_idx < traj_step - 1; ++plan_idx)
   {
     // DEBUG_VARS(plan_idx)
     const auto plan_step = plan[plan_idx];
@@ -169,32 +185,36 @@ int main(int argc, char** argv)
   }
 
   auto traj_opt = std::ofstream::trunc;
-  // std::ofstream ofs_traj(file_out.c_str());
+  std::ofstream ofs_traj(file_out.c_str());
 
   // DEBUG_VARS(plan.duration(), traj_in.duration())
-  for (int i = 0; i < traj_in.size() - 11; ++i, ++plan_idx)
+  for (int i = 0; i < traj_in.size() - (traj_step + 1); ++i, ++plan_idx)
   {
+    // DEBUG_PRINT
+    traj.clear();
     if (plan_idx >= plan.size())
       break;
     // DEBUG_VARS(x0, partial_plan)
     ss->copy(x0, traj_in[i]);
     sg->propagate(x0, partial_plan, traj);
 
+    // DEBUG_VARS(plan.size(), plan_idx, i, traj_step, i + traj_step, traj_in.size())
     partial_plan.pop_front();
     const auto plan_step = plan[plan_idx];
     partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
-
-    const Eigen::Vector3d xy_gt{ Vec(traj_in[i + 10]).head(3) };
+    std::size_t traj_idx{ std::min(traj_in.size() - 1, static_cast<std::size_t>(i + traj_step)) };
+    const Eigen::Vector3d xy_gt{ Vec(traj_in[traj_idx]).head(3) };
+    // DEBUG_PRINT
     const Eigen::Vector3d xy_pred{ Vec(traj.back()).head(3) };
     const double xy_err{ (xy_gt - xy_pred).head(2).norm() };
     const double th_diff{ xy_gt[2] - xy_pred[2] };
-    const double th_err{ std::atan2(std::sin(th_diff), std::cos(th_diff)) };
+    const double th_err{ std::fabs(std::atan2(std::sin(th_diff), std::cos(th_diff))) };
 
     ofs << xy_err << " ";
     ofs << th_err << "\n";
 
-    // ofs_traj << x0 << "\n";
-    // traj.to_file()
+    ofs_traj << xy_gt.transpose() << " ";
+    ofs_traj << xy_pred.transpose() << "\n";
     // traj.to_file(file_out, traj_opt);
     // traj_opt = std::ofstream::app;
   }

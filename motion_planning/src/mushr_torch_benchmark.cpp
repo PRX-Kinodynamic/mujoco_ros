@@ -16,7 +16,7 @@
 #include <torch_bridge/sysid_runtime.hpp>
 #include <prx_models/mushr_factors.hpp>
 
-namespace fs = std::filesystem;
+// namespace fs = std::filesystem;
 
 class SysidBenchmark
 {
@@ -37,8 +37,12 @@ public:
   using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
 
   SysidBenchmark(ros::NodeHandle& nh)
-    : verbose_(false), total_calls_(100), warmup_calls_(10), use_ros_service_(false), dtype_("float32"),
-      use_cuda_(false)
+    : verbose_(false)
+    , total_calls_(100)
+    , warmup_calls_(10)
+    , use_ros_service_(false)
+    , dtype_("float32")
+    , use_cuda_(false)
   {
     nh.getParam("verbose", verbose_);
     nh.getParam("total_calls", total_calls_);
@@ -90,12 +94,11 @@ public:
       poly[i] = poly_vec[i];
 
     ROS_INFO("Creating runtime from: %s", model_path.c_str());
-    ROS_INFO("Model type: %s, dtype: %s, CUDA: %s", meta.model_type.c_str(), dtype_.c_str(),
-             use_cuda_ ? "yes" : "no");
+    ROS_INFO("Model type: %s, dtype: %s, CUDA: %s", meta.model_type.c_str(), dtype_.c_str(), use_cuda_ ? "yes" : "no");
 
     // Canonical usage: create_sysid_runtime handles both direct and structured models
-    runtime_ = torch_bridge::create_sysid_runtime<MushrPlant, Params, Poly, StructuredParams>(
-        model_path, params, poly, use_cuda_, dtype_);
+    runtime_ = torch_bridge::create_sysid_runtime<MushrPlant, Params, Poly, StructuredParams>(model_path, params, poly,
+                                                                                              use_cuda_, dtype_);
 
     ROS_INFO("Successfully created SysidRuntime");
 
