@@ -1,5 +1,4 @@
 #pragma once
-#include <Eigen/src/Core/Matrix.h>
 #include <ros/callback_queue.h>
 #include <utils/dbg_utils.hpp>
 

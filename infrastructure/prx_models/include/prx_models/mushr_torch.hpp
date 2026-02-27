@@ -114,18 +114,21 @@ class mushr_torch_factor_t
   mushr_torch_factor_t() = delete;
   mushr_torch_factor_t(const mushr_torch_factor_t& other) = delete;
 
-  void init_nn(const std::string torch_model_path, const bool directNN)
+  static void init_nn(const std::string torch_model_path, const bool directNN)
   {
-    if (directNN)
+    if (_nn_interface == nullptr)
     {
-      _nn_interface = std::make_shared<DirectSysidRuntime>(torch_model_path, false, "float32");
-      // DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
-    }
-    else
-    {
-      const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
-      const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-      _nn_interface = std::make_shared<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+      if (directNN)
+      {
+        _nn_interface = std::make_shared<DirectSysidRuntime>(torch_model_path, false, "float32");
+        // DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
+      }
+      else
+      {
+        const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
+        const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
+        _nn_interface = std::make_shared<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+      }
     }
   }
 
@@ -162,6 +165,11 @@ public:
 
   ~mushr_torch_factor_t() override
   {
+  }
+
+  virtual bool sendable() const override
+  {
+    return false;
   }
 
   StateDot predict(const StateDot& xd0, const Control& u, const double& dt,  // no-lint
@@ -243,7 +251,7 @@ private:
   const double _NN_2;
   const double _dt;
 
-  mutable std::shared_ptr<SysidRuntimeBase> _nn_interface;
+  inline static std::shared_ptr<SysidRuntimeBase> _nn_interface = nullptr;
 };
 
 class mushr_torch_stela_t : public stela_robot_interface_t<mushr_torch_stela_t, mushr_torch_types_t>
@@ -577,9 +585,10 @@ public:
   // template <typename Params>
   void init(const prx::param_loader& params)
   {
-    _torch_model_path = params["torch_model"].as<>();
-    _nn_dt = params["nn_dt"].as<double>();
-    const std::string model_type{ params["model_type"].as<std::string>() };
+    const std::string torch_type{ params["/torch/type"].as<>() };
+    _torch_model_path = params["/torch/model/" + torch_type].as<>();
+    _nn_dt = params["/torch/dt"].as<double>();
+    const std::string model_type{ params["/torch/type"].as<std::string>() };
     if (model_type == "structured" or model_type == "direct")
     {
       _directNN = model_type == "direct";

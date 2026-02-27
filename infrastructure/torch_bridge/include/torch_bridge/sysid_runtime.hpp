@@ -70,6 +70,23 @@ public:
 // ---------------------------------------------------------------------------
 class DirectSysidRuntime : public SysidRuntimeBase
 {
+  static void print_torch(const torch::Device& device_)
+  {
+    static bool printed{ false };
+    if (not printed)
+    {
+      if (device_.is_cuda())
+      {
+        PRINT_MSG("[DirectSysidRuntime] Using CUDA device.");
+      }
+      else
+      {
+        PRINT_MSG("[DirectSysidRuntime] Using CPU device");
+      }
+    }
+    printed = true;
+  }
+
 public:
   DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
     : device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
@@ -79,7 +96,9 @@ public:
       module_ = torch::jit::load(model_path, device_);
       module_.eval();
 
+      print_torch(device_);
       // Log which device is being used
+      // PRINT_MSG_ONCE("");
       // if (device_.is_cuda())
       // {
       //   std::cout << "[DirectSysidRuntime] Using CUDA device" << std::endl;
@@ -347,6 +366,23 @@ private:
 template <typename MushrPlant, typename Params, typename Poly, typename StructuredParams>
 class StructuredSysidRuntime : public SysidRuntimeBase
 {
+  static void print_torch(const torch::Device& device_)
+  {
+    static bool printed{ false };
+    if (not printed)
+    {
+      if (device_.is_cuda())
+      {
+        PRINT_MSG("[StructuredSysidRuntime] Using CUDA device.");
+      }
+      else
+      {
+        PRINT_MSG("[StructuredSysidRuntime] Using CPU device");
+      }
+    }
+    printed = true;
+  }
+
 public:
   // using Params = prx_models::mushr_types::Control::params;
   // using Poly = prx_models::mushr_types::Control::Poly;
@@ -366,6 +402,7 @@ public:
       module_ = torch::jit::load(model_path, device_);
       module_.eval();
 
+      print_torch(device_);
       // Log which device is being used
       // if (device_.is_cuda())
       // {

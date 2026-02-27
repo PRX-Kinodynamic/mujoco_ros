@@ -23,7 +23,7 @@
     <arg name="sdf_params_file" default="$(find utils)/config/sdf.yaml"/>
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
-    <arg name="total_future_nodes" default="10"/>
+    <arg name="total_future_nodes" default="15"/>
     <arg name="total_past_nodes" default="10"/>
     <arg name="time_as_variable" default="true"/> 
     <arg name="replanner_solution_duration" default="1"/>
@@ -41,7 +41,7 @@
         <!-- launch-prefix="lldb - -" -->
 
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
-        output="screen" respawn="true"
+        output="screen" respawn="false"
         >
         <param name="node_id" value="stela"/>
         <param name="mushr_model" value="$(arg mushr_model)"/>
@@ -120,14 +120,14 @@
         <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
     </node>  
 
-    <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher" 
-        args="load motion_planning/SdfToGridPublisher stela_nodelet_aux" 
-        output="screen">
-        <param name="sdf_params_file" value="$(arg sdf_params_file)" />
-        <param name="grid_topicname" value="/stela/sdf/vis" />
+    <!-- <node pkg="nodelet" type="nodelet" name="SdfToGridPublisher"  -->
+        <!-- args="load motion_planning/SdfToGridPublisher stela_nodelet_aux"  -->
+        <!-- output="screen"> -->
+        <!-- <param name="sdf_params_file" value="$(arg sdf_params_file)" /> -->
+        <!-- <param name="grid_topicname" value="/stela/sdf/vis" /> -->
         <!-- <param name="tree_topic_name" value="/mushr/tree" /> -->
         <!-- <param name="tree_topic_name" value="/mushr/sln/tree"/> -->
-    </node>  
+    <!-- </node>   -->
     
 
 </launch>

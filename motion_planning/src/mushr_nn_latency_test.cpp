@@ -21,9 +21,9 @@
 
 #include <torch_bridge/sysid_runtime.hpp>
 
-#ifdef GTSAM_USE_TBB
-#include <tbb/global_control.h>
-#endif
+// #ifdef GTSAM_USE_TBB
+// #include <tbb/global_control.h>
+// #endif
 
 using Parameters = prx_models::mushr_types::Control::params;
 using Poly = prx_models::mushr_types::Control::Poly;
@@ -70,6 +70,8 @@ int main(int argc, char** argv)
 
   std::string model_file;
   bool directNN;
+
+  DEBUG_VARS(model_type);
   if (model_type == "structured")
   {
     directNN = false;
@@ -82,6 +84,12 @@ int main(int argc, char** argv)
     model_file = get_model_paths() + "/D08_h10_w1_direct_model.ts.pt";
     // nn = std::make_shared<DirectSysidRuntime>(direct_file, false, "float32");
   }
+  else
+  {
+    prx_throw("Error loading model");
+  }
+  DEBUG_VARS(model_file);
+  DEBUG_VARS(use_jacobians);
 
   const gtsam::Key kxd1{ gtsam::Symbol('X', 1) };
   const gtsam::Key kxd0{ gtsam::Symbol('X', 0) };

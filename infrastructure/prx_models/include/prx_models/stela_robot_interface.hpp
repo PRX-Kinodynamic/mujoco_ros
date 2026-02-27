@@ -278,6 +278,7 @@ public:
     const Observation& zi{ _last_observation.first };
     const double dt{ (_last_observation.second - ti).toSec() };
 
+    // LOG_VARS(_last_observation.second, ti, dt);
     // LOG_MSG("Adding Observation Factor");
     // LOG_VARS(prev_id, curr_id, dt, zi);
     graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, z_noise, zi, dt, "Observation");
