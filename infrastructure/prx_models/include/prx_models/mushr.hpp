@@ -599,8 +599,7 @@ public:
                          &_delta_poly[0],
                          &_delta_poly[1],
                          &_delta_poly[2],
-                         &_delta_poly[3],
-                         &_propagation_factor };
+                         &_delta_poly[3] };
     const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
     parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
@@ -652,9 +651,9 @@ protected:
   mushr_types::Control::Poly _delta_poly;
 
   double _idle;
-  double _propagation_factor;  // Defines the type of propagation to use
-  double _propagate_id;        // If mj prop using, it needs to reset if curr_propid != _propagate_id
-  double _curr_propagate_id;   // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  // double _propagation_factor;  // Defines the type of propagation to use
+  double _propagate_id;       // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  double _curr_propagate_id;  // If mj prop using, it needs to reset if curr_propid != _propagate_id
 
   std::shared_ptr<MushrMjFactor> _mj_factor;
 };

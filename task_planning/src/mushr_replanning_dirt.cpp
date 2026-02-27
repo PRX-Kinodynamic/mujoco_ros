@@ -1,4 +1,6 @@
 #include <ml4kp_bridge/defs.h>
+#include <prx/utilities/general/condition_check.hpp>
+#include <prx/utilities/general/prx_assert.hpp>
 #include <prx_models/defs.hpp>
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
@@ -354,6 +356,7 @@ struct replanner_t
     // std::cout << "Goal: " << ss->print_point(goal) << std::endl;
 
     // prx::heuristic_map_t heuristic_map(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, heuristic_context);
+    // heuristic_map_t(double x_min, double x_max, double y_min, double y_max, double x_step, double y_step,
     _heuristic_map = std::make_shared<prx::heuristic_map_t>(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, heuristic_context);
     _heuristic_map->set_obstacle_grid();
     _heuristic_map->set_heuristic_grid(_dirt_query->goal_state);
@@ -367,9 +370,13 @@ struct replanner_t
       return _heuristic_map->get_cost(s);
     };
 
+    // int row = (0.0 - (-1.0)) / 0.01 = 100
+    // int col = (1.0 - (-0.5)) / 0.01 = 150
     _dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+      return _heuristic_map->get_cost(s) / 0.3;
       // return _dirt_spec->distance_function(s, s2) / 0.62;
-      return 0.0;
+      // return _dirt_spec->distance_function(s, s2) / 0.62;
+      // return 0.0;
     };
   }
 
@@ -508,6 +515,29 @@ struct replanner_t
     std::ofstream ofs(filename);
   }
 
+  prx::condition_check_t create_condition(prx_models::StelaKraft::Request& request)
+  {
+    if (request.condition == prx_models::StelaKraft::Request::CONDITION_ITERATIONS)
+    {
+      return prx::condition_check_t("iterations", request.iterations);
+    }
+    else if (request.condition == prx_models::StelaKraft::Request::CONDITION_ITERATIONS)
+    {
+      const ros::Time start_plan_stamp{ ros::Time::now() };
+      const ros::Duration dt_available{ request.deadline - start_plan_stamp };
+      const double time_limit{ std::max(dt_available.toSec() - _postprocess_timeout, 0.0) };
+
+      LOG_VARS(request.deadline, dt_available, time_limit);
+      // if (time_limit <= 0)
+      // {
+      //   // change_status(interface::ReplannerStatus::IDLE);
+      //   // return true;
+      // }
+      return prx::condition_check_t("time", time_limit);
+    }
+    prx_throw("Unknown condition check")
+  }
+
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
@@ -542,34 +572,42 @@ struct replanner_t
     // const double preprocess_real_dt{ (ros::Time::now() - _cycle_start).toSec() };
     // const double time_limit{ planning_duration - preprocess_real_dt - _postprocess_timeout };
     // DEBUG_VARS(time_limit, planning_duration, preprocess_real_dt, _postprocess_timeout);
-    const ros::Time start_plan_stamp{ ros::Time::now() };
-    const ros::Duration dt_available{ request.deadline - start_plan_stamp };
-    const double time_limit{ dt_available.toSec() - _postprocess_timeout };
+    // const ros::Time start_plan_stamp{ ros::Time::now() };
+    // const ros::Duration dt_available{ request.deadline - start_plan_stamp };
+    // const double time_limit{ dt_available.toSec() - _postprocess_timeout };
 
-    LOG_VARS(request.deadline, dt_available, time_limit);
-    if (time_limit <= 0)
-    {
-      change_status(interface::ReplannerStatus::IDLE);
-      return true;
-    }
+    // LOG_VARS(request.deadline, dt_available, time_limit);
+    // if (time_limit <= 0)
+    // {
+    //   change_status(interface::ReplannerStatus::IDLE);
+    //   return true;
+    // }
     // prx_assert(time_limit > 0, "Time limit is less than 0");
-    prx::condition_check_t checker("time", time_limit);
+    // prx::condition_check_t checker("time", time_limit);
+    prx::condition_check_t checker{ create_condition(request) };
 
     change_status(interface::ReplannerStatus::PLANNING);
     LOG_MSG("PLANNING");
 
     _dirt->resolve_query(&checker);
 
-    const ros::Time end{ ros::Time::now() };
-    const double real_plan_dt{ (end - start_plan_stamp).toSec() };
-    const double dt_diff{ time_limit - real_plan_dt };
+    // const ros::Time end{ ros::Time::now() };
+    // const double real_plan_dt{ (end - start_plan_stamp).toSec() };
+    // const double dt_diff{ time_limit - real_plan_dt };
     change_status(interface::ReplannerStatus::POSTPROCESSING);
 
-    LOG_VARS(real_plan_dt, dt_diff);
+    // LOG_VARS(real_plan_dt, dt_diff);
     LOG_MSG("POSTPROCESSING");
 
     _dirt->fulfill_query();
 
+    auto stats = _dirt->statistics();
+    response.planned_duration = stats.planned_duration;
+    response.iteration_count = stats.iteration_count;
+    response.total_nodes = stats.total_nodes;
+    response.cost_current_solution = stats.cost_current_solution;
+    response.time_current_solution = stats.time_current_solution;
+    response.iters_current_solution = stats.iters_current_solution;
     // prx::space_point_t current_state = _spec->state_space->make_point();
     // double execution_time = request.planning_duration.data.toSec();
     if (_dirt_query->solution_traj.size() > 0)

@@ -33,6 +33,9 @@ void read_plan(const std::string filename, prx::plan_t& plan)
   using CsvReader = prx::utilities::csv_reader_t;
   CsvReader reader(filename);
 
+  double prev_stamp{ -1 };
+  Eigen::Vector2d ctrl;
+
   while (reader.has_next_line())
   {
     auto line = reader.next_line();
@@ -41,18 +44,26 @@ void read_plan(const std::string filename, prx::plan_t& plan)
       continue;
     if (line[0][0] == '#')  // #steering velocity_desired duration
       continue;
+    //    0               1       2         3
+    // # steering_angle speed acceleration stamp
 
     const double steering{ convert_to<double>(line[0]) };
-    const double velocity_desired{ convert_to<double>(line[1]) };
-    const double plan_duration{ convert_to<double>(line[2]) };
-    // const double plan_duration{ 1.0 };
+    const double accel{ convert_to<double>(line[2]) };
+    const double stamp{ convert_to<double>(line[3]) };
 
-    const Eigen::Vector2d ctrl{ Eigen::Vector2d(velocity_desired, steering) };
-    plan.copy_onto_back(ctrl, plan_duration);
+    if (stamp == prev_stamp)
+      continue;
+    if (prev_stamp > 0)
+    {
+      plan.copy_onto_back(ctrl, stamp - prev_stamp);
+    }
+    ctrl = Eigen::Vector2d(accel, steering);
+    prev_stamp = stamp;
   }
+  plan.copy_onto_back(ctrl, 10);
 }
 
-void read_traj(const std::string filename, prx::trajectory_t& traj)
+void read_traj(const std::string filename, std::vector<Eigen::Vector<double, 6>>& traj)
 {
   using prx::utilities::convert_to;
   using CsvReader = prx::utilities::csv_reader_t;
@@ -68,7 +79,7 @@ void read_traj(const std::string filename, prx::trajectory_t& traj)
     if (line[0][0] == '#')  // #steering velocity_desired duration
       continue;
 
-    // # x y theta xDot yDot thetaDot
+    // # dt x y theta xDot yDot thetaDot stamp
     for (int i = 0; i < 6; ++i)
     {
       xin[i] = convert_to<double>(line[i + 1]);
@@ -78,6 +89,7 @@ void read_traj(const std::string filename, prx::trajectory_t& traj)
     // const Eigen::Vector2d ctrl{ Eigen::Vector2d(velocity_desired, steering) };
     // plan.copy_onto_back(ctrl, plan_duration);
   }
+
   // const State x0_inv{ states[0].inverse() };
 
   // for (auto state : states)
@@ -87,6 +99,14 @@ void read_traj(const std::string filename, prx::trajectory_t& traj)
   // }
 }
 
+void create_subplan(prx::plan_t& subplan, prx::plan_t& plan, const double t0, const double tF)
+{
+  subplan.clear();
+  for (double ti = t0; ti < tF; ti += 0.1)
+  {
+    subplan.copy_onto_back(plan.at(ti), 0.1);
+  }
+}
 // Mujoco-Ros visualization in (almost) RT:
 // Depends on the vizualization thread, but if the viz thread slows down, it won't affect mujoco
 int main(int argc, char** argv)
@@ -132,6 +152,7 @@ int main(int argc, char** argv)
   }
   // params.print();
 
+  std::ofstream ofs_traj(file_out.c_str());
   std::ofstream ofs(errors_filename.c_str());
 
   const std::string plant_name{ params["/name"].as<std::string>() };
@@ -140,6 +161,8 @@ int main(int argc, char** argv)
   prx_assert(plant != nullptr, "Failed to create plant");
   plant->init(params);
 
+  DEBUG_VARS(plant)
+  // DEBUG_VARS(params)
   prx::world_model_t world_model({ plant }, {});
   world_model.create_context("planner_context", { plant_name }, {});
   auto context = world_model.get_context("planner_context");
@@ -163,48 +186,30 @@ int main(int argc, char** argv)
 
   // DEBUG_VARS(plant);
   prx::plan_t plan(cs);
-  prx::plan_t partial_plan(cs);
+  prx::plan_t subplan(cs);
 
   prx::trajectory_t traj(ss);
-  prx::trajectory_t traj_in(ss);
+  std::vector<Eigen::Vector<double, 6>> traj_in;
 
   read_plan(plan_file, plan);
   read_traj(traj_file, traj_in);
-
-  // DEBUG_VARS(plan)
-  plan.expand();
-  // DEBUG_VARS(plan)
-  DEBUG_VARS(plan.size())
-  traj_step = std::min(plan.size(), static_cast<std::size_t>(traj_step));
-  int plan_idx{ 0 };
-  for (; plan_idx < traj_step - 1; ++plan_idx)
-  {
-    // DEBUG_VARS(plan_idx)
-    const auto plan_step = plan[plan_idx];
-    partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
-  }
+  DEBUG_VARS(plan)
 
   auto traj_opt = std::ofstream::trunc;
-  std::ofstream ofs_traj(file_out.c_str());
 
-  // DEBUG_VARS(plan.duration(), traj_in.duration())
-  for (int i = 0; i < traj_in.size() - (traj_step + 1); ++i, ++plan_idx)
+  const double dt{ 0.1 };
+  for (int i = 0; i < traj_in.size() - traj_step; ++i)
   {
-    // DEBUG_PRINT
-    traj.clear();
-    if (plan_idx >= plan.size())
-      break;
+    const double t0{ i * dt };
+    const double tF{ t0 + traj_step * dt };
+    create_subplan(subplan, plan, t0, tF);
     ss->copy(x0, traj_in[i]);
-    sg->propagate(x0, partial_plan, traj);
+    // DEBUG_VARS(t0, tF, x0)
+    // DEBUG_VARS(subplan)
+    sg->propagate(x0, subplan, traj);
     // DEBUG_VARS(traj)
 
-    // DEBUG_VARS(plan.size(), plan_idx, i, traj_step, i + traj_step, traj_in.size())
-    partial_plan.pop_front();
-    const auto plan_step = plan[plan_idx];
-    partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
-    std::size_t traj_idx{ std::min(traj_in.size() - 1, static_cast<std::size_t>(i + traj_step)) };
-    const Eigen::Vector3d xy_gt{ Vec(traj_in[traj_idx]).head(3) };
-    // DEBUG_PRINT
+    const Eigen::Vector3d xy_gt{ traj_in[i + traj_step].head(3) };
     const Eigen::Vector3d xy_pred{ Vec(traj.back()).head(3) };
     const double xy_err{ (xy_gt - xy_pred).head(2).norm() };
     const double th_diff{ xy_gt[2] - xy_pred[2] };
@@ -215,10 +220,56 @@ int main(int argc, char** argv)
 
     ofs_traj << xy_gt.transpose() << " ";
     ofs_traj << xy_pred.transpose() << "\n";
-    // traj.to_file(file_out, traj_opt);
-    // traj_opt = std::ofstream::app;
+
+    traj.to_file("/tmp/trajs.txt", traj_opt);
+    traj_opt = std::ofstream::app;
   }
   ofs.close();
+  ofs_traj.close();
+  // traj_step = std::min(plan.size(), static_cast<std::size_t>(traj_step));
+  // int plan_idx{ 0 };
+  // for (; plan_idx < traj_step - 1; ++plan_idx)
+  // {
+  //   // DEBUG_VARS(plan_idx)
+  //   const auto plan_step = plan[plan_idx];
+  //   partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
+  // }
+
+  // auto traj_opt = std::ofstream::trunc;
+  // std::ofstream ofs_traj(file_out.c_str());
+
+  // // DEBUG_VARS(plan.duration(), traj_in.duration())
+  // for (int i = 0; i < traj_in.size() - (traj_step + 1); ++i, ++plan_idx)
+  // {
+  //   // DEBUG_PRINT
+  //   traj.clear();
+  //   if (plan_idx >= plan.size())
+  //     break;
+  //   ss->copy(x0, traj_in[i]);
+  //   sg->propagate(x0, partial_plan, traj);
+  //   // DEBUG_VARS(traj)
+
+  //   // DEBUG_VARS(plan.size(), plan_idx, i, traj_step, i + traj_step, traj_in.size())
+  //   partial_plan.pop_front();
+  //   const auto plan_step = plan[plan_idx];
+  //   partial_plan.copy_onto_back(plan_step.control, plan_step.duration);
+  //   std::size_t traj_idx{ std::min(traj_in.size() - 1, static_cast<std::size_t>(i + traj_step)) };
+  //   const Eigen::Vector3d xy_gt{ Vec(traj_in[traj_idx]).head(3) };
+  //   // DEBUG_PRINT
+  //   const Eigen::Vector3d xy_pred{ Vec(traj.back()).head(3) };
+  //   const double xy_err{ (xy_gt - xy_pred).head(2).norm() };
+  //   const double th_diff{ xy_gt[2] - xy_pred[2] };
+  //   const double th_err{ std::fabs(std::atan2(std::sin(th_diff), std::cos(th_diff))) };
+
+  //   ofs << xy_err << " ";
+  //   ofs << th_err << "\n";
+
+  //   ofs_traj << xy_gt.transpose() << " ";
+  //   ofs_traj << xy_pred.transpose() << "\n";
+  //   // traj.to_file(file_out, traj_opt);
+  //   // traj_opt = std::ofstream::app;
+  // }
+  // ofs.close();
 
   //   return res;
   // DEBUG_VARS(x0)

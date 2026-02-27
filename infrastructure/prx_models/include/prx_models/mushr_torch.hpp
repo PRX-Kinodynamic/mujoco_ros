@@ -130,6 +130,12 @@ class mushr_torch_factor_t
   }
 
 public:
+  // using BoostSharedPtr = boost::shared_ptr<mushr_torch_factor_t>;
+  // static std::vector<BoostSharedPtr> _available_ptrs;
+  // static BoostSharedPtr get_next_available()
+  // {
+  // }
+
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(1 == Num), bool> = true>
   mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
                        const NoiseModel& cost_model, const std::string torch_model_path, const bool directNN,
