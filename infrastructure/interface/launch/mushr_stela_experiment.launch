@@ -6,12 +6,13 @@
   <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/> -->
   <!-- <arg name="environment" default="$(env ML4KP_ROS)/src/mujoco_ros/infrastructure/prx_models/models/environments/single_obstacle.yaml"/> -->
   <arg name="goal" default="[1.0, 5.0, 1.57]"/>
-  <arg name="goal_radius" default="1.0"/>
+  <arg name="goal_radius" default="0.75"/>
   <arg name="timeout" default="120"/>
   <!-- <arg name="timeout" default="60"/> -->
   <arg name="experiment" default="test"/>
-  <arg name="file_prefix" default="$(env ML4KP_ROS)/data/experiments/test"/>
+  <arg name="file_prefix" default="$(env ML4KP_ROS)/data/experiments/$(arg experiment)"/>
   <arg name="total_experiments" default="1"/>
+  <arg name="rosbag_directory" default="$(env ML4KP_ROS)/bags/mj_experiments/" />
 	<!-- <include file="$(find mujoco_ros)/launch/mushr.launch"> -->
     <!-- <arg name="publish_ground_truth_pose" value="false" /> -->
     <!-- <arg name="environment" value="$(arg environment)" /> -->
@@ -21,7 +22,7 @@
       <param name="node_id" value="experiment_runner"/>
       <param name="goal" type="yaml" value="$(arg goal)"/>
       <param name="timeout" value="$(arg timeout)"/>
-      <param name="file_prefix" value="$(env ML4KP_ROS)/data/experiments/$(arg experiment)"/>
+      <param name="file_prefix" value="$(arg file_prefix)"/>
       <param name="total_experiments" value="$(arg total_experiments)"/>
       <param name="goal_radius" value="$(arg goal_radius)"/>
       <param name="stela_node_id" value="stela"/>
@@ -54,7 +55,7 @@
   <!-- <include file="$(find task_planning)/launch/fix_plan.launch"/> -->
   
   <include file="$(find interface)/launch/rosbag_record_mj_experiment.launch">
-    <arg name="rosbag_directory" value="$(env ML4KP_ROS)/bags/mj_experiments/" />
+    <arg name="rosbag_directory" value="$(arg rosbag_directory)" />
     <arg name="rosbag_prefix" default="$(arg experiment)"/>
   </include>
 

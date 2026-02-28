@@ -109,14 +109,15 @@ struct runner_t
 
       int tot_running{ 0 };
       if (_mj_status->status() == interface::NodeStatus::RUNNING and
-          _rosbag_status->status() == interface::NodeStatus::RUNNING and
           _stela_status->status() == interface::NodeStatus::RUNNING)
       {
+        // _rosbag_status->status() == interface::NodeStatus::RUNNING and
         PRINT_MSG("ALL RUNNING ");
+        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
         _initializing = false;
       }
       else if (_mj_status->status() == interface::NodeStatus::RUNNING and
-               _rosbag_status->status() == interface::NodeStatus::RUNNING)
+               _rosbag_status->status() == interface::NodeStatus::READY)
       {
         // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
         _stela_status->request_status(interface::NodeStatus::RUNNING);
@@ -128,8 +129,8 @@ struct runner_t
         // DEBUG_VARS(_rosbag_status)
         // DEBUG_VARS(_stela_status)
         _start = ros::WallTime::now();
-        _mj_status->request_status(interface::NodeStatus::RUNNING);
-        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
+        _mj_status->request_status(interface::NodeStatus::RESET);
+        // _rosbag_status->request_status(interface::NodeStatus::RUNNING);
         ros::Duration(1.0).sleep();
         // _stela_status->request_status(interface::NodeStatus::RUNNING);
       }
@@ -150,6 +151,10 @@ struct runner_t
     }
     else  // keep running
     {
+      if (_stela_status->status() != interface::NodeStatus::RUNNING)
+      {
+        _stela_status->request_status(interface::NodeStatus::RUNNING);
+      }
       _node_status->status(interface::NodeStatus::RUNNING);
     }
   }
@@ -178,7 +183,7 @@ struct runner_t
     _ofs << _state[0] << " ";
     _ofs << _state[1] << " ";
     _ofs << _state[2] << " ";
-    _ofs << "\n";
+    _ofs << std::endl;  // Force a write
 
     const std::string msg{ "[Mushr Experiment]" };
     DEBUG_VARS(msg, reason, _curr_experiment, _total_experiments);
