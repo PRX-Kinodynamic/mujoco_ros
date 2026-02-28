@@ -14,6 +14,7 @@
 #include <interface/SensorDataStamped.h>
 #include <prx_models/mushr_factors.hpp>
 #include <prx_models/mushr.hpp>
+#include <prx_models/PlannerStats.h>
 #include "utils/dbg_utils.hpp"
 
 struct runner_t
@@ -21,7 +22,7 @@ struct runner_t
   using State = prx_models::mushr_types::State::type;
 
   ros::Timer _timer, _verbose_timer;
-  ros::Subscriber _sensor_subscriber, _collision_subscriber;
+  ros::Subscriber _sensor_subscriber, _collision_subscriber, _planner_stats_subscriber;
 
   State _state, _goal;
   double _goal_radius, _timeout;
@@ -33,6 +34,7 @@ struct runner_t
   std::vector<std::shared_ptr<interface::node_status_t>> _all_ns;
 
   std::ofstream _ofs;
+  std::ofstream _ofs_planner;
   ros::WallTime _start;
   std::string _file_prefix;
 
@@ -43,7 +45,7 @@ struct runner_t
   runner_t(ros::NodeHandle& nh)
     : _collision(false), _goal_reached(false), _initializing(true), _curr_experiment(0), _error(10, 10, 10)
   {
-    std::string sensor_topic_name, collision_topic_name;
+    std::string sensor_topic_name, collision_topic_name, planner_stats_topic_name;
     std::string stela_node_id, mj_node_id, rosbag_node_id;
 
     int& total_experiments{ _total_experiments };
@@ -62,6 +64,7 @@ struct runner_t
     PARAM_SETUP(nh, total_experiments);
     PARAM_SETUP(nh, sensor_topic_name);
     PARAM_SETUP(nh, collision_topic_name);
+    PARAM_SETUP(nh, planner_stats_topic_name);
 
     prx_assert(goal.size() == 3, "goal needs to have size 3");
     _goal[0] = goal[0];
@@ -78,6 +81,7 @@ struct runner_t
 
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
     _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
+    _planner_stats_subscriber = nh.subscribe(planner_stats_topic_name, 1, &runner_t::planner_stats_callback, this);
 
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
     _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
@@ -170,7 +174,9 @@ struct runner_t
   void init()
   {
     std::string file_path{ _file_prefix + "_" + utils::timestamp() + ".txt" };
+    std::string file_planner_path{ _file_prefix + "_planner_" + utils::timestamp() + ".txt" };
     _ofs.open(file_path);
+    _ofs_planner.open(file_planner_path);
     ros::Duration(5.0).sleep();
     _mj_status->request_status(interface::NodeStatus::RESET);
   }
@@ -204,6 +210,17 @@ struct runner_t
     call_reset();
     ros::Duration(5.).sleep();  // sleep for resets to happen
     _initializing = true;
+  }
+
+  void planner_stats_callback(const prx_models::PlannerStats msg)
+  {
+    _ofs_planner << msg.planned_duration << " ";
+    _ofs_planner << msg.iteration_count << " ";
+    _ofs_planner << msg.total_nodes << " ";
+    _ofs_planner << msg.cost_current_solution << " ";
+    _ofs_planner << msg.time_current_solution << " ";
+    _ofs_planner << msg.iters_current_solution << " ";
+    _ofs_planner << "\n";
   }
 
   void collision_callback(const std_msgs::BoolConstPtr msg)

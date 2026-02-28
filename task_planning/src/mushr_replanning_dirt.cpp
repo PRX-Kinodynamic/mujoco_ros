@@ -16,6 +16,8 @@
 #include <motion_planning/tree_bridge.hpp>
 
 #include <prx_models/mushr.hpp>
+#include <prx_models/planner_utils.hpp>
+
 #include <ros/ros.h>
 #include <ros/package.h>
 
@@ -76,6 +78,7 @@ struct replanner_t
   ros::Publisher _status_publisher;
   ros::Publisher _tree_publisher;
   ros::Publisher _sln_tree_publisher;
+  ros::Publisher _planner_stats_publisher;
 
   ros::Subscriber _z_tree_subscriber;
   ros::Subscriber _planner_clock_subscriber;
@@ -123,6 +126,7 @@ struct replanner_t
 
     std::string params_file, estimation_tree_topic, planner_clock_topic;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
+    std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
 
     int& max_cycles{ _max_cycles };
@@ -153,6 +157,7 @@ struct replanner_t
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
 
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
+    PARAM_SETUP(nh, planner_stats_topic_name);
     // PARAM_SETUP(nh, environment);
 
     GLOBAL_PARAM_SETUP(environment);
@@ -178,6 +183,7 @@ struct replanner_t
     _status_publisher = nh.advertise<interface::ReplannerStatus>("/kraft/status", 1, true);
     _tree_publisher = nh.advertise<prx_models::Tree>(sbmp_full_tree_topic, 1, true);
     _sln_tree_publisher = nh.advertise<prx_models::Tree>(sbmp_solution_tree_topic, 1, true);
+    _planner_stats_publisher = nh.advertise<prx_models::Tree>(planner_stats_topic_name, 1, true);
 
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
@@ -521,13 +527,15 @@ struct replanner_t
 
     _dirt->fulfill_query();
 
-    auto stats = _dirt->statistics();
-    response.planned_duration = stats.planned_duration;
-    response.iteration_count = stats.iteration_count;
-    response.total_nodes = stats.total_nodes;
-    response.cost_current_solution = stats.cost_current_solution;
-    response.time_current_solution = stats.time_current_solution;
-    response.iters_current_solution = stats.iters_current_solution;
+    // auto stats = _dirt->statistics();
+    prx_models::copy(response.stats, _dirt->statistics());
+    _planner_stats_publisher.publish(response.stats);
+    // response.planned_duration = stats.planned_duration;
+    // response.iteration_count = stats.iteration_count;
+    // response.total_nodes = stats.total_nodes;
+    // response.cost_current_solution = stats.cost_current_solution;
+    // response.time_current_solution = stats.time_current_solution;
+    // response.iters_current_solution = stats.iters_current_solution;
     // prx::space_point_t current_state = _spec->state_space->make_point();
     // double execution_time = request.planning_duration.data.toSec();
     // =======

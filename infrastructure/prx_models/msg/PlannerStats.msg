@@ -1,0 +1,6 @@
+float32 planned_duration
+int32 iteration_count 
+int32 total_nodes  
+float32 cost_current_solution
+float32 time_current_solution
+int32 iters_current_solution

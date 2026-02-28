@@ -97,12 +97,13 @@ int main(int argc, char** argv)
                                  prx_models::StelaKraft::Response::TYPE_SUCCESS };
       const std::string response_flag{ planner_status ? "SUCESS" : "FAILURE" };
 
-      const double planned_duration{ planner_service_call.response.planned_duration };
-      const int iteration_count{ planner_service_call.response.iteration_count };
-      const int total_nodes{ planner_service_call.response.total_nodes };
-      const double cost_current_solution{ planner_service_call.response.cost_current_solution };
-      const double time_current_solution{ planner_service_call.response.time_current_solution };
-      const int iters_current_solution{ planner_service_call.response.iters_current_solution };
+      const prx_models::PlannerStats& stats{ planner_service_call.response.stats };
+      const double planned_duration{ stats.planned_duration };
+      const int iteration_count{ stats.iteration_count };
+      const int total_nodes{ stats.total_nodes };
+      const double cost_current_solution{ stats.cost_current_solution };
+      const double time_current_solution{ stats.time_current_solution };
+      const int iters_current_solution{ stats.iters_current_solution };
 
       ofs << planned_duration << " ";
       ofs << iteration_count << " ";

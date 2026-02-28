@@ -13,6 +13,7 @@
     <arg name = "postprocess_timeout" default = "0.2" />
     <arg name = "record" default = "false"/>
     <arg name = "id" default = "0"/>
+    <arg name = "planner_stats_topic_name" default="/replanner/stats"/>
     <arg name = "params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/planning_simulation.yaml" />
     <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
     <arg name = "plant_file"/>
@@ -71,6 +72,8 @@
         <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
         <param name="max_edge_duration" value="0.1"/>
         <param name="use_contingency" value="$(arg use_contingency)"/>
+        <param name="planner_stats_topic_name" value="$(arg planner_stats_topic_name)"/>
+        
         <!-- <param name="environment" value="$(arg environment)" /> -->
 
     </node>

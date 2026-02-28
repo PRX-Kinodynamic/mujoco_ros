@@ -1,3 +1,4 @@
+#ifndef TORCH_NOT_BUILT
 #include <fstream>
 #include <prx/utilities/general/random.hpp>
 #include <thread>
@@ -129,3 +130,9 @@ int main(int argc, char** argv)
 #endif
   // return 0;
 }
+#else
+int main()
+{
+}
+
+#endif
