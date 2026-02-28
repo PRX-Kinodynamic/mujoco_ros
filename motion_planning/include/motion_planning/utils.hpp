@@ -8,6 +8,21 @@ namespace motion_planning
 {
 using SF = prx::fg::symbol_factory_t;
 
+void log_graph(const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& current_estimate,
+               const std::string msg = "")
+{
+  std::streambuf* coutbuf = std::cout.rdbuf();       // save old buf
+  std::cout.rdbuf(dbg::variables::ofs_log.rdbuf());  // redirect std::cout to log file
+  const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+      printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr; };
+
+  current_estimate.print("--- VALUES: " + msg + " ---\n", SF::formatter);
+  graph.print("--- GRAPH: " + msg + " ---\n", SF::formatter);
+  graph.printErrors(current_estimate, "--- Problem graph: " + msg + " ---\n", SF::formatter, printCondition);
+
+  std::cout.rdbuf(coutbuf);
+}
+
 template <typename StateType, std::enable_if_t<std::is_same<StateType, gtsam::Pose3>::value, bool> = true>
 void estimate_to_stream(std::ostream& ofs, const gtsam::Key& key, const StateType& state)
 {
@@ -76,6 +91,18 @@ inline void update_estimates(StateEstimates& state_estimates, const gtsam::ISAM2
     DEBUG_VARS(e.what());
     throw e;
   }
+  catch (gtsam::IndeterminantLinearSystemException exception)
+  {
+    DEBUG_PRINT
+    const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+
+    LOG_VARS(exception_nearby_variable);
+    LOG_VARS(exception.what());
+    log_graph(isam.getFactorsUnsafe(), isam.getLinearizationPoint(), "update_values");
+    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint(),
+                                                dbg::variables::ofs_log);
+    throw exception;
+  }
   update_estimates<I + 1>(state_estimates, isam, keys);
 }
 
@@ -111,6 +138,19 @@ inline void compute_covariances(std::vector<Eigen::MatrixXd>& covariances, const
 
     throw e;
   }
+  catch (gtsam::IndeterminantLinearSystemException exception)
+  {
+    DEBUG_PRINT
+    const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+    const std::string problem_variable{ SF::formatter(std::get<I>(keys)) };
+    LOG_VARS(I, problem_variable);
+    LOG_VARS(exception_nearby_variable);
+    LOG_VARS(exception.what());
+    log_graph(isam.getFactorsUnsafe(), isam.getLinearizationPoint(), "compute_covariances");
+    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint(),
+                                                dbg::variables::ofs_log);
+    throw exception;
+  }
 }
 
 template <std::size_t I, typename StateEstimates, typename StateKeys,
@@ -142,6 +182,18 @@ inline void update_values(gtsam::Values& values, gtsam::ISAM2& isam, const State
     DEBUG_PRINT
     PRINT_KEY(e.key())
     DEBUG_VARS(e.what());
+  }
+  catch (gtsam::IndeterminantLinearSystemException exception)
+  {
+    DEBUG_PRINT
+    const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+
+    LOG_VARS(exception_nearby_variable);
+    LOG_VARS(exception.what());
+    log_graph(isam.getFactorsUnsafe(), isam.getLinearizationPoint(), "update_values");
+    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint(),
+                                                dbg::variables::ofs_log);
+    throw exception;
   }
   update_values<I + 1, StateEstimates>(values, isam, keys);
 }
@@ -193,15 +245,17 @@ void covariance_diagonal_to_stream(std::ostream& ofs, const gtsam::Key& key, con
       }
     }
   }
-  catch (gtsam::IndeterminantLinearSystemException e)
+  catch (gtsam::IndeterminantLinearSystemException exception)
   {
     DEBUG_PRINT
-    const std::string problem_key{ SF::formatter(key) };
-    const std::string nearby_key{ SF::formatter(e.nearbyVariable()) };
-    PRINT_MSG_VARS("Can't compute covariance", problem_key, nearby_key);
-    DEBUG_VARS(e.what());
-    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint());
-    throw e;
+    const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+
+    LOG_VARS(exception_nearby_variable);
+    LOG_VARS(exception.what());
+    log_graph(isam.getFactorsUnsafe(), isam.getLinearizationPoint(), "covariance_diagonal_to_stream");
+    prx::fg::indeterminant_linear_system_helper(isam.getFactorsUnsafe(), isam.getLinearizationPoint(),
+                                                dbg::variables::ofs_log);
+    throw exception;
   }
   catch (std::out_of_range e)
   {

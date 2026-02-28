@@ -13,6 +13,8 @@
 
 #include <iterator>
 #include <memory>
+#include <prx/simulation/playback/plan.hpp>
+#include <prx/simulation/playback/trajectory.hpp>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <string>
 #include <utils/std_utils.hpp>
@@ -107,7 +109,7 @@ public:
   using GraphValues = std::pair<FactorGraph, Values>;
 
   stela_windowed_t()
-    : _isam_params(gtsam::ISAM2GaussNewtonParams(), 0.1, 10, true, true, gtsam::ISAM2Params::CHOLESKY, true,
+    : _isam_params(gtsam::ISAM2GaussNewtonParams(), 0.1, 10, true, false, gtsam::ISAM2Params::CHOLESKY, true,
                    prx::fg::symbol_factory_t::formatter, true)
     , _tf_listener(_tf_buffer)
     , _isam(_isam_params)
@@ -134,7 +136,8 @@ public:
     , _call_replanner(false)
     , _fg_initialized(false)
     , _new_tree_available(false)
-    , _validate_replanner_sln(true)
+    , _validation_plan_feasibility(false)
+    , _validation_collision_only(false)
     , _lm_params(prx::fg::default_levenberg_marquardt_parameters())
 #ifdef GTSAM_USE_TBB
     , _tbb_control(tbb::global_control::max_allowed_parallelism, 8)
@@ -151,7 +154,7 @@ public:
     std::string input_tree_topic_name;
     std::string control_topic;
     std::string collision_topic;
-    std::string environment;
+    // std::string environment;
     std::string estimated_tree_topic;
     double obstacle_sigma{ 1.0 };
     double observation_frquency{ 30 };
@@ -174,7 +177,8 @@ public:
     bool& visualize{ _visualize };
     bool& using_stepper{ _using_stepper };
     bool& time_as_variable{ _time_as_variable };
-    bool& validate_replanner_sln{ _validate_replanner_sln };
+    bool& validation_plan_feasibility{ _validation_plan_feasibility };
+    bool& validation_collision_only{ _validation_collision_only };
     int& total_future_nodes{ _total_future_nodes };
     int& total_past_nodes{ _total_past_nodes };
     int estimation_pub_freq{ 30 };
@@ -194,6 +198,10 @@ public:
 
     _node_status = interface::node_status_t::create(private_nh);
 
+    LOG_FILENAME("logs/stela.txt");
+
+    // GLOBAL_PARAM_SETUP(environment);
+
     PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
     PARAM_SETUP(private_nh, replanner_solution_duration);
@@ -207,13 +215,13 @@ public:
     PARAM_SETUP(private_nh, robot_frame);
     PARAM_SETUP(private_nh, output_dir)
     PARAM_SETUP(private_nh, collision_topic)
-    PARAM_SETUP(private_nh, environment)
     PARAM_SETUP(private_nh, obstacle_mode)
     PARAM_SETUP(private_nh, obstacle_distance_tolerance)
     PARAM_SETUP(private_nh, obstacle_factor_include_distance)
     PARAM_SETUP(private_nh, estimated_trajectory_topic)
     PARAM_SETUP(private_nh, planner_clock_topic);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, validate_replanner_sln, validate_replanner_sln)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, validation_plan_feasibility, validation_plan_feasibility)
+    PARAM_SETUP_WITH_DEFAULT(private_nh, validation_collision_only, validation_collision_only)
     PARAM_SETUP_WITH_DEFAULT(private_nh, visualize, visualize)
     PARAM_SETUP_WITH_DEFAULT(private_nh, time_as_variable, time_as_variable)
     PARAM_SETUP_WITH_DEFAULT(private_nh, obstacle_sigma, obstacle_sigma)
@@ -222,10 +230,29 @@ public:
     PARAM_SETUP_WITH_DEFAULT(private_nh, report_control_frequency, report_control_frequency)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_future_nodes, total_future_nodes)
     PARAM_SETUP_WITH_DEFAULT(private_nh, total_past_nodes, total_past_nodes)
-    PARAM_SETUP_WITH_DEFAULT(private_nh, sdf_params, sdf_params)
     PARAM_SETUP_WITH_DEFAULT(private_nh, using_stepper, using_stepper)
     PARAM_SETUP_WITH_DEFAULT(private_nh, estimation_pub_freq, estimation_pub_freq);
     PARAM_SETUP_WITH_DEFAULT(private_nh, observation_frquency, observation_frquency);
+
+    if (validation_plan_feasibility and validation_collision_only)
+    {
+      prx_throw("Both replanning validations cannot be on!")
+    }
+    else if (validation_plan_feasibility)
+    {
+      LOG_MSG("Using Plan Feasibility Validation")
+      PRINT_MSG("Using Plan Feasibility Validation")
+    }
+    else if (validation_collision_only)
+    {
+      LOG_MSG("Using Collision Validation")
+      PRINT_MSG("Using Collision Validation")
+    }
+    else
+    {
+      LOG_MSG("No Replanning Validation")
+      PRINT_MSG("No Replanning Validation")
+    }
 
     _planner_service_call.request.solution_duration = ros::Duration(replanner_solution_duration);
 
@@ -244,14 +271,18 @@ public:
     // _robot->log_params();
     if (obstacle_mode == "sdf")
     {
-      if (sdf_params == "")
-        prx_throw("No SDF params!");
-      prx::param_loader sdf_param_loader{};
-      sdf_param_loader = Sdf::default_parameters();
-      sdf_param_loader.add_file(sdf_params);
-      sdf_param_loader["environment"].set(environment);
+      // if (sdf_params == "")
+      //   prx_throw("No SDF params!");
+
+      // prx::param_loader sdf_param_loader{};
+      // sdf_param_loader.add_string(environment);
+      // // sdf_param_loader["environment/name"] = environment_name;
+
+      // // sdf_param_loader = Sdf::default_parameters();
+      // sdf_param_loader.add_file(sdf_params);
+      // sdf_param_loader["environment"].set(environment);
       // ml4kp_bridge::check_for_ros_params(sdf_param_loader, private_nh);
-      _sdf = Sdf::create(sdf_param_loader);
+      _sdf = Sdf::create(private_nh);
     }
 
     // PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
@@ -302,9 +333,9 @@ public:
     _prev_header.stamp = ros::Time::now();
     _next_node_time = ros::Time::now();
 
-    auto obstacles = prx::load_obstacles(environment);
+    // auto obstacles = prx::load_obstacles(environment);
     // _obstacle_list = obstacles.second;
-    _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
+    // _obstacle_collision_infos = prx::fg::collision_info_t::generate_infos(obstacles.second);
 
     _robot_collision_ptr = _robot->collision_geometry();
     _obstacle_noise = gtsam::noiseModel::Isotropic::Sigma(1, obstacle_sigma);
@@ -412,7 +443,6 @@ public:
 
       curr_node_idx = child_idx;
     }
-    // const ros::WallTime fg_built_stamp{ ros::WallTime::now() };
 
     try
     {
@@ -443,14 +473,27 @@ public:
     }
     catch (gtsam::ValuesKeyDoesNotExist e)
     {
-      // DEBUG_PRINT
       PRINT_MSG("check_new_tree");
       PRINT_MSG("[check_new_tree] Problem with test factor graph");
       PRINT_KEYS(e.key())
       DEBUG_VARS(e.what())
+      LOG_CLOSE
 
       // failure_to_file(e.what());
       throw e;
+    }
+    catch (gtsam::IndeterminantLinearSystemException exception)
+    {
+      DEBUG_PRINT
+      const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+      // PRINT_MSG("calculate_estimate_safe");
+      // const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(exception.nearbyVariable()) + "\n" };
+      LOG_VARS(exception_nearby_variable);
+      LOG_VARS(exception.what());
+      LOG_CLOSE
+      // failure_to_file(msg + e.what());
+      // std::cout << msg << std::string(e.what()) << std::endl;
+      throw;
     }
     // DEBUG_PRINT
     // LOG_MSG("--- check_new_tree FINISHED ---")
@@ -513,6 +556,9 @@ public:
 
   void replanner_service_main()
   {
+    // const bool& STELA_VALIDATING_REPLANNING_SLN{ _validate_replanner_sln };
+    // DEBUG_VARS(STELA_VALIDATING_REPLANNING_SLN)
+
     change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     while (ros::ok() and _replanning_calls > 0)
     {
@@ -608,31 +654,44 @@ public:
             change_status(stela_thread_t::REPLANNING, interface::StelaStatus::VALIDATING);
             LOG_MSG("REPLANNER ANSWERED")
             LOG_VARS(dt_used, dt_remaining)
-            // const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
-            // const prx_models::Node sln_root{ motion_planning::get_root(_planner_service_call.response.sln_tree) };
-            // _new_tree_available = false;
+
             const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
-            // const prx_models::Node& new_root{ _planner_service_call.response.sln_tree.nodes[root_idx] };
-            // DEBUG_VARS(_x_curr, _x_next, new_root.index)
-            // DEBUG_VARS(root_idx, _x_next, root_idx >= _x_next)
-            // if (root_idx >= _x_next)
-            // {
+
             prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
-            _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
-            const ros::Time plan_validated_stamp{ ros::Time::now() };
+
+            _new_tree_available = true;
+
+            if (_validation_plan_feasibility)
+            {
+              _new_tree_available = check_new_tree(wrapped_tree);
+              // _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
+            }
+
+            if (_new_tree_available and _validation_collision_only)
+            {
+              _new_tree_available =
+                  _robot->propagate_plan(_replanning_root_estimates, wrapped_tree);  // check_new_tree(wrapped_tree);
+              // bool propagate_plan(_replanning_root_estimates, wrapped_tree);
+            }
+
+            const double dt_validated{ (ros::Time::now() - cycle_start).toSec() };
+            const double dt_remaining_valid{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
+            change_status(stela_thread_t::REPLANNING, interface::StelaStatus::VALIDATING);
+            LOG_MSG("Validation")
+            LOG_VARS(dt_validated, dt_remaining_valid)
+
             if (_new_tree_available)
             {
               _new_tree = wrapped_tree;
 
               LOG_MSG("Tree checked and accepted")
-              const double dt_used_valid{ (ros::Time::now() - cycle_start).toSec() };
-              const double dt_remaining_valid{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
-              LOG_VARS(dt_used_valid, dt_remaining_valid)
+              const double dt_used_acepted{ (ros::Time::now() - cycle_start).toSec() };
+              const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
+              LOG_VARS(dt_used_acepted, dt_remaining_accepted)
               // LOG_VARS(_new_tree_available)
               // LOG_VARS(_new_tree)
               // _new_tree = prx_models::tree_msg_wrapper_t(_planner_service_call.response.sln_tree);
             }
-            change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
 
             // }
             // if (_new_tree_available)
@@ -643,11 +702,14 @@ public:
             // DEBUG_VARS(_x_curr, _x_next);
             // DEBUG_VARS(sln_root);
           }
+
+          change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
         }
         else
         {
           change_status(stela_thread_t::REPLANNING, interface::StelaStatus::ERROR);
         }
+
         _replanning_calls--;
       }
       // else
@@ -764,7 +826,7 @@ public:
 
       _past_factors_queue.pop_front();
       _active_nodes.erase(id);
-      node_info_to_file(id);
+      // node_info_to_file(id);
     }
 
     _ofs.close();
@@ -980,6 +1042,7 @@ public:
       {
         // PRINT_MSG("ADDING IDLE");
         add_idle_fg(_x_queue.back(), _x_queue.back() + 1);
+
         _x_queue.push_back(_x_queue.back() + 1);
         // PRINT_MSG("FINISHED ADDING IDLE");
         _state = stela_state_t::IDLE;
@@ -1011,8 +1074,8 @@ public:
       const double dt_used{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
       const double dt_remaining{ (_planner_clock_msg.cycle_end - ros::Time::now()).toSec() };
       const prx_models::Node& new_root{ _new_tree.nodes[_new_tree.root] };
-
       LOG_VARS(_new_tree_available, dt_used, dt_remaining, _x_curr, new_root.index, _x_next)
+
       _new_tree_available = false;
       // LOG_MSG("Accepting tree and updating")
       // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
@@ -1034,6 +1097,8 @@ public:
       }
       else
       {
+        LOG_MSG("Can't attach new tree!")
+        LOG_VARS(_x_curr, _x_next, new_root.index)
         PRINT_MSG("Can't attach new tree");
         DEBUG_VARS(_x_curr, _x_next, new_root.index)
       }
@@ -1079,28 +1144,30 @@ public:
     // print_stela_state();
 
     _fg_mutex.lock();
+    // const ros::WallTime start{ ros::WallTime::now() };
 
     update_from_replan_tree();
 
+    // const ros::WallTime stamp_replan{ ros::WallTime::now() };
+
     add_observations();
+    // const ros::WallTime stamp_observations{ ros::WallTime::now() };
 
     update_next_goal();
+    // const ros::WallTime stamp_next_goal{ ros::WallTime::now() };
 
     update_estimated_tree();
-
-    // if (_visualize)
-    // {
-    // _viz_obstacles_publisher.publish(_obstacles_marker);
-    // }
-    // _profiler.checkpoint();
-    // print_error("After updating goal");
-    // const bool valid_observations{ add_observations() };
-    // _profiler.checkpoint();
-    // print_error("After adding observations");
-    // if (not _goal_reached and valid_observations)
-    // {
+    // const ros::WallTime stamp_update_tree{ ros::WallTime::now() };
 
     publish_control();
+    // const ros::WallTime stamp_control{ ros::WallTime::now() };
+
+    // const double dt_replan{ (stamp_replan - start).toSec() };
+    // const double dt_observations{ (stamp_observations - start).toSec() };
+    // const double dt_next_goal{ (stamp_next_goal - start).toSec() };
+    // const double dt_update_tree{ (stamp_update_tree - start).toSec() };
+    // const double dt_control{ (stamp_control - start).toSec() };
+    // DEBUG_VARS(dt_replan, dt_observations, dt_next_goal, dt_update_tree, dt_control)
 
     _fg_mutex.unlock();
 
@@ -1211,6 +1278,7 @@ public:
       if (node_idx == _current_replanning_root)
       {
         _replanning_root_estimates = _node_estimates;
+
         compute_covariances<0>(_replanning_root_covariances, _isam, node_keys);
       }
 
@@ -1223,6 +1291,7 @@ public:
         const gtsam::Key key_u01{ _robot->keyU(node_idx, node_next_idx) };
 
         // DEBUG_VARS(node_idx, node_next_idx);
+
         calculate_estimate_safe(dt, key_dt);
         calculate_estimate_safe(ui, key_u01);
 
@@ -1256,27 +1325,32 @@ public:
 
   void add_idle_fg(const std::size_t x_prev, const std::size_t x_next)
   {
+    const ros::WallTime start{ ros::WallTime::now() };
+
     GraphValues graph_values{ _robot->idle_state_to_fg(x_prev, x_next, _time_as_variable) };
+    const ros::WallTime stamp_1{ ros::WallTime::now() };
 
     // DEBUG_PRINT
     safe_fg_update(graph_values.first, graph_values.second);
+    const ros::WallTime stamp_2{ ros::WallTime::now() };
 
     _values.insert_or_assign(graph_values.second);
-    // _inserted_factors[_x_curr].insert(_inserted_factors[_x_curr].end(),
-    //                                   _isam2_result.newFactorsIndices.begin(),  // no-lint
-    //                                   _isam2_result.newFactorsIndices.end());
 
     update_dt();
+    const ros::WallTime stamp_3{ ros::WallTime::now() };
 
     _future_factors_queue.push_back(x_prev);
     insert_factors(x_prev, x_next);
+    const ros::WallTime stamp_4{ ros::WallTime::now() };
 
     std::size_t next_node_index{ x_next };
 
     EdgeNodePair edge_node{ motion_planning::create_edge_node(_estimated_tree.nodes[x_prev], next_node_index) };
+    const ros::WallTime stamp_5{ ros::WallTime::now() };
 
     edge_node.first.plan.steps.emplace_back();
     _robot->plan_step(edge_node.first.plan.steps.back(), _robot->idle_control(), _robot->idle_dt());
+    const ros::WallTime stamp_6{ ros::WallTime::now() };
 
     _tree.edges[edge_node.first.index] = edge_node.first;
     _tree.nodes[edge_node.second.index] = edge_node.second;
@@ -1284,6 +1358,14 @@ public:
 
     _estimated_tree.edges[edge_node.first.index] = edge_node.first;
     _estimated_tree.nodes[edge_node.second.index] = edge_node.second;
+
+    const double dt_1{ (stamp_1 - start).toSec() };
+    const double dt_2{ (stamp_2 - start).toSec() };
+    const double dt_3{ (stamp_3 - start).toSec() };
+    const double dt_4{ (stamp_4 - start).toSec() };
+    const double dt_5{ (stamp_5 - start).toSec() };
+    const double dt_6{ (stamp_6 - start).toSec() };
+    // DEBUG_VARS(dt_1, dt_2, dt_3, dt_4, dt_5, dt_6)
   }
 
   // Assuming we are currently somewhere along edge E0: N0--E0-->N1--E2-->N2, check if we need to change to E2
@@ -1302,10 +1384,13 @@ public:
     // DEBUG_VARS(finish_time_str, now_str);
     if (now >= finish_time)
     {
-      const std::string msg{ "GraphUpdate" };
-      const double dt_used{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
-      const double dt_remaining{ (_planner_clock_msg.cycle_end - ros::Time::now()).toSec() };
-      LOG_VARS(msg, dt_used, dt_remaining, _dt01, _x_curr, _x_next);
+      LOG_VARS(_x_curr, _x_next, _dt01);
+      // LOG_VARS(ros::Time::now(), _x0_start_time)
+
+      // const std::string msg{ "GraphUpdate" };
+      // const double dt_used{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
+      // const double dt_remaining{ (_planner_clock_msg.cycle_end - ros::Time::now()).toSec() };
+      // LOG_VARS(msg, dt_used, dt_remaining, _dt01, _x_curr, _x_next);
       change_status(stela_thread_t::ISAM, interface::StelaStatus::GRAPH_UPDATE);
 
       // if (not _tree_received and _idle_initialized)
@@ -1330,6 +1415,7 @@ public:
       }
       if (_state == stela_state_t::TREE_RECEIVED)
       {
+        LOG_MSG("stela_state_t::TREE_RECEIVED");
         std::pair<std::vector<std::size_t>, std::size_t> res_found{ find_root_placement_in_fg() };
         std::vector<std::size_t>& idx_to_remove{ res_found.first };
         std::size_t& last_valid{ res_found.second };
@@ -1421,6 +1507,7 @@ public:
       }
       else if (_state == stela_state_t::TREE_EXECUTING)
       {
+        LOG_MSG("stela_state_t::TREE_EXECUTING");
         // LOG_MSG("TREE_EXECUTING: Adding tree node");
         const std::size_t x_prev{ _x_queue[0] };
         _x_queue.pop_front();
@@ -1454,6 +1541,7 @@ public:
         // DEBUG_VARS(_x_queue)
       }
 
+      LOG_VARS(_x_queue)
       change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
     }
   }
@@ -1484,13 +1572,18 @@ public:
       variable = _isam.calculateEstimate<Estimate>(key);
       // _fg_mutex.unlock();
     }
-    catch (gtsam::IndeterminantLinearSystemException e)
+    catch (gtsam::IndeterminantLinearSystemException exception)
     {
-      PRINT_MSG("calculate_estimate_safe");
-      const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(e.nearbyVariable()) + "\n" };
-      failure_to_file(msg + e.what());
-      std::cout << msg << std::string(e.what()) << std::endl;
-      throw e;
+      DEBUG_PRINT
+      const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+      // PRINT_MSG("calculate_estimate_safe");
+      // const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(exception.nearbyVariable()) + "\n" };
+      LOG_VARS(exception_nearby_variable);
+      LOG_VARS(exception.what());
+      LOG_CLOSE
+      // failure_to_file(msg + e.what());
+      // std::cout << msg << std::string(e.what()) << std::endl;
+      exit(-1);
       // failure_to_file(e.what());
 
       // gtsam::Values current_estimate{ _isam.getLinearizationPoint() };
@@ -1506,6 +1599,7 @@ public:
       ERROR_VARS(e.what());
       throw e;
     }
+
     // DEBUG_PRINT
   }
 
@@ -1593,16 +1687,9 @@ public:
         // {
         //   initialize_graph();
         // }
+
         // print_segment();
-
-        // _fg_mutex.lock();
-
         _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
-
-        // log_isam_result();
-        // const double error_before{ _isam2_result.getErrorBefore() };
-        // const double error_after{ _isam2_result.getErrorAfter() };
-        // LOG_VARS(error_before, error_after)
 
         insert_factors(_x_curr, _x_next);
 
@@ -1629,6 +1716,7 @@ public:
         // _fg_mutex.unlock();
 
         update_dt();
+
         _observations_added = true;
         // _key_dt = RobotInterface::keyT(_x_curr, _x_next);
         // _dt01 = _isam.calculateEstimate<double>(_key_dt);
@@ -1637,10 +1725,13 @@ public:
       catch (gtsam::IndeterminantLinearSystemException e)
       {
         DEBUG_PRINT
-        PRINT_MSG("add_observations");
-        const std::string msg{ "[EXCEPTION] Var:" + SF::formatter(e.nearbyVariable()) + "\n" };
-        failure_to_file(msg + e.what());
-        std::cout << msg << std::string(e.what()) << std::endl;
+        const std::string exception_nearby_variable{ SF::formatter(e.nearbyVariable()) };
+        LOG_VARS(exception_nearby_variable);
+        LOG_VARS(e.what());
+        LOG_CLOSE
+        throw;
+        // failure_to_file(msg + e.what());
+        // std::cout << msg << std::string(e.what()) << std::endl;
       }
     }
   }
@@ -1860,6 +1951,7 @@ public:
   void initialize_graph()
   {
     DEBUG_PRINT
+
     _x_curr = 0;
     _x_next = 1;
 
@@ -1872,13 +1964,10 @@ public:
     insert_factors(_x_curr, _x_next);
 
     GraphValues graph_values{ _robot->idle_state_to_fg(_x_curr, _x_next, _time_as_variable) };
-    DEBUG_PRINT
 
     _values.insert(graph_values.second);
 
-    DEBUG_PRINT
     _isam2_result = _isam.update(graph_values.first, graph_values.second);
-    DEBUG_PRINT
 
     insert_factors(_x_curr, _x_next);
 
@@ -1918,6 +2007,7 @@ public:
     for (; idx < _total_future_nodes; ++idx)
     {
       add_idle_fg(idx, idx + 1);
+
       insert_factors(idx, idx + 1);
       _x_queue.push_back(idx);
       _current_future_nodes++;
@@ -1975,8 +2065,6 @@ public:
       // }
       _inserted_factors[id_to_insert].insert(_inserted_factors[id_to_insert].end(), factor_id);
     }
-
-    // _isam.getFactorsUnsafe().print("Current Graph", SF::formatter);
   }
 
   void add_tree_node()
@@ -2068,23 +2156,28 @@ public:
       // DEBUG_PRINT
       FactorGraph fg;
       Values values;
+
       _isam2_result = _isam.update(fg, values, _isam2_update_params);
       // DEBUG_PRINT
       _isam2_update_params.removeFactorIndices.clear();
       // _fg_mutex.unlock();
       // DEBUG_PRINT
     }
-    catch (gtsam::IndeterminantLinearSystemException e)
+    catch (gtsam::IndeterminantLinearSystemException exception)
     {
-      PRINT_MSG("remove_factors");
-      DEBUG_VARS(e.what());
+      // PRINT_MSG("remove_factors");
+      const std::string exception_nearby_variable{ SF::formatter(exception.nearbyVariable()) };
+      LOG_VARS(exception_nearby_variable);
+      LOG_VARS(exception.what());
+      LOG_CLOSE
+
       // failure_to_file(e.what());
       // prx::fg::indeterminant_linear_system_helper(graph, _values);
-      std::cout << "[EXCEPTION] Var: " << SF::formatter(e.nearbyVariable()) << std::endl;
+      // std::cout << "[EXCEPTION] Var: " << SF::formatter(e.nearbyVariable()) << std::endl;
       // _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter);
       // graph.printErrors(_values, "Problem graph", SF::formatter);
       // _values.print("Values", SF::formatter);
-      throw e;
+      throw;
     }
   }
 
@@ -2093,16 +2186,21 @@ public:
     // LOG_MSG("safe_fg_update")
     try
     {
+      // const ros::WallTime start{ ros::WallTime::now() };
       // SF::symbols_to_file("/Users/Gary/pracsys/catkin_ws/factor_graph_symbols.txt");
       // _fg_mutex.lock();
       // _values.insert(new_values);
       _values.insert_or_assign(values);
 
-      // graph.printErrors(_values, "Problem graph", SF::formatter);
-      // _isam2_update_params.force_relinearize = true;
       _isam2_result = _isam.update(graph, values, _isam2_update_params);
-      // log_isam_result();
+
       _isam2_update_params.removeFactorIndices.clear();
+      // const ros::WallTime stamp_3{ ros::WallTime::now() };
+
+      // const double dt_1{ (stamp_1 - start).toSec() };
+      // const double dt_2{ (stamp_2 - start).toSec() };
+      // const double dt_3{ (stamp_3 - start).toSec() };
+      // DEBUG_VARS(dt_1, dt_2, dt_3)
       // _fg_mutex.unlock();
     }
     catch (gtsam::IndeterminantLinearSystemException e)
@@ -2111,13 +2209,14 @@ public:
       DEBUG_PRINT
       PRINT_MSG("safe_fg_update");
       PRINT_KEYS(e.nearbyVariable())
-      prx::fg::indeterminant_linear_system_helper(graph, _values);
-      // std::cout << "[EXCEPTION] Var: " << SF::formatter(e.nearbyVariable()) << std::endl;
-      // graph.printErrors(_values, "Problem graph", SF::formatter);
-      const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
-          printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr; };
-      _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter, printCondition);
-      failure_to_file(e.what());
+      const std::string nearby_variable{ SF::formatter(e.nearbyVariable()) };
+      LOG_MSG(nearby_variable);
+      prx::fg::indeterminant_linear_system_helper(graph, _values, dbg::variables::ofs_log);
+      LOG_MSG(e.what());
+      // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
+      //     printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr; };
+      // _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter, printCondition);
+      // failure_to_file(e.what());
 
       throw e;
     }
@@ -2166,7 +2265,7 @@ public:
       // DEBUG_VARS(past_factor_id, indices);
 
       // DEBUG_PRINT
-      node_info_to_file(past_factor_id);
+      // node_info_to_file(past_factor_id);
       // DEBUG_VARS(indices);
 
       _isam2_update_params.removeFactorIndices.insert(_isam2_update_params.removeFactorIndices.end(),  // no-lint
@@ -2181,6 +2280,7 @@ public:
       std::vector<Eigen::MatrixXd> covariances;
 
       // DEBUG_PRINT
+
       update_estimates<0>(estimates, _isam, state_keys);
       compute_covariances<0>(covariances, _isam, state_keys);
 
@@ -2320,6 +2420,7 @@ public:
 
       DEBUG_PRINT
       calculate_estimate_safe(dt, key_dt);
+
       node_idx_prev = node_idx_next;
       curr_stamp += ros::Duration(dt);
     }
@@ -2497,7 +2598,7 @@ private:
   typename ObstacleFactor::ToleranceResult _obstacle_tolerance_result;
   typename ObstacleFactor::DistanceResult _obstacle_distance_result;
   gtsam::noiseModel::Base::shared_ptr _obstacle_noise;
-  std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
+  // std::vector<std::shared_ptr<prx::fg::collision_info_t>> _obstacle_collision_infos;
   visualization_msgs::Marker _obstacles_marker;
 
   const std::string _name{};
@@ -2568,7 +2669,8 @@ private:
   ros::Publisher _replanning_status_publisher, _isam_status_publisher;
 
   std::shared_ptr<interface::node_status_t> _node_status;
-  bool _validate_replanner_sln;
+  // bool _validate_replanner_sln;
+  bool _validation_plan_feasibility, _validation_collision_only;
 
   ros::WallTime _reset_start;
 

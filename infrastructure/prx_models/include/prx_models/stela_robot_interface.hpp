@@ -4,6 +4,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <utils/rosparams_utils.hpp>
 #include <ml4kp_bridge/lie_ode_observation.hpp>
+#include "prx_models/tree_msg_wrapper.hpp"
 
 template <typename DerivedRobotInterface, typename Types>
 class stela_robot_interface_t
@@ -277,6 +278,7 @@ public:
     const Observation& zi{ _last_observation.first };
     const double dt{ (_last_observation.second - ti).toSec() };
 
+    // LOG_VARS(_last_observation.second, ti, dt);
     // LOG_MSG("Adding Observation Factor");
     // LOG_VARS(prev_id, curr_id, dt, zi);
     graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, z_noise, zi, dt, "Observation");
@@ -346,6 +348,11 @@ public:
   //   //   default_params[i] = params[i];
   //   // }
   // }
+  //
+  bool propagate_plan(const StateEstimates& estimates, prx_models::tree_msg_wrapper_t& new_tree)
+  {
+    return false;
+  }
 
   static void log_params()
   {

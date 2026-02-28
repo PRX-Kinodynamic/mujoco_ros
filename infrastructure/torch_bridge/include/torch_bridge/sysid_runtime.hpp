@@ -1,3 +1,4 @@
+#include <memory>
 #ifndef TORCH_NOT_BUILT
 #pragma once
 
@@ -14,17 +15,79 @@
 
 #include <ros/console.h>
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
 namespace torch_bridge
 {
 
-class DirectSysidRuntime
+// ---------------------------------------------------------------------------
+// Abstract base class for all sysid runtimes
+// ---------------------------------------------------------------------------
+class SysidRuntimeBase
 {
 public:
   using StateDot = Eigen::Vector3d;
   using Control = Eigen::Vector2d;
   using JacX = Eigen::Matrix3d;
   using JacU = Eigen::Matrix<double, 3, 2>;
+  using OptionalJacX = boost::optional<JacX&>;
+  using OptionalJacU = boost::optional<JacU&>;
 
+  virtual ~SysidRuntimeBase() = default;
+
+  virtual StateDot predict(const StateDot& xd0, const Control& u) = 0;
+  virtual std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) = 0;
+  virtual bool has_jacobian_method() const = 0;
+
+  // Convenience: dispatch to predict() or predict_with_jac() based on whether
+  // jacobian references are supplied.
+  StateDot call(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
+  {
+    const bool get_derivs{ jacX || jacU };
+    if (get_derivs)
+    {
+      auto [xd1, Jx, Ju] = predict_with_jac(xd, u);
+      if (jacX)
+        *jacX = Jx;
+      if (jacU)
+        *jacU = Ju;
+      return xd1;
+    }
+    return predict(xd, u);
+  }
+
+  StateDot operator()(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none,
+                      OptionalJacU jacU = boost::none)
+  {
+    return call(xd, u, jacX, jacU);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Direct MLP runtime
+// ---------------------------------------------------------------------------
+class DirectSysidRuntime : public SysidRuntimeBase
+{
+  static void print_torch(const torch::Device& device_)
+  {
+    static bool printed{ false };
+    if (not printed)
+    {
+      if (device_.is_cuda())
+      {
+        PRINT_MSG("[DirectSysidRuntime] Using CUDA device.");
+      }
+      else
+      {
+        PRINT_MSG("[DirectSysidRuntime] Using CPU device");
+      }
+    }
+    printed = true;
+  }
+
+public:
   DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
     : device_(use_cuda && torch::cuda::is_available() ? torch::kCUDA : torch::kCPU)
   {
@@ -33,15 +96,17 @@ public:
       module_ = torch::jit::load(model_path, device_);
       module_.eval();
 
+      print_torch(device_);
       // Log which device is being used
-      if (device_.is_cuda())
-      {
-        std::cout << "[DirectSysidRuntime] Using CUDA device" << std::endl;
-      }
-      else
-      {
-        std::cout << "[DirectSysidRuntime] Using CPU device" << std::endl;
-      }
+      // PRINT_MSG_ONCE("");
+      // if (device_.is_cuda())
+      // {
+      //   std::cout << "[DirectSysidRuntime] Using CUDA device" << std::endl;
+      // }
+      // else
+      // {
+      //   std::cout << "[DirectSysidRuntime] Using CPU device" << std::endl;
+      // }
     }
     catch (const c10::Error& e)
     {
@@ -94,7 +159,7 @@ public:
     }
   }
 
-  StateDot predict(const StateDot& xd0, const Control& u)
+  StateDot predict(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -135,22 +200,13 @@ public:
 
     auto result = module_.forward(inputs_);
 
-    torch::Tensor output;
-    if (result.isTensor())
+    if (!result.isTensor())
     {
-      output = result.toTensor();
+      throw std::runtime_error(
+          "DirectSysidRuntime: model forward() must return a Tensor, not a Tuple. "
+          "Use StructuredSysidRuntime for structured models.");
     }
-    else if (result.isTuple())
-    {
-      // Handle structured models that return (u_eff[2], friction_k[1], residual[3], ...) tuple
-      // For benchmarking, we use the residual (element 2) as it matches StateDot dimensions
-      auto tuple = result.toTuple();
-      output = tuple->elements()[2].toTensor();
-    }
-    else
-    {
-      throw std::runtime_error("Model output must be a Tensor or Tuple");
-    }
+    torch::Tensor output = result.toTensor();
 
     StateDot xd1;
     if (use_float32_)
@@ -164,7 +220,7 @@ public:
     return xd1;
   }
 
-  std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u)
+  virtual std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -270,7 +326,7 @@ public:
     return std::make_tuple(xd1, Jx, Ju);
   }
 
-  bool has_jacobian_method() const
+  bool has_jacobian_method() const override
   {
     return module_.find_method("forward_with_jacobian").has_value();
   }
@@ -304,19 +360,30 @@ private:
 //   const std::size_t L = ??;
 // }
 
+// ---------------------------------------------------------------------------
+// Structured dynamics runtime (template: depends on plant types from caller)
+// ---------------------------------------------------------------------------
 template <typename MushrPlant, typename Params, typename Poly, typename StructuredParams>
-class StructuredSysidRuntime
+class StructuredSysidRuntime : public SysidRuntimeBase
 {
-public:
-  using StateDot = Eigen::Vector3d;
-  using Control = Eigen::Vector2d;
-  using JacX = Eigen::Matrix3d;
-  using JacU = Eigen::Matrix<double, 3, 2>;
-  // template <typename T>
-  using OptionalJacX = boost::optional<JacX&>;
-  // template <typename T>
-  using OptionalJacU = boost::optional<JacU&>;
+  static void print_torch(const torch::Device& device_)
+  {
+    static bool printed{ false };
+    if (not printed)
+    {
+      if (device_.is_cuda())
+      {
+        PRINT_MSG("[StructuredSysidRuntime] Using CUDA device.");
+      }
+      else
+      {
+        PRINT_MSG("[StructuredSysidRuntime] Using CPU device");
+      }
+    }
+    printed = true;
+  }
 
+public:
   // using Params = prx_models::mushr_types::Control::params;
   // using Poly = prx_models::mushr_types::Control::Poly;
   // using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
@@ -335,15 +402,16 @@ public:
       module_ = torch::jit::load(model_path, device_);
       module_.eval();
 
+      print_torch(device_);
       // Log which device is being used
-      if (device_.is_cuda())
-      {
-        std::cout << "[StructuredSysidRuntime] Using CUDA device" << std::endl;
-      }
-      else
-      {
-        std::cout << "[StructuredSysidRuntime] Using CPU device" << std::endl;
-      }
+      // if (device_.is_cuda())
+      // {
+      //   std::cout << "[StructuredSysidRuntime] Using CUDA device" << std::endl;
+      // }
+      // else
+      // {
+      //   std::cout << "[StructuredSysidRuntime] Using CPU device" << std::endl;
+      // }
     }
     catch (const c10::Error& e)
     {
@@ -415,7 +483,7 @@ public:
 
     // Extract standardizer buffers from TorchScript module
     extract_standardizers_from_module();
-    std::cout << "[StructuredSysidRuntime] Using normalized-plant semantics" << std::endl;
+    // std::cout << "[StructuredSysidRuntime] Using normalized-plant semantics" << std::endl;
   }
 
   // Capture CUDA graph for predict() - call once after construction
@@ -575,7 +643,7 @@ public:
     return hybrid_mode_;
   }
 
-  StateDot predict(const StateDot& xd0, const Control& u)
+  StateDot predict(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -719,12 +787,13 @@ public:
     }
 
     // CPU plant dynamics (normalized-plant semantics)
-    // 1. Normalize raw inputs
+    // TorchScript now returns u_eff and residual already in normalized space.
+    // Only xd0 (from caller) needs normalizing.
     StateDot xd0_norm = (xd0 - input_mean_x_).cwiseProduct(inv_input_std_x_);
-    Control u_eff_norm = (u_eff - input_mean_u_).cwiseProduct(inv_input_std_u_);
-    StateDot residual_norm = (residual - target_mean_).cwiseProduct(inv_target_std_);
+    const Control& u_eff_norm = u_eff;
+    const StateDot& residual_norm = residual;
 
-    // 2. Run plant on normalized inputs with identity params/poly and friction_k applied
+    // Run plant on normalized inputs with identity params/poly and friction_k applied
     Params params_identity;
     params_identity.setConstant(1.0);
     params_identity[StructuredParams::friction] *= friction_k;
@@ -735,7 +804,7 @@ public:
 
     StateDot xd1_plant_norm = MushrPlant::predict(xd0_norm, u_eff_norm, dt_, params_identity, poly_identity);
 
-    // 3. Add residual in normalized space
+    // Add residual in normalized space
     StateDot xd1_norm = xd1_plant_norm + residual_norm;
 
     // 4. Unstandardize to raw space
@@ -743,31 +812,9 @@ public:
     return xd1_raw;
   }
 
-  StateDot operator()(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none,
-                      OptionalJacU jacU = boost::none)
-  {
-    const bool get_derivs{ jacX or jacU };
+  // call() and operator() are inherited from SysidRuntimeBase
 
-    StateDot xd1;
-    if (get_derivs)
-    {
-      std::tie(xd1, *jacX, *jacU) = predict_with_jac(xd, u);
-    }
-    else
-    {
-      xd1 = predict(xd, u);
-    }
-
-    return xd1;
-    // using OptionalJacX = boost::optional<JacX&>;
-  }
-  //
-  StateDot call(const StateDot& xd, const Control& u, OptionalJacX jacX = boost::none, OptionalJacU jacU = boost::none)
-  {
-    return this->operator()(xd, u, jacX, jacU);
-  }
-
-  std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u)
+  virtual std::tuple<StateDot, JacX, JacU> predict_with_jac(const StateDot& xd0, const Control& u) override
   {
     c10::InferenceMode guard;
 
@@ -1009,40 +1056,14 @@ public:
     }
 
     // Plant dynamics and Jacobians (normalized-plant semantics)
-
-    // 1. Normalize raw inputs
+    // TorchScript now returns u_eff, residual, and their Jacobians already in normalized space.
+    // Jacobians from TorchScript are d(output_norm)/d(input_raw), so no re-scaling needed.
+    // Only xd0 (from caller) needs normalizing.
     StateDot xd0_norm = (xd0 - input_mean_x_).cwiseProduct(inv_input_std_x_);
-    Control u_eff_norm = (u_eff - input_mean_u_).cwiseProduct(inv_input_std_u_);
-    StateDot residual_norm = (residual - target_mean_).cwiseProduct(inv_target_std_);
+    const Control& u_eff_norm = u_eff;
+    const StateDot& residual_norm = residual;
 
-    // 2. Convert TorchScript Jacobians to normalized-space derivatives
-    // J_ueff_norm_x_raw = diag(1/input_std_u) * J_ueff_x_raw
-    Eigen::Matrix<double, 2, 3> J_ueff_norm_x_raw;
-    for (int i = 0; i < 2; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        J_ueff_norm_x_raw(i, j) = inv_input_std_u_(i) * J_ueff_x(i, j);
-      }
-    }
-
-    // J_ueff_norm_u_raw = diag(1/input_std_u) * J_ueff_u_raw
-    Eigen::Matrix<double, 2, 2> J_ueff_norm_u_raw;
-    for (int i = 0; i < 2; ++i)
-    {
-      for (int j = 0; j < 2; ++j)
-      {
-        J_ueff_norm_u_raw(i, j) = inv_input_std_u_(i) * J_ueff_u(i, j);
-      }
-    }
-
-    // J_r_norm_x_raw = diag(1/target_std) * J_r_x_raw
-    JacX J_r_norm_x_raw = inv_target_std_.asDiagonal() * J_r_x;
-
-    // J_r_norm_u_raw = diag(1/target_std) * J_r_u_raw
-    JacU J_r_norm_u_raw = inv_target_std_.asDiagonal() * J_r_u;
-
-    // 3. Run plant on normalized inputs with identity params/poly and friction_k applied
+    // Run plant on normalized inputs with identity params/poly and friction_k applied
     Params params_identity;
     params_identity.setConstant(1.0);
     const double base_friction = 1.0;
@@ -1059,26 +1080,22 @@ public:
     StateDot xd1_plant_norm = MushrPlant::predict(xd0_norm, u_eff_norm, dt_, params_identity, poly_identity,
                                                   plant_Jx_norm, plant_Ju_norm, boost::none, plant_Hparams);
 
-    // 4. Chain rule in normalized space (including friction sensitivity)
+    // Chain rule in normalized space (including friction sensitivity)
     // dx_norm/dx_raw = diag(1/input_std_x)
     const Eigen::Vector3d& plant_H_friction = plant_Hparams.col(StructuredParams::friction);
 
-    // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_norm_x_raw + H_friction * base_friction * J_k_x
-    // + J_r_norm_x_raw
-    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + plant_Ju_norm * J_ueff_norm_x_raw +
-                       plant_H_friction * base_friction * J_k_x + J_r_norm_x_raw;
+    // Jx_norm_raw = plant_Jx * diag(1/input_std_x) + plant_Ju * J_ueff_x + H_friction * base_friction * J_k_x + J_r_x
+    JacX Jx_norm_raw = plant_Jx_norm * inv_input_std_x_.asDiagonal() + plant_Ju_norm * J_ueff_x +
+                       plant_H_friction * base_friction * J_k_x + J_r_x;
 
-    // Ju_norm_raw = plant_Ju * J_ueff_norm_u_raw + H_friction * base_friction * J_k_u + J_r_norm_u_raw
-    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_norm_u_raw + plant_H_friction * base_friction * J_k_u + J_r_norm_u_raw;
+    // Ju_norm_raw = plant_Ju * J_ueff_u + H_friction * base_friction * J_k_u + J_r_u
+    JacU Ju_norm_raw = plant_Ju_norm * J_ueff_u + plant_H_friction * base_friction * J_k_u + J_r_u;
 
-    // 5. Unstandardize output Jacobians
-    // Jx_raw = diag(target_std) * Jx_norm_raw
+    // Unstandardize output Jacobians
     JacX Jx_raw = target_std_.asDiagonal() * Jx_norm_raw;
-
-    // Ju_raw = diag(target_std) * Ju_norm_raw
     JacU Ju_raw = target_std_.asDiagonal() * Ju_norm_raw;
 
-    // 6. Compute forward value
+    // Compute forward value
     StateDot xd1_norm = xd1_plant_norm + residual_norm;
     StateDot xd1_raw = xd1_norm.cwiseProduct(target_std_) + target_mean_;
 
@@ -1094,7 +1111,7 @@ public:
   //   return dt_;
   // }
 
-  bool has_jacobian_method() const
+  bool has_jacobian_method() const override
   {
     return module_.find_method("forward_with_jacobian").has_value();
   }
@@ -1321,7 +1338,7 @@ private:
         inv_input_std_u_(i) = 1.0 / input_std_acc[3 + i];
       }
 
-      std::cout << "[StructuredSysidRuntime] Extracted standardizers from TorchScript module" << std::endl;
+      // std::cout << "[StructuredSysidRuntime] Extracted standardizers from TorchScript module" << std::endl;
     }
     catch (const c10::Error& e)
     {
@@ -1331,6 +1348,200 @@ private:
     }
   }
 };
+
+// ---------------------------------------------------------------------------
+// JSON helpers (inline, header-only)
+// ---------------------------------------------------------------------------
+namespace detail
+{
+
+inline std::string parse_json_string_field(const std::string& file_path, const std::string& field_name)
+{
+  std::ifstream file(file_path);
+  if (!file.is_open())
+    return "";
+
+  std::string line;
+  std::string search_key = "\"" + field_name + "\"";
+  while (std::getline(file, line))
+  {
+    auto key_pos = line.find(search_key);
+    if (key_pos != std::string::npos)
+    {
+      auto colon_pos = line.find(':', key_pos);
+      if (colon_pos != std::string::npos)
+      {
+        auto first_quote = line.find('"', colon_pos);
+        auto second_quote = line.find('"', first_quote + 1);
+        if (first_quote != std::string::npos && second_quote != std::string::npos)
+          return line.substr(first_quote + 1, second_quote - first_quote - 1);
+      }
+    }
+  }
+  return "";
+}
+
+inline std::string parse_model_type_from_config(const std::string& config_path)
+{
+  std::string type = parse_json_string_field(config_path, "type");
+  if (type == "structured" || type == "direct")
+    return type;
+  return "";
+}
+
+// ---------------------------------------------------------------------------
+// Parse JSON string from raw JSON text (for embedded metadata)
+// ---------------------------------------------------------------------------
+inline std::string parse_json_string_from_text(const std::string& json_text, const std::string& field_name)
+{
+  std::string search_key = "\"" + field_name + "\"";
+  auto key_pos = json_text.find(search_key);
+  if (key_pos == std::string::npos)
+    return "";
+  auto colon_pos = json_text.find(':', key_pos);
+  if (colon_pos == std::string::npos)
+    return "";
+  auto first_quote = json_text.find('"', colon_pos);
+  auto second_quote = json_text.find('"', first_quote + 1);
+  if (first_quote == std::string::npos || second_quote == std::string::npos)
+    return "";
+  return json_text.substr(first_quote + 1, second_quote - first_quote - 1);
+}
+
+inline double parse_json_double_from_text(const std::string& json_text, const std::string& field_name,
+                                          double default_value)
+{
+  std::string search_key = "\"" + field_name + "\"";
+  auto key_pos = json_text.find(search_key);
+  if (key_pos == std::string::npos)
+    return default_value;
+  auto colon_pos = json_text.find(':', key_pos);
+  if (colon_pos == std::string::npos)
+    return default_value;
+  auto start = json_text.find_first_not_of(" \t\n", colon_pos + 1);
+  if (start == std::string::npos)
+    return default_value;
+  auto end = json_text.find_first_of(",}\n", start);
+  try
+  {
+    return std::stod(json_text.substr(start, end - start));
+  }
+  catch (...)
+  {
+    return default_value;
+  }
+}
+
+}  // namespace detail
+
+// ---------------------------------------------------------------------------
+// Model metadata: embedded in the .ts.pt file or from external JSON
+// ---------------------------------------------------------------------------
+struct ModelMeta
+{
+  std::string model_type;
+  std::string dtype;
+  double dt = 0.1;
+};
+
+/// Read metadata embedded in a TorchScript .ts.pt file (via _extra_files).
+/// Falls back to export_metadata.json / config.json in the same directory.
+inline ModelMeta read_model_meta(const std::string& model_path)
+{
+  namespace fs = std::filesystem;
+
+  // Try embedded metadata first
+  std::unordered_map<std::string, std::string> extra_files = { { "metadata.json", "" } };
+  try
+  {
+    torch::jit::load(model_path, torch::kCPU, extra_files);
+  }
+  catch (const c10::Error& e)
+  {
+    throw std::runtime_error("Failed to load TorchScript model for metadata: " + std::string(e.what()));
+  }
+
+  const std::string& meta_json = extra_files["metadata.json"];
+  if (!meta_json.empty())
+  {
+    ModelMeta meta;
+    meta.model_type = detail::parse_json_string_from_text(meta_json, "model_type");
+    meta.dtype = detail::parse_json_string_from_text(meta_json, "dtype");
+    meta.dt = detail::parse_json_double_from_text(meta_json, "dt", 0.1);
+    if (meta.dtype.empty())
+      meta.dtype = "float32";
+    return meta;
+  }
+
+  // Fallback: look for export_metadata.json next to the model file
+  fs::path dir = fs::path(model_path).parent_path();
+  fs::path metadata_path = dir / "export_metadata.json";
+  if (fs::exists(metadata_path))
+  {
+    ModelMeta meta;
+    meta.model_type = detail::parse_json_string_field(metadata_path.string(), "model_type");
+    meta.dtype = detail::parse_json_string_field(metadata_path.string(), "dtype");
+    if (meta.dtype.empty())
+      meta.dtype = "float32";
+    return meta;
+  }
+
+  // Fallback: look for config.json
+  fs::path config_path = dir / "config.json";
+  if (fs::exists(config_path))
+  {
+    ModelMeta meta;
+    meta.model_type = detail::parse_model_type_from_config(config_path.string());
+    meta.dtype = "float32";
+    return meta;
+  }
+
+  throw std::runtime_error("read_model_meta: no metadata found in " + model_path +
+                           " (no embedded metadata.json, no export_metadata.json, no config.json)");
+}
+
+// ---------------------------------------------------------------------------
+// Factory: create the right runtime from a .ts.pt model path
+// ---------------------------------------------------------------------------
+
+/// Creates a SysidRuntimeBase from a .ts.pt model path.
+/// Reads model_type and dtype from metadata embedded in the model file.
+/// Supports both direct and structured models.
+template <typename MushrPlant, typename Params, typename Poly, typename StructuredParams>
+std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(const std::string& model_path, const Params& params,
+                                                       const Poly& poly, bool use_cuda = false,
+                                                       const std::string& dtype_override = "")
+{
+  ModelMeta meta = read_model_meta(model_path);
+  const std::string& dtype = dtype_override.empty() ? meta.dtype : dtype_override;
+
+  if (meta.model_type == "structured")
+  {
+    return std::make_unique<StructuredSysidRuntime<MushrPlant, Params, Poly, StructuredParams>>(model_path, params,
+                                                                                                poly, use_cuda, dtype);
+  }
+
+  return std::make_unique<DirectSysidRuntime>(model_path, use_cuda, dtype);
+}
+
+/// Creates a SysidRuntimeBase for direct models only. Throws if the model
+/// is a structured model.
+inline std::unique_ptr<SysidRuntimeBase> create_sysid_runtime(const std::string& model_path, bool use_cuda = false,
+                                                              const std::string& dtype_override = "")
+{
+  ModelMeta meta = read_model_meta(model_path);
+
+  if (meta.model_type == "structured")
+  {
+    throw std::runtime_error(
+        "create_sysid_runtime: structured models require plant template parameters. "
+        "Use the template overload: create_sysid_runtime<MushrPlant, Params, Poly, StructuredParams>"
+        "(model_path, params, poly, use_cuda, dtype).");
+  }
+
+  const std::string& dtype = dtype_override.empty() ? meta.dtype : dtype_override;
+  return std::make_unique<DirectSysidRuntime>(model_path, use_cuda, dtype);
+}
 
 }  // namespace torch_bridge
 #endif

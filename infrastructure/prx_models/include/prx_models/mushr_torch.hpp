@@ -106,31 +106,60 @@ class mushr_torch_factor_t
   using Params = prx_models::mushr_types::Control::params;
   using Poly = prx_models::mushr_types::Control::Poly;
   using MushrPlant = prx_models::mushr_CtrlAccel_t<>;
+
+  using SysidRuntimeBase = torch_bridge::SysidRuntimeBase;
+  using DirectSysidRuntime = torch_bridge::DirectSysidRuntime;
   using StructuredSysidRuntime = torch_bridge::StructuredSysidRuntime<MushrPlant, Params, Poly, StructuredParams>;
 
   mushr_torch_factor_t() = delete;
   mushr_torch_factor_t(const mushr_torch_factor_t& other) = delete;
 
+  static void init_nn(const std::string torch_model_path, const bool directNN)
+  {
+    if (_nn_interface == nullptr)
+    {
+      if (directNN)
+      {
+        _nn_interface = std::make_shared<DirectSysidRuntime>(torch_model_path, false, "float32");
+        // DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
+      }
+      else
+      {
+        const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
+        const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
+        _nn_interface = std::make_shared<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+      }
+    }
+  }
+
 public:
+  // using BoostSharedPtr = boost::shared_ptr<mushr_torch_factor_t>;
+  // static std::vector<BoostSharedPtr> _available_ptrs;
+  // static BoostSharedPtr get_next_available()
+  // {
+  // }
+
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(1 == Num), bool> = true>
   mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
-                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
+                       const NoiseModel& cost_model, const std::string torch_model_path, const bool directNN,
+                       const double nn_dt = 0.1)
     : Base(cost_model, xd1, xd0, u, dt), _dt(-1), _NN_DT(nn_dt), _NN_2(nn_dt * nn_dt)
   {
-    const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
-    const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+    init_nn(torch_model_path, directNN);
     // _nn_interface->set_dt(dt);
   }
 
   template <std::size_t Num = NumTypes, typename std::enable_if_t<(0 == Num), bool> = true>
   mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const double& dt,
-                       const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
+                       const NoiseModel& cost_model, const std::string torch_model_path, const bool directNN,
+                       const double nn_dt = 0.1)
     : Base(cost_model, xd1, xd0, u), _dt(dt), _NN_DT(nn_dt), _NN_2(nn_dt * nn_dt)
   {
-    const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
-    const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-    _nn_interface = std::make_unique<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
+    init_nn(torch_model_path, directNN);
+
+    // const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
+    // const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
+    // _nn_interface = std::make_unique<SysidRuntimeBase>(torch_model_path, params, poly, false, "float32");
     // _nn_interface->set_dt(dt);
   }
 
@@ -138,78 +167,58 @@ public:
   {
   }
 
-  StateDot predict(const StateDot& xd, const Control& u, const double& dt,  // no-lint
+  virtual bool sendable() const override
+  {
+    return false;
+  }
+
+  StateDot predict(const StateDot& xd0, const Control& u, const double& dt,  // no-lint
                    OptDeriv Hxd = boost::none, OptDeriv Hu = boost::none, OptDeriv Hdt = boost::none) const
   {
-    Eigen::Matrix<double, 3, 3> xnn_H_xd{ Eigen::Matrix<double, 3, 3>::Identity() };
-    Eigen::Matrix<double, 3, 2> xnn_H_u{ Eigen::Matrix<double, 3, 2>::Identity() };
-    // auto xnn_H_xd = boost::make_optional(static_cast<bool>(Hxd), Eigen::Matrix<double, 3, 3>::Identity());
     const bool compute_derivative{ Hxd or Hu };
-    // DEBUG_VARS(compute_derivative)
+
+    Eigen::Matrix<double, 3, 3> xnn_H_x0{ Eigen::Matrix<double, 3, 3>::Identity() };
+    Eigen::Matrix<double, 3, 2> xnn_H_u{ Eigen::Matrix<double, 3, 2>::Identity() };
+
     const double epsilon{ dt - _NN_DT };
-    const double eps_rate{ epsilon / _NN_2 };
+    const double eps_rate{ epsilon / _NN_DT };
     const double one_p_eps{ 1.0 + eps_rate };
+    const double one_div_NNDT{ 1.0 / _NN_DT };
 
-    // const StateDot xtest{ StateDot(std::nextafter(0.0, 1.0), 1.57607e-321, 1.57607e-321) };
-    // DEBUG_VARS(xtest.transpose())
-    const StateDot xd_nn{ compute_derivative ? _nn_interface->call(xd, u, xnn_H_xd, xnn_H_u) :  // no-lint
-                                               _nn_interface->call(xd, u) };
+    const StateDot xd1_nn{ compute_derivative ? _nn_interface->call(xd0, u, xnn_H_x0, xnn_H_u) :  // no-lint
+                                                _nn_interface->call(xd0, u) };
+    const StateDot A{ xd1_nn * one_p_eps };
+    const StateDot B{ xd0 * eps_rate };
+    const StateDot xd1{ A - B };
 
-    // if (compute_derivative)
-    // {
-    //   auto uin = u.transpose();
-    //   auto xin = xd.transpose();
-    //   DEBUG_VARS(xin, uin)
-    //   DEBUG_VARS(xnn_H_xd)
-    //   DEBUG_VARS(xnn_H_u)
-    // }
-    const StateDot xd_pred{ xd_nn * one_p_eps - xd * eps_rate };
-    // DEBUG_VARS(xd_nn.transpose(), xd_pred.transpose())
-    // auto xin = xd.transpose();
-    // auto xNN = xd_nn.transpose();
-    // auto uin = u.transpose();
-    // DEBUG_VARS(std::nextafter(0.0, 1.0));
-    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::lowest());
-    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::min());
-    // DEBUG_VARS(std::numeric_limits<StateDot::Scalar>::max());
-    // DEBUG_VARS(dt, epsilon, _NN_DT, _NN_2)
-
-    // // std::bitset<64> x0_bin(xd[0]);
-    // DEBUG_VARS(xd[0], xd[1], xd[2])
-    // // DEBUG_VARS(x0_bin)
-    // DEBUG_VARS(xin, xNN, uin)
-
-    // uint8_t* bytePointer = (uint8_t*)&xd[0];
-
-    // for (std::size_t index = 0; index < sizeof(double); index++)
-    // {
-    //   uint8_t byte = bytePointer[index];
-
-    //   for (int bit = 0; bit < 8; bit++)
-    //   {
-    //     printf("%d", byte & 1);
-    //     byte >>= 1;
-    //   }
-    // }
-
-    const Eigen::Matrix3d xpred_H_xnn{ one_p_eps * Eigen::Matrix3d::Identity() };
-    if (Hxd)
+    if (compute_derivative)
     {
-      const Eigen::Matrix3d xpred_H_xd{ -eps_rate * Eigen::Matrix3d::Identity() };
-      *Hxd = xpred_H_xnn * xnn_H_xd + xpred_H_xd;
-    }
-    if (Hu)
-    {
-      *Hu = xpred_H_xnn * xnn_H_u;
-    }
-    if (Hdt)
-    {
-      const double dt_rate{ 1.0 / _NN_2 };
-      const Eigen::Matrix<double, 3, 1> xpred_H_dt{ dt_rate * xd_nn - dt_rate * xd };
-      *Hdt = xpred_H_dt;
+      // Correct one is Mat version, but double is a simplification
+      // const Eigen::Matrix<double, 3, 3> x1_H_A{ Eigen::Matrix3d::Identity() };
+      // const Eigen::Matrix<double, 3, 3> x1_H_B{ -Eigen::Matrix3d::Identity() };
+      const double x1_H_A{ 1.0 };
+      const double x1_H_B{ -1.0 };
+
+      const Eigen::Matrix<double, 3, 3> A_H_xnn{ one_p_eps * Eigen::Matrix3d::Identity() };
+      const Eigen::Matrix<double, 3, 3> B_H_x0{ eps_rate * Eigen::Matrix3d::Identity() };
+
+      if (Hxd)
+      {
+        *Hxd = x1_H_A * A_H_xnn * xnn_H_x0 + x1_H_B * B_H_x0;
+      }
+      if (Hu)
+      {
+        *Hu = x1_H_A * A_H_xnn * xnn_H_u;
+      }
+      if (Hdt)
+      {
+        const Eigen::Matrix<double, 3, 1> A_H_eps{ one_div_NNDT * xd1_nn };
+        const Eigen::Matrix<double, 3, 1> B_H_eps{ one_div_NNDT * xd0 };
+        *Hdt = x1_H_A * A_H_eps + x1_H_B * B_H_eps;
+      }
     }
 
-    return xd_pred;
+    return xd1;
   }
 
   // (x1,xd1) <- f( (x0,xd0), u, dt )
@@ -242,7 +251,7 @@ private:
   const double _NN_2;
   const double _dt;
 
-  mutable std::unique_ptr<StructuredSysidRuntime> _nn_interface;
+  inline static std::shared_ptr<SysidRuntimeBase> _nn_interface = nullptr;
 };
 
 class mushr_torch_stela_t : public stela_robot_interface_t<mushr_torch_stela_t, mushr_torch_types_t>
@@ -275,7 +284,7 @@ public:
 
   using Poly = mushr_types::Control::Poly;
   using Parameters = mushr_types::Control::params;
-  using PrxPlant = mushrFG_t;
+  // using PrxPlant = mushrFG_t;
 
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
@@ -349,10 +358,10 @@ public:
     // mjData* mj_data;
     // const mushr_mujoco_types_t::StateHidden state_in;
     // const mushr_mujoco_types_t::StateDotHidden stateDot_in;
-    DEBUG_VARS(_idle_state_dot.transpose())
+    // DEBUG_VARS(_idle_state_dot.transpose())
 
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
-                                                         _torch_model_path, _nn_dt);
+                                                         _torch_model_path, _directNN, _nn_dt);
     graph_values.first.emplace_shared<StateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
     graph_values.first.addPrior(k_t01, _idle_dt, dt_noise);
@@ -576,8 +585,18 @@ public:
   // template <typename Params>
   void init(const prx::param_loader& params)
   {
-    _torch_model_path = params["torch_model"].as<>();
-    _nn_dt = params["nn_dt"].as<double>();
+    const std::string torch_type{ params["/torch/type"].as<>() };
+    _torch_model_path = params["/torch/model/" + torch_type].as<>();
+    _nn_dt = params["/torch/dt"].as<double>();
+    const std::string model_type{ params["/torch/type"].as<std::string>() };
+    if (model_type == "structured" or model_type == "direct")
+    {
+      _directNN = model_type == "direct";
+    }
+    else
+    {
+      prx_throw("[mushr_torch_stela_t::init] model_type must be 'structured' or 'direct'");
+    }
   }
 
   void log_params()
@@ -592,6 +611,7 @@ protected:
 
   std::string _torch_model_path;
   double _nn_dt;
+  bool _directNN;
 
   ros::Subscriber _sensor_subscriber;
 };
@@ -647,21 +667,36 @@ public:
   virtual void init(const prx::param_loader& params) override
   {
     prx::plant_t::init(params);
-    if (params.exists("torch_model") and params.exists("nn_dt"))
-    {
-      const std::string torch_model_path{ params["torch_model"].as<>() };
-      const double nn_dt{ params["nn_dt"].as<double>() };
+    // if (not params.exists("torch"))
+    // {
+    //   prx_throw("[mushr_torch_t::init] Parameters torch not found!")
 
-      DEBUG_VARS(torch_model_path)
-      DEBUG_VARS(nn_dt)
-      // t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
-      // const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
-      _mushr_factor =
-          std::make_shared<mushr_torch_factor_t<>>(0, 1, 2, prx::simulation_step, nullptr, torch_model_path, nn_dt);
+    auto torch_params = params["torch"];
+    if (torch_params.exists("model") and torch_params.exists("dt"))
+    {
+      const std::string model_type{ torch_params["type"].as<>() };
+      const double nn_dt{ torch_params["dt"].as<double>() };
+
+      const std::string torch_model_direct{ torch_params["model/direct"].as<>() };
+      const std::string torch_model_structured{ torch_params["model/structured"].as<>() };
+
+      if (model_type == "structured" or model_type == "direct")
+      {
+        const bool directNN{ model_type == "direct" };
+        const std::string torch_model_path{ directNN ? torch_model_direct : torch_model_structured };
+        DEBUG_VARS(model_type, torch_model_path, nn_dt)
+
+        _mushr_factor = std::make_shared<mushr_torch_factor_t<>>(0, 1, 2, prx::simulation_step, nullptr,
+                                                                 torch_model_path, directNN, nn_dt);
+      }
+      else
+      {
+        prx_throw("[mushr_torch_t::init] Parameter model_type has to be 'structured' or 'direct'!")
+      }
     }
     else
     {
-      prx_throw("[mushr_torch_t::init] Parameters torch_model or nn_dt not found!")
+      prx_throw("[mushr_torch_t::init] Parameters model_type or torch_model or nn_dt not found!")
     }
   }
 

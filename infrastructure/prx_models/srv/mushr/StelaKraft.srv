@@ -1,10 +1,25 @@
-time deadline
-duration solution_duration # maximum
+int32 CONDITION_TIME=0
+int32 CONDITION_ITERATIONS=1
+
+int32 condition
+
+time deadline # Only used if condition==CONDITION_TIME
+int32 iterations # Only used if condition==CONDITION_ITERATIONS
+
+duration solution_duration # maximum trajectory/plan to return in the response
 bool use_contingency			 # should the sln_tree include a contingency plan
 prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
 
 ---
-prx_models/Tree sln_tree
-int32 planner_output
 int32 TYPE_FAILURE=0
 int32 TYPE_SUCCESS=1
+prx_models/Tree sln_tree
+int32 planner_output
+# Planner Stats
+float32 planned_duration
+int32 iteration_count 
+int32 total_nodes  
+float32 cost_current_solution
+float32 time_current_solution
+int32 iters_current_solution
+

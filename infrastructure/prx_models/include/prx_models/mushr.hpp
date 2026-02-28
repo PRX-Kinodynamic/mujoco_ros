@@ -1,5 +1,6 @@
 #pragma once
 
+#include <prx/utilities/spaces/space_snapshot.hpp>
 #include <string>
 
 // Ros
@@ -7,10 +8,12 @@
 
 // mj-ros
 #include <utils/dbg_utils.hpp>
+#include <prx_models/tree_msg_wrapper.hpp>
 #include <prx_models/mj_mushr.hpp>
 #include <prx_models/mushr_factors.hpp>
 #include <prx_models/stela_robot_interface.hpp>
 #include <prx_models/Edge.h>
+#include <prx_models/tree_utils.hpp>
 #include <ml4kp_bridge/lie_ode_observation.hpp>
 #include <interface/SensorDataStamped.h>
 
@@ -441,11 +444,65 @@ public:
     return graph_values;
   };
 
+  bool propagate_plan(const StateEstimates& estimates, prx_models::tree_msg_wrapper_t& new_tree)
+  {
+    _plan->clear();
+    _traj->clear();
+
+    prx_models::tree_msg_wrapper_t::NodeIdx curr_node_idx{ new_tree.root };
+    while (new_tree.nodes[curr_node_idx].children.size() > 0)
+    {
+      const prx_models::tree_msg_wrapper_t::NodeIdx child_idx{ new_tree.nodes[curr_node_idx].children[0] };
+      const prx_models::Node& node{ new_tree.nodes[child_idx] };
+      const prx_models::Edge& edge{ new_tree.edges[node.parent_edge] };
+
+      ml4kp_bridge::copy(_plan, edge.plan);
+      curr_node_idx = child_idx;
+    }
+
+    _x0->at(0) = std::get<0>(estimates)[0];
+    _x0->at(1) = std::get<0>(estimates)[1];
+    _x0->at(2) = std::get<0>(estimates)[2];
+    _x0->at(3) = std::get<1>(estimates)[0];
+    _x0->at(4) = std::get<1>(estimates)[1];
+    _x0->at(5) = std::get<1>(estimates)[2];
+
+    _sg->propagate(_x0, *_plan, *_traj);
+
+    // TODO: collision check could be done via SDF
+    const bool collision_free_traj{ default_valid_trajectory(*_traj, _valid_state) };
+
+    prx_models::Tree sln_tree;
+    const double max_edge_duration{ 0.1 };
+    prx_models::tree_from_plan_traj(sln_tree, *_plan, *_traj, max_edge_duration);
+    new_tree = prx_models::tree_msg_wrapper_t(sln_tree);
+    return collision_free_traj;
+  }
+
   // template <typename Params>
   // void set_params(const Params& params)
   void init(const prx::param_loader& params)
   {
+    const std::string plant_name{ params["/name"].as<std::string>() };
+    const std::string plant_path{ params["/path"].as<std::string>() };
+    auto plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    prx_assert(plant != nullptr, "Failed to create plant");
+    plant->init(params);
+
+    prx::world_model_t world_model({ plant }, {});
+    world_model.create_context("context", { plant_name }, {});
+    auto context = world_model.get_context("context");
+    auto ss = context.first->get_state_space();
+    auto cs = context.first->get_control_space();
+    // auto ps = context.first->get_parameter_space();
+    _sg = prx::system_group(context);
+    _cg = prx::collision_group(context);
+    _plan = std::make_shared<prx::plan_t>(cs);
+    _traj = std::make_shared<prx::trajectory_t>(ss);
+    _x0 = ss->make_point();
     const std::vector<double> params_vec{ params["/parameter_space/values"].as<std::vector<double>>() };
+
+    _valid_state = [&](prx::space_point_t& s) { return default_valid_state(s, _sg->get_state_space(), _cg); };
 
     _params[mushr_types::Control::vel_desired] = params_vec[mushr_types::Control::vel_desired];
     _params[mushr_types::Control::steering] = params_vec[mushr_types::Control::steering];
@@ -456,13 +513,6 @@ public:
     {
       _poly[i] = params_vec[i + 5];
     }
-    // LOG_VARS(default_params.transpose());
-    // LOG_VARS(default_poly.transpose());
-    // prx_assert(params.size() == default_params.size(), "Wrong number of parameters!");
-    // for (int i = 0; i < params.size(); ++i)
-    // {
-    //   default_params[i] = params[i];
-    // }
   }
 
   void log_params()
@@ -485,6 +535,14 @@ public:
   //   Poly default_poly{ 0.1045, 0.0212, 0.2357, 0.0486 };
 
 protected:
+  prx::valid_state_t _valid_state;
+  prx::space_point_t _x0;
+
+  std::shared_ptr<prx::collision_group_t> _cg;
+  std::shared_ptr<prx::system_group_t> _sg;
+  std::shared_ptr<prx::plan_t> _plan;
+  std::shared_ptr<prx::trajectory_t> _traj;
+
   Parameters _params;
   Poly _poly;
   GraphValues aux_graph;
@@ -541,8 +599,7 @@ public:
                          &_delta_poly[0],
                          &_delta_poly[1],
                          &_delta_poly[2],
-                         &_delta_poly[3],
-                         &_propagation_factor };
+                         &_delta_poly[3] };
     const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
     parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
@@ -594,9 +651,9 @@ protected:
   mushr_types::Control::Poly _delta_poly;
 
   double _idle;
-  double _propagation_factor;  // Defines the type of propagation to use
-  double _propagate_id;        // If mj prop using, it needs to reset if curr_propid != _propagate_id
-  double _curr_propagate_id;   // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  // double _propagation_factor;  // Defines the type of propagation to use
+  double _propagate_id;       // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  double _curr_propagate_id;  // If mj prop using, it needs to reset if curr_propid != _propagate_id
 
   std::shared_ptr<MushrMjFactor> _mj_factor;
 };

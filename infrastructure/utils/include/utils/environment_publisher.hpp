@@ -67,7 +67,7 @@ public:
     prx_assert(_params.exists("environment/name"), "Params: 'environment/name' needed");
     prx_assert(_params.exists("environment/bounds"), "Params: 'environment/bounds' needed");
 
-    const std::string environment_name{ _params["environment/name"].as<std::string>() };
+    const std::string environment_name{ _params["environment/name"].template as<std::string>() };
 
     DEBUG_VARS(environment_name)
 
@@ -100,8 +100,8 @@ protected:
   // }
   void publish_bounds(prx::obstacle_loader_t& obstacle_loader)
   {
-    std::vector<double> max_bounds{ _params["environment/bounds/max"].as<std::vector<double>>() };
-    std::vector<double> min_bounds{ _params["environment/bounds/min"].as<std::vector<double>>() };
+    std::vector<double> max_bounds{ _params["environment/bounds/max"].template as<std::vector<double>>() };
+    std::vector<double> min_bounds{ _params["environment/bounds/min"].template as<std::vector<double>>() };
     // std::vector<double> position{ _params["environment/root_configuration/position"].as<std::vector<double>>() };
     // std::vector<double> orientation{ _params["environment/root_configuration/orientation"].as<std::vector<double>>()
     // };

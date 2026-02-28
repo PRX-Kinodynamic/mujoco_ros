@@ -111,6 +111,7 @@ int main(int argc, char** argv)
   std::cout << "\nInitializing runtime..." << std::endl;
   StructuredSysidRuntime runtime(model_path, params, poly, use_cuda, "float64");
 
+
   // Test cases: various state and control values
   std::vector<std::pair<StateDot, Control>> test_cases = { { StateDot(0.5, 0.0, 0.0), Control(0.5, 0.0) },
                                                            { StateDot(1.0, 0.1, 0.2), Control(0.8, 0.3) },

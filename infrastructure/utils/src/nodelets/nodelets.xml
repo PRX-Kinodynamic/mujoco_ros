@@ -143,4 +143,13 @@
       Visualize Points in rviz from multiple topics
     </description>
   </class>
+
+  <class 
+      name="utils/SdfToGridPublisher" 
+      type="utils::SdfToGridPublisher" 
+      base_class_type="nodelet::Nodelet">
+    <description> 
+      Visualize Points in rviz from multiple topics
+    </description>
+  </class>
 </library>

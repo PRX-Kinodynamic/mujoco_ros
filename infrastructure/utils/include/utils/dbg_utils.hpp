@@ -25,6 +25,14 @@ inline void set_log_filename(const std::string filename)
 {
   variables::log_filename = filename;
 }
+inline void close_log()
+{
+  if (variables::ofs_log.is_open())
+  {
+    variables::ofs_log.flush();
+    variables::ofs_log.close();
+  }
+}
 // template <std::size_t I, typename TupleValue>
 // inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
 
@@ -129,6 +137,8 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
     const std::string log_filename{ dbg::variables::lib_path + dbg::variables::log_filename };
     ofs_log.open(log_filename);
 
+    prx_assert(ofs_log.is_open(), "[log_variables] couldn't open log file: " << log_filename);
+
     const std::string msg{ "Log set to: " + log_filename };
     dbg::print_variables(std::cout, true, "msg", msg);
   }
@@ -137,6 +147,9 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
 }
 
 }  // namespace dbg
+#define LOG_CLOSE dbg::close_log();
+#define LOG_FILENAME(FILENAME) dbg::set_log_filename(FILENAME);
+
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_VARS(...) dbg::log_variables(__FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
 #define ERROR_VARS(...)                                                                                                \

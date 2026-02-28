@@ -1,13 +1,13 @@
 random_seed: 210896
 simulation_step: 0.1
 
-plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
+# plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr.yaml"
 # plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_mujoco.yaml"
 # plant: !file "${ML4KP_ROS}/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"
 
 # plant: !file "src/motion_planning/config/mushr.yaml"
-learned_controller: "controllers/mushr_analytical.yaml"
-feedback_controller: "controllers/mushr_stanley_sim.yaml"
+# learned_controller: "controllers/mushr_analytical.yaml"
+# feedback_controller: "controllers/mushr_stanley_sim.yaml"
 # feedback_controller: "controllers/mushr_pure_pursuit.yaml"
 
 # environment: "environments/movable.yaml"
@@ -28,7 +28,7 @@ goal:
 
 # For debugging
 planner_name: "RoGuE"
-visualize: true
+visualize: false
 repeats: 5
 output_dir: "RoGuE"
 
@@ -63,3 +63,9 @@ contingency_safety_params:
   safe_min: 0.03
   safe_mul: 0.18
   safe_quad_mul: 0.01
+
+single_shot:
+  time: 0.5
+
+solution_type: "TREE_TRAJECTORY"
+# solution_type: "WAVEFRONT"

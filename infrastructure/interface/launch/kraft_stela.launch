@@ -1,33 +1,34 @@
 <launch>
 
-  <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
-  <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
-  <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/walls.yaml"/> -->
-  <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/single_box.yaml"/>
-  <arg name="validate_replanner_sln" default="true"/>
 
-	<!-- <include file="$(find mujoco_ros)/launch/mushr.launch"> -->
-    <!-- <arg name="publish_ground_truth_pose" value="false" /> -->
-    <!-- <arg name="environment" value="$(arg environment)" /> -->
-  <!-- </include> -->
+  <arg name = "planning_mode" default="replanning"/> <!-- single_shot  -->
+  <arg name = "validate_replanner_sln" default="true"/>
+  
+  <!-- <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+  <arg name = "planning_plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+  
+  <!-- <arg name = "mushr_model" default="torch" /> -->
+  <arg name = "mushr_model" default="analytical" />
+  <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+  <!-- <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/> -->
+
 
   <include file="$(find interface)/launch/stela.launch">
     <arg name="input_tree_topic_name" default="/mushr/sln/tree_dbg"/>
-    <arg name="environment" value="$(arg environment)" />
-    <arg name="validate_replanner_sln" value="$(arg validate_replanner_sln)"/>
-
-    <arg name="mushr_model" value="analytical" />
-    <!-- <arg name="mushr_model" value="torch" /> -->
+    
+    <arg name="mushr_model" value="$(arg mushr_model)" />
+    <arg name="params_file" default="$(arg plant_file)"/>
+    <!-- <arg name="mushr_model" value="analytical" /> -->
     <!-- <arg name="mushr_model" value="mujoco" /> -->
-    <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
     <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_mujoco.yaml"/> -->
-    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/> -->
   </include>
 
   <!-- <include file="$(find task_planning)/launch/fix_plan.launch"/> -->
   
   <include file="$(find task_planning)/launch/kraft.launch">
-    <arg name="environment" value="$(arg environment)" />
+    <arg name="plant_file" default="$(arg planning_plant_file)"/>
+    <arg name="planning_mode" default="$(arg planning_mode)"/>
   </include>
 
 </launch>

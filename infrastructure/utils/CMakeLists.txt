@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf_conversions
   ml4kp_bridge
+  grid_map_msgs
   # prx_models
 )
 

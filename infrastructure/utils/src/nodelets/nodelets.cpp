@@ -19,6 +19,8 @@
 #include <utils/msgs_to_file.hpp>
 #include <utils/tf_to_file.hpp>
 
+#include <utils/sdf_to_grid_publisher.hpp>
+
 namespace utils
 {
 inline void collision_to_file(const std_msgs::Bool& msg, std::ofstream& ofs)
@@ -45,6 +47,8 @@ using StelaTrajectoryVizPublisher = stela_trajectory_viz_t<nodelet::Nodelet>;
 using AckermannDriveStampedToFile =
     topic_to_file_t<ackermann_msgs::AckermannDriveStamped, utils::to_file, nodelet::Nodelet>;
 using TfToFile = tf_to_file_t<nodelet::Nodelet>;
+using SdfToGridPublisher = sdf_to_grid_publisher_t<nodelet::Nodelet>;
+
 }  // namespace utils
 PLUGINLIB_EXPORT_CLASS(utils::EnvironmentPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::TrajectoryVizPublisher, nodelet::Nodelet);
@@ -62,3 +66,4 @@ PLUGINLIB_EXPORT_CLASS(utils::PointsHeaderTopicsToMarkerPublisher, nodelet::Node
 PLUGINLIB_EXPORT_CLASS(utils::StelaTrajectoryVizPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::AckermannDriveStampedToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(utils::TfToFile, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(utils::SdfToGridPublisher, nodelet::Nodelet);

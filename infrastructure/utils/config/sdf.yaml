@@ -1,0 +1,7 @@
+geometry:
+  type: "SPHERE"
+  parameters: [ 0.01 ]
+resolution: 0.1
+# environment: "${ML4KP_ROS}/environments/forest.yaml"
+directory: "${ML4KP_ROS}/data/sdfs/"
+force_recompute: false
