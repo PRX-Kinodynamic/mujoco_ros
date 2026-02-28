@@ -17,7 +17,7 @@
     <arg name = "params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/planning_simulation.yaml" />
     <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
     <arg name = "plant_file"/>
-    <arg name = "planning_mode"/>
+    <!-- <arg name = "planning_mode"/> -->
 
     <!-- <arg name = "params_file" default="examples/replanning/planning_real.yaml" /> -->
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
@@ -56,7 +56,7 @@
           output="screen" respawn="false">
         <param name="params_file" value="$(arg params_file)" />
         <param name="plant_file" value="$(arg plant_file)" />
-        <param name="planning_mode" value="$(arg planning_mode)" />
+        <!-- <param name="planning_mode" value="$(arg planning_mode)" /> -->
 
         <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
         

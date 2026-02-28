@@ -1,13 +1,18 @@
 #pragma once
 
 #include <fstream>
+#include <ostream>
 #include <regex>
 
 #include <ros/ros.h>
 
 #include <prx/utilities/general/constants.hpp>
 #include <prx/utilities/general/template_utils.hpp>
+#include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <ml4kp_bridge/template_utils.hpp>
+#include <gtsam/base/types.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
 
 #define DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
@@ -45,6 +50,40 @@ inline void print_value(std::ostream& stream, const Value& value)
   stream << value << " ";
 }
 
+template <typename Value, std::enable_if_t<std::is_same<Value, gtsam::NonlinearFactorGraph>::value, bool> = true>
+inline void print_value(std::ostream& stream, const Value& graph)
+{
+  stream << "FactorGraph (size: " << graph.size() << ")\n";
+  for (size_t i = 0; i < graph.size(); i++)
+  {
+    // std::stringstream ss;
+    stream << "\t--Factor " << i << ": ";
+    if (graph.at(i))
+    {
+      const gtsam::KeyVector keys{ graph.at(i)->keys() };
+      for (auto k : keys)
+      {
+        stream << prx::fg::symbol_factory_t::formatter(k) << " ";
+      }
+      stream << "\n";
+      // graph.at(i)->print(ss.str(), prx::fg::symbol_factory_t::formatter);
+    }
+  }
+}
+
+template <typename Value, std::enable_if_t<std::is_same<Value, gtsam::Values>::value, bool> = true>
+inline void print_value(std::ostream& stream, const Value& values)
+{
+  stream << "FG Values (size: " << values.size() << ")\n";
+
+  for (const auto& key_value : values)
+  {
+    stream << "\t--Value " << prx::fg::symbol_factory_t::formatter(key_value.key) << ": ";
+    key_value.value.print("");
+    stream << "\n";
+  }
+}
+
 template <typename PairValue, std::enable_if_t<ml4kp_bridge::is_pair<PairValue>::value, bool> = true>
 inline void print_value(std::ostream& stream, const PairValue& pair)
 {
@@ -55,7 +94,9 @@ inline void print_value(std::ostream& stream, const PairValue& pair)
 }
 
 template <typename Value, std::enable_if_t<prx::utilities::is_iterable<Value>::value and
-                                               not prx::utilities::is_streamable<Value>::value,
+                                               not prx::utilities::is_streamable<Value>::value and
+                                               not std::is_same<Value, gtsam::NonlinearFactorGraph>::value and
+                                               not std::is_same<Value, gtsam::Values>::value,
                                            bool> = true>
 inline void print_value(std::ostream& stream, const Value& value)
 {
@@ -142,8 +183,56 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
     const std::string msg{ "Log set to: " + log_filename };
     dbg::print_variables(std::cout, true, "msg", msg);
   }
+  std::streambuf* coutbuf = std::cout.rdbuf();  // save old buf
+  std::cout.rdbuf(ofs_log.rdbuf());             // redirect std::cout to out.txt!
+
   ofs_log << "[ " << fn_name << " " << ros::Time::now() << " ] ";
   dbg::print_variables(ofs_log, false, name, vars...);
+  std::cout.rdbuf(coutbuf);
+}
+
+template <typename Key, std::enable_if_t<std::is_same<Key, gtsam::Key>::value, bool> = true>
+void print_key(std::ostream& stream, const Key& key)
+{
+  stream << prx::fg::symbol_factory_t::formatter(key) << " ";
+}
+
+template <std::size_t I, typename TupleValue,
+          std::enable_if_t<(I == std::tuple_size<TupleValue>{}), bool> = true>  // no-lint
+inline void print_key_tuple(std::ostream& stream, const TupleValue& tuple)
+{
+}
+
+template <std::size_t I, typename TupleValue,
+          std::enable_if_t<(I < std::tuple_size<TupleValue>{}), bool> = true>  // no-lint
+inline void print_key_tuple(std::ostream& stream, const TupleValue& key_tuple)
+{
+  print_key(stream, std::get<I>(key_tuple));
+  print_key_tuple<I + 1>(stream, key_tuple);
+}
+
+template <typename Keys, std::enable_if_t<prx::utilities::is_iterable<Keys>::value, bool> = true>
+inline void print_key(std::ostream& stream, const Keys& keys)
+{
+  for (auto& k : keys)
+  {
+    print_key(stream, k);
+  }
+}
+
+template <typename TupleValue, std::enable_if_t<ml4kp_bridge::is_tuple<TupleValue>::value, bool> = true>
+inline void print_key(std::ostream& stream, const TupleValue& tuple)
+{
+  print_key_tuple<0>(stream, tuple);
+}
+
+template <class... Keys>
+void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
+{
+  stream << "[ " << fn_name << " " << ros::Time::now() << " ] ";
+  stream << "Keys: ";
+  print_key(stream, vars...);
+  stream << "\n";
 }
 
 }  // namespace dbg
@@ -196,11 +285,7 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
     const std::string _key{ SF::formatter(KEY) };                                                                      \
     dbg::print_variables(std::cout, true, #KEY, _key);                                                                 \
   };
-#define LOG_KEY(KEY)                                                                                                   \
-  {                                                                                                                    \
-    const std::string _key{ SF::formatter(KEY) };                                                                      \
-    dbg::log_variables(__FUNCTION__, #KEY, _key);                                                                      \
-  };
+
 #define PRINT_KEY_ERROR(KEY)                                                                                           \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
@@ -218,17 +303,14 @@ inline void log_variables(const std::string fn_name, const std::string name, Var
     }                                                                                                                  \
     dbg::print_variables(std::cout, true, "");                                                                         \
   };
-
-#define LOG_KEYS(...)                                                                                                  \
+#define LOG_KEY(KEY)                                                                                                   \
   {                                                                                                                    \
-    std::vector<gtsam::Key> ks = { __VA_ARGS__ };                                                                      \
-    std::vector<std::string> keys;                                                                                     \
-    for (auto key : ks)                                                                                                \
-    {                                                                                                                  \
-      keys.push_back(SF::formatter(key));                                                                              \
-    }                                                                                                                  \
-    dbg::log_variables(__FUNCTION__, "Keys", keys);                                                                    \
-  }
+    const std::string _key{ SF::formatter(KEY) };                                                                      \
+    dbg::log_variables(__FUNCTION__, #KEY, _key);                                                                      \
+  };
+#define LOG_KEYS(...) dbg::print_keys(__FUNCTION__, dbg::variables::ofs_log, __VA_ARGS__);
+// void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
+
 #define PRINT_KEYS_(KEYS) PRINT_KEYS_CONTAINER(KEYS)
 
 #define PRINT_MSG_ONCE(MSG)                                                                                            \

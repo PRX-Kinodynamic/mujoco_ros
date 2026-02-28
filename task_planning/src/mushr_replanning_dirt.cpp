@@ -432,9 +432,11 @@ struct replanner_t
   {
     if (request.condition == prx_models::StelaKraft::Request::CONDITION_ITERATIONS)
     {
+      LOG_VARS(request.iterations);
+
       return prx::condition_check_t("iterations", request.iterations);
     }
-    else if (request.condition == prx_models::StelaKraft::Request::CONDITION_ITERATIONS)
+    else if (request.condition == prx_models::StelaKraft::Request::CONDITION_TIME)
     {
       const ros::Time start_plan_stamp{ ros::Time::now() };
       const ros::Duration dt_available{ request.deadline - start_plan_stamp };
@@ -454,14 +456,14 @@ struct replanner_t
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
-    // LOG_MSG("START REPLANNING");
+    LOG_MSG("START REPLANNING");
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
     // if (_mode == planning_mode_t::FINISHED)
     // {
     //   return true;
     // }
 
-    // LOG_MSG("PREPROCESSING");
+    LOG_MSG("PREPROCESSING");
     // DEBUG_VARS(ros::Time::now(), request);
     change_status(interface::ReplannerStatus::PREPROCESSING);
     _dirt_query->clear_outputs();
@@ -512,7 +514,7 @@ struct replanner_t
     prx::condition_check_t checker{ create_condition(request) };
 
     change_status(interface::ReplannerStatus::PLANNING);
-    // LOG_MSG("PLANNING");
+    LOG_MSG("PLANNING");
 
     _dirt->resolve_query(&checker);
 
@@ -541,7 +543,7 @@ struct replanner_t
     // =======
     // LOG_MSG("POSTPROCESSING");
 
-    _dirt->fulfill_query();
+    // _dirt->fulfill_query();
 
     // >>>>>>> 2e15a3b (westeros-changes)
     if (_dirt_query->solution_traj.size() > 0)

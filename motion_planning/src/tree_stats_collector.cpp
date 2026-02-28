@@ -53,9 +53,11 @@ int main(int argc, char** argv)
   PARAM_SETUP(nh, total_iterations);
   PARAM_SETUP(nh, total_trees);
 
+  DEBUG_PRINT;
   ros::ServiceClient _planner_service_client{ nh.serviceClient<prx_models::StelaKraft>("/kraft/replan") };
 
   prx_models::StelaKraft planner_service_call;
+  DEBUG_PRINT;
 
   planner_service_call.request.use_contingency = true;
   planner_service_call.request.solution_duration = ros::Duration(100);
@@ -68,14 +70,17 @@ int main(int argc, char** argv)
   planner_service_call.request.root.children.clear();
   planner_service_call.request.root.point.point = { 1.0, 0.0, 1.57, 0.0, 0.0, 0.0 };
   planner_service_call.request.root.cost = 0.0;
+  DEBUG_PRINT;
 
   std::ofstream ofs(output_file.c_str());
 
   ofs << "# planned_duration iteration_count total_nodes ";
   ofs << "cost_current_solution time_current_solution iters_current_solution\n";
+  DEBUG_PRINT;
 
   while (ros::ok() and total_trees > 0)
   {
+    DEBUG_PRINT;
     const bool replanner_available{ _planner_service_client.exists() };
 
     // planner_service_call.request.deadline = ros::Time::now() + ros::Duration(planning_time);
@@ -112,8 +117,10 @@ int main(int argc, char** argv)
       ofs << time_current_solution << " ";
       ofs << iters_current_solution << " ";
       ofs << "\n";
+      total_trees--;
     }
-    total_trees--;
+
+    ros::Duration(10.0).sleep();
   }
   ofs.close();
 

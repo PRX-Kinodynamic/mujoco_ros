@@ -1,14 +1,14 @@
 <launch>
 
 
-  <arg name = "planning_mode" default="replanning"/> <!-- single_shot  -->
-  <arg name = "validate_replanner_sln" default="true"/>
+  <arg name = "validate_replanner_sln" default="false"/>
   
   <!-- <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
   <arg name = "planning_plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+  <!-- <arg name = "planning_plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/> -->
   
-  <!-- <arg name = "mushr_model" default="torch" /> -->
   <arg name = "mushr_model" default="analytical" />
+  <!-- <arg name = "mushr_model" default="torch" /> -->
   <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
   <!-- <arg name = "plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/> -->
 
@@ -28,7 +28,6 @@
   
   <include file="$(find task_planning)/launch/kraft.launch">
     <arg name="plant_file" default="$(arg planning_plant_file)"/>
-    <arg name="planning_mode" default="$(arg planning_mode)"/>
   </include>
 
 </launch>
