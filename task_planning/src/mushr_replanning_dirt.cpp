@@ -88,7 +88,7 @@ struct replanner_t
   ros::Timer _clock_timer, _replan_timer, _tree_timer;
 
   int _max_cycles;
-  double _preprocess_timeout, _postprocess_timeout;
+  double _postprocess_timeout;
 
   double _max_edge_duration;
 
@@ -133,7 +133,7 @@ struct replanner_t
 
     int& max_cycles{ _max_cycles };
 
-    double& preprocess_timeout{ _preprocess_timeout };
+    // double& preprocess_timeout{ _preprocess_timeout };
     double& postprocess_timeout{ _postprocess_timeout };
     double& max_edge_duration{ _max_edge_duration };
 
@@ -142,13 +142,15 @@ struct replanner_t
 
     // std::string& _tree_file_prefix{};
     std::string plant_file;
+    std::string planner_sln_recovery_type;
 
     PARAM_SETUP(nh, plant_file);
+    PARAM_SETUP(nh, planner_sln_recovery_type);
     // PARAM_SETUP(nh, planning_mode);
     PARAM_SETUP(nh, params_file);
     PARAM_SETUP(nh, heuristic_map_filename);
 
-    PARAM_SETUP(nh, preprocess_timeout);
+    // PARAM_SETUP(nh, preprocess_timeout);
     PARAM_SETUP(nh, postprocess_timeout);
     PARAM_SETUP(nh, max_cycles);
 
@@ -171,7 +173,7 @@ struct replanner_t
     // PARAM_SETUP_WITH_DEFAULT(nh, plan_params_file, plan_params_file){ prx::param_loader(plan_params_file, "") };
     params = prx::param_loader(params_file, "");
     plant_params = prx::param_loader(plant_file, "");
-
+    params["solution_type"].set(planner_sln_recovery_type);
     // DEBUG_VARS(environment)
     // planner_replanning_service.set_preprocess_timeout(preprocess_timeout);
     // planner_replanning_service.set_postprocess_timeout(postprocess_timeout);
@@ -464,7 +466,7 @@ struct replanner_t
     {
       const ros::Time start_plan_stamp{ ros::Time::now() };
       const ros::Duration dt_available{ request.deadline - start_plan_stamp };
-      const double time_limit{ std::max(dt_available.toSec() - _postprocess_timeout, 0.0) };
+      const double time_limit{ std::max(dt_available.toSec() * _postprocess_timeout, 0.0) };
 
       LOG_VARS(request.deadline, dt_available, time_limit);
       // if (time_limit <= 0)
@@ -482,25 +484,15 @@ struct replanner_t
   {
     LOG_MSG("START REPLANNING");
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
-    // if (_mode == planning_mode_t::FINISHED)
-    // {
-    //   return true;
-    // }
 
     LOG_MSG("PREPROCESSING");
-    // DEBUG_VARS(ros::Time::now(), request);
     change_status(interface::ReplannerStatus::PREPROCESSING);
     _dirt_query->clear_outputs();
-    // const double& planning_duration{ _dirt_spec->planning_cycle_duration };
 
     prx_assert(_dirt_query->start_state->size() == request.root.point.point.size(),
                "[mushr_replanning] Size "
                "mismatch ");
-    // if (request.root.point.point.size() != _dirt_query->start_state->size())
-    // {
-    //   prx_warn("Start state of ");
-    //   return false;
-    // }
+
     ml4kp_bridge::copy(_dirt_query->start_state, request.root.point);
 
     _step_traj->clear();
@@ -509,29 +501,11 @@ struct replanner_t
     _dirt->preprocess();
     _dirt->link_and_setup_query(_dirt_query.get());
 
-    // const double preprocess_real_dt{ (ros::Time::now() - _cycle_start).toSec() };
-    // const double time_limit{ planning_duration - preprocess_real_dt - _postprocess_timeout };
-    // DEBUG_VARS(time_limit, planning_duration, preprocess_real_dt, _postprocess_timeout);
-
     const ros::Time start_plan_stamp{ ros::Time::now() };
     const ros::Duration dt_available{ request.deadline - start_plan_stamp };
 
     double time_limit{ dt_available.toSec() - _postprocess_timeout };
 
-    // if (_mode == planning_mode_t::SINGLE_SHOT)
-    // {
-    //   time_limit = params["single_shot/time"].as<double>();
-    // }
-
-    // // LOG_VARS(request.deadline, dt_available, time_limit);
-    // if (time_limit <= 0)
-    // {
-    //   change_status(interface::ReplannerStatus::IDLE);
-    //   return true;
-    // }
-    // >>>>>>> 2e15a3b (westeros-changes)
-    // prx_assert(time_limit > 0, "Time limit is less than 0");
-    // prx::condition_check_t checker("time", time_limit);
     prx::condition_check_t checker{ create_condition(request) };
 
     change_status(interface::ReplannerStatus::PLANNING);
@@ -554,7 +528,6 @@ struct replanner_t
     prx_models::copy(response.stats, _dirt->statistics());
     _planner_stats_publisher.publish(response.stats);
 
-    // >>>>>>> 2e15a3b (westeros-changes)
     if (_dirt_query->solution_traj.size() > 0)
     {
       _step_plan->clear();

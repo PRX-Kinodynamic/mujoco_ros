@@ -27,7 +27,7 @@
     <arg name="replanner_solution_duration" default="1"/>
     <arg name="use_contingency" default="true"/>
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
-    <arg name="start_delay" default="1"/>
+    <arg name="start_delay" default="20"/>
     <arg name="total_replanning_calls" default="10000"/>
 
     <!-- <arg name="mushr_model"/> -->
@@ -82,7 +82,7 @@
         <param name="time_as_variable" value="$(arg time_as_variable)"/>
         <!-- <param name="sensor_topic_name" value="/mushr/sensordata_DUMMY"/> -->
         <param name="sensor_topic_name" value="/mushr/sensordata"/>
-        <param name="replanner_solution_duration" value="$(arg replanner_solution_duration)"/>
+        <!-- <param name="replanner_solution_duration" value="$(arg replanner_solution_duration)"/> -->
         <param name="use_contingency" value="$(arg use_contingency)"/>
         <param name="planner_clock_topic" value="$(arg planner_clock_topic)"/>
         <!-- <param name="total_replanning_calls" value="$(arg total_replanning_calls)"/> -->

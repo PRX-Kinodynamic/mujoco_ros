@@ -2052,18 +2052,21 @@ public:
     LOG_VARS(node_current.index);
     if (_tree.root != edge.source)
     {
+      LOG_LINE();
       const prx_models::Node& node_parent{ _tree.nodes[edge.source] };
+      LOG_LINE();
       _active_nodes.insert(node_parent.index);
     }
+    LOG_VARS(node_current);
+    LOG_VARS(edge);
 
-    // DEBUG_VARS(edge.plan);
-    // GraphValues graph_values{ _robot->node_edge_to_fg(edge.source, edge.target, node_current.point, edge.plan,
-    // _time_as_variable) };
     GraphValues graph_values{ _robot->node_edge_to_fg(node_current, edge) };
 
+    LOG_LINE()
     // graph_values.second.print("add_tree_node", SF::formatter);
     obstacle_factors(graph_values.first, node_current.point, edge.target);
 
+    LOG_LINE()
     check_factor_removal();
 
     safe_fg_update(graph_values.first, graph_values.second);

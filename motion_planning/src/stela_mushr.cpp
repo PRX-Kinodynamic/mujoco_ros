@@ -128,6 +128,9 @@ struct experiment_t
     _nh.setParam("cycle_duration", request.cycle_duration);
     _nh.setParam("replanning_iterations", request.replanning_iterations);
     _nh.setParam("total_replanning_calls", request.total_replanning_calls);
+    _nh.setParam("replanner_solution_duration", request.replanner_solution_duration);
+    _nh.setParam("planner_sln_recovery_type", request.planner_sln_recovery_type);
+
     // _nh.setParam("params_file", request.replanning_iterations);
 
     _new_experiment = true;

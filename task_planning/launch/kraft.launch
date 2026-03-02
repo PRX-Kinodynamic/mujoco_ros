@@ -10,7 +10,7 @@
     <arg name = "use_rogue" default="false"/>
     <arg name = "max_cycles" default="90"/>
     <arg name = "preprocess_timeout" default = "0.05" />
-    <arg name = "postprocess_timeout" default = "0.2" />
+    <arg name = "postprocess_timeout" default = "0.8" />
     <arg name = "record" default = "false"/>
     <arg name = "id" default = "0"/>
     <arg name = "planner_stats_topic_name" default="/replanner/stats"/>
