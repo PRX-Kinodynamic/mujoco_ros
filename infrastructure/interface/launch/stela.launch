@@ -8,8 +8,8 @@
     <arg name="collision_topic" default="/simulator/collision"/>
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/boxes.yaml"/> -->
     <!-- <arg name="environment" default="$(env DIRTMP_PATH)/resources/input_files/environments/empty.yaml"/> -->
-    <!-- <arg name="obstacle_mode" default="none"/> -->
-    <arg name="obstacle_mode" default="sdf"/> 
+    <arg name="obstacle_mode" default="none"/>
+    <!-- <arg name="obstacle_mode" default="sdf"/>  -->
     <arg name="obstacle_distance_tolerance" default="0.5"/>
     <arg name="obstacle_factor_include_distance" default="0.5"/>
     <arg name="obstacle_sigma" default="1.0"/>
@@ -21,7 +21,7 @@
     <arg name="sdf_params_file" default="$(find utils)/config/sdf.yaml"/>
     <arg name="estimated_trajectory" default="/stela/sbmp/estimated_trajectory"/>
     <arg name="tree_ahead_topic" default="/stela/sbmp/ahead_tree"/>
-    <arg name="total_future_nodes" default="15"/>
+    <arg name="total_future_nodes" default="25"/>
     <arg name="total_past_nodes" default="10"/>
     <arg name="time_as_variable" default="true"/> 
     <arg name="replanner_solution_duration" default="1"/>

@@ -616,6 +616,7 @@ struct replanner_experiment_t
     // _nh.setParam("params_file", request.replanning_iterations);
 
     _nh.setParam("plant_file", model_path());
+    _nh.setParam("planner_sln_recovery_type", request.planner_sln_recovery_type);
     _new_experiment = true;
     // _experiment_set = true;
     PRINT_MSG("[ReplannerExperiment] Setting new experiment...");

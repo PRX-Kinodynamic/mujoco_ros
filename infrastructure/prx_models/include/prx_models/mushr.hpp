@@ -181,7 +181,7 @@ public:
     // NoiseModel x_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
     // NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
 
-    graph_values.first.addPrior(k_u01, _idle_control, u_prior_noise);
+    // graph_values.first.addPrior(k_u01, _idle_control, u_prior_noise);
     // graph_values.first.addPrior(k_x1, _idle_state, prior_noise);
     graph_values.first.addPrior(k_xdot1, _idle_state_dot, xdot_prior_noise);
 
@@ -405,10 +405,10 @@ public:
     // {
     //   LOG_VARS(u01[0], u01[1])
     //   const double u_vel{ u01[prx_models::mushr_t::control::velocity_idx] };
-    //   NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1 + u_vel / 0.1) };
-    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 10.0) };
-    graph_values.first.addPrior(k_u01, u01, u_prior_noise);
-    // }
+
+    // NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 10.0) };
+    // graph_values.first.addPrior(k_u01, u01, u_prior_noise);
+
     // graph_values.first.addPrior(k_u01, u01);
     // graph_values.first.addPrior(k_xdot1, xdot1, prior_noise);
     graph_values.second.insert(k_x1, x1);
