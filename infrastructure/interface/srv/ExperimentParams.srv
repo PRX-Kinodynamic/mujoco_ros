@@ -7,6 +7,7 @@ string replanning_condition
 float32 cycle_duration
 int32 replanning_iterations
 int32 total_replanning_calls
+float32 replanner_solution_duration
 ---
 
 

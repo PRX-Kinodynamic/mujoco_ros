@@ -533,6 +533,8 @@ public:
   //                                     edge_plan, const bool time_as_variable = true) override
   virtual GraphValues node_edge_to_fg(const prx_models::Node& node, const prx_models::Edge& edge) override
   {
+    using StateStateDotTimeFactor = prx_models::mushr_x_xdot_t;
+    // using IntegrationFactor = mushr_torch_factor_t<double>;
     using IntegrationFactor = mushr_torch_factor_t<double>;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
     const ml4kp_bridge::SpacePoint& edge_control{ edge.plan.steps[0].control };
@@ -566,7 +568,7 @@ public:
 
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
-    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    // NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e0) };
     NoiseModel dt_limit_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
@@ -579,10 +581,14 @@ public:
 
     // mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
     // const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
-
+    graph_values.first.emplace_shared<StateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
                                                          _torch_model_path, _nn_dt);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
+
+    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 10.0) };
+    graph_values.first.addPrior(k_u01, u01, u_prior_noise);
+
     graph_values.first.addPrior(k_t01, dt, dt_noise);
 
     graph_values.second.insert(k_t01, dt);

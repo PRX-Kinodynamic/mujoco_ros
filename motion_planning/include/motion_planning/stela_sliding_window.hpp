@@ -457,7 +457,7 @@ public:
       const prx_models::Edge& edge{ new_tree.edges[node.parent_edge] };
 
       GraphValues graph_values{ _robot->node_edge_to_fg(node, edge) };
-      obstacle_factors(graph_values.first, node.point, edge.target);
+      // obstacle_factors(graph_values.first, node.point, edge.target);
 
       proposed_graph.push_back(graph_values.first);
       proposed_values.insert(graph_values.second);
