@@ -173,10 +173,12 @@ struct runner_t
 
   void init()
   {
-    std::string file_path{ _file_prefix + "_" + utils::timestamp() + ".txt" };
-    std::string file_planner_path{ _file_prefix + "_planner_" + utils::timestamp() + ".txt" };
+    const std::string file_path{ _file_prefix + "_" + utils::timestamp() + ".txt" };
+    const std::string file_planner_path{ _file_prefix + "_planner_" + utils::timestamp() + ".txt" };
     _ofs.open(file_path);
     _ofs_planner.open(file_planner_path);
+    DEBUG_VARS(file_path);
+    DEBUG_VARS(file_planner_path);
     ros::Duration(5.0).sleep();
     _mj_status->request_status(interface::NodeStatus::RESET);
   }

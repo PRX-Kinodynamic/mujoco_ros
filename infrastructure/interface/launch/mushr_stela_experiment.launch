@@ -30,7 +30,7 @@
       <param name="rosbag_node_id" value="rosbag_recorder"/>
       <param name="sensor_topic_name" value="/mushr/sensordata"/>
       <param name="collision_topic_name" value="/mushr/collision"/>
-      <param name="planner_stats_topic_name" default="/replanner/stats"/>
+      <param name="planner_stats_topic_name" value="/replanner/stats"/>
 
   </node>
 
