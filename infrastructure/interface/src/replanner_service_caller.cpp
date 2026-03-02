@@ -32,6 +32,8 @@ int main(int argc, char** argv)
   float& cycle_duration{ experiment_params.request.cycle_duration };
   int& replanning_iterations{ experiment_params.request.replanning_iterations };
   int& total_replanning_calls{ experiment_params.request.total_replanning_calls };
+  float& replanner_solution_duration{ experiment_params.request.replanner_solution_duration };
+  std::string& planner_sln_recovery_type{ experiment_params.request.planner_sln_recovery_type };
 
   PARAM_SETUP(nh, stela_model);
   PARAM_SETUP(nh, planning_model);
@@ -41,6 +43,8 @@ int main(int argc, char** argv)
   PARAM_SETUP(nh, cycle_duration);
   PARAM_SETUP(nh, replanning_iterations);
   PARAM_SETUP(nh, total_replanning_calls);
+  PARAM_SETUP(nh, replanner_solution_duration);
+  PARAM_SETUP(nh, planner_sln_recovery_type);
 
   experiment_params.request.validation_plan_feasibility = validation_plan_feasibility;
   experiment_params.request.validation_collision_only = validation_collision_only;
