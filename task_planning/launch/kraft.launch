@@ -9,8 +9,8 @@
     <arg name = "use_complete_traj" default = "false"/>
     <arg name = "use_rogue" default="false"/>
     <arg name = "max_cycles" default="90"/>
-    <arg name = "preprocess_timeout" default = "0.05" />
-    <arg name = "postprocess_timeout" default = "0.8" />
+    <!-- <arg name = "preprocess_timeout" default = "0.05" /> -->
+    <arg name = "postprocess_timeout" default = "0.5" />
     <arg name = "record" default = "false"/>
     <arg name = "id" default = "0"/>
     <arg name = "planner_stats_topic_name" default="/replanner/stats"/>
@@ -60,7 +60,7 @@
 
         <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
         
-        <param name="preprocess_timeout" value="$(arg preprocess_timeout)" />
+        <!-- <param name="preprocess_timeout" value="$(arg preprocess_timeout)" /> -->
         <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
         <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)"/>
         <param name="max_cycles" value="$(arg max_cycles)" />

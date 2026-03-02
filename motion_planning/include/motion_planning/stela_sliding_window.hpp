@@ -648,7 +648,7 @@ public:
         }
 
         // DEBUG_VARS(ros::Time::now())
-        // LOG_VARS("Replanning!");
+        LOG_VARS("Replanning!");
         change_status(stela_thread_t::REPLANNING, interface::StelaStatus::REPLANNING);
 
         const ros::Time cycle_start{ _planner_clock_msg.cycle_start };
@@ -658,7 +658,9 @@ public:
         const bool valid_root{ get_node_at(_planner_service_call.request.root, _planner_clock_msg.cycle_end) };
 
         const std::size_t root_idx{ _planner_service_call.request.root.index };
-        // LOG_MSG("CALLING REPLANNER")
+        LOG_VARS(_x_curr, _x_next, root_idx, ros::Time::now(), _planner_clock_msg.cycle_end);
+        LOG_MSG("CALLING REPLANNER")
+        DEBUG_VARS(root_idx);
         // LOG_VARS(cycle_start, _planner_service_call.request.deadline, root_idx, _x_curr);
 
         const ros::Time start_plan_stamp{ ros::Time::now() };
@@ -666,6 +668,7 @@ public:
         if (not valid_root)
         {
           prx_warn("Invalid root when calling the planner");
+          LOG_VARS(valid_root)
           change_status(stela_thread_t::REPLANNING, interface::StelaStatus::ERROR);
           continue;
         }
@@ -678,8 +681,8 @@ public:
             const double dt_used{ (ros::Time::now() - cycle_start).toSec() };
             const double dt_remaining{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
             change_status(stela_thread_t::REPLANNING, interface::StelaStatus::VALIDATING);
-            // LOG_MSG("REPLANNER ANSWERED")
-            // LOG_VARS(dt_used, dt_remaining)
+            LOG_MSG("REPLANNER ANSWERED")
+            LOG_VARS(dt_used, dt_remaining)
 
             const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
 
@@ -703,8 +706,8 @@ public:
             const double dt_validated{ (ros::Time::now() - cycle_start).toSec() };
             const double dt_remaining_valid{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
             change_status(stela_thread_t::REPLANNING, interface::StelaStatus::VALIDATING);
-            // LOG_MSG("Validation")
-            // LOG_VARS(dt_validated, dt_remaining_valid)
+            LOG_MSG("Validation")
+            LOG_VARS(dt_validated, dt_remaining_valid)
 
             if (_new_tree_available)
             {
@@ -713,7 +716,7 @@ public:
               // LOG_MSG("Tree checked and accepted")
               const double dt_used_acepted{ (ros::Time::now() - cycle_start).toSec() };
               const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
-              // LOG_VARS(dt_used_acepted, dt_remaining_accepted)
+              LOG_VARS(_new_tree_available, dt_used_acepted, dt_remaining_accepted)
               // LOG_VARS(_new_tree_available)
               // LOG_VARS(_new_tree)
               // _new_tree = prx_models::tree_msg_wrapper_t(_planner_service_call.response.sln_tree);
@@ -963,7 +966,7 @@ public:
     std::vector<gtsam::Key> all_keys;
     // for (auto future_id : _x_queue)
     // _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter);
-    LOG_VARS(idx, _x_queue)
+    LOG_VARS(_x_curr, idx, _x_queue)
 
     gtsam::FactorIndices all_indices;
     while (future_id <= _x_queue.back())
@@ -1027,7 +1030,7 @@ public:
     // const prx_models::Node& new_node{ _new_tree.nodes[_new_tree.root] };
     const prx_models::Node& node{ _tree.nodes[_new_tree.root] };
     // LOG_VARS(_tree.nodes[_new_tree.root]);
-    LOG_VARS(_new_tree.root);
+    LOG_VARS(_x_curr, _new_tree.root);
 
     prx_assert(node.children.size() > 0, "[Stela::add_new_tree] Node has no children!");
     const std::size_t old_next_tree_edge{ _next_tree_edge };
@@ -1036,7 +1039,7 @@ public:
 
     for (; _current_future_nodes < _total_future_nodes; ++_current_future_nodes)
     {
-      LOG_VARS(_current_future_nodes, _total_future_nodes, _tree_valid)
+      LOG_VARS(_x_curr, _current_future_nodes, _total_future_nodes, _tree_valid)
 
       if (_tree_valid)
       {
@@ -1093,8 +1096,8 @@ public:
       {
         LOG_MSG("Can't attach new tree!")
         LOG_VARS(_x_curr, _x_next, new_root.index)
-        PRINT_MSG("Can't attach new tree");
-        DEBUG_VARS(_x_curr, _x_next, new_root.index)
+        // PRINT_MSG("Can't attach new tree");
+        // DEBUG_VARS(_x_curr, _x_next, new_root.index)
       }
     }
   }
@@ -1831,52 +1834,7 @@ public:
 
   void obstacle_factors(gtsam::NonlinearFactorGraph& graph, const ml4kp_bridge::SpacePoint& point, const int x_id) const
   {
-    // if (_obstacle_mode == "distance")
-    // {
-    //   const gtsam::Key keyX{ _robot->keyX(1, x_id) };
-    //   _robot->copy_state(_x, point);
-    //   for (auto obstacle_info : _obstacle_collision_infos)
-    //   {
-    //     if (ObstacleFactor::close_enough(_x, _obstacle_factor_include_distance, obstacle_info, _robot_collision_ptr,
-    //                                      _config_from_state, _obstacle_tolerance_result))
-    //     {
-    //       graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX,
-    //       _obstacle_distance_tolerance,
-    //                                            0.1, _obstacle_noise);
-
-    //       _obstacles_marker.points.emplace_back();
-    //       _obstacles_marker.points.back().x = _x[0];
-    //       _obstacles_marker.points.back().y = _x[1];
-    //       _obstacles_marker.points.back().z = 0;
-    //       _obstacles_marker.points.emplace_back();
-    //       _obstacles_marker.points.back().x = obstacle_info->pose.position()[0];
-    //       _obstacles_marker.points.back().y = obstacle_info->pose.position()[1];
-    //       _obstacles_marker.points.back().z = 0;
-    //     }
-    //   }
-    // }
-    // if (_obstacle_mode == "all")
-    // {
-    //   const gtsam::Key keyX{ _robot->keyX(1, x_id) };
-    //   _robot->copy_state(_x, point);
-    //   for (auto obstacle_info : _obstacle_collision_infos)
-    //   {
-    //     // ObstacleFactor::close_enough(_state, _obstacle_factor_include_distance, obstacle_info,
-    //     // _robot_collision_ptr,
-    //     //                              _config_from_state, _obstacle_tolerance_result))
-    //     graph.emplace_shared<ObstacleFactor>(obstacle_info, _robot_collision_ptr, keyX, _obstacle_distance_tolerance,
-    //                                          0.1, _obstacle_noise);
-
-    //     // _obstacles_marker.points.emplace_back();
-    //     // _obstacles_marker.points.back().x = _state[0];
-    //     // _obstacles_marker.points.back().y = _state[1];
-    //     // _obstacles_marker.points.back().z = 0;
-    //     // _obstacles_marker.points.emplace_back();
-    //     // _obstacles_marker.points.back().x = obstacle_info->pose.position()[0];
-    //     // _obstacles_marker.points.back().y = obstacle_info->pose.position()[1];
-    //     // _obstacles_marker.points.back().z = 0;
-    //   }
-    // }
+    LOG_VARS(_obstacle_mode)
     if (_obstacle_mode == "sdf")
     {
       PRINT_MSG_ONCE("Using SDF Factors")
@@ -1890,6 +1848,7 @@ public:
     }
     else
     {
+      LOG_MSG("Unsupported obstacle mode");
       prx_throw("unsupported obstacle mode: " << _obstacle_mode);
     }
   }
@@ -2063,12 +2022,15 @@ public:
     GraphValues graph_values{ _robot->node_edge_to_fg(node_current, edge) };
 
     LOG_LINE()
-    // graph_values.second.print("add_tree_node", SF::formatter);
+    LOG_VARS(graph_values.first);
+    LOG_VARS(node_current.point);
+    LOG_VARS(edge.target);
     obstacle_factors(graph_values.first, node_current.point, edge.target);
 
     LOG_LINE()
     check_factor_removal();
 
+    LOG_LINE()
     safe_fg_update(graph_values.first, graph_values.second);
 
     _future_factors_queue.push_back(edge.source);
