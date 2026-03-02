@@ -97,9 +97,10 @@ public:
     , _params(This::default_params)
     , _poly(This::default_poly)
   {
-    std::string sensor_topic_name;
+    std::string sensor_topic_name, current_state_topic;
 
     PARAM_SETUP(nh, sensor_topic_name)
+    PARAM_SETUP(nh, current_state_topic)
 
     DEBUG_VARS(sensor_topic_name)
     ros::NodeHandle nh_ctrl(nh, "control_space");
@@ -113,6 +114,7 @@ public:
     _ctrl_lower_bound = Control(lower_bound.data());
     _ctrl_upper_bound = Control(upper_bound.data());
 
+    _current_state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(current_state_topic, 1, true);
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
   }
 
@@ -192,41 +194,21 @@ public:
     return graph_values;
   }
 
-  // static void copy(Control& u, const ml4kp_bridge::SpacePointConstPtr& msg)
-  // {
-  //   u[velocity_idx] = msg->point[velocity_idx];
-  //   u[steering_idx] = msg->point[steering_idx];
-  // }
+  virtual void publish_current_state(const StateEstimates& estimates) override
+  {
+    ml4kp_bridge::SpacePointStamped msg;
+    msg.header.stamp = ros::Time::now();
 
-  // static void copy(Observation& z, const geometry_msgs::TransformStamped& tf)
-  // {
-  //   z[0] = tf.transform.translation.x;
-  //   z[1] = tf.transform.translation.y;
-  //   const Eigen::Quaterniond q{ Eigen::Quaterniond(tf.transform.rotation.w, tf.transform.rotation.x,
-  //                                                  tf.transform.rotation.y, tf.transform.rotation.z) };
-  //   z[2] = prx::quaternion_to_euler(q)[2];
-  //   // DEBUG_VARS(q)
-  // }
+    msg.space_point.point.push_back(std::get<0>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[2]);
 
-  // template <typename StateIn>
-  // static void copy(geometry_msgs::Transform& tf, const StateIn& x)
-  // {
-  //   // z[0] = tf.transform.translation.x;
-  //   // z[1] = tf.transform.translation.y;
-  //   // const Eigen::Quaterniond q{ Eigen::Quaterniond(tf.transform.rotation.w, tf.transform.rotation.x,
-  //   //                                                tf.transform.rotation.y, tf.transform.rotation.z) };
-  //   // z[2] = prx::quaternion_to_euler(q)[2];
+    msg.space_point.point.push_back(std::get<1>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[2]);
 
-  //   const Eigen::Quaterniond q{ Eigen::AngleAxisd(x[2], Eigen::Vector3d::UnitZ()) };
-
-  //   tf.translation.x = x[0];
-  //   tf.translation.y = x[1];
-  //   tf.translation.z = 0.0;
-  //   tf.rotation.x = q.x();
-  //   tf.rotation.y = q.y();
-  //   tf.rotation.z = q.z();
-  //   tf.rotation.w = q.w();
-  // }
+    _current_state_publisher.publish(msg);
+  }
 
   virtual void copy_estimates(ml4kp_bridge::SpacePoint& pt, const StateEstimates& estimates) override
   {
@@ -393,31 +375,17 @@ public:
     const gtsam::Key k_xdot0{ keyXdot(1, parent) };
     const gtsam::Key k_xdot1{ keyXdot(1, child) };
 
-    // const gtsam::Key k_xdotdot0{ keyXdotdot(1, parent) };
-
     const gtsam::Key k_u01{ keyU(parent, child) };
     const gtsam::Key k_t01{ keyT(parent, child) };
 
-    // print_variable(k_u01, u01.transpose());
-    // print_variable(k_x1, x1);
-    // print_variable(k_xdot1, xdot1.transpose());
-    // DEBUG_VARS(SF::formatter(k_u01), u01.transpose());
-    // DEBUG_VARS(SF::formatter(k_t01), dt);
-
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     // NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
-    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e0) };
     NoiseModel dt_limit_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
     // NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     NoiseModel xd_integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     // NoiseModel xd_integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-2) };
-
-    // graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot1, k_t01, integration_noise,
-    // "MushrXXdot");
-    // graph_values.first.emplace_shared<StateStateDotFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
-    // graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
 
     // graph_values.first.emplace_shared<XdotIntegrationTimeFactor>(k_xdot1, k_xdot0, k_u01, k_t01,
     // xd_integration_noise, default_params, default_poly);
@@ -429,10 +397,18 @@ public:
     graph_values.first.addPrior(k_t01, dt, dt_noise);
 
     graph_values.second.insert(k_t01, dt);
-    // aux_graph.first.emplace_shared<NHCFactor>(k_xdot1, k_u01, nullptr, default_params);
 
     graph_values.first.addPrior(k_x1, x1);
     graph_values.first.addPrior(k_xdot1, xdot1);
+
+    // if (std::fabs(u01[prx_models::mushr_t::control::velocity_idx]) < 0.1)
+    // {
+    //   LOG_VARS(u01[0], u01[1])
+    //   const double u_vel{ u01[prx_models::mushr_t::control::velocity_idx] };
+    //   NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 0.1 + u_vel / 0.1) };
+    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 10.0) };
+    graph_values.first.addPrior(k_u01, u01, u_prior_noise);
+    // }
     // graph_values.first.addPrior(k_u01, u01);
     // graph_values.first.addPrior(k_xdot1, xdot1, prior_noise);
     graph_values.second.insert(k_x1, x1);
@@ -549,6 +525,7 @@ protected:
   // static inline std::size_t first{ std::numeric_limits<std::size_t>::max() };
 
   ros::Subscriber _sensor_subscriber;
+  ros::Publisher _current_state_publisher;
   // std::pair<Observation, ros::Time> _last_observation;
   // const State _idle_state;
   // const StateDot _idle_state_dot;

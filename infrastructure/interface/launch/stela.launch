@@ -1,8 +1,6 @@
 <launch>
     <arg name="control_topic" default="/stela/sbmp/control"/> 
-    <arg name="planner" default="StelaWindowed"/>
-    <arg name="Stepper" default="SbmpStepper"/>
-    <arg name="Plant" default="ltv_sde"/>
+    <!-- <arg name="planner" default="StelaWindowed"/> -->
     <arg name="control_frequency" default="30"/>
     <arg name="world_frame" default="world"/>
     <arg name="robot_frame" default="robot"/>
@@ -27,14 +25,18 @@
     <arg name="total_past_nodes" default="10"/>
     <arg name="time_as_variable" default="true"/> 
     <arg name="replanner_solution_duration" default="1"/>
-    <arg name="cycle_duration" default="1.0"/>
     <arg name="use_contingency" default="true"/>
     <arg name="planner_clock_topic" default="/motion_planning/clock"/>
-    <arg name="start_delay" default="20"/>
+    <arg name="start_delay" default="1"/>
     <arg name="total_replanning_calls" default="10000"/>
-    <arg name="mushr_model"/>
-    <!-- <arg name="params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
-    <arg name="params_file"/>
+
+    <!-- <arg name="mushr_model"/> -->
+    <!-- <arg name="params_file"/> -->
+    <!-- <arg name="validation_plan_feasibility"/> -->
+    <!-- <arg name="validation_collision_only"/> -->
+    <!-- <arg name="replanning_condition"/> -->
+    <!-- <arg name="cycle_duration"/> -->
+    <!-- <arg name="replanning_iterations"/> -->
 
     <!-- <node pkg="nodelet" type="nodelet" name="stela_nodelet"  args="manager" output="screen"/> -->
     <!-- <remap to="dummy_stamped" from="$(arg control_topic)_stamped"/> -->
@@ -44,7 +46,16 @@
         output="screen" respawn="false"
         >
         <param name="node_id" value="stela"/>
-        <param name="mushr_model" value="$(arg mushr_model)"/>
+        <!-- <param name="mushr_model" value="$(arg mushr_model)"/> -->
+        <!-- <param name="validation_plan_feasibility" value="$(arg validation_plan_feasibility)"/> -->
+        <!-- <param name="validation_collision_only" value="$(arg validation_collision_only)"/> -->
+        <!-- <param name="replanning_condition" value="$(arg replanning_condition)"/> -->
+        <!-- <param name="replanning_iterations" value="$(arg replanning_iterations)"/> -->
+        <!-- <param name="cycle_duration" value="$(arg cycle_duration)"/> -->
+        <!-- <param name="params_file" value="$(arg params_file)"/> -->
+
+
+        <param name="current_state_topic" value="/stela/estimation/current"/>
         <param name="input_tree_topic_name" value="$(arg input_tree_topic_name)"/>
         <param name="control_topic" value="$(arg control_topic)"/> 
         <!-- <param name="control_topic" value="/dummy"/>  -->
@@ -72,11 +83,9 @@
         <!-- <param name="sensor_topic_name" value="/mushr/sensordata_DUMMY"/> -->
         <param name="sensor_topic_name" value="/mushr/sensordata"/>
         <param name="replanner_solution_duration" value="$(arg replanner_solution_duration)"/>
-        <param name="cycle_duration" value="$(arg cycle_duration)"/>
         <param name="use_contingency" value="$(arg use_contingency)"/>
         <param name="planner_clock_topic" value="$(arg planner_clock_topic)"/>
-        <param name="total_replanning_calls" value="$(arg total_replanning_calls)"/>
-        <param name="params_file" value="$(arg params_file)"/>
+        <!-- <param name="total_replanning_calls" value="$(arg total_replanning_calls)"/> -->
         <param name="start_delay" value="$(arg start_delay)"/>
         <rosparam command="load" file="$(find motion_planning)/config/mushr.yaml" />
     </node> 

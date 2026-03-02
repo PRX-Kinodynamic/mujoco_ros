@@ -478,6 +478,10 @@ public:
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
   }
 
+  virtual void publish_current_state(const StateEstimates& estimates) override
+  {
+  }
+
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
     const std::vector<std_msgs::Float64>& zi{ msg->raw_sensor_data };

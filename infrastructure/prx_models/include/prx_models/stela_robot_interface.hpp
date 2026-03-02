@@ -80,6 +80,8 @@ public:
   {
   }
 
+  virtual void publish_current_state(const StateEstimates& estimates) = 0;
+
   void bound(ml4kp_bridge::SpacePoint& ctrl) const
   {
     for (int i = 0; i < ctrl.point.size(); ++i)

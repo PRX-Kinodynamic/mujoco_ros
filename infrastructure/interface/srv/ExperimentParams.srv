@@ -1,0 +1,12 @@
+string stela_model
+string planning_model
+
+bool validation_plan_feasibility
+bool validation_collision_only
+string replanning_condition
+float32 cycle_duration
+int32 replanning_iterations
+int32 total_replanning_calls
+---
+
+

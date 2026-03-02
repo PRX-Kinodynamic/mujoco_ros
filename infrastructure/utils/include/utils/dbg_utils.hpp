@@ -57,9 +57,9 @@ inline void print_value(std::ostream& stream, const Value& graph)
   for (size_t i = 0; i < graph.size(); i++)
   {
     // std::stringstream ss;
-    stream << "\t--Factor " << i << ": ";
     if (graph.at(i))
     {
+      stream << "\t--Factor " << i << ": ";
       const gtsam::KeyVector keys{ graph.at(i)->keys() };
       for (auto k : keys)
       {

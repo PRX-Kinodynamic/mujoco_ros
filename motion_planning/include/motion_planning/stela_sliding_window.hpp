@@ -201,7 +201,9 @@ public:
     LOG_FILENAME("logs/stela.txt");
 
     // GLOBAL_PARAM_SETUP(environment);
+    std::string& replanning_condition{ _replanning_condition };
 
+    PARAM_SETUP(private_nh, replanning_condition);
     PARAM_SETUP(private_nh, start_delay);
     PARAM_SETUP(private_nh, total_replanning_calls);
     PARAM_SETUP(private_nh, replanner_solution_duration);
@@ -254,6 +256,18 @@ public:
       PRINT_MSG("No Replanning Validation")
     }
 
+    prx_assert(replanning_condition == "time" or replanning_condition == "iterations", "invalid replanning condition");
+    if (_replanning_condition == "time")
+    {
+      _planner_service_call.request.condition = prx_models::StelaKraft::Request::CONDITION_TIME;
+    }
+    else if (_replanning_condition == "iterations")
+    {
+      int replanning_iterations;
+      PARAM_SETUP(private_nh, replanning_iterations)
+      _planner_service_call.request.condition = prx_models::StelaKraft::Request::CONDITION_ITERATIONS;
+      _planner_service_call.request.iterations = replanning_iterations;
+    }
     _planner_service_call.request.solution_duration = ros::Duration(replanner_solution_duration);
 
     _robot = std::make_shared<RobotInterface>(private_nh);
@@ -552,6 +566,11 @@ public:
           _node_status->request_acknowledged();
         }
       }
+      else if (req_status == interface::NodeStatus::FINISH)
+      {
+        _node_status->status(req_status);
+        _node_status->request_acknowledged();
+      }
       else
       {
         auto invalid_request = req_status;
@@ -635,7 +654,6 @@ public:
         const ros::Time cycle_start{ _planner_clock_msg.cycle_start };
         _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
         _planner_service_call.request.use_contingency = _use_contingency;
-        _planner_service_call.request.condition = prx_models::StelaKraft::Request::CONDITION_TIME;
         _planner_service_call.request.root.stamp = _planner_clock_msg.cycle_end;
         const bool valid_root{ get_node_at(_planner_service_call.request.root, _planner_clock_msg.cycle_end) };
 
@@ -848,7 +866,7 @@ public:
 
     ros::Rate rate(1);
     rate.sleep();
-    ros::shutdown();
+    // ros::shutdown();
   }
 
   void failure_to_file(const std::string msg)
@@ -1008,7 +1026,8 @@ public:
 
     // const prx_models::Node& new_node{ _new_tree.nodes[_new_tree.root] };
     const prx_models::Node& node{ _tree.nodes[_new_tree.root] };
-    LOG_VARS(_tree.nodes[_new_tree.root]);
+    // LOG_VARS(_tree.nodes[_new_tree.root]);
+    LOG_VARS(_new_tree.root);
 
     prx_assert(node.children.size() > 0, "[Stela::add_new_tree] Node has no children!");
     const std::size_t old_next_tree_edge{ _next_tree_edge };
@@ -1017,7 +1036,8 @@ public:
 
     for (; _current_future_nodes < _total_future_nodes; ++_current_future_nodes)
     {
-      // LOG_VARS(_current_future_nodes, _total_future_nodes)
+      LOG_VARS(_current_future_nodes, _total_future_nodes, _tree_valid)
+
       if (_tree_valid)
       {
         add_tree_node();
@@ -1031,22 +1051,26 @@ public:
         _state = stela_state_t::IDLE;
       }
     }
+    if (_tree_valid)
+    {
+      _state = stela_state_t::TREE_EXECUTING;
+    }
+    else
+    {
+      _state = stela_state_t::IDLE;
+    }
   }
 
   void update_from_replan_tree()
   {
-    // DEBUG_VARS(_new_tree_available)
     if (_new_tree_available)
     {
-      // DEBUG_PRINT
       const double dt_used{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
       const double dt_remaining{ (_planner_clock_msg.cycle_end - ros::Time::now()).toSec() };
       const prx_models::Node& new_root{ _new_tree.nodes[_new_tree.root] };
       LOG_VARS(_new_tree_available, dt_used, dt_remaining, _x_curr, new_root.index, _x_next)
 
       _new_tree_available = false;
-      // LOG_MSG("Accepting tree and updating")
-      // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
       if (new_root.index >= _x_next)
       {
         _tree_valid = true;
@@ -1055,11 +1079,11 @@ public:
         // LOG_VARS(_x_next, new_root.index)
         remove_future_factors(new_root.index);
         LOG_MSG("Factors removed")
+        LOG_VARS(_x_curr, _x_next)
 
-        // log_graph("update_from_replan_tree", _isam.getFactorsUnsafe(),
-        //          const gtsam::Values& current_estimate);
         add_new_tree();
         LOG_MSG("New tree added")
+        LOG_VARS(_x_queue)
         // DEBUG_VARS(_current_future_nodes, _total_future_nodes);
         // DEBUG_VARS(_x_queue);
         // DEBUG_VARS(_estimated_tree)
@@ -1072,10 +1096,6 @@ public:
         PRINT_MSG("Can't attach new tree");
         DEBUG_VARS(_x_curr, _x_next, new_root.index)
       }
-      // const ros::Duration eps_duration(0.1);
-      // if (_new_root.stamp > ros::Time::now() + eps_duration)
-      // {
-      // }
     }
   }
 
@@ -1142,7 +1162,12 @@ public:
     _fg_mutex.unlock();
 
     _estimated_tree_publisher.publish(_estimated_tree.to_msg());
-    _estimated_traj_publisher.publish(_estimated_trajectory);
+
+    const StateKeys node_keys{ _robot->keyState(1, _x_curr) };
+    update_estimates<0>(_node_estimates, _isam, node_keys);
+    _robot->publish_current_state(_node_estimates);
+
+    // _estimated_traj_publisher.publish(_estimated_trajectory);
 
     // }
     _profiler.end();
@@ -1296,32 +1321,32 @@ public:
 
   void add_idle_fg(const std::size_t x_prev, const std::size_t x_next)
   {
-    const ros::WallTime start{ ros::WallTime::now() };
-
+    // const ros::WallTime start{ ros::WallTime::now() };
+    LOG_VARS(x_prev, x_next);
     GraphValues graph_values{ _robot->idle_state_to_fg(x_prev, x_next, _time_as_variable) };
-    const ros::WallTime stamp_1{ ros::WallTime::now() };
+    // const ros::WallTime stamp_1{ ros::WallTime::now() };
 
     // DEBUG_PRINT
     safe_fg_update(graph_values.first, graph_values.second);
-    const ros::WallTime stamp_2{ ros::WallTime::now() };
+    // const ros::WallTime stamp_2{ ros::WallTime::now() };
 
     _values.insert_or_assign(graph_values.second);
 
     update_dt();
-    const ros::WallTime stamp_3{ ros::WallTime::now() };
+    // const ros::WallTime stamp_3{ ros::WallTime::now() };
 
     _future_factors_queue.push_back(x_prev);
     insert_factors(x_prev, x_next);
-    const ros::WallTime stamp_4{ ros::WallTime::now() };
+    // const ros::WallTime stamp_4{ ros::WallTime::now() };
 
     std::size_t next_node_index{ x_next };
 
     EdgeNodePair edge_node{ motion_planning::create_edge_node(_estimated_tree.nodes[x_prev], next_node_index) };
-    const ros::WallTime stamp_5{ ros::WallTime::now() };
+    // const ros::WallTime stamp_5{ ros::WallTime::now() };
 
     edge_node.first.plan.steps.emplace_back();
     _robot->plan_step(edge_node.first.plan.steps.back(), _robot->idle_control(), _robot->idle_dt());
-    const ros::WallTime stamp_6{ ros::WallTime::now() };
+    // const ros::WallTime stamp_6{ ros::WallTime::now() };
 
     _tree.edges[edge_node.first.index] = edge_node.first;
     _tree.nodes[edge_node.second.index] = edge_node.second;
@@ -1330,12 +1355,12 @@ public:
     _estimated_tree.edges[edge_node.first.index] = edge_node.first;
     _estimated_tree.nodes[edge_node.second.index] = edge_node.second;
 
-    const double dt_1{ (stamp_1 - start).toSec() };
-    const double dt_2{ (stamp_2 - start).toSec() };
-    const double dt_3{ (stamp_3 - start).toSec() };
-    const double dt_4{ (stamp_4 - start).toSec() };
-    const double dt_5{ (stamp_5 - start).toSec() };
-    const double dt_6{ (stamp_6 - start).toSec() };
+    // const double dt_1{ (stamp_1 - start).toSec() };
+    // const double dt_2{ (stamp_2 - start).toSec() };
+    // const double dt_3{ (stamp_3 - start).toSec() };
+    // const double dt_4{ (stamp_4 - start).toSec() };
+    // const double dt_5{ (stamp_5 - start).toSec() };
+    // const double dt_6{ (stamp_6 - start).toSec() };
     // DEBUG_VARS(dt_1, dt_2, dt_3, dt_4, dt_5, dt_6)
   }
 
@@ -1368,6 +1393,7 @@ public:
       // Add another idle edge
       if (_state == stela_state_t::IDLE)
       {
+        LOG_MSG("stela_state_t::IDLE");
         add_idle_fg(_x_queue.back(), _x_queue.back() + 1);
 
         _past_factors_queue.push_back(_x_curr);
@@ -2023,6 +2049,7 @@ public:
     const prx_models::Node& node_current{ _tree.nodes[edge.target] };
     const std::size_t total_children{ node_current.children.size() };
 
+    LOG_VARS(node_current.index);
     if (_tree.root != edge.source)
     {
       const prx_models::Node& node_parent{ _tree.nodes[edge.source] };
@@ -2039,15 +2066,6 @@ public:
 
     check_factor_removal();
 
-    // print_factors_to_remove();
-    // LOG_VARS(node_current)
-    // LOG_VARS(edge)
-    // graph_values.first.print("New Graph", SF::formatter);
-    // DEBUG_VARS(_isam2_update_params.removeFactorIndices)
-    // LOG_VARS(_x_curr, _x_next, _next_tree_edge)
-    // LOG_VARS(edge.source, edge.target, node_current.point, edge.plan)
-    // DEBUG_PRINT
-    // DEBUG_VARS(_x_curr, _x_next, edge.source, edge.target);
     safe_fg_update(graph_values.first, graph_values.second);
 
     _future_factors_queue.push_back(edge.source);
@@ -2069,19 +2087,22 @@ public:
     // DEBUG_VARS(_estimated_tree.edges[edge.index]);
     _x_queue.push_back(node_current.index);
 
+    LOG_VARS(total_children);
     if (total_children > 0)
     {
       const prx_models::Node& node_child{ _tree.nodes[node_current.children[0]] };
       const std::size_t old_next_tree_edge{ _next_tree_edge };
       _next_tree_edge = node_child.parent_edge;
       _tree_valid = true;
+      LOG_MSG("Tree with remaining children")
 
       // LOG_VARS(old_next_tree_edge, _next_tree_edge);
     }
     else
     {
-      const std::string msg{ "Changing to IDLE" };
-      DEBUG_VARS(msg)
+      LOG_MSG("Changing to IDLE")
+      // const std::string msg{ "Changing to IDLE" };
+      // DEBUG_VARS(msg)
       // DEBUG_VARS(msg, _x_curr, node_current.index)
       _tree_valid = false;
       _state = stela_state_t::IDLE;
@@ -2142,10 +2163,16 @@ public:
       DEBUG_PRINT
       PRINT_MSG("safe_fg_update");
       PRINT_KEYS(e.nearbyVariable())
+      // LOG_VARS(_isam.getFactorsUnsafe());
+      LOG_VARS(graph);
+      LOG_VARS(values);
       const std::string nearby_variable{ SF::formatter(e.nearbyVariable()) };
-      LOG_MSG(nearby_variable);
-      prx::fg::indeterminant_linear_system_helper(graph, _values, dbg::variables::ofs_log);
-      LOG_MSG(e.what());
+      LOG_VARS(nearby_variable);
+      _values.at(e.nearbyVariable()).print("");
+      prx::fg::indeterminant_linear_system_helper(_isam.getFactorsUnsafe(), _values, dbg::variables::ofs_log);
+      // prx::fg::indeterminant_linear_system_helper(graph, _values, dbg::variables::ofs_log);
+      LOG_VARS(e.what());
+
       // const std::function<bool(const gtsam::Factor* /*factor*/, double /*whitenedError*/, size_t /*index*/)>&
       //     printCondition = [&](const gtsam::Factor* f, double err, size_t) { return f != nullptr; };
       // _isam.getFactorsUnsafe().printErrors(_values, "Problem graph", SF::formatter, printCondition);
@@ -2195,20 +2222,10 @@ public:
 
   void check_factor_removal()
   {
-    // DEBUG_VARS(_past_factors_queue.size(), _total_past_nodes);
-
     if (_past_factors_queue.size() > _total_past_nodes)
     {
-      // SF::symbols_to_file("/Users/Gary/pracsys/catkin_ws/factor_graph_symbols.txt");
-      // DEBUG_VARS(_past_factors_queue);
       const std::size_t past_factor_id{ _past_factors_queue.front() };
       const gtsam::FactorIndices& indices{ _inserted_factors[past_factor_id] };
-      // DEBUG_VARS(_past_factors_queue);
-      // DEBUG_VARS(past_factor_id, indices);
-
-      // DEBUG_PRINT
-      // node_info_to_file(past_factor_id);
-      // DEBUG_VARS(indices);
 
       _isam2_update_params.removeFactorIndices.insert(_isam2_update_params.removeFactorIndices.end(),  // no-lint
                                                       indices.begin(), indices.end());
@@ -2221,16 +2238,13 @@ public:
       StateEstimates estimates;
       std::vector<Eigen::MatrixXd> covariances;
 
-      // DEBUG_PRINT
-
       update_estimates<0>(estimates, _isam, state_keys);
       compute_covariances<0>(covariances, _isam, state_keys);
+      LOG_KEYS(state_keys);
 
       const GraphValues graph_values_priors{ _robot->estimate_to_prior(_past_factors_queue.front(), estimates,
                                                                        covariances) };
-      // _isam2_result = _isam.update(graph_values_priors.first, graph_values_priors.second);
-      // remove_factors();
-      // DEBUG_PRINT
+
       safe_fg_update(graph_values_priors.first, Values());
 
       insert_factors(past_factor_id, _past_factors_queue.front());
@@ -2247,12 +2261,6 @@ public:
       {
         _tree.nodes.erase(iter_node_to_remove);
       }
-      // remove_node_edge(_estimated_tree, past_factor_id);
-
-      // DEBUG_VARS(past_factor_id);
-      // print_factors_to_remove();
-      // node_info_to_file(past_factor_id);
-      // _current_past_nodes--;
     }
   }
 
@@ -2615,6 +2623,7 @@ private:
   bool _validation_plan_feasibility, _validation_collision_only;
 
   ros::WallTime _reset_start;
+  std::string _replanning_condition;
 
 #ifdef GTSAM_USE_TBB
   tbb::global_control _tbb_control;

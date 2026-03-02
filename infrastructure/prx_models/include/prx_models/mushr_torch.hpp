@@ -295,9 +295,10 @@ public:
     : Base(nh, State::Zero(), StateDot::Zero(), Control::Zero(), 0.1, Control(-1.0, -1.0), Control(1.0, 1.0))
   // , _idle_state_dot(StateDot::Zero()), _idle_state(State::Zero()), _idle_control(Control::Zero())
   {
-    std::string sensor_topic_name;
+    std::string sensor_topic_name, current_state_topic;
 
     PARAM_SETUP(nh, sensor_topic_name)
+    PARAM_SETUP(nh, current_state_topic)
 
     ros::NodeHandle nh_ctrl(nh, "control_space");
 
@@ -311,6 +312,7 @@ public:
     _ctrl_upper_bound = Control(upper_bound.data());
 
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
+    _current_state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(current_state_topic, 1, true);
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
@@ -326,6 +328,22 @@ public:
     _last_observation.second = msg->header.stamp;
     _new_observation = true;
     // DEBUG_VARS(_new_observation, _last_observation.first[0], _last_observation.first[1], _last_observation.first[2])
+  }
+
+  virtual void publish_current_state(const StateEstimates& estimates) override
+  {
+    ml4kp_bridge::SpacePointStamped msg;
+    msg.header.stamp = ros::Time::now();
+
+    msg.space_point.point.push_back(std::get<0>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[2]);
+
+    msg.space_point.point.push_back(std::get<1>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[2]);
+
+    _current_state_publisher.publish(msg);
   }
 
   // Factor graph for "Idle" state (i.e. before starting execution or after reaching the goal)
@@ -614,6 +632,7 @@ protected:
   bool _directNN;
 
   ros::Subscriber _sensor_subscriber;
+  ros::Publisher _current_state_publisher;
 };
 
 class mushr_torch_t : public prx::plant_t

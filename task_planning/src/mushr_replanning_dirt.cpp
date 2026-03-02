@@ -1,4 +1,5 @@
 #include <ml4kp_bridge/defs.h>
+#include <memory>
 #include <prx/utilities/general/condition_check.hpp>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <prx_models/defs.hpp>
@@ -26,6 +27,7 @@
 
 #include <prx_models/StelaKraft.h>
 #include <prx_models/tree_utils.hpp>
+#include <interface/ExperimentParams.h>
 
 // Function to calculate safe distance based on speed
 template <typename ParamsType>
@@ -183,7 +185,7 @@ struct replanner_t
     _status_publisher = nh.advertise<interface::ReplannerStatus>("/kraft/status", 1, true);
     _tree_publisher = nh.advertise<prx_models::Tree>(sbmp_full_tree_topic, 1, true);
     _sln_tree_publisher = nh.advertise<prx_models::Tree>(sbmp_solution_tree_topic, 1, true);
-    _planner_stats_publisher = nh.advertise<prx_models::Tree>(planner_stats_topic_name, 1, true);
+    _planner_stats_publisher = nh.advertise<prx_models::PlannerStats>(planner_stats_topic_name, 1, true);
 
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
@@ -221,6 +223,11 @@ struct replanner_t
     PRINT_MSG("Replanner Ready!");
   }
 
+  ~replanner_t()
+  {
+    PRINT_MSG("Shutting down replanner...");
+    _replanning_service.shutdown();
+  }
   // void mode_check(const std::string mode)
   // {
   //   if (mode == "replanning")
@@ -401,8 +408,25 @@ struct replanner_t
     // DEBUG_VARS(_goal, _goal_radius);
 
     _dirt_query = std::make_shared<prx::dirt_replan_query_t>(_state_space, _control_space);
-    // _dirt_query->init(plant_params);
+
     _dirt_query->init(params);
+
+    // std::shared_ptr<mushr_types::State::type> goal_state{ std::make_shared<mushr_types::State::type>() };
+
+    _dirt_query->goal_check = [&](prx::space_point_t s) {  // return default_goal_check(s, goal_state,
+                                                           // goal_region_radius);
+      prx_models::mushr_types::State::type xi, xg;
+      xi[0] = s->at(0);
+      xi[1] = s->at(1);
+      xi[2] = s->at(2);
+      xg[0] = _dirt_query->goal_state->at(0);
+      xg[1] = _dirt_query->goal_state->at(1);
+      xg[2] = _dirt_query->goal_state->at(2);
+      // const mushr_types::State::type between{ goal_state->between() };
+      const prx_models::mushr_types::State::type between{ xi.between(xg) };
+      const Eigen::Vector3d error{ prx_models::mushr_types::State::type::Logmap(between) };
+      return error.norm() < _dirt_query->goal_region_radius;
+    };
     // _dirt_query->start_state = _state_space->make_point(plant_params["/start_state"]);
     // _dirt_query->goal_state = _state_space->make_point(params["/goal/state"]);
     // _dirt_query->goal_region_radius = params["goal/radius"].as<double>();
@@ -478,10 +502,7 @@ struct replanner_t
     //   return false;
     // }
     ml4kp_bridge::copy(_dirt_query->start_state, request.root.point);
-    // _state_space->copy(_dirt_query->start_state, _future_state);
-    // LOG_VARS(_dirt_query->start_state);
-    // LOG_VARS(*_dirt_spec)
-    // LOG_VARS(*_dirt_query)
+
     _step_traj->clear();
 
     _dirt->link_and_setup_spec(_dirt_spec.get());
@@ -532,18 +553,6 @@ struct replanner_t
     // auto stats = _dirt->statistics();
     prx_models::copy(response.stats, _dirt->statistics());
     _planner_stats_publisher.publish(response.stats);
-    // response.planned_duration = stats.planned_duration;
-    // response.iteration_count = stats.iteration_count;
-    // response.total_nodes = stats.total_nodes;
-    // response.cost_current_solution = stats.cost_current_solution;
-    // response.time_current_solution = stats.time_current_solution;
-    // response.iters_current_solution = stats.iters_current_solution;
-    // prx::space_point_t current_state = _spec->state_space->make_point();
-    // double execution_time = request.planning_duration.data.toSec();
-    // =======
-    // LOG_MSG("POSTPROCESSING");
-
-    // _dirt->fulfill_query();
 
     // >>>>>>> 2e15a3b (westeros-changes)
     if (_dirt_query->solution_traj.size() > 0)
@@ -599,6 +608,79 @@ struct replanner_t
   }
 };
 
+struct replanner_experiment_t
+{
+  ros::NodeHandle& _nh;
+  std::string planning_model;
+  ros::ServiceServer _experiment_service;
+  bool _new_experiment;
+
+  std::shared_ptr<replanner_t> replanner;  //(nh);
+
+  std::string _lib_path;
+
+  replanner_experiment_t(ros::NodeHandle& nh) : _nh(nh)
+  {
+    _lib_path = prx::lib_path_safe("ML4KP_ROS");
+    _experiment_service = nh.advertiseService("/experiment/replanner", &replanner_experiment_t::new_experiment, this);
+    // _timer = nh.createTimer(ros::Duration(1.0), &replanner_experiment_t::timer_callback, this);
+  }
+
+  // void timer_callback(const ros::TimerEvent& event)
+  // {
+  // }
+
+  bool new_experiment(interface::ExperimentParams::Request& request, interface::ExperimentParams::Response& response)
+  {
+    planning_model = request.planning_model;
+
+    // _nh.setParam("validation_plan_feasibility", request.validation_plan_feasibility);
+    // _nh.setParam("validation_collision_only", request.validation_collision_only);
+    // _nh.setParam("replanning_condition", request.replanning_condition);
+    // _nh.setParam("cycle_duration", request.cycle_duration);
+    // _nh.setParam("replanning_iterations", request.replanning_iterations);
+    // _nh.setParam("total_replanning_calls", request.total_replanning_calls);
+    // _nh.setParam("params_file", request.replanning_iterations);
+
+    _nh.setParam("plant_file", model_path());
+    _new_experiment = true;
+    // _experiment_set = true;
+    PRINT_MSG("[ReplannerExperiment] Setting new experiment...");
+    return true;
+  }
+
+  std::string model_path()
+  {
+    if (planning_model == "mushr")
+    {
+      return _lib_path + "src/mujoco_ros/motion_planning/config/mushr.yaml";
+    }
+    else if (planning_model == "mushr_torch")
+    {
+      return _lib_path + "src/mujoco_ros/motion_planning/config/mushr_torch.yaml";
+    }
+    else
+    {
+      prx_throw("Unknown planning model.");
+    }
+  }
+
+  void run()
+  {
+    while (ros::ok())
+    {
+      if (_new_experiment)
+      {
+        replanner.reset();
+        replanner = std::make_shared<replanner_t>(_nh);
+        _new_experiment = false;
+      }
+
+      ros::Duration(1.0).sleep();
+    }
+  }
+};
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
@@ -606,9 +688,9 @@ int main(int argc, char** argv)
   // ros::NodeHandle private_nh("~");
 
   ros::AsyncSpinner spinner(4);
-
-  replanner_t replanner(nh);
+  replanner_experiment_t rp_exp(nh);
   spinner.start();
+  rp_exp.run();
   ros::waitForShutdown();
   spinner.stop();
 
