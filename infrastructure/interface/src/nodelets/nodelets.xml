@@ -88,4 +88,12 @@
       Nodelet to translate
     </description>
   </class>
+  <class
+      name="interface/SensorToMarkerPublisher"
+      type="interface::SensorToMarkerPublisher"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate
+    </description>
+  </class>
 </library>

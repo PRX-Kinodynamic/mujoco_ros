@@ -232,10 +232,10 @@ struct runner_t
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
-    const std::vector<std_msgs::Float64>& zi{ msg->raw_sensor_data };
-    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3].data, zi[4].data, zi[5].data, zi[6].data) };
-    _state[0] = zi[0].data;
-    _state[1] = zi[1].data;
+    const std::vector<double>& zi{ msg->raw_sensor_data };
+    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3], zi[4], zi[5], zi[6]) };
+    _state[0] = zi[0];
+    _state[1] = zi[1];
     _state[2] = prx::quaternion_to_euler(q)[2];
 
     if (not _goal_reached)

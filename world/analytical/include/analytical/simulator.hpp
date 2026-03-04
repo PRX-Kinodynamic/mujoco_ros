@@ -1,261 +1,196 @@
+#include <ros/node_handle.h>
+#include <ros/publisher.h>
+#include <ros/subscriber.h>
 #include <stdio.h>
 
 #include <ros/ros.h>
+#include <memory>
 #include <pluginlib/class_list_macros.hpp>
 #include <nodelet/nodelet.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 
+#include <prx/simulation/collision_checking/collision_group.hpp>
+#include <prx/simulation/loaders/obstacle_loader.hpp>
+#include <prx/simulation/system.hpp>
+#include <prx/utilities/general/param_loader.hpp>
+#include <prx/utilities/spaces/space.hpp>
 #include <utils/std_utils.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <ml4kp_bridge/defs.h>
-#include <analytical/fg_ltv_sde.hpp>
+// #include <analytical/fg_ltv_sde.hpp>
 
-#include <prx_models/mushr.hpp>
+// Keeping this file just in case..
+#include <prx_models/defs.hpp>
+#include "interface/SensorDataStamped.h"
+#include "ml4kp_bridge/SpacePoint.h"
+#include "ml4kp_bridge/SpacePointStamped.h"
+#include <interface/node_status.hpp>
+
 namespace analytical
 {
-template <typename Base>
-class simulator_t : public Base
+class simulator_t
 {
 public:
-  simulator_t() : _set_state_topic_name("/ml4kp/simulator/set_state"), _verbose(false) {};
+  // Replicate MJ interface:
+  // In: controls
+  // Out: Sensors
+  simulator_t(ros::NodeHandle& nh)
+  {
+    double& simulation_step{ prx::simulation_step };
+    std::string collision_topic, ctrl_topic, sensor_topic, environment;
+
+    PARAM_SETUP(nh, collision_topic);
+    PARAM_SETUP(nh, simulation_step);
+    PARAM_SETUP(nh, ctrl_topic);
+    PARAM_SETUP(nh, sensor_topic);
+    GLOBAL_PARAM_SETUP(environment);
+
+    // ml4kp_bridge::copy(_prx_params, env_nh);
+    _prx_params.from_string(environment);
+
+    prx::param_loader plant_params;
+    ml4kp_bridge::copy(plant_params, nh);
+    _prx_params["plant"] = plant_params;
+
+    // DEBUG_VARS(_prx_params)
+
+    init_ml4kp(_prx_params);
+
+    _node_status = interface::node_status_t::create(nh);
+
+    _sensor_publisher = nh.advertise<interface::SensorDataStamped>(sensor_topic, 1, true);
+    _collision_publisher = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
+
+    _control_subscriber = nh.subscribe(ctrl_topic, 1, &simulator_t::control_callback, this);
+    _control_stamped_subscriber =
+        nh.subscribe(ctrl_topic + "_stamped", 1, &simulator_t::control_stamped_callback, this);
+
+    _step_timer = nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step_callback, this);
+    _node_status->status(interface::NodeStatus::RUNNING);
+  }
 
   virtual ~simulator_t()
   {
   }
 
 protected:
-  void onInit()
+  void init_ml4kp(prx::param_loader& params)
   {
-    ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
+    const std::string plant_name{ params["/plant/name"].as<std::string>() };
+    const std::string plant_path{ params["/plant/path"].as<std::string>() };
+    _plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    prx_assert(_plant != nullptr, "Failed to create plant");
+    _plant->init(params["plant"]);
 
-    prx_assert(private_nh.ok(), "Simulator's node handle not initialized!");
+    prx::obstacle_loader_t obstacles(params);
+    // auto obstacles = prx::obstacle_loader_t(params);
 
-    std::string plant_ml4kp_params{ "" };
-    std::string state_topic{ "" };
-    std::string control_topic{ "" };
-    std::string environment{ "" };
-    std::string robot_frame{ "robot" };
-    std::string collision_topic{ "" };
-    double& simulation_step{ prx::simulation_step };
-    double observation_frequency;
-    std::vector<double> tf_noise_sigmas{ { 0, 0, 0 } };
-    std::string shutdown_topic{ "" };
+    std::vector<std::string> obstacle_names{ obstacles.get_names() };
+    std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacles.get_obstacles() };
 
-    bool& verbose{ _verbose };
+    _world_model.reset(new prx::world_model_t({ _plant }, { obstacle_list }));
+    _world_model->create_context("planner_context", { plant_name }, { obstacle_names });
+    auto context = _world_model->get_context("planner_context");
 
-    PARAM_SETUP(private_nh, plant_ml4kp_params);
-    PARAM_SETUP(private_nh, state_topic);
-    PARAM_SETUP(private_nh, control_topic);
-    PARAM_SETUP(private_nh, environment);
-    PARAM_SETUP(private_nh, collision_topic);
-    PARAM_SETUP(private_nh, observation_frequency);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, simulation_step, 0.01);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, robot_frame, robot_frame);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, tf_noise_sigmas, tf_noise_sigmas);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, shutdown_topic, shutdown_topic);
-    PARAM_SETUP_WITH_DEFAULT(private_nh, verbose, verbose);
+    _state_space.reset(context.first->get_state_space());
+    _control_space.reset(context.first->get_control_space());
+    _sensor_space.reset(context.first->get_sensor_space());
+    // auto ps = context.first->get_parameter_space();
 
-    DEBUG_VARS(prx::simulation_step);
+    _system_group = prx::system_group(context);
+    _collision_group = prx::collision_group(context);
 
-    _tf_sigmas = tf_noise_sigmas;
-    // _params.set_input_path("/");
-    // _params.add_file(plant_file);
-    prx::param_loader plant_params(plant_ml4kp_params, "");
-    ml4kp_bridge::check_for_ros_params(plant_params, private_nh);
-    _params["plant"] = plant_params;
-    plant_params.print();
-
-    auto obstacles = prx::load_obstacles(environment);
-    _obstacle_list = obstacles.second;
-    _obstacle_names = obstacles.first;
-    _plant_name = plant_params["name"].as<>();
-    _plant = prx::system_factory_t::create_system(_plant_name, _plant_name);
-    prx_assert(_plant != nullptr, "Plant is nullptr!");
-
-    // DEBUG_VARS(_plant_name, _obstacle_names.size())
-    _world_model.reset(new prx::world_model_t({ _plant }, { _obstacle_list }));
-    _world_model->create_context("sim_context", { _plant_name }, { _obstacle_names });
-    auto context = _world_model->get_context("sim_context");
-    _system_group = context.first;
-    _collision_group = context.second;
-    _state_space.reset(_system_group->get_state_space());
-    _control_space.reset(_system_group->get_control_space());
-
-    _plant->init(plant_params);
-    std::cout << "Plant: " << (*_plant) << std::endl;
-
-    _start_state = _state_space->make_point();
-    _state_space->copy(_start_state, _params["/plant/start_state"].template as<std::vector<double>>());
-    _state_space->copy_from(_start_state);
-
-    DEBUG_VARS(*_start_state);
-
-    _state_msg.header.seq = 0;
-    _state_msg.header.stamp = ros::Time::now();
-    _state_msg.header.frame_id = "world";
-
-    _state_msg.space_point.point.resize(_state_space->size());
-
-    _tf_gt.header.frame_id = "world";
-    _tf_noise.header.frame_id = "world";
-
-    _tf_gt.child_frame_id = robot_frame + "_gt";
-    _tf_noise.child_frame_id = robot_frame;
-
-    const std::string stamped_control_topic{ control_topic + "_stamped" };
-    // TODO: handle non existence of params
-    _stepper_timer = private_nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step, this);
-
-    const ros::Duration observation_period(1.0 / observation_frequency);
-    _state_timer = private_nh.createTimer(observation_period, &simulator_t::publish_state, this);
-    _control_subscriber = private_nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
-    _control_stamped_subscriber =
-        private_nh.subscribe(stamped_control_topic, 1, &simulator_t::stamped_control_callback, this);
-    _set_state_subscriber = private_nh.subscribe(_set_state_topic_name, 1, &simulator_t::set_state_callback, this);
-
-    _state_publisher = private_nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 10, true);
-    _collision_publisher = private_nh.advertise<std_msgs::Bool>(collision_topic, 10, true);
-
-    if (shutdown_topic != "")
-      _shutdown_subscriber = private_nh.subscribe(shutdown_topic, 1, &utils::shutdown_callback<std_msgs::Bool>);
-
-    _prev_time = ros::Time::now();
-    _step_prev_time = ros::Time::now();
+    _sensor_msg.raw_sensor_data.resize(_sensor_space->size());
   }
 
-  void set_state_callback(const ml4kp_bridge::SpacePointConstPtr message)
+  void control_stamped_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
-    if (message->point.size() == _state_space->size())
-    {
-      _state_space->copy_from(message->point);
-    }
-    else if (message->point.size() == 0)
-    {
-      _state_space->copy_from(_start_state);
-    }
-    const std::string msg{ "New state" };
-    DEBUG_VARS(msg, *_state_space);
+    _control_space->copy_from(msg->space_point.point);
   }
 
-  inline void control_callback(const ml4kp_bridge::SpacePointConstPtr message)
+  void control_callback(const ml4kp_bridge::SpacePointConstPtr& msg)
   {
-    _control_space->copy_from(message->point);
+    _control_space->copy_from(msg->point);
   }
 
-  inline void stamped_control_callback(const ml4kp_bridge::SpacePointStampedConstPtr message)
+  void step_simulation()
   {
-    _control_space->copy_from(message->space_point.point);
-  }
-
-  void add_tf_noise(geometry_msgs::Transform& tf) const
-  {
-    // Only adding translation noise for now
-    tf.translation.x += prx::gaussian_random(0.0, _tf_sigmas[0]);
-    tf.translation.y += prx::gaussian_random(0.0, _tf_sigmas[1]);
-    tf.translation.z += prx::gaussian_random(0.0, _tf_sigmas[2]);
-  }
-
-  void publish_state(const ros::TimerEvent& event)
-  {
-    if (_prev_time == ros::Time::now())
-      return;
-    _state_msg.header.stamp = ros::Time::now();
-    _state_space->copy_to(_state_msg.space_point.point);
-    _state_publisher.publish(_state_msg);
-
-    _tf_gt.header.stamp = ros::Time::now();
-    _tf_noise.header.stamp = ros::Time::now();
-    _tf_gt.header.seq++;
-    _tf_noise.header.seq++;
-    if (_plant_name == "fg_ltv_sde")
-    {
-      // _plant_name
-      prx_throw("Not implemented");
-      // DEBUG_VARS(ros::Time::now());
-      // prx::fg::ltv_sde_utils_t::copy(_tf_gt.transform, _state_msg.space_point.point);
-      // prx::fg::ltv_sde_utils_t::copy(_tf_noise.transform, _state_msg.space_point.point);
-      add_tf_noise(_tf_noise.transform);
-
-      _tf_broadcaster.sendTransform(_tf_gt);
-      _tf_broadcaster.sendTransform(_tf_noise);
-    }
-    if (_plant_name == "mushrFG")
-    {
-      prx_throw("Not implemented");
-      // prx_models::mushr_stela_t::copy(_tf_gt.transform, _state_msg.space_point.point);
-      // prx_models::mushr_stela_t::copy(_tf_noise.transform, _state_msg.space_point.point);
-      add_tf_noise(_tf_noise.transform);
-
-      _tf_broadcaster.sendTransform(_tf_gt);
-      _tf_broadcaster.sendTransform(_tf_noise);
-    }
-
-    _prev_time = ros::Time::now();
-  }
-
-  void step(const ros::TimerEvent& event)
-  {
-    if (_step_prev_time == ros::Time::now())
-      return;
+    _collision_msg.data = false;
+    // DEBUG_VARS(_system_group != nullptr)
     _system_group->propagate_once();
-    if (_verbose)
-    {
-      Eigen::RowVectorXd xt(_state_space->size());
-      _state_space->copy_to(xt);
-      DEBUG_VARS(xt);
-    }
-    _step_prev_time = ros::Time::now();
+    _system_group->sense();
+
     if (_collision_group->in_collision())
     {
-      std_msgs::Bool msg;
-      msg.data = true;
-      _collision_publisher.publish(msg);
+      _collision_msg.data = true;
     }
+
+    _sensor_space->copy_to(_sensor_msg.raw_sensor_data);
   }
 
-  bool _verbose;
+  void reset_simulation()
+  {
+    _state_space->init(_prx_params["state_space"]);
+    _control_space->init(_prx_params["control_space"]);
+  }
 
-  ros::Time _prev_time;
-  ros::Time _step_prev_time;
-  // tf
-  tf2_ros::TransformBroadcaster _tf_broadcaster;
-  geometry_msgs::TransformStamped _tf_gt;
-  geometry_msgs::TransformStamped _tf_noise;
-  std::vector<double> _tf_sigmas;
+  void step_callback(const ros::TimerEvent& event)
+  {
+    if (_node_status->new_request())
+    {
+      _node_status->status(_node_status->requested_status());
+      _node_status->request_acknowledged();
+    }
 
-  ros::Timer _state_timer;
-  ros::Timer _stepper_timer;
+    if (_node_status->status() == interface::NodeStatus::RUNNING)
+    {
+      step_simulation();
+    }
+    else if (_node_status->status() == interface::NodeStatus::RESET)
+    {
+      reset_simulation();
+      step_simulation();
+    }
+    else if (_node_status->status() == interface::NodeStatus::FINISH)
+    {
+      PRINT_MSG("[mj_ros::simulator_t] Finished, exiting...")
+      ros::shutdown();
+    }
+    else if (_node_status->status() == interface::NodeStatus::PAUSED)
+    {
+      return;
+    }
+    else
+    {
+      auto invalid_status = _node_status;
+      DEBUG_VARS(invalid_status);
+    }
+    _sensor_publisher.publish(_sensor_msg);
+    _collision_publisher.publish(_collision_msg);
+  }
 
-  ros::Subscriber _control_subscriber;
-  ros::Subscriber _control_stamped_subscriber;
-  ros::Subscriber _set_state_subscriber;
+  prx::param_loader _prx_params;
 
-  ros::Publisher _state_publisher;
-  ros::Publisher _collision_publisher;
-
-  ml4kp_bridge::SpacePointStamped _state_msg;
-
-  std::string _set_state_topic_name;
-  // PRX vars
-  std::string _plant_name;
-
-  prx::param_loader _params;
+  std::shared_ptr<prx::world_model_t> _world_model;
   std::shared_ptr<prx::system_t> _plant;
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::collision_group_t> _collision_group;
-  std::shared_ptr<prx::space_t> _state_space, _control_space;
-  std::shared_ptr<prx::world_model_t> _world_model;
-  std::vector<std::shared_ptr<prx::movable_object_t>> _obstacle_list;
-  std::vector<std::string> _obstacle_names;
+  std::shared_ptr<prx::space_t> _state_space, _control_space, _sensor_space;
 
-  prx::space_point_t _start_state;
+  ros::Timer _step_timer;
 
-  ros::Subscriber _shutdown_subscriber;
+  ros::Publisher _sensor_publisher;
+  ros::Publisher _collision_publisher;
+
+  ros::Subscriber _control_subscriber, _control_stamped_subscriber;
+
+  std_msgs::Bool _collision_msg;
+  interface::SensorDataStamped _sensor_msg;
+
+  std::shared_ptr<interface::node_status_t> _node_status;
 };
-using SimulatorNodelet = simulator_t<nodelet::Nodelet>;
 
 }  // namespace analytical
-PLUGINLIB_EXPORT_CLASS(analytical::SimulatorNodelet, nodelet::Nodelet);

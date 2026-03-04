@@ -52,13 +52,13 @@ inline void copy(prx_models::MushrControl& msg, const Ctrl& ctrl)
 template <typename SensorData>
 inline void get_observation(prx_models::MushrObservation& msg, const SensorData& sensordata)
 {
-  msg.pose.position.x = sensordata[mushr_t::sensors_t::PosX].data;
-  msg.pose.position.y = sensordata[mushr_t::sensors_t::PosY].data;
-  msg.pose.position.z = sensordata[mushr_t::sensors_t::PosZ].data;
-  msg.pose.orientation.x = sensordata[mushr_t::sensors_t::QuatX].data;
-  msg.pose.orientation.y = sensordata[mushr_t::sensors_t::QuatY].data;
-  msg.pose.orientation.z = sensordata[mushr_t::sensors_t::QuatZ].data;
-  msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW].data;
+  msg.pose.position.x = sensordata[mushr_t::sensors_t::PosX];
+  msg.pose.position.y = sensordata[mushr_t::sensors_t::PosY];
+  msg.pose.position.z = sensordata[mushr_t::sensors_t::PosZ];
+  msg.pose.orientation.x = sensordata[mushr_t::sensors_t::QuatX];
+  msg.pose.orientation.y = sensordata[mushr_t::sensors_t::QuatY];
+  msg.pose.orientation.z = sensordata[mushr_t::sensors_t::QuatZ];
+  msg.pose.orientation.w = sensordata[mushr_t::sensors_t::QuatW];
 }
 
 template <typename StateSpacePoint>

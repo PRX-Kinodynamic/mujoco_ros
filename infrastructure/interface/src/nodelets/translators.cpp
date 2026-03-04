@@ -23,6 +23,7 @@
 #include <interface/graph_viz_publisher.hpp>
 #include <interface/plan_tree_publisher.hpp>
 #include <interface/mushr_observation_to_marker.hpp>
+#include <interface/sensor_to_marker.hpp>
 
 namespace interface
 {
@@ -31,7 +32,7 @@ inline void sensor_data_stamped_to_file(const interface::SensorDataStamped& msg,
   ml4kp_bridge::to_file(msg.header, ofs);
   for (auto value : msg.raw_sensor_data)
   {
-    ofs << value.data << " ";
+    ofs << value << " ";
   }
   // ofs << "\n";
 }
@@ -54,6 +55,7 @@ using GroundTruthPoseNodelet = interface::msg_translator_t<prx_models::MushrObse
 using MushrObservationToMarkerNodelet = interface::mushr_observation_to_marker_t<nodelet::Nodelet>;
 using GraphVizPublisher = graph_viz_publisher_t<nodelet::Nodelet>;
 using PlanToTreePublisher = plan_to_tree_publisher_t<nodelet::Nodelet>;
+using SensorToMarkerPublisher = sensor_to_marker_t<nodelet::Nodelet>;
 
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::PlanToTreePublisher, nodelet::Nodelet);
@@ -67,3 +69,4 @@ PLUGINLIB_EXPORT_CLASS(interface::MushrFromSpacePointStampedNodelet, nodelet::No
 PLUGINLIB_EXPORT_CLASS(interface::SensorDataStampedToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::MushrObservationToMarkerNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::GraphVizPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(interface::SensorToMarkerPublisher, nodelet::Nodelet);

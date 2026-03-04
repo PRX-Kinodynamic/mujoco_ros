@@ -1,20 +1,21 @@
+#include <ros/node_handle.h>
+#include <prx/utilities/general/param_loader.hpp>
 #include <thread>
 #include <utils/rosparams_utils.hpp>
 #include <utils/nodelet_as_node.hpp>
 
-#include <analytical/ltv_sde.hpp>
+#include <ml4kp_bridge/defs.h>
 #include <analytical/simulator.hpp>
+#include <utils/dbg_utils.hpp>
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "simulator_t");
+  const std::string node_name{ "AnalyticalSimulator" };
+  ros::init(argc, argv, node_name);
+  ros::NodeHandle nh("~");
 
-  std::unique_ptr<utils::nodelet_as_node_t> node;
+  analytical::simulator_t sim(nh);
 
-  node = std::make_unique<analytical::simulator_t<utils::nodelet_as_node_t>>();
-
-  ROS_ASSERT_MSG(node != nullptr, "Node not initialized.");
-  node->init();
   ros::spin();
 
   return 0;

@@ -26,7 +26,7 @@ public:
       _message.raw_sensor_data.resize(_sim->m->nsensordata);
       for (int i = 0; i < _sim->m->nsensordata; ++i)
       {
-        _message.raw_sensor_data[i].data = _sim->d->sensordata[i];
+        _message.raw_sensor_data[i] = _sim->d->sensordata[i];
       }
       _message.header.seq++;
       _message.header.stamp = ros::Time::now();

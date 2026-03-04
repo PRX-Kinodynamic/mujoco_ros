@@ -484,12 +484,12 @@ public:
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
-    const std::vector<std_msgs::Float64>& zi{ msg->raw_sensor_data };
+    const std::vector<double>& zi{ msg->raw_sensor_data };
     // _last_observation.first[0] = zi[0].data;
     // _last_observation.first[1] = zi[1].data;
     // _last_observation.first[2] = zi[2].data;
-    const Eigen::Vector3d position{ zi[0].data, zi[1].data, zi[2].data };
-    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3].data, zi[4].data, zi[5].data, zi[6].data) };
+    const Eigen::Vector3d position{ zi[0], zi[1], zi[2] };
+    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3], zi[4], zi[5], zi[6]) };
     // _last_observation.first[2] = prx::quaternion_to_euler(q)[2];
     _last_observation.first = gtsam::Pose3(gtsam::Rot3(q), position);
     _last_observation.second = msg->header.stamp;

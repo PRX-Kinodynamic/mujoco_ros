@@ -114,21 +114,18 @@ class mushr_torch_factor_t
   mushr_torch_factor_t() = delete;
   mushr_torch_factor_t(const mushr_torch_factor_t& other) = delete;
 
-  static void init_nn(const std::string torch_model_path, const bool directNN)
+  void init_nn(const std::string torch_model_path, const bool directNN)
   {
-    if (_nn_interface == nullptr)
+    if (directNN)
     {
-      if (directNN)
-      {
-        _nn_interface = std::make_shared<DirectSysidRuntime>(torch_model_path, false, "float32");
-        // DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
-      }
-      else
-      {
-        const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
-        const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
-        _nn_interface = std::make_shared<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
-      }
+      _nn_interface = std::make_shared<DirectSysidRuntime>(torch_model_path, false, "float32");
+      // DirectSysidRuntime(const std::string& model_path, bool use_cuda = true, const std::string& dtype = "float64")
+    }
+    else
+    {
+      const Params params{ Params(1.0, 1.0, 1.0, 0.0, 1.0) };
+      const Poly poly{ Poly(0.0, 0.0, 1.0, 0.0) };
+      _nn_interface = std::make_shared<StructuredSysidRuntime>(torch_model_path, params, poly, false, "float32");
     }
   }
 
@@ -165,11 +162,6 @@ public:
 
   ~mushr_torch_factor_t() override
   {
-  }
-
-  virtual bool sendable() const override
-  {
-    return false;
   }
 
   StateDot predict(const StateDot& xd0, const Control& u, const double& dt,  // no-lint
@@ -251,7 +243,7 @@ private:
   const double _NN_2;
   const double _dt;
 
-  inline static std::shared_ptr<SysidRuntimeBase> _nn_interface = nullptr;
+  mutable std::shared_ptr<SysidRuntimeBase> _nn_interface;
 };
 
 class mushr_torch_stela_t : public stela_robot_interface_t<mushr_torch_stela_t, mushr_torch_types_t>
@@ -295,10 +287,9 @@ public:
     : Base(nh, State::Zero(), StateDot::Zero(), Control::Zero(), 0.1, Control(-1.0, -1.0), Control(1.0, 1.0))
   // , _idle_state_dot(StateDot::Zero()), _idle_state(State::Zero()), _idle_control(Control::Zero())
   {
-    std::string sensor_topic_name, current_state_topic;
+    std::string sensor_topic_name;
 
     PARAM_SETUP(nh, sensor_topic_name)
-    PARAM_SETUP(nh, current_state_topic)
 
     ros::NodeHandle nh_ctrl(nh, "control_space");
 
@@ -312,38 +303,21 @@ public:
     _ctrl_upper_bound = Control(upper_bound.data());
 
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
-    _current_state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(current_state_topic, 1, true);
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
-    const std::vector<std_msgs::Float64>& zi{ msg->raw_sensor_data };
-    _last_observation.first[0] = zi[0].data;
-    _last_observation.first[1] = zi[1].data;
-    // _last_observation.first[2] = zi[2].data;
-    // const Eigen::Vector3d position{ zi[0].data, zi[1].data, zi[2].data };
-    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3].data, zi[4].data, zi[5].data, zi[6].data) };
+    const std::vector<double>& zi{ msg->raw_sensor_data };
+    _last_observation.first[0] = zi[0];
+    _last_observation.first[1] = zi[1];
+    // _last_observation.first[2] = zi[2];
+    // const Eigen::Vector3d position{ zi[0], zi[1], zi[2] };
+    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3], zi[4], zi[5], zi[6]) };
     _last_observation.first[2] = prx::quaternion_to_euler(q)[2];
     // _last_observation.first = gtsam::Pose3(gtsam::Rot3(q), position);
     _last_observation.second = msg->header.stamp;
     _new_observation = true;
     // DEBUG_VARS(_new_observation, _last_observation.first[0], _last_observation.first[1], _last_observation.first[2])
-  }
-
-  virtual void publish_current_state(const StateEstimates& estimates) override
-  {
-    ml4kp_bridge::SpacePointStamped msg;
-    msg.header.stamp = ros::Time::now();
-
-    msg.space_point.point.push_back(std::get<0>(estimates)[0]);
-    msg.space_point.point.push_back(std::get<0>(estimates)[1]);
-    msg.space_point.point.push_back(std::get<0>(estimates)[2]);
-
-    msg.space_point.point.push_back(std::get<1>(estimates)[0]);
-    msg.space_point.point.push_back(std::get<1>(estimates)[1]);
-    msg.space_point.point.push_back(std::get<1>(estimates)[2]);
-
-    _current_state_publisher.publish(msg);
   }
 
   // Factor graph for "Idle" state (i.e. before starting execution or after reaching the goal)
@@ -533,8 +507,6 @@ public:
   //                                     edge_plan, const bool time_as_variable = true) override
   virtual GraphValues node_edge_to_fg(const prx_models::Node& node, const prx_models::Edge& edge) override
   {
-    using StateStateDotTimeFactor = prx_models::mushr_x_xdot_t;
-    // using IntegrationFactor = mushr_torch_factor_t<double>;
     using IntegrationFactor = mushr_torch_factor_t<double>;
     using DtLimitFactor = prx::fg::constraint_factor_t<double, std::less<double>>;
     const ml4kp_bridge::SpacePoint& edge_control{ edge.plan.steps[0].control };
@@ -568,7 +540,7 @@ public:
 
     NoiseModel prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     NoiseModel xdot_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 5e0) };
-    // NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
+    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 1e0) };
     NoiseModel dt_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e0) };
     NoiseModel dt_limit_noise{ gtsam::noiseModel::Isotropic::Sigma(1, 1e-1) };
     NoiseModel integration_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
@@ -581,14 +553,10 @@ public:
 
     // mushr_torch_factor_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
     // const NoiseModel& cost_model, const std::string torch_model_path, const double nn_dt = 0.1)
-    graph_values.first.emplace_shared<StateStateDotTimeFactor>(k_x1, k_x0, k_xdot0, k_t01, integration_noise);
+
     graph_values.first.emplace_shared<IntegrationFactor>(k_xdot1, k_xdot0, k_u01, k_t01, integration_noise,
                                                          _torch_model_path, _nn_dt);
     graph_values.first.emplace_shared<DtLimitFactor>(k_t01, 0.0, dt_limit_noise);
-
-    NoiseModel u_prior_noise{ gtsam::noiseModel::Isotropic::Sigma(2, 10.0) };
-    graph_values.first.addPrior(k_u01, u01, u_prior_noise);
-
     graph_values.first.addPrior(k_t01, dt, dt_noise);
 
     graph_values.second.insert(k_t01, dt);
@@ -609,10 +577,9 @@ public:
   // template <typename Params>
   void init(const prx::param_loader& params)
   {
-    const std::string torch_type{ params["/torch/type"].as<>() };
-    _torch_model_path = params["/torch/model/" + torch_type].as<>();
-    _nn_dt = params["/torch/dt"].as<double>();
-    const std::string model_type{ params["/torch/type"].as<std::string>() };
+    _torch_model_path = params["torch_model"].as<>();
+    _nn_dt = params["nn_dt"].as<double>();
+    const std::string model_type{ params["model_type"].as<std::string>() };
     if (model_type == "structured" or model_type == "direct")
     {
       _directNN = model_type == "direct";
@@ -621,6 +588,22 @@ public:
     {
       prx_throw("[mushr_torch_stela_t::init] model_type must be 'structured' or 'direct'");
     }
+  }
+
+  virtual void publish_current_state(const StateEstimates& estimates) override
+  {
+    ml4kp_bridge::SpacePointStamped msg;
+    msg.header.stamp = ros::Time::now();
+
+    msg.space_point.point.push_back(std::get<0>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<0>(estimates)[2]);
+
+    msg.space_point.point.push_back(std::get<1>(estimates)[0]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[1]);
+    msg.space_point.point.push_back(std::get<1>(estimates)[2]);
+
+    _current_state_publisher.publish(msg);
   }
 
   void log_params()
@@ -637,8 +620,8 @@ protected:
   double _nn_dt;
   bool _directNN;
 
-  ros::Subscriber _sensor_subscriber;
   ros::Publisher _current_state_publisher;
+  ros::Subscriber _sensor_subscriber;
 };
 
 class mushr_torch_t : public prx::plant_t
@@ -675,9 +658,13 @@ public:
 
     parameter_memory = {};
     parameter_space = new prx::space_t("", parameter_memory, "mushr_params");
-    // derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
-    // derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
-    // const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
+
+    _sensor_memory = { &_sensor_position[0],    &_sensor_position[1],    &_sensor_position[2],  // no-lint
+                       &_sensor_quaternion.w(), &_sensor_quaternion.x(), &_sensor_quaternion.y(),
+                       &_sensor_quaternion.z() };
+    _sensor_space = new prx::space_t("EEEEEEE", _sensor_memory, "mushr_sensors");
+    _sensor_space->set_bounds({ -100, -100, -100, -100, -100, -100, -100 },
+                              { +100, +100, +100, +100, +100, +100, +100 });
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
@@ -732,6 +719,12 @@ public:
     _state_dot = _mushr_factor->predict(_state_dot, _ctrl, prx::simulation_step, H0, H1);
   }
 
+  virtual void sense() override
+  {
+    _sensor_position << _state[0], _state[1], 0.125;
+    _sensor_quaternion = Eigen::AngleAxisd(_state[2], Eigen::Vector3d::UnitZ());
+  }
+
   virtual void update_configuration() override
   {
     auto body = configurations["body"];
@@ -751,6 +744,9 @@ protected:
   mushr_torch_types_t::State _state;
   mushr_torch_types_t::StateDot _state_dot;
   mushr_torch_types_t::Control _ctrl;
+
+  Eigen::Vector3d _sensor_position;
+  Eigen::Quaterniond _sensor_quaternion;
 };
 }  // namespace prx_models
 PRX_REGISTER_SYSTEM(prx_models::mushr_torch_t, mushrTorch)

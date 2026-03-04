@@ -4,6 +4,7 @@
 #include <string>
 
 // Ros
+#include <Eigen/src/Geometry/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
 
 // mj-ros
@@ -120,10 +121,10 @@ public:
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
-    const std::vector<std_msgs::Float64>& zi{ msg->raw_sensor_data };
-    _last_observation.first[0] = zi[0].data;
-    _last_observation.first[1] = zi[1].data;
-    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3].data, zi[4].data, zi[5].data, zi[6].data) };
+    const std::vector<double>& zi{ msg->raw_sensor_data };
+    _last_observation.first[0] = zi[0];
+    _last_observation.first[1] = zi[1];
+    const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3], zi[4], zi[5], zi[6]) };
     _last_observation.first[2] = prx::quaternion_to_euler(q)[2];
     _last_observation.second = msg->header.stamp;
     _new_observation = true;
@@ -580,6 +581,13 @@ public:
     const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
     parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
+    _sensor_memory = { &_sensor_position[0],    &_sensor_position[1],    &_sensor_position[2],  // no-lint
+                       &_sensor_quaternion.w(), &_sensor_quaternion.x(), &_sensor_quaternion.y(),
+                       &_sensor_quaternion.z() };
+    _sensor_space = new prx::space_t("EEEEEEE", _sensor_memory, "mushr_sensors");
+    _sensor_space->set_bounds({ -100, -100, -100, -100, -100, -100, -100 },
+                              { +100, +100, +100, +100, +100, +100, +100 });
+
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
     geometries["body"]->generate_collision_geometry();
@@ -606,13 +614,19 @@ public:
     // state_space->enforce_bounds();
   }
 
+  virtual void sense() override
+  {
+    _sensor_position << _state[0], _state[1], 0.125;
+    _sensor_quaternion = Eigen::AngleAxisd(_state[2], Eigen::Vector3d::UnitZ());
+  }
+
   virtual void update_configuration() override
   {
     auto body = configurations["body"];
     body->linear() = Eigen::Matrix3d{ Eigen::AngleAxisd(_state[2], Eigen::Vector3d::UnitZ()) };
     body->translation()[0] = _state[0];
     body->translation()[1] = _state[1];
-    body->translation()[2] = 0.0;
+    body->translation()[2] = 0.125;
   }
   virtual void compute_derivative() override final
   {
@@ -626,6 +640,9 @@ protected:
   mushr_types::Control::params _params_u;
   mushr_types::StateDot::type _state_dot_noise;
   mushr_types::Control::Poly _delta_poly;
+
+  Eigen::Vector3d _sensor_position;
+  Eigen::Quaterniond _sensor_quaternion;
 
   double _idle;
   // double _propagation_factor;  // Defines the type of propagation to use

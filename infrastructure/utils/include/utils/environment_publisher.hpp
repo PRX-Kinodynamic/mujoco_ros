@@ -62,6 +62,8 @@ public:
     _environment_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(_viz_env_name, 1, true);
 
     _params.from_string(_environment_file);
+    // ros::NodeHandle env_nh("/environment");
+    // ml4kp_bridge::copy(_params, env_nh);
 
     prx_assert(_params.exists("environment"), "Params: 'environment' needed");
     prx_assert(_params.exists("environment/name"), "Params: 'environment/name' needed");
