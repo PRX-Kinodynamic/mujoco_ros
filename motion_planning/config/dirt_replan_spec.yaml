@@ -1,0 +1,11 @@
+bnb: true
+use_replanning: false
+control_steps:
+  min: -2147483648
+  max: -2147483648
+blossom_number: 1
+planning_cycle_duration: 0
+use_pruning: false
+use_contingency: false
+profile: false
+output_path: ""

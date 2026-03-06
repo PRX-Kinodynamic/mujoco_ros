@@ -1,5 +1,6 @@
 #pragma once
 
+#include <prx/utilities/general/param_loader.hpp>
 #include <prx/utilities/spaces/space_snapshot.hpp>
 #include <string>
 
@@ -547,15 +548,8 @@ class mushrFG_t : public prx::plant_t
 
 public:
   mushrFG_t(const std::string& path)
-    : plant_t(path)
-    , _params_u(mushr_stela_t::default_params)
-    , _ubar(mushr_types::Ubar::type::Zero())
-    , _state_dot_noise(mushr_types::StateDot::type::Zero())
-    , _delta_poly(mushr_stela_t::default_poly)
-    , _propagate_id(0.0)
-    , _curr_propagate_id(-1.0)
+    : plant_t(path), _params_u(mushr_stela_t::default_params), _delta_poly(mushr_stela_t::default_poly)
   {
-    // state_memory = { &_state[0], &_state[1], &_state[2], &_ubar[0], &_ubar[1] };
     state_memory = { &_state[0],     &_state[1],     &_state[2],  // no-lint
                      &_state_dot[0], &_state_dot[1], &_state_dot[2] };
     state_space = new prx::space_t("EEREEE", state_memory, "mushr_state");
@@ -564,10 +558,10 @@ public:
 
     control_memory = { &_ctrl[mushr_types::Control::vel_desired], &_ctrl[mushr_types::Control::steering] };
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
-    input_control_space->set_bounds({ -100, -100 }, { 100, 100 });
+    input_control_space->set_bounds({ -1., -1. }, { 1., 1. });
 
-    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2], &_propagate_id };
-    derivative_space = new prx::space_t("EEEI", derivative_memory, "mushr_deriv");
+    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
+    derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
 
     parameter_memory = { &_params_u[mushr_types::Control::vel_desired],
                          &_params_u[mushr_types::Control::steering],      // no-lint
@@ -599,6 +593,22 @@ public:
     // DEBUG_VARS(_propagation_factor)
   }
   ~mushrFG_t() {};
+
+  virtual prx::param_loader initialization_parameters() override
+  {
+    prx::param_loader params{ prx::plant_t::initialization_parameters() };
+
+    return params;
+  }
+
+  // static prx::param_loader init()
+  // {
+  //   prx::param_loader params{ prx::plant_t::init() };
+  //   params["state_space"] = space_t::init();
+  //   params["control_space"] = space_t::init();
+  //   params["parameter_space"] = space_t::init();
+  //   params["sensor_space"] = space_t::init();
+  // }
 
   virtual void propagate(const double simulation_step) override final
   {
@@ -633,23 +643,26 @@ public:
   }
 
 protected:
+  // State space
   mushr_types::State::type _state;
-  mushr_types::StateDot::type _state_dot, _state_dot_dot;
+  mushr_types::StateDot::type _state_dot;
+
+  // Control space
   mushr_types::Control::type _ctrl;
-  mushr_types::Ubar::type _ubar;
+  // mushr_types::Ubar::type _ubar;
+
+  // Parameter space
   mushr_types::Control::params _params_u;
-  mushr_types::StateDot::type _state_dot_noise;
   mushr_types::Control::Poly _delta_poly;
 
+  // Sensor space
   Eigen::Vector3d _sensor_position;
   Eigen::Quaterniond _sensor_quaternion;
 
-  double _idle;
-  // double _propagation_factor;  // Defines the type of propagation to use
-  double _propagate_id;       // If mj prop using, it needs to reset if curr_propid != _propagate_id
-  double _curr_propagate_id;  // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  // double _propagate_id;       // If mj prop using, it needs to reset if curr_propid != _propagate_id
+  // double _curr_propagate_id;  // If mj prop using, it needs to reset if curr_propid != _propagate_id
 
-  std::shared_ptr<MushrMjFactor> _mj_factor;
+  // std::shared_ptr<MushrMjFactor> _mj_factor;
 };
 }  // namespace prx_models
 PRX_REGISTER_SYSTEM(prx_models::mushrFG_t, mushrFG)

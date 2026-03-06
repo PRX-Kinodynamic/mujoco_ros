@@ -21,12 +21,6 @@ inline bool param_loder_set(prx::param_loader& pl, const std::string& key, const
     pl[key].set(type);
     return true;
   }
-  // std::vector<Type> type_vec;
-  // if (nh.getParam(key, type_vec))
-  // {
-  //   pl[key].set(type_vec);
-  //   return true;
-  // }
   return false;
 }
 // template <std::size_t I, typename... Tp, std::enable_if_t<(I < sizeof...(Tp) - 1), bool> = true>

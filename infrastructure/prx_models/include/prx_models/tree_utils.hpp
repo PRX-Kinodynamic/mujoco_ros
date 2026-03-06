@@ -8,11 +8,35 @@
 
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
+#include <vector>
+#include "prx_models/Node.h"
 
 namespace prx_models
 {
+inline prx::param_loader create(const prx_models::Node msg)
+{
+  prx::param_loader params;
+  params["index"].set(msg.index);
+  params["parent"].set(msg.parent);
+  params["parent_edge"].set(msg.parent_edge);
+  params["children"].set(msg.children);
+  params["point"] = ml4kp_bridge::create(msg.point);
+  params["cost"].set(msg.cost);
+  return params;
+}
 
-std::pair<prx_models::Edge, prx_models::Node> create_edge_node(prx_models::Node& parent, std::size_t& next_index)
+inline void copy(prx_models::Node& node, const prx::param_loader& params)
+{
+  node.index = params["index"].as<int>();
+  node.parent = params["parent"].as<int>();
+  node.parent_edge = params["parent_edge"].as<int>();
+  node.children = params["children"].as<std::vector<unsigned long long>>();
+  // node.point.point = { 1.0, 0.0, 1.57, 0.0, 0.0, 0.0 };
+  ml4kp_bridge::copy(node.point, params["point"]);
+  node.cost = params["cost"].as<int>();
+}
+
+inline std::pair<prx_models::Edge, prx_models::Node> create_edge_node(prx_models::Node& parent, std::size_t& next_index)
 {
   // DEBUG_VARS(next_index, parent)
   prx_models::Edge edge;
