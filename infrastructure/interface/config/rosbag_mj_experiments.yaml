@@ -79,4 +79,6 @@ topics:
     type: "visualization_msgs::Marker"
   - name: "/kraft/status"
     type: "interface::ReplannerStatus"
+  - name: "/mushr/sensordata/marker"
+    type: "visualization_msgs::Marker"
 

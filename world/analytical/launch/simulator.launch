@@ -1,6 +1,6 @@
 <launch>
     <arg name="environment"/>
-    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr_torch.yaml"/>
+    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
     <!-- <arg name="environment" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/single_obstacle.yaml"/> -->
 
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />

@@ -1,6 +1,7 @@
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
+#include <ros/timer.h>
 #include <stdio.h>
 
 #include <ros/ros.h>
@@ -100,6 +101,12 @@ protected:
     _sensor_space.reset(context.first->get_sensor_space());
     // auto ps = context.first->get_parameter_space();
 
+    _x0 = _state_space->make_point();
+    _u0 = _control_space->make_point();
+
+    _state_space->copy_to(_x0);
+    _control_space->copy_to(_u0);
+
     _system_group = prx::system_group(context);
     _collision_group = prx::collision_group(context);
 
@@ -129,12 +136,18 @@ protected:
     }
 
     _sensor_space->copy_to(_sensor_msg.raw_sensor_data);
+    _sensor_msg.header.stamp = ros::Time::now();
   }
 
   void reset_simulation()
   {
-    _state_space->init(_prx_params["state_space"]);
-    _control_space->init(_prx_params["control_space"]);
+    PRINT_MSG("Reseting..")
+    _state_space->copy_from(_x0);
+    _control_space->copy_from(_u0);
+    // _state_space->init(_prx_params["state_space"]);
+    // _control_space->init(_prx_params["control_space"]);
+
+    // DEBUG_VARS(*_state_space)
   }
 
   void step_callback(const ros::TimerEvent& event)
@@ -152,7 +165,8 @@ protected:
     else if (_node_status->status() == interface::NodeStatus::RESET)
     {
       reset_simulation();
-      step_simulation();
+      // step_simulation();
+      _node_status->status(interface::NodeStatus::RUNNING);
     }
     else if (_node_status->status() == interface::NodeStatus::FINISH)
     {
@@ -173,6 +187,8 @@ protected:
   }
 
   prx::param_loader _prx_params;
+
+  prx::space_point_t _x0, _u0;
 
   std::shared_ptr<prx::world_model_t> _world_model;
   std::shared_ptr<prx::system_t> _plant;

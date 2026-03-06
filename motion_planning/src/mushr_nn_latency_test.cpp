@@ -131,8 +131,11 @@ int main(int argc, char** argv)
   // return 0;
 }
 #else
+
+#include <iostream>
 int main()
 {
+  std::cerr << "No torch!" << std::endl;
 }
 
 #endif
