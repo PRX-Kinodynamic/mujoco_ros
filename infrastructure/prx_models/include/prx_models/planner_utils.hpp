@@ -42,6 +42,29 @@ void copy(PlannerStats& msg, const prx::dirt_replan_t::statistics_t& stats)
   msg.solution_type = stats.solution_type;
 }
 
+inline std::string header(const prx_models::PlannerStats stats)
+{
+  std::stringstream strstr;
+
+  strstr << "planned_duration ";
+  strstr << "iteration_count ";
+  strstr << "total_nodes ";
+  strstr << "cost_current_solution ";
+  strstr << "time_current_solution ";
+  strstr << "iters_current_solution ";
+
+  strstr << "random_edges_bnb ";
+  strstr << "random_edges_prunning ";
+  strstr << "random_edges_collision_check ";
+  strstr << "random_edges_final ";
+
+  strstr << "blossom_edges_bnb ";
+  strstr << "blossom_edges_prunning ";
+  strstr << "blossom_edges_collision_check ";
+  strstr << "blossom_edges_final ";
+  return strstr.str();
+}
+
 inline void to_stream(std::ofstream& ofs, const prx_models::PlannerStats& stats)
 {
   ofs << stats.planned_duration << " ";

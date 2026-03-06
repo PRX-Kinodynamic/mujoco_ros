@@ -18,33 +18,10 @@
 namespace prx_models
 {
 
-inline std::string header(const prx_models::PlannerStats stats)
-{
-  std::stringstream strstr;
-
-  strstr << "planned_duration ";
-  strstr << "iteration_count ";
-  strstr << "total_nodes ";
-  strstr << "cost_current_solution ";
-  strstr << "time_current_solution ";
-  strstr << "iters_current_solution ";
-
-  strstr << "random_edges_bnb ";
-  strstr << "random_edges_prunning ";
-  strstr << "random_edges_collision_check ";
-  strstr << "random_edges_final ";
-
-  strstr << "blossom_edges_bnb ";
-  strstr << "blossom_edges_prunning ";
-  strstr << "blossom_edges_collision_check ";
-  strstr << "blossom_edges_final ";
-  return strstr.str();
-}
-
 inline prx::param_loader create(const prx_models::StelaKraft::Request req)
 {
   prx::param_loader params;
-  params["use_contingency"].set(req.use_contingency);
+  // params["use_contingency"].set(req.use_contingency);
   params["solution_duration"].set(req.solution_duration.toSec());
   params["iterations"].set(req.iterations);
   params["condition"].set("ITERATIONS | TIME");
@@ -57,7 +34,7 @@ inline prx::param_loader create(const prx_models::StelaKraft::Request req)
 
 inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& params)
 {
-  req.use_contingency = params["use_contingency"].as<bool>();
+  // req.use_contingency = params["use_contingency"].as<bool>();
   req.solution_duration = ros::Duration(params["solution_duration"].as<double>());
   req.iterations = params["iterations"].as<int>();
   req.deadline = ros::Time::ZERO;  // This needs to be changed before sending the req.

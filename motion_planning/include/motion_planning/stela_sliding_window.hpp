@@ -658,7 +658,7 @@ public:
 
         const ros::Time cycle_start{ _planner_clock_msg.cycle_start };
         _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
-        _planner_service_call.request.use_contingency = _use_contingency;
+        // _planner_service_call.request.use_contingency = _use_contingency;
         _planner_service_call.request.root.stamp = _planner_clock_msg.cycle_end;
         const bool valid_root{ get_node_at(_planner_service_call.request.root, _planner_clock_msg.cycle_end) };
 

@@ -2,7 +2,7 @@
     <!-- <arg name = "namespace" default = "mushr"/> -->
     <!-- <arg name = "clock_cycle_duration" default = "1.0"/> -->
     <!-- <arg name = "planning_cycle_duration" default = "1.0"/> -->
-    <arg name = "use_contingency" default = "false"/>
+    <!-- <arg name = "use_contingency" default = "false"/> -->
     
     <arg name = "max_cycles" default="90"/>
     <arg name = "preprocess_timeout" default = "0.05" />
@@ -63,9 +63,9 @@
         <param name="use_contingency" value="$(arg use_contingency)"/>
     </node>
 
-    <node pkg="motion_planning" name="tree_stats_collector" type="tree_stats_collector" 
-          output="screen" respawn="false" >
-        <param name="output_file" value="$(arg output_file)"/>
+    <node pkg="motion_planning" name="tree_stats_collector" 
+            type="tree_stats_collector" output="screen" respawn="false" >
+        <param name="state_topic" value="$(arg output_file)"/>
         <param name="total_iterations" value="$(arg total_iterations)"/>
         <param name="total_trees" value="$(arg total_trees)"/>
     </node>

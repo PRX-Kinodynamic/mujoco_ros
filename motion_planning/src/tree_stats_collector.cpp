@@ -34,6 +34,7 @@
 #include <utils/rosparams_utils.hpp>
 #include <prx_models/planner_utils.hpp>
 #include <prx_models/stela_kraft_utils.hpp>
+#include <interface/node_status.hpp>
 
 template <typename State>
 double distance(const State& x0, const State x1)
@@ -56,26 +57,35 @@ struct collector_t
   double _goal_radius;
   prx::fg::SE2_t _x_curr, _x_goal;
 
-  int _total_repetitions;
+  // int _total_repetitions;
+
+  std::shared_ptr<interface::node_status_t> _node_status;
+
   collector_t(ros::NodeHandle& nh)
   {
+    prx::simulation_step = 0.1;
+
     std::string stela_kraft_request_params;
 
     std::string output_file, state_topic;
 
-    int& total_repetitions{ _total_repetitions };
+    // int& total_repetitions{ _total_repetitions };
     // PARAM_SETUP(nh, total_iterations);
+    // PARAM_SETUP(nh, total_repetitions);
     PARAM_SETUP(nh, state_topic);
-    PARAM_SETUP(nh, total_repetitions);
     PARAM_SETUP(nh, output_file);
     PARAM_SETUP(nh, stela_kraft_request_params);
     _ofs.open(output_file.c_str());
+
+    _node_status = interface::node_status_t::create(nh);
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
     _request_params.add_file(stela_kraft_request_params);
 
-    _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
+    // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
+
+    _node_status->status(interface::NodeStatus::PAUSED);
 
     // _x_goal[0] =
   }
@@ -94,6 +104,8 @@ struct collector_t
     _x_curr[0] = new_tree.nodes[curr_node_idx].point.point[0];
     _x_curr[1] = new_tree.nodes[curr_node_idx].point.point[1];
     _x_curr[2] = new_tree.nodes[curr_node_idx].point.point[2];
+
+    _planner_service_call.request.root = new_tree.nodes[curr_node_idx];
   }
 
   void run_experiment()
@@ -103,8 +115,30 @@ struct collector_t
     bool goal_reached{ false };
     while (not goal_reached)
     {
+      manage_node_status();
+      if (_node_status->status() == interface::NodeStatus::RUNNING)
+      {
+      }
+      else if (_node_status->status() == interface::NodeStatus::RESET)
+      {
+        return;
+      }
+      else if (_node_status->status() == interface::NodeStatus::PAUSED)
+      {
+        ros::Duration(1.0).sleep();
+        continue;
+      }
+      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      {
+        _ofs.close();
+        ros::shutdown();
+      }
+
       const bool replanner_available{ _planner_service_client.exists() };
       _planner_service_call.request.root.stamp = ros::Time::now();
+      _planner_service_call.request.deadline =
+          ros::Time::now() + ros::Duration(_planner_service_call.request.solution_duration);
+      // _planner_service_call.request.use_contingency = _use_contingency;
 
       if (_planner_service_client.call(_planner_service_call))
       {
@@ -131,10 +165,22 @@ struct collector_t
     }
   }
 
+  void manage_node_status()
+  {
+    if (_node_status->new_request())
+    {
+      const interface::node_status_t::StatusType current_status{ _node_status->status() };
+      const interface::node_status_t::StatusType req_status{ _node_status->requested_status() };
+      _node_status->status(req_status);
+      _node_status->request_acknowledged();
+    }
+  }
+
   void run()
   {
-    while (ros::ok() and _total_repetitions > 0)
+    while (ros::ok())
     {
+      run_experiment();
     }
     _ofs.close();
   }
@@ -148,64 +194,13 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  std::string params_file;
-  std::string file_out;
-  std::string plan_file;
-  std::string output_file;
-  std::string errors_filename;
-  prx::simulation_step = 0.1;
+  ros::AsyncSpinner spinner(2);
+  collector_t collector(nh);
+  spinner.start();
 
-  int total_trees, total_iterations;
-  // double planning_time;
+  collector.run();
 
-  // PARAM_SETUP(nh, params_file);
-  // PARAM_SETUP(nh, plan_file);
-
-  // planner_service_call.request.use_contingency = true;
-  // planner_service_call.request.solution_duration = ros::Duration(100);
-  // planner_service_call.request.condition = prx_models::StelaKraft::Request::CONDITION_ITERATIONS;
-  // planner_service_call.request.iterations = total_iterations;
-  // planner_service_call.request.deadline = ros::Time::ZERO;
-  // planner_service_call.request.root.index = 0;
-  // planner_service_call.request.root.parent = 0;
-  // planner_service_call.request.root.parent_edge = 0;
-  // planner_service_call.request.root.children.clear();
-  // planner_service_call.request.root.point.point = { 1.0, 0.0, 1.57, 0.0, 0.0, 0.0 };
-  // planner_service_call.request.root.cost = 0.0;
-
-  // while (ros::ok() and total_trees > 0)
-  // {
-  // const bool replanner_available{ _planner_service_client.exists() };
-
-  // planner_service_call.request.root.stamp = ros::Time::now();
-
-  // if (_planner_service_client.call(planner_service_call))
-  // {
-  // const bool planner_status{ planner_service_call.response.planner_output ==
-  //                            prx_models::StelaKraft::Response::TYPE_SUCCESS };
-  // const std::string response_flag{ planner_status ? "SUCESS" : "FAILURE" };
-
-  // const prx_models::PlannerStats& stats{ planner_service_call.response.stats };
-  // const double planned_duration{ stats.planned_duration };
-  // const int iteration_count{ stats.iteration_count };
-  // const int total_nodes{ stats.total_nodes };
-  // const double cost_current_solution{ stats.cost_current_solution };
-  // const double time_current_solution{ stats.time_current_solution };
-  // const int iters_current_solution{ stats.iters_current_solution };
-
-  // ofs << planned_duration << " ";
-  // ofs << iteration_count << " ";
-  // ofs << total_nodes << " ";
-  // ofs << cost_current_solution << " ";
-  // ofs << time_current_solution << " ";
-  // ofs << iters_current_solution << " ";
-  // ofs << "\n";
-  // total_trees--;
-  //   }
-
-  //   ros::Duration(10.0).sleep();
-  // }
-  // ofs.close();
-
+  ros::waitForShutdown();
+  spinner.stop();
   return 0;
 }

@@ -7,7 +7,7 @@ time deadline # Only used if condition==CONDITION_TIME
 int32 iterations # Only used if condition==CONDITION_ITERATIONS
 
 duration solution_duration # maximum trajectory/plan to return in the response
-bool use_contingency			 # should the sln_tree include a contingency plan
+# bool use_contingency			 # should the sln_tree include a contingency plan
 prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
 
 ml4kp_bridge/SpacePoint goal # Goal of the planner
