@@ -1,8 +1,12 @@
 #include <ml4kp_bridge/defs.h>
 #include <memory>
+#include <prx/planning/planners/dirt_replanning.hpp>
+#include <prx/planning/planners/planner.hpp>
 #include <prx/utilities/general/condition_check.hpp>
+#include <prx/utilities/general/param_loader.hpp>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <prx_models/defs.hpp>
+#include "ml4kp_bridge/Trajectory.h"
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
 #include "control/MushrControlPropagation.h"
@@ -11,6 +15,8 @@
 #include "motion_planning/PlanningResult.h"
 #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
+#include "utils/dbg_utils.hpp"
+#include "utils/rosparams_utils.hpp"
 #include <fstream>
 #include <prx/utilities/general/type_conversions.hpp>
 #include <utils/std_utils.hpp>
@@ -19,6 +25,8 @@
 #include <prx_models/mushr.hpp>
 #include <prx_models/planner_utils.hpp>
 
+#include <ros/init.h>
+#include <ros/node_handle.h>
 #include <ros/ros.h>
 #include <ros/package.h>
 
@@ -33,6 +41,7 @@
 template <typename ParamsType>
 double calculate_safe_distance(double speed, const ParamsType& params)
 {
+  // return 0.5;//
   return params["safe_min"].template as<double>() + params["safe_mul"].template as<double>() * std::fabs(speed) +
          params["safe_quad_mul"].template as<double>() * std::pow(std::fabs(speed), 2);
 }
@@ -45,6 +54,8 @@ struct replanner_t
   //   SINGLE_SHOT,
   //   FINISHED
   // };
+  //
+  ml4kp_bridge::Trajectory _traj_msg;
 
   prx::system_ptr_t _plant;
   prx::param_loader params;
@@ -81,6 +92,7 @@ struct replanner_t
   ros::Publisher _tree_publisher;
   ros::Publisher _sln_tree_publisher;
   ros::Publisher _planner_stats_publisher;
+  ros::Publisher _sln_traj_publisher;
 
   ros::Subscriber _z_tree_subscriber;
   ros::Subscriber _planner_clock_subscriber;
@@ -118,6 +130,7 @@ struct replanner_t
   std::size_t _tot_replans;
   std::string _tree_file_prefix;
 
+  double _safe_distance;
   // planning_mode_t _mode;
   prx::param_loader plant_params;
 
@@ -185,6 +198,7 @@ struct replanner_t
     _planning_result_publisher = nh.advertise<motion_planning::PlanningResult>("/kraft/planning_result", 1, true);
     _reset_publisher = nh.advertise<std_msgs::Empty>("/kraft/reset", 1, true);
     _status_publisher = nh.advertise<interface::ReplannerStatus>("/kraft/status", 1, true);
+    _sln_traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>("/kraft/solution/trajectory", 1, true);
     _tree_publisher = nh.advertise<prx_models::Tree>(sbmp_full_tree_topic, 1, true);
     _sln_tree_publisher = nh.advertise<prx_models::Tree>(sbmp_solution_tree_topic, 1, true);
     _planner_stats_publisher = nh.advertise<prx_models::PlannerStats>(planner_stats_topic_name, 1, true);
@@ -230,21 +244,32 @@ struct replanner_t
     PRINT_MSG("Shutting down replanner...");
     _replanning_service.shutdown();
   }
-  // void mode_check(const std::string mode)
-  // {
-  //   if (mode == "replanning")
-  //   {
-  //     _mode = planning_mode_t::REPLANNING;
-  //   }
-  //   else if (mode == "single_shot")
-  //   {
-  //     _mode = planning_mode_t::SINGLE_SHOT;
-  //   }
-  //   else
-  //   {
-  //     prx_throw("[replanner_t] Replanning mode not supported.");
-  //   }
-  // }
+
+  static void create_parameter_files(ros::NodeHandle& nh)
+  {
+    bool initialize_parameter_files{ false };
+    PARAM_SETUP_WITH_DEFAULT(nh, initialize_parameter_files, initialize_parameter_files);
+    if (initialize_parameter_files)
+    {
+      PRINT_MSG("Creating parameter files")
+      std::string output_directory, plant_name;
+      PARAM_SETUP(nh, output_directory);
+      PARAM_SETUP(nh, plant_name);
+
+      const std::string spec_file{ output_directory + "/dirt_replan_spec.yaml" };
+      const std::string query_file{ output_directory + "/dirt_replan_query.yaml" };
+      const std::string plant_file{ output_directory + "/" + plant_name + ".yaml" };
+
+      prx::param_loader::create_file<prx::dirt_replan_specification_t>(spec_file);
+      prx::param_loader::create_file<prx::dirt_replan_query_t>(query_file);
+      prx::system_factory_t::initialization_parameters(plant_name).save(plant_file);
+
+      DEBUG_VARS(spec_file)
+      DEBUG_VARS(query_file)
+      DEBUG_VARS(plant_file)
+    }
+    ros::shutdown();
+  }
 
   void tree_publish_callback(const ros::TimerEvent& event)
   {
@@ -288,41 +313,46 @@ struct replanner_t
 
   void init_planner_spec(ros::NodeHandle& nh)
   {
-    const std::string plant_name{ plant_params["name"].as<std::string>() };
-    const std::string plant_path{ plant_params["path"].as<std::string>() };
-    _plant = prx::system_factory_t::create_system(plant_name, plant_path);
-    _plant->init(plant_params);
+    _plant = prx::system_factory_t::create_system(plant_params);
+    // const std::string plant_name{ plant_params["name"].as<std::string>() };
+    // const std::string plant_path{ plant_params["path"].as<std::string>() };
+    // _plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    // _plant->init(plant_params);
 
-    prx_assert(_plant != nullptr, "Failed to create plant");
+    // prx_assert(_plant != nullptr, "Failed to create plant");
 
     prx::param_loader env_params;
     env_params.from_string(_environment);
 
-    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
-    // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
-    // auto obstacles = prx::load_obstacles(_environment);
-    _obstacle_list = obstacle_loader.get_obstacles();
-    _obstacle_names = obstacle_loader.get_names();
+    // prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
+    // // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
+    // // auto obstacles = prx::load_obstacles(_environment);
+    // _obstacle_list = obstacle_loader.get_obstacles();
+    // _obstacle_names = obstacle_loader.get_names();
 
-    //     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles() };
-    // const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
+    // //     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles()
+    // };
+    // // const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
 
-    const std::vector<prx::system_ptr_t> all_systems{ { _plant } };
-    const std::vector<std::shared_ptr<prx::movable_object_t>> all_obstacles{ { _obstacle_list } };
-    _planning_model = std::make_shared<prx::world_model_t>(all_systems, all_obstacles);
-    _planning_model->create_context("planner_context", { plant_name }, { _obstacle_names });
-    auto planning_context = _planning_model->get_context("planner_context");
+    // const std::vector<prx::system_ptr_t> all_systems{ { _plant } };
+    // const std::vector<std::shared_ptr<prx::movable_object_t>> all_obstacles{ { _obstacle_list } };
+    // _planning_model = std::make_shared<prx::world_model_t>(all_systems, all_obstacles);
+    // _planning_model = prx::world_model_t::create(env_params, _plant);
+    auto [_planning_model, _system_group, _collision_group] = prx::world_model_t::create(env_params, _plant);
 
-    _system_group = prx::system_group(planning_context);
-    _collision_group = prx::collision_group(planning_context);
+    // _planning_model->create_context("planner_context", { plant_name }, { _obstacle_names });
+    // auto planning_context = _planning_model->get_context("planner_context");
+
+    // _system_group = prx::system_group(planning_context);
+    // _collision_group = prx::collision_group(planning_context);
 
     _state_space = _system_group->get_state_space();
     _control_space = _system_group->get_control_space();
     _param_space = _system_group->get_parameter_space();
 
-    _state_space->init(plant_params["state_space"]);
-    _control_space->init(plant_params["control_space"]);
-    _param_space->init(plant_params["parameter_space"]);
+    // _state_space->init(plant_params["state_space"]);
+    // _control_space->init(plant_params["control_space"]);
+    // _param_space->init(plant_params["parameter_space"]);
 
     _step_plan = std::make_shared<prx::plan_t>(_control_space);
     _rest_of_plan = std::make_shared<prx::plan_t>(_control_space);
@@ -331,16 +361,29 @@ struct replanner_t
     _future_state = _state_space->make_point();
     _dirt_spec = std::make_shared<prx::dirt_replan_specification_t>(_system_group, _collision_group);
     // _dirt_spec = new prx::dirt_replan_specification_t(planning_context.first, planning_context.second);
-
-    _dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
-    _dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
-    _dirt_spec->blossom_number = params["blossom_number"].as<int>();
-    _dirt_spec->use_pruning = false;
+    _dirt_spec->init(params);
+    // _dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
+    // _dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
+    // _dirt_spec->blossom_number = params["blossom_number"].as<int>();
+    // _dirt_spec->use_pruning = false;
 
     bool& use_contingency{ _dirt_spec->use_contingency };
     double& planning_cycle_duration{ _dirt_spec->planning_cycle_duration };
     PARAM_SETUP(nh, use_contingency)
     PARAM_SETUP(nh, planning_cycle_duration)
+
+    if (params["PlannerSpec/f_type"].as<>() == "f=g+h")
+    {
+      _dirt_spec->f_function = [&](const double& g, const double& h) { return g + h; };
+    }
+    else if (params["PlannerSpec/f_type"].as<>() == "f=h")
+    {
+      _dirt_spec->f_function = [&](const double& g, const double& h) { return h; };
+    }
+    else
+    {
+      prx_throw("Unknown PlannerSpec/f_type");
+    }
 
     _dirt_spec->plan_safety_check = [&](prx::trajectory_t& traj) {
       for (auto&& s : traj)
@@ -355,8 +398,9 @@ struct replanner_t
           }
         }
         double speed = std::fabs(s->at(3));
-        double safe_distance = calculate_safe_distance<decltype(params)>(speed, params["plan_safety_params"]);
-        if (min_distance < safe_distance)
+        // TODO: Change this
+        _safe_distance = calculate_safe_distance<decltype(params)>(speed, params["plan_safety_params"]);
+        if (min_distance < _safe_distance)
         {
           return false;
         }
@@ -394,7 +438,7 @@ struct replanner_t
 
     // int row = (0.0 - (-1.0)) / 0.01 = 100
     // int col = (1.0 - (-0.5)) / 0.01 = 150
-    _dirt_spec->h = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
+    _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
       return _heuristic_map->get_cost(curr) / 0.3;
       // return _dirt_spec->distance_function(s, s2) / 0.62;
       // return _dirt_spec->distance_function(s, s2) / 0.62;
@@ -495,6 +539,7 @@ struct replanner_t
 
     ml4kp_bridge::copy(_dirt_query->start_state, request.root.point);
 
+    _traj_msg.data.clear();
     _step_traj->clear();
 
     _dirt->link_and_setup_spec(_dirt_spec.get());
@@ -518,14 +563,14 @@ struct replanner_t
     // const double dt_diff{ time_limit - real_plan_dt };
     change_status(interface::ReplannerStatus::POSTPROCESSING);
 
-    // LOG_VARS(real_plan_dt, dt_diff);
-    // <<<<<<< HEAD
     LOG_MSG("POSTPROCESSING");
 
     _dirt->fulfill_query();
 
-    // auto stats = _dirt->statistics();
-    prx_models::copy(response.stats, _dirt->statistics());
+    const prx::planner_t::statistics_t planner_stats{ _dirt->statistics() };
+    const prx::dirt_replan_t::statistics_t* stats{ dynamic_cast<const prx::dirt_replan_t::statistics_t*>(
+        &planner_stats) };
+    prx_models::copy(response.stats, *stats);
     _planner_stats_publisher.publish(response.stats);
 
     if (_dirt_query->solution_traj.size() > 0)
@@ -534,6 +579,7 @@ struct replanner_t
       _rest_of_plan->clear();
       const double plan_duration{ _dirt_query->solution_plan.duration() };
       const double traj_duration{ _dirt_query->solution_traj.duration() };
+      ml4kp_bridge::copy(_traj_msg, _dirt_query->solution_traj);
 
       // if (_mode == planning_mode_t::REPLANNING)
       // {
@@ -567,6 +613,8 @@ struct replanner_t
       _sln_tree_publisher.publish(response.sln_tree);
       // LOG_MSG("Result ready");
     }
+    _sln_tree_publisher.publish(response.sln_tree);
+    _sln_traj_publisher.publish(_traj_msg);
 
     prx_models::Tree ros_tree;
     motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _dirt->tree());
@@ -659,7 +707,8 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
   ros::NodeHandle nh("~");
-  // ros::NodeHandle private_nh("~");
+
+  replanner_t::create_parameter_files(nh);
 
   ros::AsyncSpinner spinner(4);
   replanner_experiment_t rp_exp(nh);

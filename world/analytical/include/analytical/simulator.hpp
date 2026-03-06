@@ -41,8 +41,9 @@ public:
   simulator_t(ros::NodeHandle& nh)
   {
     double& simulation_step{ prx::simulation_step };
-    std::string collision_topic, ctrl_topic, sensor_topic, environment;
+    std::string set_state_topic, collision_topic, ctrl_topic, sensor_topic, environment;
 
+    PARAM_SETUP(nh, set_state_topic);
     PARAM_SETUP(nh, collision_topic);
     PARAM_SETUP(nh, simulation_step);
     PARAM_SETUP(nh, ctrl_topic);
@@ -65,6 +66,7 @@ public:
     _sensor_publisher = nh.advertise<interface::SensorDataStamped>(sensor_topic, 1, true);
     _collision_publisher = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
 
+    _state_subscriber = nh.subscribe(set_state_topic, 1, &simulator_t::set_state_callback, this);
     _control_subscriber = nh.subscribe(ctrl_topic, 1, &simulator_t::control_callback, this);
     _control_stamped_subscriber =
         nh.subscribe(ctrl_topic + "_stamped", 1, &simulator_t::control_stamped_callback, this);
@@ -111,6 +113,11 @@ protected:
     _collision_group = prx::collision_group(context);
 
     _sensor_msg.raw_sensor_data.resize(_sensor_space->size());
+  }
+
+  void set_state_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
+  {
+    _state_space->copy_from(msg->space_point.point);
   }
 
   void control_stamped_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
@@ -201,6 +208,7 @@ protected:
   ros::Publisher _sensor_publisher;
   ros::Publisher _collision_publisher;
 
+  ros::Subscriber _state_subscriber;
   ros::Subscriber _control_subscriber, _control_stamped_subscriber;
 
   std_msgs::Bool _collision_msg;

@@ -10,6 +10,8 @@ duration solution_duration # maximum trajectory/plan to return in the response
 bool use_contingency			 # should the sln_tree include a contingency plan
 prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
 
+ml4kp_bridge/SpacePoint goal # Goal of the planner
+float32 radius
 ---
 int32 TYPE_FAILURE=0
 int32 TYPE_SUCCESS=1

@@ -1,0 +1,9 @@
+start_state:
+  []
+goal:
+  state:
+    []
+visualize: false
+goal_region_radius: 0
+total_solutions: 0
+solution_type: TREE_TRAJECTORY | WAVEFRONT

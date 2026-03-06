@@ -106,7 +106,7 @@ int main(int argc, char** argv)
     return heuristic_map.get_cost(s);
   };
 
-  dirt_spec->h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+  dirt_spec->heuristic = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.62;
   };
 

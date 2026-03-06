@@ -6,6 +6,24 @@
 
 namespace ml4kp_bridge
 {
+
+inline prx::param_loader create(const ml4kp_bridge::SpacePoint msg)
+{
+  prx::param_loader params;
+  params.set(msg.point);
+  return params;
+}
+
+inline void copy(ml4kp_bridge::SpacePoint& msg, const prx::param_loader params)
+{
+  const std::vector<double> values{ params.as<std::vector<double>>() };
+  msg.point.resize(values.size());
+  for (std::size_t i = 0; i < msg.point.size(); ++i)
+  {
+    msg.point[i] = values[i];
+  }
+}
+
 inline void copy(ml4kp_bridge::SpacePoint& msg, const prx::space_snapshot_t& state)
 {
   msg.point.resize(state.size());
