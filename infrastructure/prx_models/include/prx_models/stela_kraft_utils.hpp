@@ -41,26 +41,6 @@ inline std::string header(const prx_models::PlannerStats stats)
   return strstr.str();
 }
 
-inline void to_stream(std::ofstream& ofs, const prx_models::PlannerStats& stats)
-{
-  ofs << stats.planned_duration << " ";
-  ofs << stats.iteration_count << " ";
-  ofs << stats.total_nodes << " ";
-  ofs << stats.cost_current_solution << " ";
-  ofs << stats.time_current_solution << " ";
-  ofs << stats.iters_current_solution << " ";
-
-  ofs << stats.random_edges_bnb << " ";
-  ofs << stats.random_edges_prunning << " ";
-  ofs << stats.random_edges_collision_check << " ";
-  ofs << stats.random_edges_final << " ";
-
-  ofs << stats.blossom_edges_bnb << " ";
-  ofs << stats.blossom_edges_prunning << " ";
-  ofs << stats.blossom_edges_collision_check << " ";
-  ofs << stats.blossom_edges_final << " ";
-}
-
 inline prx::param_loader create(const prx_models::StelaKraft::Request req)
 {
   prx::param_loader params;

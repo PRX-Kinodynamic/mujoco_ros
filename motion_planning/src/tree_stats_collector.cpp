@@ -32,6 +32,7 @@
 #include <ros/time.h>
 
 #include <utils/rosparams_utils.hpp>
+#include <prx_models/planner_utils.hpp>
 #include <prx_models/stela_kraft_utils.hpp>
 
 template <typename State>
