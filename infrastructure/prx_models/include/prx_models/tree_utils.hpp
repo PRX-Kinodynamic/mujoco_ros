@@ -30,7 +30,7 @@ inline void copy(prx_models::Node& node, const prx::param_loader& params)
   node.index = params["index"].as<int>();
   node.parent = params["parent"].as<int>();
   node.parent_edge = params["parent_edge"].as<int>();
-  node.children = params["children"].as<std::vector<unsigned long long>>();
+  node.children = params["children"].as<decltype(node.children)>();
   // node.point.point = { 1.0, 0.0, 1.57, 0.0, 0.0, 0.0 };
   ml4kp_bridge::copy(node.point, params["point"]);
   node.cost = params["cost"].as<int>();
