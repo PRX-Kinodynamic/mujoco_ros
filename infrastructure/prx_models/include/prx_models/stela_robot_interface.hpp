@@ -275,6 +275,7 @@ public:
     const gtsam::Key u01{ keyU(prev_id, curr_id) };
 
     NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-2) };
+    // NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-3) };
     // NoiseModel z_noise{ gtsam::noiseModel::Isotropic::Sigma(3, 1.0e-2) };
 
     const Observation& zi{ _last_observation.first };
@@ -283,6 +284,11 @@ public:
     // LOG_VARS(_last_observation.second, ti, dt);
     // LOG_MSG("Adding Observation Factor");
     // LOG_VARS(prev_id, curr_id, dt, zi);
+    // DEBUG_VARS(prev_id, curr_id, dt, zi);
+    if (dt > 10)
+    {
+      prx_warn("[stela_robot_interface::add_observation_factor] dt (" << dt << ") is too big");
+    }
     graph_values.first.emplace_shared<ObservationFactor>(x0, xdot0, z_noise, zi, dt, "Observation");
 
     _new_observation = false;

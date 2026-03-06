@@ -392,9 +392,11 @@ public:
     _ofs << "# id key_x x[...] xCov[...] key_xdot xdot[...] xdotCov[...]\n";
 
     _profiler.set_filename(path + "_freq_" + _experiment_id + "_" + _timestamp + ".txt");
+    DEBUG_PRINT
 
     initialize_graph();
     LOG_MSG("Graph initialized")
+    DEBUG_PRINT
 
     _planner_clock_msg.cycle_duration = ros::Duration(cycle_duration);
     _planner_clock_msg.header.stamp = ros::Time::now();
@@ -405,14 +407,17 @@ public:
     // const ros::Duration timer_duration(0.01);
     _clock_timer = private_nh.createTimer(timer_duration, &Derived::clock_timer_callback, this);
     // _replan_timer = private_nh.createTimer(timer_duration, &Derived::replan_timer_callback, this);
+    DEBUG_PRINT
 
     // update_estimated_tree();
     change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
+    DEBUG_PRINT
 
     _node_status->status(interface::NodeStatus::PAUSED);
 
     LOG_MSG("Initialization Done")
     PRINT_MSG("Stela Running")
+    DEBUG_PRINT
   }
 
   ~stela_windowed_t()
@@ -1679,22 +1684,9 @@ public:
 
       const GraphValues graph_values_z{ _robot->add_observation_factor(_x_curr, _x_next, _x0_start_time) };
 
-      // try
-      // {
-      //   // _isam2_result = _isam.update(graph_values_z.first, graph_values_z.second);
-      //   // _u01 = _isam.calculateEstimate<Control>(_key_u01);
-      // }
-      // catch (gtsam::IndeterminantLinearSystemException e)
-      // {
-      //   DEBUG_PRINT
-      //   const std::string exception_nearby_variable{ SF::formatter(e.nearbyVariable()) };
-      //   LOG_VARS(exception_nearby_variable);
-      //   LOG_VARS(e.what());
-      //   prx::fg::indeterminant_linear_system_helper(graph, _values, dbg::variables::ofs_log);
+      // DEBUG_VARS(graph_values_z.first)
+      // DEBUG_VARS(graph_values_z.second)
 
-      //   LOG_CLOSE
-      //   throw;
-      // }
       safe_fg_update(graph_values_z.first, graph_values_z.second);
       insert_factors(_x_curr, _x_next);
 
@@ -1941,11 +1933,13 @@ public:
       _x_queue.push_back(idx);
       _current_future_nodes++;
     }
+    DEBUG_PRINT
     _x_queue.push_back(idx);
 
     _start_time = ros::Time::now();
 
     _state = stela_state_t::IDLE;
+    DEBUG_PRINT
 
     PRINT_MSG("Stela Windowed IDLE Initialized");
   }
