@@ -52,7 +52,7 @@ struct collector_t
 
   prx_models::StelaKraft _planner_service_call;
   prx::param_loader _request_params;
-  std::ofstream _ofs;
+  // std::ofstream _ofs;
 
   double _goal_radius;
   prx::fg::SE2_t _x_curr, _x_goal;
@@ -67,21 +67,22 @@ struct collector_t
 
     std::string stela_kraft_request_params;
 
-    std::string output_file, state_topic;
+    std::string state_topic;
 
     // int& total_repetitions{ _total_repetitions };
     // PARAM_SETUP(nh, total_iterations);
     // PARAM_SETUP(nh, total_repetitions);
+    // PARAM_SETUP(nh, output_file);
     PARAM_SETUP(nh, state_topic);
-    PARAM_SETUP(nh, output_file);
-    PARAM_SETUP(nh, stela_kraft_request_params);
-    _ofs.open(output_file.c_str());
+    GLOBAL_PARAM_SETUP(stela_kraft_request_params);
+    // _ofs.open(output_file.c_str());
 
     _node_status = interface::node_status_t::create(nh);
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
-    _request_params.add_file(stela_kraft_request_params);
+    // _request_params.add_file(stela_kraft_request_params);
+    _request_params.from_string(stela_kraft_request_params);
 
     // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
 
@@ -130,7 +131,6 @@ struct collector_t
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {
-        _ofs.close();
         ros::shutdown();
       }
 
@@ -150,8 +150,8 @@ struct collector_t
 
         get_next_state(wrapped_tree);
         goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
-        prx_models::to_stream(_ofs, _planner_service_call.response.stats);
-        _ofs << "\n";
+        // prx_models::to_stream(_ofs, _planner_service_call.response.stats);
+        // _ofs << "\n";
 
         ml4kp_bridge::SpacePointStamped state_msg;
         state_msg.space_point.point.push_back(_x_curr[0]);
@@ -182,7 +182,7 @@ struct collector_t
     {
       run_experiment();
     }
-    _ofs.close();
+    // _ofs.close();
   }
 };
 

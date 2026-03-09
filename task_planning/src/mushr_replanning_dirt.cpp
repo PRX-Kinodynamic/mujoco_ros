@@ -99,7 +99,7 @@ struct replanner_t
 
   ros::Timer _clock_timer, _replan_timer, _tree_timer;
 
-  int _max_cycles;
+  // int _max_cycles;
   double _postprocess_timeout;
 
   double _max_edge_duration;
@@ -131,65 +131,84 @@ struct replanner_t
   std::string _tree_file_prefix;
 
   double _safe_distance;
-  // planning_mode_t _mode;
-  prx::param_loader plant_params;
+
+  prx::param_loader _env_params;
+  prx::param_loader _plant_params, _dirt_spec_params, _dirt_query_params;
 
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
+    DEBUG_PRINT
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
+    DEBUG_PRINT
 
-    std::string params_file, estimation_tree_topic, planner_clock_topic;
+    std::string params_file;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
     std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
 
-    int& max_cycles{ _max_cycles };
+    // int& max_cycles{ _max_cycles };
 
     // double& preprocess_timeout{ _preprocess_timeout };
     double& postprocess_timeout{ _postprocess_timeout };
     double& max_edge_duration{ _max_edge_duration };
 
+    DEBUG_PRINT
     // std::string planning_mode;
     std::string& environment{ _environment };
 
-    // std::string& _tree_file_prefix{};
-    std::string plant_file;
-    std::string planner_sln_recovery_type;
+    std::string plant_parameters, dirt_spec, dirt_query;
 
-    PARAM_SETUP(nh, plant_file);
-    PARAM_SETUP(nh, planner_sln_recovery_type);
+    using prx::simulation_step;
+    int random_seed;
+    // PARAM_SETUP(nh, plant_file);
+    // PARAM_SETUP(nh, params_file);
     // PARAM_SETUP(nh, planning_mode);
-    PARAM_SETUP(nh, params_file);
-    PARAM_SETUP(nh, heuristic_map_filename);
+    // PARAM_SETUP(nh, planner_sln_recovery_type);
 
     // PARAM_SETUP(nh, preprocess_timeout);
+    // PARAM_SETUP(nh, max_cycles);
+
+    // PARAM_SETUP(nh, estimation_tree_topic);
+
+    PARAM_SETUP(nh, heuristic_map_filename);
     PARAM_SETUP(nh, postprocess_timeout);
-    PARAM_SETUP(nh, max_cycles);
-
-    PARAM_SETUP(nh, estimation_tree_topic);
-    PARAM_SETUP(nh, planner_clock_topic);
-
     PARAM_SETUP(nh, sbmp_full_tree_topic);
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
-
-    PARAM_SETUP(nh, sbmp_solution_tree_topic);
     PARAM_SETUP(nh, planner_stats_topic_name);
+
+    DEBUG_VARS(heuristic_map_filename);
+    DEBUG_VARS(postprocess_timeout);
+    DEBUG_VARS(sbmp_full_tree_topic);
+    DEBUG_VARS(sbmp_solution_tree_topic);
+    DEBUG_VARS(planner_stats_topic_name);
+
+    // PARAM_SETUP(nh, sbmp_solution_tree_topic);
     // PARAM_SETUP(nh, environment);
 
+    GLOBAL_PARAM_SETUP(random_seed);
+    GLOBAL_PARAM_SETUP(simulation_step);
+    GLOBAL_PARAM_SETUP(plant_parameters);
+    GLOBAL_PARAM_SETUP(dirt_spec);
+    GLOBAL_PARAM_SETUP(dirt_query);
     GLOBAL_PARAM_SETUP(environment);
+
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
+
+    prx::init_random(random_seed);
 
     // mode_check(planning_mode);
 
     // std::string plan_params_file;
     // PARAM_SETUP_WITH_DEFAULT(nh, plan_params_file, plan_params_file){ prx::param_loader(plan_params_file, "") };
-    params = prx::param_loader(params_file, "");
-    plant_params = prx::param_loader(plant_file, "");
-    params["solution_type"].set(planner_sln_recovery_type);
-    // DEBUG_VARS(environment)
-    // planner_replanning_service.set_preprocess_timeout(preprocess_timeout);
-    // planner_replanning_service.set_postprocess_timeout(postprocess_timeout);
+    // params = prx::param_loader(params_file, "");
+    // _plant_params = prx::param_loader(plant_file, "");
+    _dirt_spec_params.from_string(dirt_spec);
+    _dirt_query_params.from_string(dirt_query);
+    _plant_params.from_string(plant_parameters);
+    _env_params.from_string(_environment);
+
+    // params["solution_type"].set(planner_sln_recovery_type);
 
     // Publisher
     _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
@@ -206,10 +225,6 @@ struct replanner_t
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
 
-    prx::init_random(params["random_seed"].as<int>());
-
-    prx::simulation_step = params["simulation_step"].as<double>();
-
     init_planner_spec(nh);
     init_planner_query();
     init_heuristic_map();
@@ -222,7 +237,7 @@ struct replanner_t
 
     // Subscribers
     // _z_tree_subscriber = nh.subscribe(estimation_tree_topic, 10, &replanner_t::observation_callback, this);
-    // _planner_clock_subscriber = nh.subscribe(planner_clock_topic, 1, &replanner_t::clock_callback, this);
+    // _planner_clock_subscriber = nh.subscrib, 1, &replanner_t::clock_callback, this);
 
     // Timers
     const ros::Duration timer_duration(0.01);
@@ -249,6 +264,7 @@ struct replanner_t
   {
     bool initialize_parameter_files{ false };
     PARAM_SETUP_WITH_DEFAULT(nh, initialize_parameter_files, initialize_parameter_files);
+    DEBUG_VARS(initialize_parameter_files)
     if (initialize_parameter_files)
     {
       PRINT_MSG("Creating parameter files")
@@ -267,8 +283,8 @@ struct replanner_t
       DEBUG_VARS(spec_file)
       DEBUG_VARS(query_file)
       DEBUG_VARS(plant_file)
+      ros::shutdown();
     }
-    ros::shutdown();
   }
 
   void tree_publish_callback(const ros::TimerEvent& event)
@@ -313,46 +329,19 @@ struct replanner_t
 
   void init_planner_spec(ros::NodeHandle& nh)
   {
-    _plant = prx::system_factory_t::create_system(plant_params);
+    _plant = prx::system_factory_t::create_system(_plant_params);
     // const std::string plant_name{ plant_params["name"].as<std::string>() };
     // const std::string plant_path{ plant_params["path"].as<std::string>() };
     // _plant = prx::system_factory_t::create_system(plant_name, plant_path);
     // _plant->init(plant_params);
-
+    DEBUG_VARS(_plant);
     // prx_assert(_plant != nullptr, "Failed to create plant");
 
-    prx::param_loader env_params;
-    env_params.from_string(_environment);
-
-    // prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
-    // // auto obstacles = prx::load_obstacles(params["environment"].as<std::string>());
-    // // auto obstacles = prx::load_obstacles(_environment);
-    // _obstacle_list = obstacle_loader.get_obstacles();
-    // _obstacle_names = obstacle_loader.get_names();
-
-    // //     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles()
-    // };
-    // // const std::vector<std::string> obstacle_names{ obstacle_loader.get_names() };
-
-    // const std::vector<prx::system_ptr_t> all_systems{ { _plant } };
-    // const std::vector<std::shared_ptr<prx::movable_object_t>> all_obstacles{ { _obstacle_list } };
-    // _planning_model = std::make_shared<prx::world_model_t>(all_systems, all_obstacles);
-    // _planning_model = prx::world_model_t::create(env_params, _plant);
-    auto [_planning_model, _system_group, _collision_group] = prx::world_model_t::create(env_params, _plant);
-
-    // _planning_model->create_context("planner_context", { plant_name }, { _obstacle_names });
-    // auto planning_context = _planning_model->get_context("planner_context");
-
-    // _system_group = prx::system_group(planning_context);
-    // _collision_group = prx::collision_group(planning_context);
+    std::tie(_planning_model, _system_group, _collision_group) = prx::world_model_t::create(_env_params, _plant);
 
     _state_space = _system_group->get_state_space();
     _control_space = _system_group->get_control_space();
     _param_space = _system_group->get_parameter_space();
-
-    // _state_space->init(plant_params["state_space"]);
-    // _control_space->init(plant_params["control_space"]);
-    // _param_space->init(plant_params["parameter_space"]);
 
     _step_plan = std::make_shared<prx::plan_t>(_control_space);
     _rest_of_plan = std::make_shared<prx::plan_t>(_control_space);
@@ -360,23 +349,13 @@ struct replanner_t
 
     _future_state = _state_space->make_point();
     _dirt_spec = std::make_shared<prx::dirt_replan_specification_t>(_system_group, _collision_group);
-    // _dirt_spec = new prx::dirt_replan_specification_t(planning_context.first, planning_context.second);
-    _dirt_spec->init(params);
-    // _dirt_spec->min_control_steps = params["min_time"].as<double>() * 1.0 / prx::simulation_step;
-    // _dirt_spec->max_control_steps = params["max_time"].as<double>() * 1.0 / prx::simulation_step;
-    // _dirt_spec->blossom_number = params["blossom_number"].as<int>();
-    // _dirt_spec->use_pruning = false;
+    _dirt_spec->init(_dirt_spec_params);
 
-    bool& use_contingency{ _dirt_spec->use_contingency };
-    double& planning_cycle_duration{ _dirt_spec->planning_cycle_duration };
-    PARAM_SETUP(nh, use_contingency)
-    PARAM_SETUP(nh, planning_cycle_duration)
-
-    if (params["PlannerSpec/f_type"].as<>() == "f=g+h")
+    if (_dirt_spec_params["f_type"].as<>() == "f=g+h")
     {
       _dirt_spec->f_function = [&](const double& g, const double& h) { return g + h; };
     }
-    else if (params["PlannerSpec/f_type"].as<>() == "f=h")
+    else if (_dirt_spec_params["f_type"].as<>() == "f=h")
     {
       _dirt_spec->f_function = [&](const double& g, const double& h) { return h; };
     }
@@ -399,7 +378,7 @@ struct replanner_t
         }
         double speed = std::fabs(s->at(3));
         // TODO: Change this
-        _safe_distance = calculate_safe_distance<decltype(params)>(speed, params["plan_safety_params"]);
+        _safe_distance = calculate_safe_distance<decltype(params)>(speed, _dirt_spec_params["plan_safety_params"]);
         if (min_distance < _safe_distance)
         {
           return false;
@@ -407,15 +386,19 @@ struct replanner_t
       }
       return true;
     };
+
+    DEBUG_VARS(*_dirt_spec);
   }
 
   void init_heuristic_map()
   {
+    // _collision_group
     auto heuristic_plant = prx::system_factory_t::create_system("2D_Point", "2D_Point");
     prx_assert(heuristic_plant != nullptr, "Failed to create plant");
-    prx::world_model_t heuristic_model({ heuristic_plant }, { _obstacle_list });
-    heuristic_model.create_context("heuristic_context", { "2D_Point" }, { _obstacle_names });
-    auto heuristic_context = heuristic_model.get_context("heuristic_context");
+    // prx::world_model_t heuristic_model({ heuristic_plant }, { _obstacle_list });
+    // heuristic_model.create_context("heuristic_context", { "2D_Point" }, { _obstacle_names });
+    // auto heuristic_context = heuristic_model.get_context("heuristic_context");
+    auto [h_pm, h_sg, h_cg] = prx::world_model_t::create(_env_params, heuristic_plant);
 
     // std::vector<double> goal_config = params["goal_state"].as<std::vector<double>>();
 
@@ -423,10 +406,12 @@ struct replanner_t
 
     // prx::heuristic_map_t heuristic_map(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, heuristic_context);
     // heuristic_map_t(double x_min, double x_max, double y_min, double y_max, double x_step, double y_step,
-    _heuristic_map = std::make_shared<prx::heuristic_map_t>(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, heuristic_context);
+    prx::world_model_context context = { h_sg, h_cg };
+    _heuristic_map = std::make_shared<prx::heuristic_map_t>(-0.5, 2.5, -1.0, 6.0, 0.01, 0.01, context);
     _heuristic_map->set_obstacle_grid();
     _heuristic_map->set_heuristic_grid(_dirt_query->goal_state);
-    _heuristic_map->set_u_rep_coeff(params["u_rep"].as<double>());
+    // _heuristic_map->set_u_rep_coeff(params["u_rep"].as<double>());
+    _heuristic_map->set_u_rep_coeff(1.5);
 
     std::ofstream file(_heuristic_map_filename.c_str());
     file << *_heuristic_map;
@@ -455,7 +440,7 @@ struct replanner_t
 
     _dirt_query = std::make_shared<prx::dirt_replan_query_t>(_state_space, _control_space);
 
-    _dirt_query->init(params);
+    _dirt_query->init(_dirt_query_params);
 
     // std::shared_ptr<mushr_types::State::type> goal_state{ std::make_shared<mushr_types::State::type>() };
 
@@ -513,11 +498,7 @@ struct replanner_t
       const double time_limit{ std::max(dt_available.toSec() * _postprocess_timeout, 0.0) };
 
       LOG_VARS(request.deadline, dt_available, time_limit);
-      // if (time_limit <= 0)
-      // {
-      //   // change_status(interface::ReplannerStatus::IDLE);
-      //   // return true;
-      // }
+
       return prx::condition_check_t("time", time_limit);
     }
     prx_throw("Unknown condition check")
@@ -531,6 +512,9 @@ struct replanner_t
 
     LOG_MSG("PREPROCESSING");
     change_status(interface::ReplannerStatus::PREPROCESSING);
+
+    // _dirt_spec->planning_cycle_duration = 1.0;  // TODO: Is this necessary?
+
     _dirt_query->clear_outputs();
 
     prx_assert(_dirt_query->start_state->size() == request.root.point.point.size(),
@@ -567,12 +551,15 @@ struct replanner_t
 
     _dirt->fulfill_query();
 
-    const prx::planner_t::statistics_t planner_stats{ _dirt->statistics() };
-    const prx::dirt_replan_t::statistics_t* stats{ dynamic_cast<const prx::dirt_replan_t::statistics_t*>(
-        &planner_stats) };
+    std::shared_ptr<prx::planner_t::statistics_t> planner_stats{ _dirt->statistics() };
+    // std::cout << planner_stats << std::endl;
+    std::shared_ptr<prx::dirt_replan_t::statistics_t> stats{
+      std::dynamic_pointer_cast<prx::dirt_replan_t::statistics_t>(planner_stats)
+    };
+    prx_assert(stats != nullptr, "Couldn't cast stats to dirt stats");
     prx_models::copy(response.stats, *stats);
     _planner_stats_publisher.publish(response.stats);
-
+    LOG_VARS(_dirt_query->solution_traj.size());
     if (_dirt_query->solution_traj.size() > 0)
     {
       _step_plan->clear();
@@ -613,6 +600,9 @@ struct replanner_t
       _sln_tree_publisher.publish(response.sln_tree);
       // LOG_MSG("Result ready");
     }
+
+    LOG_MSG("POSTPROCESSING");
+
     _sln_tree_publisher.publish(response.sln_tree);
     _sln_traj_publisher.publish(_traj_msg);
 
@@ -653,7 +643,7 @@ struct replanner_experiment_t
 
   bool new_experiment(interface::ExperimentParams::Request& request, interface::ExperimentParams::Response& response)
   {
-    planning_model = request.planning_model;
+    // planning_model = request.planning_model;
 
     // _nh.setParam("validation_plan_feasibility", request.validation_plan_feasibility);
     // _nh.setParam("validation_collision_only", request.validation_collision_only);
@@ -663,8 +653,8 @@ struct replanner_experiment_t
     // _nh.setParam("total_replanning_calls", request.total_replanning_calls);
     // _nh.setParam("params_file", request.replanning_iterations);
 
-    _nh.setParam("plant_file", model_path());
-    _nh.setParam("planner_sln_recovery_type", request.planner_sln_recovery_type);
+    // _nh.setParam("plant_file", model_path());
+    // _nh.setParam("planner_sln_recovery_type", request.planner_sln_recovery_type);
     _new_experiment = true;
     // _experiment_set = true;
     PRINT_MSG("[ReplannerExperiment] Setting new experiment...");
@@ -710,6 +700,7 @@ int main(int argc, char** argv)
 
   replanner_t::create_parameter_files(nh);
 
+  DEBUG_PRINT
   ros::AsyncSpinner spinner(4);
   replanner_experiment_t rp_exp(nh);
   spinner.start();

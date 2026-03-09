@@ -1,9 +1,10 @@
 start_state:
-  []
+  [1.0, 0.0, 1.57, 0.0, 0.0, 0.0]
 goal:
   state:
-    []
+    [1.0, 5.0, 1.57, 0.0, 0.0, 0.0]
+  radius: 0.75
 visualize: false
-goal_region_radius: 0
-total_solutions: 0
-solution_type: TREE_TRAJECTORY | WAVEFRONT
+total_solutions: 1
+# solution_type: "TREE_TRAJECTORY"
+solution_type: "WAVEFRONT"

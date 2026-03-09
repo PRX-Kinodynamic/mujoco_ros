@@ -4,55 +4,66 @@
     <!-- <arg name = "planning_cycle_duration" default = "1.0"/> -->
     <!-- <arg name = "use_contingency" default = "false"/> -->
     
-    <arg name = "max_cycles" default="90"/>
-    <arg name = "preprocess_timeout" default = "0.05" />
     <arg name = "postprocess_timeout" default = "0.2" />
-    <arg name = "planning_cycle_duration" default = "1.0"/>
-
-    <arg name = "params_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/planning_simulation.yaml" />
     <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
 
 
-    <arg name = "output_file" />
-    <arg name = "total_iterations"/>
-    <arg name = "total_trees"/>
+    <!-- <arg name = "output_file" /> -->
+    <!-- <arg name = "total_iterations"/> -->
+    <!-- <arg name = "total_trees"/> -->
     <arg name = "plant_file"/>
+    <arg name = "dirt_spec_file"/>
+    <arg name = "dirt_query_file"/>
+    <arg name = "stela_kraft_request_file"/>
 
+
+    <param name="random_seed" value="112392"/>
+    <param name="simulation_step" value="0.1"/>
+    <param name="plant_parameters" textfile="$(arg plant_file)" />
+    <param name="dirt_spec" textfile="$(arg dirt_spec_file)" />
+    <param name="dirt_query" textfile="$(arg dirt_query_file)" />
+    <param name="stela_kraft_request_params" textfile="$(arg stela_kraft_request_file)" />
 
     <group ns="mushr">
 
-    <node pkg="nodelet" type="nodelet" name="kraft_nodelet"  args="manager" output="screen"/>
+        <node pkg="nodelet" type="nodelet" name="kraft_nodelet"  args="manager" output="screen"/>
 
-    <node pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
-        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
-        output="screen">
-        <param name="tree_topic_name" value="/mushr/tree" />
-        <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]" />
-        <param name="scale" value="0.1" />
-    </node>     
+        <node pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
+            args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+            output="screen">
+            <param name="tree_topic_name" value="/mushr/tree" />
+            <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]" />
+            <param name="scale" value="0.1" />
+        </node>     
 
-    <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
-        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
-        output="screen">
-        <param name="tree_topic_name" value="/mushr/sln/tree" />
-        <param name="color" type="yaml" value="[1.0, 0.0, 0.8, 1.0]" />
-        <param name="scale" value="0.2" />
-    </node>      
+        <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
+            args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+            output="screen">
+            <param name="tree_topic_name" value="/mushr/sln/tree" />
+            <param name="color" type="yaml" value="[1.0, 0.0, 0.8, 1.0]" />
+            <param name="scale" value="0.2" />
+        </node>      
 
+        <node pkg="nodelet" type="nodelet" name="TrajectorySlnPublisher" 
+            args="load utils/TrajectoryVizPublisher kraft_nodelet" 
+            output="screen">
+            <param name="traj_topic_name" value="/kraft/solution/trajectory" />
+            <param name="color" type="yaml" value="[0.5, 0.002, 0.35, 0.098]" />
+        </node>  
     </group>
-
  
+        <!-- launch-prefix="lldb - -" -->
 
     <node pkg="task_planning" name="replanner" type="mushr_replanning_dirt" 
           output="screen" respawn="false">
-        <param name="plant_file" value="$(arg plant_file)" />
-        <param name="params_file" value="$(arg params_file)" />
+        <!-- <param name="plant_file" value="$(arg plant_file)" /> -->
+        <!-- <param name="params_file" value="$(arg params_file)" /> -->
         <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
         
-        <param name="preprocess_timeout" value="$(arg preprocess_timeout)" />
+        <!-- <param name="preprocess_timeout" value="$(arg preprocess_timeout)" /> -->
         <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
-        <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)"/>
-        <param name="max_cycles" value="$(arg max_cycles)" />
+        <!-- <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)"/> -->
+        <param name="planner_stats_topic_name" value="/replanner/stats" />
 
         <param name="estimation_tree_topic" value="/stela/estimation/tree"/>
         <param name="planner_clock_topic" value="/motion_planning/clock"/>
@@ -60,13 +71,13 @@
         <param name="sbmp_full_tree_topic" value="/mushr/tree"/>
         <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
         <param name="max_edge_duration" value="0.1"/>
-        <param name="use_contingency" value="$(arg use_contingency)"/>
+        <!-- <param name="use_contingency" value="$(arg use_contingency)"/> -->
     </node>
 
-    <node pkg="motion_planning" name="tree_stats_collector" 
-            type="tree_stats_collector" output="screen" respawn="false" >
-        <param name="state_topic" value="$(arg output_file)"/>
-        <param name="total_iterations" value="$(arg total_iterations)"/>
-        <param name="total_trees" value="$(arg total_trees)"/>
-    </node>
+
+    <!-- <node pkg="motion_planning" name="tree_stats_collector"  -->
+            <!-- type="tree_stats_collector" output="screen" respawn="false" > -->
+        <!-- <param name="state_topic" value="$(arg output_file)"/> -->
+        <!-- <param name="stela_kraft_request_params" value="$(arg total_iterations)"/> -->
+    <!-- </node> -->
 </launch>

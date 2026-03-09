@@ -1,11 +1,18 @@
-bnb: true
-use_replanning: false
+bnb: false
+use_replanning: true
 control_steps:
-  min: -2147483648
-  max: -2147483648
-blossom_number: 1
-planning_cycle_duration: 0
+  min: 2
+  max: 8
+blossom_number: 10
+planning_cycle_duration: 1.0
 use_pruning: false
 use_contingency: false
 profile: false
-output_path: ""
+# output_path: "${ML4KP_ROS}/data/dirt"
+output_path: "/tmp/"
+# f_type: "f=g+h"
+f_type: "f=h"
+plan_safety_params:
+  safe_min: 0.02
+  safe_mul: 0.15
+  safe_quad_mul: 0.0

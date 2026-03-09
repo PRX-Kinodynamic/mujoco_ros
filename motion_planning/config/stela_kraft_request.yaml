@@ -1,0 +1,14 @@
+solution_duration: 1.0
+iterations: 1000
+condition: "TIME"
+goal:
+  state:
+    [5.0, 0.0, 1.57, 0.0, 0.0, 0.0]
+  region_radius: 0.75
+root:
+  index: 0
+  parent: 0
+  parent_edge: 0
+  children: []
+  point: [1.0, 0.0, 1.57, 0.0, 0.0, 0.0]
+  cost: 0.0

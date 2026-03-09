@@ -549,7 +549,14 @@ class mushrFG_t : public prx::plant_t
 
 public:
   mushrFG_t(const std::string& path)
-    : plant_t(path), _params_u(mushr_stela_t::default_params), _delta_poly(mushr_stela_t::default_poly)
+    : plant_t(path)
+    , _params_u(mushr_stela_t::default_params)
+    , _delta_poly(mushr_stela_t::default_poly)
+    , _state(0., 0., 0.)
+    , _state_dot(StateDot::Zero())
+    , _ctrl(mushr_types::Control::type::Zero())
+    , _sensor_position(Eigen::Vector3d::Zero())
+    , _sensor_quaternion(1., 0., 0., 0.)
   {
     state_memory = { &_state[0],     &_state[1],     &_state[2],  // no-lint
                      &_state_dot[0], &_state_dot[1], &_state_dot[2] };
