@@ -65,23 +65,16 @@ struct collector_t
   {
     prx::simulation_step = 0.1;
 
-    std::string stela_kraft_request_params;
-
     std::string state_topic;
 
-    // int& total_repetitions{ _total_repetitions };
-    // PARAM_SETUP(nh, total_iterations);
-    // PARAM_SETUP(nh, total_repetitions);
-    // PARAM_SETUP(nh, output_file);
     PARAM_SETUP(nh, state_topic);
-    GLOBAL_PARAM_SETUP(stela_kraft_request_params);
+
     // _ofs.open(output_file.c_str());
 
     _node_status = interface::node_status_t::create(nh);
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
-    _request_params.from_string(stela_kraft_request_params);
 
     // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
 
@@ -122,6 +115,12 @@ struct collector_t
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
         return;
+      }
+      else if (_node_status->status() == interface::NodeStatus::WAITING)
+      {
+        std::string stela_kraft_request_params;
+        GLOBAL_PARAM_SETUP_DEFAULT(stela_kraft_request_params);
+        _request_params.from_string(stela_kraft_request_params);
       }
       else if (_node_status->status() == interface::NodeStatus::PAUSED)
       {

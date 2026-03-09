@@ -139,6 +139,7 @@ struct replanner_t
 
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
+    DEBUG_PRINT
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
 
@@ -146,6 +147,7 @@ struct replanner_t
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
     std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
+    DEBUG_PRINT
 
     // int& max_cycles{ _max_cycles };
 
@@ -158,6 +160,7 @@ struct replanner_t
 
     std::string plant_parameters, dirt_spec, dirt_query;
 
+    DEBUG_PRINT
     using prx::simulation_step;
     int random_seed;
     // PARAM_SETUP(nh, plant_file);
@@ -170,6 +173,7 @@ struct replanner_t
 
     // PARAM_SETUP(nh, estimation_tree_topic);
 
+    DEBUG_PRINT
     PARAM_SETUP(nh, heuristic_map_filename);
     PARAM_SETUP(nh, postprocess_timeout);
     PARAM_SETUP(nh, sbmp_full_tree_topic);
@@ -185,6 +189,7 @@ struct replanner_t
     // PARAM_SETUP(nh, sbmp_solution_tree_topic);
     // PARAM_SETUP(nh, environment);
 
+    DEBUG_PRINT
     GLOBAL_PARAM_SETUP(random_seed);
     GLOBAL_PARAM_SETUP(simulation_step);
     GLOBAL_PARAM_SETUP(plant_parameters);
@@ -198,6 +203,7 @@ struct replanner_t
 
     // mode_check(planning_mode);
 
+    DEBUG_PRINT
     // std::string plan_params_file;
     // PARAM_SETUP_WITH_DEFAULT(nh, plan_params_file, plan_params_file){ prx::param_loader(plan_params_file, "") };
     // params = prx::param_loader(params_file, "");
@@ -209,6 +215,7 @@ struct replanner_t
 
     // params["solution_type"].set(planner_sln_recovery_type);
 
+    DEBUG_PRINT
     // Publisher
     _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
     _goal_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/goal_radius", 10, true);
@@ -224,6 +231,7 @@ struct replanner_t
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
 
+    DEBUG_PRINT
     init_planner_spec(nh);
     init_planner_query();
     init_heuristic_map();
@@ -656,13 +664,17 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "MushrPlanner_example");
   ros::NodeHandle nh("~");
 
+  DEBUG_PRINT
   replanner_t::create_parameter_files(nh);
 
+  DEBUG_PRINT
   std::string experiments_node_id;
   PARAM_SETUP(nh, experiments_node_id)
+  DEBUG_PRINT
 
   std::shared_ptr<interface::node_status_t> node_status;
   std::shared_ptr<interface::node_status_t> experiments_node_status;
+  node_status = interface::node_status_t::create(nh);
   experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
 
   ros::AsyncSpinner spinner(2);
@@ -681,6 +693,7 @@ int main(int argc, char** argv)
       {
         node_status->status(node_status->requested_status());
       }
+      ros::Duration(1.0).sleep();
     }
   }
   // ros::AsyncSpinner spinner(4);

@@ -55,6 +55,11 @@ inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& 
   {
     req.condition = prx_models::StelaKraft::Request::CONDITION_TIME;
   }
+  else
+  {
+    const std::string unknown_condition{ params["condition"].as<>() };
+    DEBUG_VARS(unknown_condition);
+  }
 }
 
 }  // namespace prx_models
