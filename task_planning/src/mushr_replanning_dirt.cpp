@@ -36,6 +36,8 @@
 #include <prx_models/StelaKraft.h>
 #include <prx_models/tree_utils.hpp>
 #include <interface/ExperimentParams.h>
+#include <interface/NodeStatus.h>
+#include <interface/node_status.hpp>
 
 // Function to calculate safe distance based on speed
 template <typename ParamsType>
@@ -137,10 +139,8 @@ struct replanner_t
 
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
-    DEBUG_PRINT
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
-    DEBUG_PRINT
 
     std::string params_file;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
@@ -153,7 +153,6 @@ struct replanner_t
     double& postprocess_timeout{ _postprocess_timeout };
     double& max_edge_duration{ _max_edge_duration };
 
-    DEBUG_PRINT
     // std::string planning_mode;
     std::string& environment{ _environment };
 
@@ -633,48 +632,7 @@ struct replanner_experiment_t
   replanner_experiment_t(ros::NodeHandle& nh) : _nh(nh)
   {
     _lib_path = prx::lib_path_safe("ML4KP_ROS");
-    _experiment_service = nh.advertiseService("/experiment/replanner", &replanner_experiment_t::new_experiment, this);
     // _timer = nh.createTimer(ros::Duration(1.0), &replanner_experiment_t::timer_callback, this);
-  }
-
-  // void timer_callback(const ros::TimerEvent& event)
-  // {
-  // }
-
-  bool new_experiment(interface::ExperimentParams::Request& request, interface::ExperimentParams::Response& response)
-  {
-    // planning_model = request.planning_model;
-
-    // _nh.setParam("validation_plan_feasibility", request.validation_plan_feasibility);
-    // _nh.setParam("validation_collision_only", request.validation_collision_only);
-    // _nh.setParam("replanning_condition", request.replanning_condition);
-    // _nh.setParam("cycle_duration", request.cycle_duration);
-    // _nh.setParam("replanning_iterations", request.replanning_iterations);
-    // _nh.setParam("total_replanning_calls", request.total_replanning_calls);
-    // _nh.setParam("params_file", request.replanning_iterations);
-
-    // _nh.setParam("plant_file", model_path());
-    // _nh.setParam("planner_sln_recovery_type", request.planner_sln_recovery_type);
-    _new_experiment = true;
-    // _experiment_set = true;
-    PRINT_MSG("[ReplannerExperiment] Setting new experiment...");
-    return true;
-  }
-
-  std::string model_path()
-  {
-    if (planning_model == "mushr")
-    {
-      return _lib_path + "src/mujoco_ros/motion_planning/config/mushr.yaml";
-    }
-    else if (planning_model == "mushr_torch")
-    {
-      return _lib_path + "src/mujoco_ros/motion_planning/config/mushr_torch.yaml";
-    }
-    else
-    {
-      prx_throw("Unknown planning model.");
-    }
   }
 
   void run()
@@ -700,11 +658,33 @@ int main(int argc, char** argv)
 
   replanner_t::create_parameter_files(nh);
 
-  DEBUG_PRINT
-  ros::AsyncSpinner spinner(4);
-  replanner_experiment_t rp_exp(nh);
+  std::string experiments_node_id;
+  PARAM_SETUP(nh, experiments_node_id)
+
+  std::shared_ptr<interface::node_status_t> node_status;
+  std::shared_ptr<interface::node_status_t> experiments_node_status;
+  experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
+
+  ros::AsyncSpinner spinner(2);
   spinner.start();
-  rp_exp.run();
+
+  while (experiments_node_status->status() != interface::NodeStatus::FINISH)
+  {
+    node_status->status(interface::NodeStatus::INITIALIZING);
+
+    replanner_t replanner(nh);
+    node_status->status(interface::NodeStatus::RUNNING);
+
+    while (node_status->status() != interface::NodeStatus::FINISH)
+    {
+      if (node_status->new_request())
+      {
+        node_status->status(node_status->requested_status());
+      }
+    }
+  }
+  // ros::AsyncSpinner spinner(4);
+  // spinner.start();
   ros::waitForShutdown();
   spinner.stop();
 

@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2
   torch_bridge
+  interface
 )
 
 if(DEFINED ENV{Torch_DIR})

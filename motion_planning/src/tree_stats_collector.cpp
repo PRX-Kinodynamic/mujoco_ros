@@ -36,14 +36,14 @@
 #include <prx_models/stela_kraft_utils.hpp>
 #include <interface/node_status.hpp>
 
-template <typename State>
-double distance(const State& x0, const State x1)
-{
-  const State btw{ gtsam::traits<State>::Between(x0, x1) };
-  const auto diff = gtsam::traits<State>::Logmap(btw);
+// template <typename State>
+// double distance(const State& x0, const State x1)
+// {
+//   const State btw{ gtsam::traits<State>::Between(x0, x1) };
+//   const auto diff = gtsam::traits<State>::Logmap(btw);
 
-  return diff.norm();
-}
+//   return diff.norm();
+// }
 
 struct collector_t
 {
@@ -81,7 +81,6 @@ struct collector_t
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
-    // _request_params.add_file(stela_kraft_request_params);
     _request_params.from_string(stela_kraft_request_params);
 
     // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
@@ -113,8 +112,8 @@ struct collector_t
   {
     prx_models::copy(_planner_service_call.request, _request_params);
 
-    bool goal_reached{ false };
-    while (not goal_reached)
+    // bool goal_reached{ false };
+    while (true)
     {
       manage_node_status();
       if (_node_status->status() == interface::NodeStatus::RUNNING)
@@ -129,10 +128,10 @@ struct collector_t
         ros::Duration(1.0).sleep();
         continue;
       }
-      else if (_node_status->status() == interface::NodeStatus::FINISH)
-      {
-        ros::shutdown();
-      }
+      // else if (_node_status->status() == interface::NodeStatus::FINISH)
+      // {
+      //   ros::shutdown();
+      // }
 
       const bool replanner_available{ _planner_service_client.exists() };
       _planner_service_call.request.root.stamp = ros::Time::now();
@@ -149,7 +148,7 @@ struct collector_t
         prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
 
         get_next_state(wrapped_tree);
-        goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
+        // goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
         // prx_models::to_stream(_ofs, _planner_service_call.response.stats);
         // _ofs << "\n";
 
@@ -176,14 +175,14 @@ struct collector_t
     }
   }
 
-  void run()
-  {
-    while (ros::ok())
-    {
-      run_experiment();
-    }
-    // _ofs.close();
-  }
+  // void run()
+  // {
+  //   while (ros::ok())
+  //   {
+  //     run_experiment();
+  //   }
+  //   // _ofs.close();
+  // }
 };
 
 // Mujoco-Ros visualization in (almost) RT:
@@ -194,11 +193,20 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
+  std::string experiments_node_id;
+  PARAM_SETUP(nh, experiments_node_id)
+
+  std::shared_ptr<interface::node_status_t> experiments_node_status;
+  experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
+
   ros::AsyncSpinner spinner(2);
-  collector_t collector(nh);
   spinner.start();
 
-  collector.run();
+  while (experiments_node_status->status() != interface::NodeStatus::FINISH)
+  {
+    collector_t collector(nh);
+    collector.run_experiment();
+  }
 
   ros::waitForShutdown();
   spinner.stop();
