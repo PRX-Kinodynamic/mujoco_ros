@@ -1,6 +1,7 @@
 #pragma once
 #include <visualization_msgs/MarkerArray.h>
 
+#include <prx/utilities/general/param_loader.hpp>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
@@ -29,56 +30,42 @@ public:
     , _bounds_name("/bounds")
     , _msg_valid(false)
     , _bounds_valid(false)
+    , _environment_file("")
   {
   }
 
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
-    // ros::NodeHandle private_nh("~");
 
-    std::string& environment{ _environment_file };
-    // std::string& environment_file{ _environment_file };
     std::vector<double> color{};
-
     // _tree_topic_name = ros::this_node::getNamespace() + _tree_topic_name;
     _bounds_name = ros::this_node::getNamespace() + _bounds_name;
     _viz_env_name = ros::this_node::getNamespace() + _viz_env_name;
     _reload_service_name = ros::this_node::getNamespace() + _reload_service_name;
-
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, 1.0, 0.0 }));
 
-    // This assumes "environment" is a string that has the content of the yaml file
-    // This is, it was read by ros param as:
-    // This setup allows to specify the environment once and be read in multiple programs
-    // <param name="environment" textfile="$(find PACKAGE)/PATH/TO/ENVIRONMENT.yaml" />
-    GLOBAL_PARAM_SETUP(environment);
-
-    // DEBUG_VARS(environment)
     _timer = private_nh.createTimer(ros::Rate(1.0), &Derived::update, this);
 
     // publishers
     _bounds_publisher = private_nh.advertise<visualization_msgs::Marker>(_bounds_name, 1, true);
     _environment_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(_viz_env_name, 1, true);
-
-    _params.from_string(_environment_file);
-    // ros::NodeHandle env_nh("/environment");
-    // ml4kp_bridge::copy(_params, env_nh);
-
-    prx_assert(_params.exists("environment"), "Params: 'environment' needed");
-    prx_assert(_params.exists("environment/name"), "Params: 'environment/name' needed");
-    prx_assert(_params.exists("environment/bounds"), "Params: 'environment/bounds' needed");
-
-    const std::string environment_name{ _params["environment/name"].template as<std::string>() };
-
-    DEBUG_VARS(environment_name)
-
-    read_and_publish_environment();
-    // }
-    PRINT_MSG("Environment Publisher initialized")
   }
+
   void update(const ros::TimerEvent& t)
   {
+    std::string environment{ "" };
+    GLOBAL_PARAM_SETUP_DEFAULT(environment, _environment_file)
+    // if (ros::param::has("environment") and ros::param::get("environment", environment))
+    // {
+    //   PRINT_MSG("Environment not set");
+    // }
+    // DEBUG_VARS(environment)
+    if (environment != _environment_file)
+    {
+      read_and_publish_environment(environment);
+      _environment_file = environment;
+    }
     if (_msg_valid)
       _environment_publisher.publish(_msg);
     if (_bounds_valid)
@@ -100,10 +87,10 @@ protected:
   //   // read_and_publish_environment(filename);
   //   return true;
   // }
-  void publish_bounds(prx::obstacle_loader_t& obstacle_loader)
+  void publish_bounds(prx::param_loader& env_params)
   {
-    std::vector<double> max_bounds{ _params["environment/bounds/max"].template as<std::vector<double>>() };
-    std::vector<double> min_bounds{ _params["environment/bounds/min"].template as<std::vector<double>>() };
+    std::vector<double> max_bounds{ env_params["environment/bounds/max"].template as<std::vector<double>>() };
+    std::vector<double> min_bounds{ env_params["environment/bounds/min"].template as<std::vector<double>>() };
     // std::vector<double> position{ _params["environment/root_configuration/position"].as<std::vector<double>>() };
     // std::vector<double> orientation{ _params["environment/root_configuration/orientation"].as<std::vector<double>>()
     // };
@@ -142,12 +129,28 @@ protected:
     _bounds_valid = true;
   }
 
-  void read_and_publish_environment()
+  void read_and_publish_environment(std::string& environment_file)
   {
-    // DEBUG_VARS(pl)
+    // std::string& environment{ _environment_file };
 
-    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(_params) };
-    publish_bounds(obstacle_loader);
+    // This assumes "environment" is a string that has the content of the yaml file
+    // This is, it was read by ros param as:
+    // This setup allows to specify the environment once and be read in multiple programs
+    // <param name="environment" textfile="$(find PACKAGE)/PATH/TO/ENVIRONMENT.yaml" />
+
+    prx::param_loader env_params;
+    env_params.from_string(environment_file);
+
+    prx_assert(env_params.exists("environment"), "Params: 'environment' needed");
+    prx_assert(env_params.exists("environment/name"), "Params: 'environment/name' needed");
+    prx_assert(env_params.exists("environment/bounds"), "Params: 'environment/bounds' needed");
+
+    const std::string environment_name{ env_params["environment/name"].template as<std::string>() };
+
+    DEBUG_VARS(environment_name)
+
+    prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
+    publish_bounds(env_params);
     // const prx::PairNameObstacles obstacles{ prx::obstacle_loader_t(pl) };
 
     const std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacle_loader.get_obstacles() };
@@ -254,7 +257,7 @@ protected:
 
   visualization_msgs::Marker _bounds_marker;
 
-  prx::param_loader _params;
+  // prx::param_loader _params;
 
   bool _msg_valid, _bounds_valid;
   std::string _bounds_name;

@@ -81,4 +81,6 @@ topics:
     type: "interface::ReplannerStatus"
   - name: "/mushr/sensordata/marker"
     type: "visualization_msgs::Marker"
+  - name: "/kraft/solution/trajectory"
+    type: "ml4kp_bridge::Trajectory"
 

@@ -1,3 +1,4 @@
+#include <ros/duration.h>
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
@@ -41,25 +42,26 @@ public:
   simulator_t(ros::NodeHandle& nh)
   {
     double& simulation_step{ prx::simulation_step };
-    std::string set_state_topic, collision_topic, ctrl_topic, sensor_topic, environment;
+    std::string set_state_topic, collision_topic, ctrl_topic, sensor_topic;
+    DEBUG_PRINT
 
     PARAM_SETUP(nh, set_state_topic);
     PARAM_SETUP(nh, collision_topic);
     PARAM_SETUP(nh, simulation_step);
     PARAM_SETUP(nh, ctrl_topic);
     PARAM_SETUP(nh, sensor_topic);
-    GLOBAL_PARAM_SETUP(environment);
+    // GLOBAL_PARAM_SETUP(environment);
 
     // ml4kp_bridge::copy(_prx_params, env_nh);
-    _prx_params.from_string(environment);
-
-    prx::param_loader plant_params;
-    ml4kp_bridge::copy(plant_params, nh);
-    _prx_params["plant"] = plant_params;
+    // _prx_params.from_string(environment);
+    DEBUG_PRINT
+    // prx::param_loader plant_params;
+    ml4kp_bridge::copy(_plant_params, nh);
+    DEBUG_PRINT
 
     // DEBUG_VARS(_prx_params)
 
-    init_ml4kp(_prx_params);
+    // init_ml4kp(_prx_params);
 
     _node_status = interface::node_status_t::create(nh);
 
@@ -72,7 +74,8 @@ public:
         nh.subscribe(ctrl_topic + "_stamped", 1, &simulator_t::control_stamped_callback, this);
 
     _step_timer = nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step_callback, this);
-    _node_status->status(interface::NodeStatus::RUNNING);
+
+    _node_status->status(interface::NodeStatus::WAITING);
   }
 
   virtual ~simulator_t()
@@ -80,15 +83,15 @@ public:
   }
 
 protected:
-  void init_ml4kp(prx::param_loader& params)
+  void init_ml4kp()
   {
-    const std::string plant_name{ params["/plant/name"].as<std::string>() };
-    const std::string plant_path{ params["/plant/path"].as<std::string>() };
+    const std::string plant_name{ _plant_params["name"].as<std::string>() };
+    const std::string plant_path{ _plant_params["path"].as<std::string>() };
     _plant = prx::system_factory_t::create_system(plant_name, plant_path);
     prx_assert(_plant != nullptr, "Failed to create plant");
-    _plant->init(params["plant"]);
+    _plant->init(_plant_params);
 
-    prx::obstacle_loader_t obstacles(params);
+    prx::obstacle_loader_t obstacles(_prx_params);
     // auto obstacles = prx::obstacle_loader_t(params);
 
     std::vector<std::string> obstacle_names{ obstacles.get_names() };
@@ -144,13 +147,33 @@ protected:
 
     _sensor_space->copy_to(_sensor_msg.raw_sensor_data);
     _sensor_msg.header.stamp = ros::Time::now();
+
+    _sensor_publisher.publish(_sensor_msg);
+    _collision_publisher.publish(_collision_msg);
   }
 
-  void reset_simulation()
+  bool reset_simulation()
   {
     PRINT_MSG("Reseting..")
-    _state_space->copy_from(_x0);
-    _control_space->copy_from(_u0);
+    ros::Duration(1.0).sleep();
+
+    std::string environment;
+    GLOBAL_PARAM_SETUP_DEFAULT(environment, _environment_file)
+    // if (ros::param::has("/environment") and ros::param::get("/environment", environment))
+    // DEBUG_VARS(environment)
+    if (environment != _environment_file)
+    {
+      _prx_params.from_string(environment);
+      _environment_file = environment;
+      init_ml4kp();
+    }
+    if (_environment_file.size() > 0)
+    {
+      _state_space->copy_from(_x0);
+      _control_space->copy_from(_u0);
+      return true;
+    }
+    return false;
     // _state_space->init(_prx_params["state_space"]);
     // _control_space->init(_prx_params["control_space"]);
 
@@ -169,11 +192,19 @@ protected:
     {
       step_simulation();
     }
+    else if (_node_status->status() == interface::NodeStatus::WAITING)
+    {
+      if (reset_simulation())
+      {
+        _node_status->status(interface::NodeStatus::RUNNING);
+      }
+    }
     else if (_node_status->status() == interface::NodeStatus::RESET)
     {
-      reset_simulation();
-      // step_simulation();
-      _node_status->status(interface::NodeStatus::RUNNING);
+      if (reset_simulation())
+      {
+        _node_status->status(interface::NodeStatus::RUNNING);
+      }
     }
     else if (_node_status->status() == interface::NodeStatus::FINISH)
     {
@@ -189,11 +220,11 @@ protected:
       auto invalid_status = _node_status;
       DEBUG_VARS(invalid_status);
     }
-    _sensor_publisher.publish(_sensor_msg);
-    _collision_publisher.publish(_collision_msg);
   }
+  std::string _environment_file;
 
   prx::param_loader _prx_params;
+  prx::param_loader _plant_params;
 
   prx::space_point_t _x0, _u0;
 

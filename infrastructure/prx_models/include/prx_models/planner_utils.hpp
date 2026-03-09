@@ -53,15 +53,17 @@ inline std::string header(const prx_models::PlannerStats stats)
   strstr << "time_current_solution ";
   strstr << "iters_current_solution ";
 
-  strstr << "random_edges_bnb ";
-  strstr << "random_edges_prunning ";
-  strstr << "random_edges_collision_check ";
-  strstr << "random_edges_final ";
+  strstr << "random_f_rejected ";
+  strstr << "random_prunning ";
+  strstr << "random_collision_check ";
+  strstr << "random_accepted ";
+  strstr << "random_bnb ";
 
-  strstr << "blossom_edges_bnb ";
-  strstr << "blossom_edges_prunning ";
-  strstr << "blossom_edges_collision_check ";
-  strstr << "blossom_edges_final ";
+  strstr << "blossom_f_rejected ";
+  strstr << "blossom_prunning ";
+  strstr << "blossom_collision_check ";
+  strstr << "blossom_accepted ";
+  strstr << "blossom_bnb ";
   return strstr.str();
 }
 

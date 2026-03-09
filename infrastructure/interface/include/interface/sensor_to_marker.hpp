@@ -22,7 +22,7 @@ public:
   {
   }
 
-  ~sensor_to_marker_t() {};
+  ~sensor_to_marker_t(){};
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };

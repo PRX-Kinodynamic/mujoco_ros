@@ -3,7 +3,10 @@
 
 #include <ml4kp_bridge/defs.h>
 
+#include <iterator>
 #include <memory>
+#include <prx/utilities/general/csv_reader.hpp>
+#include <prx/utilities/general/param_loader.hpp>
 #include <utils/rosparams_utils.hpp>
 #include <utils/std_utils.hpp>
 #include <ackermann_msgs/AckermannDriveStamped.h>
@@ -15,7 +18,8 @@
 #include <prx_models/mushr_factors.hpp>
 #include <prx_models/mushr.hpp>
 #include <prx_models/PlannerStats.h>
-#include "utils/dbg_utils.hpp"
+#include <utils/dbg_utils.hpp>
+#include <prx_models/planner_utils.hpp>
 
 struct runner_t
 {
@@ -28,7 +32,6 @@ struct runner_t
   double _goal_radius, _timeout;
 
   bool _collision, _goal_reached, _initializing;
-  std::shared_ptr<interface::node_status_t> _node_status;
   std::shared_ptr<interface::node_status_t> _mj_status, _stela_status, _rosbag_status;
 
   std::vector<std::shared_ptr<interface::node_status_t>> _all_ns;
@@ -38,40 +41,39 @@ struct runner_t
   ros::WallTime _start;
   std::string _file_prefix;
 
-  int _curr_experiment, _total_experiments;
+  int _curr_experiment, _total_experiments, _experiment_num;
 
   Eigen::Vector3d _error;
+  ros::NodeHandle _nh;
 
-  runner_t(ros::NodeHandle& nh)
-    : _collision(false), _goal_reached(false), _initializing(true), _curr_experiment(0), _error(10, 10, 10)
+  prx::param_loader _experiment_params, _env_params;
+
+  runner_t(ros::NodeHandle& nh, prx::param_loader& experiment_params, prx::param_loader& env_params)
+    : _collision(false)
+    , _goal_reached(false)
+    , _initializing(true)
+    , _curr_experiment(0)
+    , _error(10, 10, 10)
+    , _nh(nh)
+    , _experiment_params(experiment_params)
+    , _env_params(env_params)
+  // , _experiment_num(experiment_num)
   {
-    std::string sensor_topic_name, collision_topic_name, planner_stats_topic_name;
-    std::string stela_node_id, mj_node_id, rosbag_node_id;
+    // DEBUG_VARS(param_file)
+    // DEBUG_VARS(_experiment_params);
 
-    int& total_experiments{ _total_experiments };
-    double& goal_radius{ _goal_radius };
-    double& timeout{ _timeout };
-    std::string& file_prefix{ _file_prefix };
-    std::vector<double> goal;
+    const std::string sensor_topic_name{ _experiment_params["sensor_topic_name"].as<>() };
+    const std::string collision_topic_name{ _experiment_params["collision_topic_name"].as<>() };
+    const std::string planner_stats_topic_name{ _experiment_params["planner_stats_topic_name"].as<>() };
+    const std::string stela_node_id{ _experiment_params["stela_node_id"].as<>() };
+    const std::string mj_node_id{ _experiment_params["mj_node_id"].as<>() };
+    const std::string rosbag_node_id{ _experiment_params["rosbag_node_id"].as<>() };
 
-    PARAM_SETUP(nh, goal);
-    PARAM_SETUP(nh, timeout);
-    PARAM_SETUP(nh, file_prefix);
-    PARAM_SETUP(nh, goal_radius);
-    PARAM_SETUP(nh, mj_node_id);
-    PARAM_SETUP(nh, stela_node_id);
-    PARAM_SETUP(nh, rosbag_node_id);
-    PARAM_SETUP(nh, total_experiments);
-    PARAM_SETUP(nh, sensor_topic_name);
-    PARAM_SETUP(nh, collision_topic_name);
-    PARAM_SETUP(nh, planner_stats_topic_name);
+    int total_experiments{ _experiment_params["total_experiments"].as<int>() };
+    std::string file_prefix{ _experiment_params["file_prefix"].as<>() };
+    // std::string experiments_file;
 
-    prx_assert(goal.size() == 3, "goal needs to have size 3");
-    _goal[0] = goal[0];
-    _goal[1] = goal[1];
-    _goal[2] = goal[2];
-
-    _node_status = interface::node_status_t::create(nh);
+    // _experiments_reader = std::make_shared<prx::utilities::csv_reader_t>(experiments_file);
 
     _mj_status = interface::node_status_t::create(nh, mj_node_id, true);
     _stela_status = interface::node_status_t::create(nh, stela_node_id, true);
@@ -85,14 +87,46 @@ struct runner_t
 
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
     _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
-    init();
+    init_experiment();
+
     _mj_status->request_status(interface::NodeStatus::RESET);
   }
 
   ~runner_t()
   {
-    _node_status->status(interface::NodeStatus::FINISH);
     ros::Duration(1.0).sleep();
+  }
+
+  void init_experiment()
+  {
+    // auto exp_iter = experiment_params["/experiments"].begin();  ///.begin() + _exp_num;
+    // // exp_i = *(exp_i.begin() + _curr_experiment);
+    // std::advance(exp_iter, experiment_num);
+    // if (exp_iter != experiment_params["/experiments"].end())
+    // {
+    //   env_params = *exp_iter;
+    //   return true;
+    // prx::param_loader param = *exp_iter;
+    std::vector<double> next_goal{ _env_params["goal/state"].as<std::vector<double>>() };
+    _goal[0] = next_goal[0];
+    _goal[1] = next_goal[1];
+    _goal[2] = next_goal[2];
+
+    _goal_radius = _env_params["goal/radius"].as<double>();
+    const std::string environment{ _env_params["environment"].as<std::string>() };
+
+    std::ifstream infile_env{ environment };
+
+    const std::string env_file{ std::istreambuf_iterator<char>(infile_env), std::istreambuf_iterator<char>() };
+
+    // DEBUG_VARS(env_file)
+    ros::param::set("/environment", env_file);
+
+    const std::string rosbag_directory{ _env_params["rosbag/directory"].as<std::string>() };
+    const std::string rosbag_prefix{ _env_params["rosbag/prefix"].as<std::string>() };
+    ros::param::set("/rosbag/directory", rosbag_directory);
+    ros::param::set("/rosbag/prefix", rosbag_prefix);
+    // return true;
   }
 
   void verbose_timer_callback(const ros::TimerEvent& event)
@@ -109,7 +143,7 @@ struct runner_t
 
     if (_initializing)  // Start
     {
-      _node_status->status(interface::NodeStatus::INITIALIZING);
+      // _node_status->status(interface::NodeStatus::INITIALIZING);
 
       int tot_running{ 0 };
       if (_mj_status->status() == interface::NodeStatus::RUNNING and
@@ -129,9 +163,6 @@ struct runner_t
       }
       else
       {
-        // DEBUG_VARS(_mj_status)
-        // DEBUG_VARS(_rosbag_status)
-        // DEBUG_VARS(_stela_status)
         _start = ros::WallTime::now();
         _mj_status->request_status(interface::NodeStatus::RESET);
         // _rosbag_status->request_status(interface::NodeStatus::RUNNING);
@@ -159,7 +190,7 @@ struct runner_t
       {
         _stela_status->request_status(interface::NodeStatus::RUNNING);
       }
-      _node_status->status(interface::NodeStatus::RUNNING);
+      // _node_status->status(interface::NodeStatus::RUNNING);
     }
   }
 
@@ -169,18 +200,6 @@ struct runner_t
     {
       stat->request_status(interface::NodeStatus::RESET);
     }
-  }
-
-  void init()
-  {
-    const std::string file_path{ _file_prefix + "_" + utils::timestamp() + ".txt" };
-    const std::string file_planner_path{ _file_prefix + "_planner_" + utils::timestamp() + ".txt" };
-    _ofs.open(file_path);
-    _ofs_planner.open(file_planner_path);
-    DEBUG_VARS(file_path);
-    DEBUG_VARS(file_planner_path);
-    ros::Duration(5.0).sleep();
-    _mj_status->request_status(interface::NodeStatus::RESET);
   }
 
   void record(const std::string reason)
@@ -195,34 +214,39 @@ struct runner_t
 
     const std::string msg{ "[Mushr Experiment]" };
     DEBUG_VARS(msg, reason, _curr_experiment, _total_experiments);
-    _curr_experiment++;
 
-    if (_curr_experiment == _total_experiments)
-    {
-      _node_status->status(interface::NodeStatus::FINISH);
-      _ofs.close();
-      for (auto stat : _all_ns)
-      {
-        stat->request_status(interface::NodeStatus::FINISH);
-      }
-      ros::Duration(5.).sleep();
-      ros::shutdown();
-    }
-    _node_status->status(interface::NodeStatus::RESET);
+    // if (_curr_experiment == _total_experiments)
+    // {
+    // _node_status->status(interface::NodeStatus::FINISH);
+    // _ofs.close();
+    // for (auto stat : _all_ns)
+    // {
+    //   stat->request_status(interface::NodeStatus::FINISH);
+    // }
+    // ros::Duration(5.).sleep();
+    // ~runner_t();
+    // ros::shutdown();
+    // }
+    // _node_status->status(interface::NodeStatus::RESET);
     call_reset();
     ros::Duration(5.).sleep();  // sleep for resets to happen
+    _curr_experiment++;
     _initializing = true;
+  }
+
+  void run()
+  {
+    while (_curr_experiment < _total_experiments)
+    {
+      ros::Duration(1.).sleep();
+    }
+    // _node_status->status(interface::NodeStatus::FINISH);
+    _ofs.close();
   }
 
   void planner_stats_callback(const prx_models::PlannerStats msg)
   {
-    _ofs_planner << msg.planned_duration << " ";
-    _ofs_planner << msg.iteration_count << " ";
-    _ofs_planner << msg.total_nodes << " ";
-    _ofs_planner << msg.cost_current_solution << " ";
-    _ofs_planner << msg.time_current_solution << " ";
-    _ofs_planner << msg.iters_current_solution << " ";
-    _ofs_planner << "\n";
+    prx_models::to_stream(_ofs_planner, msg);
   }
 
   void collision_callback(const std_msgs::BoolConstPtr msg)
@@ -253,14 +277,57 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  // std::string stela_node_id, mj_node_id, rosbag_node_id;
-  runner_t runner(nh);
+  std::string experiments_file;
+  PARAM_SETUP(nh, experiments_file)
+  prx::utilities::csv_reader_t reader(experiments_file);
+  std::shared_ptr<interface::node_status_t> _node_status{ interface::node_status_t::create(nh) };
 
-  // PARAM_SETUP(nh, mj_node_id);
-  // PARAM_SETUP(nh, stela_node_id);
-  // PARAM_SETUP(nh, rosbag_node_id);
+  while (reader.has_next_line())
+  {
+    _node_status->status(interface::NodeStatus::INITIALIZING);
+    auto line = reader.next_line();
+    std::string dir{ line[0] };
+    const std::string replan_spec_filename{ dir + "/dirt_replan_spec.yaml" };
+    const std::string replan_query_filename{ dir + "/dirt_replan_query.yaml" };
+    const std::string experiment_filename{ dir + "/dirt_experiment.yaml" };
+    const std::string stela_kraft_filename{ dir + "/stela_kraft_request.yaml" };
 
-  // const std::string root{ ros::this_node::getName() };
+    std::ifstream infile_spec{ replan_spec_filename };
+    std::ifstream infile_query{ replan_query_filename };
+    std::ifstream infile_stela_kraft{ replan_query_filename };
+    // std::ifstream infile_experiment{ experiment_filename };
+
+    const std::string spec_file{ std::istreambuf_iterator<char>(infile_spec), std::istreambuf_iterator<char>() };
+    const std::string query_file{ std::istreambuf_iterator<char>(infile_query), std::istreambuf_iterator<char>() };
+    const std::string stela_kraft_file{ std::istreambuf_iterator<char>(infile_stela_kraft),
+                                        std::istreambuf_iterator<char>() };
+    // const std::string experiment_file{ std::istreambuf_iterator<char>(infile_experiment),
+    //                                    std::istreambuf_iterator<char>() };
+
+    DEBUG_VARS(spec_file)
+    DEBUG_VARS(query_file)
+    nh.setParam("/dirt_spec", spec_file);
+    nh.setParam("/dirt_query", query_file);
+    nh.setParam("/stela_kraft_request_params", stela_kraft_file);
+
+    // prx::param_loader env_params;
+    prx::param_loader experiment_params(experiment_filename);
+    // bool valid_experiment{ get_experiment_params(env_params, experiment_params, experiment_num) };
+    auto exp_params = experiment_params["/experiments"];  ///.begin() + _exp_num;
+
+    for (auto exp_iter : exp_params)
+    {
+      prx::param_loader exp_param(exp_iter);  // = exp_iter;
+      // exp_param = exp_iter;
+      runner_t runner(nh, experiment_params, exp_param);
+      _node_status->status(interface::NodeStatus::RUNNING);
+      runner.run();
+    }
+
+    // _experiment_params.reset(new prx::param_loader());
+    // _experiment_params->from_string(experiment_filename);
+  }
+  _node_status->status(interface::NodeStatus::FINISH);
 
   ros::spin();
   return 0;

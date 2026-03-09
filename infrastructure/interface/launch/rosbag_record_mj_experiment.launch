@@ -1,13 +1,8 @@
 <launch>
-    <!-- <arg name="experiment_id" default=""/> -->
-    <!-- <arg name="camera0_topic" default="/perception/logitech_brio_73B6FC82/aruco/rgb"/> -->
-    <!-- <arg name="camera1_topic" default="/perception/logitech_brio_96214279/aruco/rgb"/> -->
 
     <arg name="rosbag_directory" />
     <arg name="rosbag_prefix" default=""/>
-    <!-- <arg name="record_video" default="true"/> -->
 
-        <!-- launch-prefix="gdb -ex run - -args" -->
     <group ns="tools">
         <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen"
             >

@@ -227,14 +227,15 @@ struct bag_writer_t
   double _msgs_in_queue;
 
   ros_qs_types_t _qs;
+  ros::NodeHandle _nh;
 
   bag_writer_t(ros::NodeHandle& nh)
-    : rosbag_directory(""), rosbag_prefix(""), _bag_num(0), _first(true), _verbose(false)
+    : rosbag_directory(""), rosbag_prefix(""), _bag_num(0), _first(true), _verbose(false), _nh(nh)
   {
     bool& verbose{ _verbose };
     PARAM_SETUP(nh, topics);
-    PARAM_SETUP(nh, rosbag_directory);
-    PARAM_SETUP_WITH_DEFAULT(nh, rosbag_prefix, rosbag_prefix);
+    // PARAM_SETUP(nh, rosbag_directory);
+    // PARAM_SETUP_WITH_DEFAULT(nh, rosbag_prefix, rosbag_prefix);
     PARAM_SETUP_WITH_DEFAULT(nh, verbose, verbose);
 
     _node_status = interface::node_status_t::create(nh);
@@ -242,11 +243,11 @@ struct bag_writer_t
     pause_queues(true);
 
     _timer = nh.createTimer(ros::Duration(5.0), &bag_writer_t::timer_callback, this);
-    init_bag();
+    // init_bag();
 
     dbg::set_log_filename("log_rosbag_record.txt");
 
-    _node_status->status(interface::NodeStatus::READY);
+    _node_status->status(interface::NodeStatus::WAITING);
   }
 
   ~bag_writer_t()
@@ -255,11 +256,23 @@ struct bag_writer_t
     ros::Duration(1.0).sleep();
   }
 
-  void init_bag()
+  bool init_bag()
   {
-    const std::string bn{ prx::utilities::convert_to<std::string>(_bag_num) };
-    interface::init_bag(&bag, rosbag_directory, rosbag_prefix + "_" + bn);
-    _bag_num++;
+    const bool dir_set{ _nh.getParam("/rosbag/directory", rosbag_directory) };
+    const bool prefix_set{ _nh.getParam("/rosbag/prefix", rosbag_prefix) };
+
+    // DEBUG_VARS(dir_set, prefix_set)
+    if (dir_set and prefix_set)
+    {
+      const std::string bn{ prx::utilities::convert_to<std::string>(_bag_num) };
+      interface::init_bag(&bag, rosbag_directory, rosbag_prefix + "_" + bn);
+      _bag_num++;
+
+      ros::param::del("/rosbag/directory");
+      ros::param::del("/rosbag/prefix");
+      return true;
+    }
+    return false;
   }
 
   template <typename Queue>
@@ -402,9 +415,11 @@ struct bag_writer_t
         {
           LOG_MSG("WAITING")
           bag.close();
-          init_bag();
-          _first = true;
-          _node_status->status(interface::NodeStatus::READY);
+          if (init_bag())
+          {
+            _first = true;
+            _node_status->status(interface::NodeStatus::READY);
+          }
         }
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
@@ -416,7 +431,8 @@ struct bag_writer_t
         {
           LOG_MSG("FINISH");
           bag.close();
-          ros::shutdown();
+          return;
+          // ros::shutdown();
         }
       }
       else
@@ -479,59 +495,24 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "rosbag_record");
 
   ros::NodeHandle nh("~");
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  ros::Duration(10.0).sleep();
 
-  // PARAM_SETUP(nh, rosbag_directory);
-  // PARAM_SETUP_WITH_DEFAULT(nh, rosbag_prefix, rosbag_prefix);
-  // ROS_PARAM_SETUP(nh, stop_topic);
+  std::string experiments_node_id;
+  PARAM_SETUP(nh, experiments_node_id)
 
-  // std::vector<ros::Subscriber> subscribers;
-  // utils::execution_status_t execution_status(nh, stop_topic);
+  std::shared_ptr<interface::node_status_t> experiments_node_status;
+  experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
 
-  // PRX_DEBUG_VARS(rosbag_directory);
-  // PRX_DEBUG_VARS(stop_topic);
-
-  // interface::node_status_t node_status(nh);
-
-  // PRX_DEBUG_VARS(topics.size());
-
-  // DEBUG_VARS(subscribers.size());
-  // std::thread thread_b(bag_writter);
-  bag_writer_t bag_writter(nh);
   ros::AsyncSpinner spinner(4);
-  // ros::MultiThreadedSpinner spinner(4);
-  // spinner.spin();
   spinner.start();
 
-  bag_writter.run();
+  while (experiments_node_status->status() != interface::NodeStatus::FINISH)
+  {
+    bag_writer_t bag_writter(nh);
+    bag_writter.run();
+  }
   ros::waitForShutdown();
   spinner.stop();
-
-  // node_status.status(interface::NodeStatus::RUNNING);
-  // while (ros::ok())
-  // {
-  //   if (node_status.status() == interface::NodeStatus::RUNNING)
-  //   {
-  //     continue;
-  //   }
-  //   else if (node_status.status() == interface::NodeStatus::RESET)
-  //   {
-  //   }
-  //   else if (node_status.status() == interface::NodeStatus::FINISH)
-  //   {
-  //     stop = true;
-  //     break;
-  //   }
-  //   else
-  //   {
-  //     auto invalid_status = node_status;
-  //     DEBUG_VARS(invalid_status);
-  //   }
-  //   //    ros::spinOnce();
-  // }
-  // stop = true;
-  // ROS_INFO_STREAM("Joining bag writter thread");
-  // thread_b.join();
 
   return 0;
 }
