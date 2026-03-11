@@ -25,22 +25,24 @@ inline prx::param_loader create(const prx_models::StelaKraft::Request req)
   params["solution_duration"].set(req.solution_duration.toSec());
   params["iterations"].set(req.iterations);
   params["condition"].set("ITERATIONS | TIME");
-  params["radius"].set(req.radius);
+  // params["radius"].set(req.radius);
   params["root"] = prx_models::create(req.root);
-  params["goal/state"] = ml4kp_bridge::create(req.goal);
-  params["goal/region_radius"] = ml4kp_bridge::create(req.goal);
+  // params["goal/state"] = ml4kp_bridge::create(req.goal);
+  // params["goal/region_radius"] = ml4kp_bridge::create(req.goal);
 
   return params;
 }
 
 inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& params)
 {
-  // req.use_contingency = params["use_contingency"].as<bool>();
   req.solution_duration = ros::Duration(params["solution_duration"].as<double>());
   req.iterations = params["iterations"].as<int>();
   req.deadline = ros::Time::ZERO;  // This needs to be changed before sending the req.
-  req.radius = params["goal/radius"].as<double>();
-  ml4kp_bridge::copy(req.goal, params["goal/state"]);
+  // if (params.exists("goal"))
+  // {
+  //   req.radius = params["goal/radius"].as<double>();
+  //   ml4kp_bridge::copy(req.goal, params["goal/state"]);
+  // }
   if (params.exists("root"))
   {
     auto root_params = params["root"];

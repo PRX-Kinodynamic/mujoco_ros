@@ -118,7 +118,7 @@ inline void get_value(gtsam::Pose3& value, const XmlRpc::XmlRpcValue& input)
   }
 
 #define GLOBAL_PARAM_SETUP_DEFAULT(var, default_value)                                                                 \
-  if (not(ros::param::has(GET_VARIABLE_NAME(var)) and ros::param::get(GET_VARIABLE_NAME(var), environment)))           \
+  if (not(ros::param::has(GET_VARIABLE_NAME(var)) and ros::param::get(GET_VARIABLE_NAME(var), var)))                   \
   {                                                                                                                    \
     var = default_value;                                                                                               \
   }

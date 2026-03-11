@@ -60,8 +60,9 @@ struct collector_t
   // int _total_repetitions;
 
   std::shared_ptr<interface::node_status_t> _node_status;
+  std::string _prev_stela_kraft_request_params;
 
-  collector_t(ros::NodeHandle& nh)
+  collector_t(ros::NodeHandle& nh) : _prev_stela_kraft_request_params("")
   {
     prx::simulation_step = 0.1;
 
@@ -78,7 +79,7 @@ struct collector_t
 
     // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
 
-    _node_status->status(interface::NodeStatus::PAUSED);
+    _node_status->status(interface::NodeStatus::WAITING);
 
     // _x_goal[0] =
   }
@@ -103,14 +104,16 @@ struct collector_t
 
   void run_experiment()
   {
-    prx_models::copy(_planner_service_call.request, _request_params);
-
     // bool goal_reached{ false };
     while (true)
     {
       manage_node_status();
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
+      }
+      if (_node_status->status() == interface::NodeStatus::READY)
+      {
+        continue;
       }
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
@@ -119,14 +122,34 @@ struct collector_t
       else if (_node_status->status() == interface::NodeStatus::WAITING)
       {
         std::string stela_kraft_request_params;
-        GLOBAL_PARAM_SETUP_DEFAULT(stela_kraft_request_params);
-        _request_params.from_string(stela_kraft_request_params);
+
+        GLOBAL_PARAM_SETUP_DEFAULT(stela_kraft_request_params, _prev_stela_kraft_request_params);
+
+        if (stela_kraft_request_params != _prev_stela_kraft_request_params)
+        {
+          DEBUG_VARS(stela_kraft_request_params)
+          _request_params.from_string(stela_kraft_request_params);
+
+          DEBUG_VARS(_request_params)
+          prx_models::copy(_planner_service_call.request, _request_params);
+          _prev_stela_kraft_request_params = stela_kraft_request_params;
+        }
+        if (_prev_stela_kraft_request_params.size() > 0)
+        {
+          _node_status->status(interface::NodeStatus::READY);
+        }
+        continue;
       }
       else if (_node_status->status() == interface::NodeStatus::PAUSED)
       {
         ros::Duration(1.0).sleep();
         continue;
       }
+      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      {
+        return;
+      }
+
       // else if (_node_status->status() == interface::NodeStatus::FINISH)
       // {
       //   ros::shutdown();
@@ -142,23 +165,25 @@ struct collector_t
       {
         const bool planner_status{ _planner_service_call.response.planner_output ==
                                    prx_models::StelaKraft::Response::TYPE_SUCCESS };
-        prx_assert(planner_status, "Planner error!");
+        // prx_assert(planner_status, "Planner error!");
+        if (planner_status)
+        {
+          prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
 
-        prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
+          get_next_state(wrapped_tree);
+          // goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
+          // prx_models::to_stream(_ofs, _planner_service_call.response.stats);
+          // _ofs << "\n";
 
-        get_next_state(wrapped_tree);
-        // goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
-        // prx_models::to_stream(_ofs, _planner_service_call.response.stats);
-        // _ofs << "\n";
-
-        ml4kp_bridge::SpacePointStamped state_msg;
-        state_msg.space_point.point.push_back(_x_curr[0]);
-        state_msg.space_point.point.push_back(_x_curr[1]);
-        state_msg.space_point.point.push_back(_x_curr[2]);
-        state_msg.space_point.point.push_back(0.0);
-        state_msg.space_point.point.push_back(0.0);
-        state_msg.space_point.point.push_back(0.0);
-        _state_publisher.publish(state_msg);
+          ml4kp_bridge::SpacePointStamped state_msg;
+          state_msg.space_point.point.push_back(_x_curr[0]);
+          state_msg.space_point.point.push_back(_x_curr[1]);
+          state_msg.space_point.point.push_back(_x_curr[2]);
+          state_msg.space_point.point.push_back(0.0);
+          state_msg.space_point.point.push_back(0.0);
+          state_msg.space_point.point.push_back(0.0);
+          _state_publisher.publish(state_msg);
+        }
       }
     }
   }
@@ -205,6 +230,7 @@ int main(int argc, char** argv)
   {
     collector_t collector(nh);
     collector.run_experiment();
+    ros::Duration(2.0).sleep();
   }
 
   ros::waitForShutdown();

@@ -568,8 +568,8 @@ public:
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
     input_control_space->set_bounds({ -1., -1. }, { 1., 1. });
 
-    derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
-    derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
+    // derivative_memory = { &_state_dot[0], &_state_dot[1], &_state_dot[2] };
+    // derivative_space = new prx::space_t("EEE", derivative_memory, "mushr_deriv");
 
     parameter_memory = { &_params_u[mushr_types::Control::vel_desired],
                          &_params_u[mushr_types::Control::steering],      // no-lint

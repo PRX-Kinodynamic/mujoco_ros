@@ -78,8 +78,8 @@
 
     <node pkg="motion_planning" name="tree_stats_collector" 
             type="tree_stats_collector" output="screen" respawn="false" >
+        <param name="node_id" value="tree_stats_collector" />
         <param name="experiments_node_id" value="experiment_runner" />
         <param name="state_topic" value="/mushr/set_state" />
-        <!-- <param name="stela_kraft_request_params" value="$(arg total_iterations)"/> -->
     </node>
 </launch>

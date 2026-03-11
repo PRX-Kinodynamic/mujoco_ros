@@ -102,7 +102,7 @@ struct replanner_t
   ros::Timer _clock_timer, _replan_timer, _tree_timer;
 
   // int _max_cycles;
-  double _postprocess_timeout;
+  double _postprocess_rate;
 
   double _max_edge_duration;
 
@@ -137,9 +137,9 @@ struct replanner_t
   prx::param_loader _env_params;
   prx::param_loader _plant_params, _dirt_spec_params, _dirt_query_params;
 
+  std::mutex _service_mutex;
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
-    DEBUG_PRINT
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
 
@@ -147,12 +147,11 @@ struct replanner_t
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
     std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
-    DEBUG_PRINT
 
     // int& max_cycles{ _max_cycles };
 
     // double& preprocess_timeout{ _preprocess_timeout };
-    double& postprocess_timeout{ _postprocess_timeout };
+    // double& postprocess_rate{ _postprocess_rate };
     double& max_edge_duration{ _max_edge_duration };
 
     // std::string planning_mode;
@@ -160,8 +159,8 @@ struct replanner_t
 
     std::string plant_parameters, dirt_spec, dirt_query;
 
-    DEBUG_PRINT
     using prx::simulation_step;
+    simulation_step = 0.0;  // Force to set simste
     int random_seed;
     // PARAM_SETUP(nh, plant_file);
     // PARAM_SETUP(nh, params_file);
@@ -173,15 +172,14 @@ struct replanner_t
 
     // PARAM_SETUP(nh, estimation_tree_topic);
 
-    DEBUG_PRINT
     PARAM_SETUP(nh, heuristic_map_filename);
-    PARAM_SETUP(nh, postprocess_timeout);
+    // PARAM_SETUP(nh, postprocess_rate);
     PARAM_SETUP(nh, sbmp_full_tree_topic);
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
     PARAM_SETUP(nh, planner_stats_topic_name);
 
     DEBUG_VARS(heuristic_map_filename);
-    DEBUG_VARS(postprocess_timeout);
+    // DEBUG_VARS(postprocess_rate);
     DEBUG_VARS(sbmp_full_tree_topic);
     DEBUG_VARS(sbmp_solution_tree_topic);
     DEBUG_VARS(planner_stats_topic_name);
@@ -189,13 +187,18 @@ struct replanner_t
     // PARAM_SETUP(nh, sbmp_solution_tree_topic);
     // PARAM_SETUP(nh, environment);
 
-    DEBUG_PRINT
-    GLOBAL_PARAM_SETUP(random_seed);
-    GLOBAL_PARAM_SETUP(simulation_step);
-    GLOBAL_PARAM_SETUP(plant_parameters);
-    GLOBAL_PARAM_SETUP(dirt_spec);
-    GLOBAL_PARAM_SETUP(dirt_query);
-    GLOBAL_PARAM_SETUP(environment);
+    while (simulation_step == 0.0 or plant_parameters == "" or dirt_spec == "" or dirt_query == "" or environment == "")
+    {
+      GLOBAL_PARAM_SETUP_DEFAULT(random_seed, random_seed);
+      GLOBAL_PARAM_SETUP_DEFAULT(simulation_step, simulation_step);
+      GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
+      GLOBAL_PARAM_SETUP_DEFAULT(dirt_spec, dirt_spec);
+      GLOBAL_PARAM_SETUP_DEFAULT(dirt_query, dirt_query);
+      GLOBAL_PARAM_SETUP_DEFAULT(environment, environment);
+      ros::Duration(1.0).sleep();
+    }
+    DEBUG_VARS(environment)
+    PRINT_MSG("Parameters set")
 
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
 
@@ -203,7 +206,6 @@ struct replanner_t
 
     // mode_check(planning_mode);
 
-    DEBUG_PRINT
     // std::string plan_params_file;
     // PARAM_SETUP_WITH_DEFAULT(nh, plan_params_file, plan_params_file){ prx::param_loader(plan_params_file, "") };
     // params = prx::param_loader(params_file, "");
@@ -213,9 +215,10 @@ struct replanner_t
     _plant_params.from_string(plant_parameters);
     _env_params.from_string(_environment);
 
+    _postprocess_rate = _dirt_query_params["postprocess_rate"].as<double>();
+
     // params["solution_type"].set(planner_sln_recovery_type);
 
-    DEBUG_PRINT
     // Publisher
     _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
     _goal_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/goal_radius", 10, true);
@@ -231,7 +234,6 @@ struct replanner_t
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
 
-    DEBUG_PRINT
     init_planner_spec(nh);
     init_planner_query();
     init_heuristic_map();
@@ -263,8 +265,6 @@ struct replanner_t
 
   ~replanner_t()
   {
-    PRINT_MSG("Shutting down replanner...");
-    _replanning_service.shutdown();
   }
 
   static void create_parameter_files(ros::NodeHandle& nh)
@@ -502,7 +502,7 @@ struct replanner_t
     {
       const ros::Time start_plan_stamp{ ros::Time::now() };
       const ros::Duration dt_available{ request.deadline - start_plan_stamp };
-      const double time_limit{ std::max(dt_available.toSec() * _postprocess_timeout, 0.0) };
+      const double time_limit{ std::max(dt_available.toSec() * _postprocess_rate, 0.0) };
 
       LOG_VARS(request.deadline, dt_available, time_limit);
 
@@ -511,9 +511,16 @@ struct replanner_t
     prx_throw("Unknown condition check")
   }
 
+  void shutdown()
+  {
+    PRINT_MSG("Shutting down replanner...");
+    std::scoped_lock lock(_service_mutex);
+    _replanning_service.shutdown();
+  }
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
+    std::scoped_lock lock(_service_mutex);
     LOG_MSG("START REPLANNING");
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
@@ -540,7 +547,7 @@ struct replanner_t
     const ros::Time start_plan_stamp{ ros::Time::now() };
     const ros::Duration dt_available{ request.deadline - start_plan_stamp };
 
-    double time_limit{ dt_available.toSec() - _postprocess_timeout };
+    // double time_limit{ dt_available.toSec() - _postprocess_timeout };
 
     prx::condition_check_t checker{ create_condition(request) };
 
@@ -626,39 +633,6 @@ struct replanner_t
   }
 };
 
-struct replanner_experiment_t
-{
-  ros::NodeHandle& _nh;
-  std::string planning_model;
-  ros::ServiceServer _experiment_service;
-  bool _new_experiment;
-
-  std::shared_ptr<replanner_t> replanner;  //(nh);
-
-  std::string _lib_path;
-
-  replanner_experiment_t(ros::NodeHandle& nh) : _nh(nh)
-  {
-    _lib_path = prx::lib_path_safe("ML4KP_ROS");
-    // _timer = nh.createTimer(ros::Duration(1.0), &replanner_experiment_t::timer_callback, this);
-  }
-
-  void run()
-  {
-    while (ros::ok())
-    {
-      if (_new_experiment)
-      {
-        replanner.reset();
-        replanner = std::make_shared<replanner_t>(_nh);
-        _new_experiment = false;
-      }
-
-      ros::Duration(1.0).sleep();
-    }
-  }
-};
-
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "MushrPlanner_example");
@@ -682,6 +656,7 @@ int main(int argc, char** argv)
 
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
+    PRINT_MSG("[mushr_replanning_dirt] INIT")
     node_status->status(interface::NodeStatus::INITIALIZING);
 
     replanner_t replanner(nh);
@@ -695,7 +670,10 @@ int main(int argc, char** argv)
       }
       ros::Duration(1.0).sleep();
     }
+    replanner.shutdown();
+    PRINT_MSG("Resetting replanner")
   }
+  PRINT_MSG("[mushr_replanning_dirt] FINISHED")
   // ros::AsyncSpinner spinner(4);
   // spinner.start();
   ros::waitForShutdown();
