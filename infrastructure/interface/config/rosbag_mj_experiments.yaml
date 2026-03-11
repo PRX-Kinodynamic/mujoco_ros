@@ -83,4 +83,7 @@ topics:
     type: "visualization_msgs::Marker"
   - name: "/kraft/solution/trajectory"
     type: "ml4kp_bridge::Trajectory"
-
+  - name: "/kraft/solution/trajectory/viz"
+    type: "visualization_msgs::Marker"
+  - name: "/replanner/stats"
+    type: "prx_models::PlannerStats"

@@ -92,7 +92,7 @@ public:
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
 
-  mushr_stela_t() : Base() {};
+  mushr_stela_t() : Base(){};
 
   mushr_stela_t(ros::NodeHandle& nh)
     : Base(nh, State::Zero(), StateDot::Zero(), Control::Zero(), 0.1, Control::Zero(), Control::Zero())
@@ -600,7 +600,7 @@ public:
     // DEBUG_PRINT
     // DEBUG_VARS(_propagation_factor)
   }
-  ~mushrFG_t() {};
+  ~mushrFG_t(){};
 
   virtual prx::param_loader initialization_parameters() override
   {

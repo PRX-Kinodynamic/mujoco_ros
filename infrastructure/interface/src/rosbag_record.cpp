@@ -53,6 +53,7 @@
 #include "prx_models/MushrControl.h"
 #include "prx_models/MushrObservation.h"
 #include "prx_models/MushrPlan.h"
+#include <prx_models/PlannerStats.h>
 #include <interface/NodeStatus.h>
 #include <interface/PlannerClock.h>
 #include <interface/StelaStatus.h>
@@ -89,6 +90,7 @@ struct ros_qs_types_t
   interface::rosbag_queue_t<prx_models::MushrPlan> prx_mushr_plan_queue;
   interface::rosbag_queue_t<prx_models::MushrControl> prx_mushr_ctrl_queue;
   interface::rosbag_queue_t<prx_models::MushrObservation> prx_mushr_obs_queue;
+  interface::rosbag_queue_t<prx_models::PlannerStats> planner_stats_queue;
 
   interface::rosbag_queue_t<tf2_msgs::TFMessage> tf_queue;
 
@@ -132,6 +134,7 @@ struct ros_qs_types_t
     , prx_mushr_obs_queue("prx_models::MushrObservation")
     , prx_mushr_plan_queue("prx_models::MushrPlan")
     , prx_mushr_ctrl_queue("prx_models::MushrControl")
+    , planner_stats_queue("prx_models::PlannerStats")
     , prx_tree_queue("prx_models::Tree")
     // TF
     , tf_queue("tf2_msgs::TFMessage")
@@ -158,7 +161,7 @@ struct ros_qs_types_t
                                  plan_queue, plan_st_queue, traj_queue, traj_st_queue,               // ml4kp
                                  spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
                                  prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         // prx_models 1
-                                 prx_mushr_obs_queue,                                                // prx_models 2
+                                 prx_mushr_obs_queue, planner_stats_queue,                           // prx_models 2
                                  tf_queue,                                                           // TF
                                  stamped_markers_queue, node_status_queue, planner_clock_queue,      // interface 1
                                  stela_status_queue, ctrls_plot_queue, sensor_data_stamped_queue,    // interface 2
@@ -258,8 +261,8 @@ struct bag_writer_t
 
   bool init_bag()
   {
-    const bool dir_set{ _nh.getParam("/rosbag/directory", rosbag_directory) };
-    const bool prefix_set{ _nh.getParam("/rosbag/prefix", rosbag_prefix) };
+    const bool dir_set{ ros::param::get("/rosbag/directory", rosbag_directory) };
+    const bool prefix_set{ ros::param::get("/rosbag/prefix", rosbag_prefix) };
 
     // DEBUG_VARS(dir_set, prefix_set)
     if (dir_set and prefix_set)
@@ -268,8 +271,8 @@ struct bag_writer_t
       interface::init_bag(&bag, rosbag_directory, rosbag_prefix + "_" + bn);
       _bag_num++;
 
-      ros::param::del("/rosbag/directory");
-      ros::param::del("/rosbag/prefix");
+      // ros::param::del("/rosbag/directory");
+      // ros::param::del("/rosbag/prefix");
       return true;
     }
     return false;

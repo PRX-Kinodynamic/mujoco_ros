@@ -85,52 +85,56 @@ public:
 protected:
   void init_ml4kp()
   {
-    const std::string plant_name{ _plant_params["name"].as<std::string>() };
-    const std::string plant_path{ _plant_params["path"].as<std::string>() };
-    _plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    // const std::string plant_name{ _plant_params["name"].as<std::string>() };
+    // const std::string plant_path{ _plant_params["path"].as<std::string>() };
+    // _plant = prx::system_factory_t::create_system(plant_name, plant_path);
+    DEBUG_PRINT
+    _world_model.reset();
+    _system_group.reset();
+    _collision_group.reset();
+
+    DEBUG_PRINT
+    _plant = prx::system_factory_t::create_system(_plant_params);
     prx_assert(_plant != nullptr, "Failed to create plant");
-    _plant->init(_plant_params);
+    // _plant->init(_plant_params);
+    std::tie(_world_model, _system_group, _collision_group) = prx::world_model_t::create(_prx_params, _plant);
 
-    prx::obstacle_loader_t obstacles(_prx_params);
-    // auto obstacles = prx::obstacle_loader_t(params);
-
-    std::vector<std::string> obstacle_names{ obstacles.get_names() };
-    std::vector<std::shared_ptr<prx::movable_object_t>> obstacle_list{ obstacles.get_obstacles() };
-
-    _world_model.reset(new prx::world_model_t({ _plant }, { obstacle_list }));
-    _world_model->create_context("planner_context", { plant_name }, { obstacle_names });
-    auto context = _world_model->get_context("planner_context");
-
-    _state_space.reset(context.first->get_state_space());
-    _control_space.reset(context.first->get_control_space());
-    _sensor_space.reset(context.first->get_sensor_space());
+    DEBUG_PRINT
+    // _state_space.reset(_system_group->get_state_space());
+    // DEBUG_PRINT
+    // _control_space.reset(_system_group->get_control_space());
+    // DEBUG_PRINT
+    // _sensor_space.reset(_system_group->get_sensor_space());
     // auto ps = context.first->get_parameter_space();
 
-    _x0 = _state_space->make_point();
-    _u0 = _control_space->make_point();
+    DEBUG_PRINT
+    _x0 = _system_group->get_state_space()->make_point();
+    _u0 = _system_group->get_control_space()->make_point();
 
-    _state_space->copy_to(_x0);
-    _control_space->copy_to(_u0);
+    DEBUG_PRINT
+    _system_group->get_state_space()->copy_to(_x0);
+    _system_group->get_control_space()->copy_to(_u0);
 
-    _system_group = prx::system_group(context);
-    _collision_group = prx::collision_group(context);
+    // _system_group = prx::system_group(context);
+    // _collision_group = prx::collision_group(context);
+    DEBUG_PRINT
 
-    _sensor_msg.raw_sensor_data.resize(_sensor_space->size());
+    _sensor_msg.raw_sensor_data.resize(_system_group->get_sensor_space()->size());
   }
 
   void set_state_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
-    _state_space->copy_from(msg->space_point.point);
+    _system_group->get_state_space()->copy_from(msg->space_point.point);
   }
 
   void control_stamped_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
-    _control_space->copy_from(msg->space_point.point);
+    _system_group->get_control_space()->copy_from(msg->space_point.point);
   }
 
   void control_callback(const ml4kp_bridge::SpacePointConstPtr& msg)
   {
-    _control_space->copy_from(msg->point);
+    _system_group->get_control_space()->copy_from(msg->point);
   }
 
   void step_simulation()
@@ -145,7 +149,7 @@ protected:
       _collision_msg.data = true;
     }
 
-    _sensor_space->copy_to(_sensor_msg.raw_sensor_data);
+    _system_group->get_sensor_space()->copy_to(_sensor_msg.raw_sensor_data);
     _sensor_msg.header.stamp = ros::Time::now();
 
     _sensor_publisher.publish(_sensor_msg);
@@ -155,7 +159,7 @@ protected:
   bool reset_simulation()
   {
     PRINT_MSG("Reseting..")
-    ros::Duration(1.0).sleep();
+    // ros::Duration(1.0).sleep();
 
     std::string environment;
     GLOBAL_PARAM_SETUP_DEFAULT(environment, _environment_file)
@@ -169,15 +173,11 @@ protected:
     }
     if (_environment_file.size() > 0)
     {
-      _state_space->copy_from(_x0);
-      _control_space->copy_from(_u0);
+      _system_group->get_state_space()->copy_from(_x0);
+      _system_group->get_control_space()->copy_from(_u0);
       return true;
     }
     return false;
-    // _state_space->init(_prx_params["state_space"]);
-    // _control_space->init(_prx_params["control_space"]);
-
-    // DEBUG_VARS(*_state_space)
   }
 
   void step_callback(const ros::TimerEvent& event)
@@ -232,7 +232,7 @@ protected:
   std::shared_ptr<prx::system_t> _plant;
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::collision_group_t> _collision_group;
-  std::shared_ptr<prx::space_t> _state_space, _control_space, _sensor_space;
+  // std::shared_ptr<prx::space_t> _state_space, _control_space, _sensor_space;
 
   ros::Timer _step_timer;
 

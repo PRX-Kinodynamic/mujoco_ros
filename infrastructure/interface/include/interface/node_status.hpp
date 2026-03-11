@@ -27,13 +27,13 @@ class node_status_t
     {
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
       _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, false);
-      _timer = nh.createTimer(ros::Rate(2.0), &This::update, this);
+      _timer = nh.createTimer(ros::Rate(1.0), &This::update, this);
       status_change(NodeStatus::TIMEOUT);
     }
     else
     {
       _status_publisher = nh.advertise<interface::NodeStatus>(current_topic, 1, true);
-      _timer = nh.createTimer(ros::Rate(2.0), &This::update, this);
+      _timer = nh.createTimer(ros::Rate(1.0), &This::update, this);
       _status_subscriber = nh.subscribe(change_topic, 1, &This::callback, this);
 
       _status_publisher.publish(_msg);
@@ -78,9 +78,15 @@ public:
   {
     if (_observer)
     {
-      if ((ros::Time::now() - _last_status_stamp).toSec() < 5.0)
+      const double SECONDS{ (ros::Time::now() - _last_status_stamp).toSec() };
+      if (SECONDS > 5.0)
       {
-        status_change(NodeStatus::TIMEOUT);
+        const std::string TIMEOUT_NODE{ _node_id };
+        if (_msg.status != NodeStatus::TIMEOUT)
+        {
+          DEBUG_VARS(TIMEOUT_NODE, SECONDS)
+          status_change(NodeStatus::TIMEOUT);
+        }
       }
     }
     else
@@ -157,6 +163,25 @@ public:
     return ost;
   }
 
+  inline void request_and_wait(const StatusType status)
+  {
+    if (_observer)
+    {
+      _msg_req.status = status;
+      _change_publisher.publish(_msg_req);
+
+      while (_msg.status != status)
+      {
+        const std::string WAITING_NODE{ _node_id };
+        DEBUG_VARS(WAITING_NODE)
+        ros::Duration(1.0).sleep();
+      }
+    }
+    else
+    {
+      ROS_WARN("[node_status_t] Request change status on remote node while not being observer");
+    }
+  }
   inline void request_status(const StatusType status)
   {
     if (_observer)

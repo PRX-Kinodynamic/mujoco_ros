@@ -36,7 +36,7 @@ public:
   // using Element = std::tuple<ros::Time, typename Msg::ConstPtr>;
   using TupleQueue = std::queue<Element>;
 
-  rosbag_queue_t(const std::string type) : _expected_type(type), _t0(ros::Time::now()){};
+  rosbag_queue_t(const std::string type) : _expected_type(type), _t0(ros::Time::now()) {};
 
   // queued_callback_t() : _t0(ros::Time::now()){};
   // queued_callback_t(const std::string topic_name) : _topic_name(topic_name), _t0(ros::Time::now())
@@ -61,7 +61,7 @@ public:
   }
   void reset()
   {
-    PRINT_MSG("[rosbag_queue_t] RESETTING");
+    // PRINT_MSG("[rosbag_queue_t] RESETTING");
     _queue_mutex.lock();
     _total_msgs = 0;
     _t0 = ros::Time::now();
