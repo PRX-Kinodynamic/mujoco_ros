@@ -168,12 +168,12 @@ public:
     if (_observer)
     {
       _msg_req.status = status;
-      _change_publisher.publish(_msg_req);
 
       while (_msg.status != status)
       {
         const std::string WAITING_NODE{ _node_id };
         DEBUG_VARS(WAITING_NODE)
+        _change_publisher.publish(_msg_req);
         ros::Duration(1.0).sleep();
       }
     }
