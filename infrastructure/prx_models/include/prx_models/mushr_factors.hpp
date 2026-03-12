@@ -821,7 +821,7 @@ public:
     {
       *Hdt = xd1_H_xd1Adj * xd1Adj_H_xd1Z * xd1Zero_H_dt  // no-lint
              + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_Vcurr * VCurr_H_xd1Zero * xd1Zero_H_dt;
-      *Hdt += Eigen::Matrix<double, 3, 1>(0.01, 0.01, 0.01);
+      // *Hdt += Eigen::Matrix<double, 3, 1>(0.01, 0.01, 0.01);
     }
     if (Hu)
     {
@@ -835,7 +835,16 @@ public:
           (xd1_H_xd1Adj * xd1Adj_H_Tbeta * Tb_H_beta  // no-lint
            + xd1_H_wNew * wNew_H_thdCurr * thdCurr_H_omega * omega_H_beta) *
           beta_H_delta * delta_H_deltaIn;  // no-lint
-      *Hu += Eigen::Matrix<double, 3, 2>::Identity() * 0.01;
+                                           // *Hu += Eigen::Matrix<double, 3, 2>::Identity() * 0.01;
+      // DEBUG_VARS(xd1_H_xd1Adj)
+      // DEBUG_VARS(xd1Adj_H_Tbeta)
+      // DEBUG_VARS(Tb_H_beta)
+      // DEBUG_VARS(xd1_H_wNew)
+      // DEBUG_VARS(wNew_H_thdCurr)
+      // DEBUG_VARS(thdCurr_H_omega)
+      // DEBUG_VARS(omega_H_beta)
+      // DEBUG_VARS(beta_H_delta)
+      // DEBUG_VARS(delta_H_deltaIn)
     }
     if (Hparams)
     {
