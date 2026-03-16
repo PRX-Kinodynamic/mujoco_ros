@@ -118,7 +118,7 @@ struct replanner_t
   interface::ReplannerStatus _status;
 
   std::shared_ptr<prx::trajectory_t> _step_traj;
-  std::shared_ptr<prx::plan_t> _step_plan, _rest_of_plan;
+  std::shared_ptr<prx::plan_t> _step_plan, _rest_of_plan, _retained_plan;
 
   ros::Time _preprocess_end_time, _query_fulfill_start_time;
 
@@ -352,6 +352,7 @@ struct replanner_t
 
     _step_plan = std::make_shared<prx::plan_t>(_control_space);
     _rest_of_plan = std::make_shared<prx::plan_t>(_control_space);
+    _retained_plan = std::make_shared<prx::plan_t>(_control_space);
     _step_traj = std::make_shared<prx::trajectory_t>(_state_space);
 
     _future_state = _state_space->make_point();
@@ -517,6 +518,17 @@ struct replanner_t
     std::scoped_lock lock(_service_mutex);
     _replanning_service.shutdown();
   }
+
+  void plan_retainment(prx_models::StelaKraft::Request& request)
+  {
+    if (request.retain_plan)
+    {
+      const double plan_duration{ _retained_plan->duration() };
+      const double plan_offset{ request.retianment_offset.toSec() };
+      _retained_plan->copy_to(plan_offset, plan_duration, _dirt_query->retained_plan);
+      _dirt_query->retainment = true;
+    }
+  }
   // void replan()
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
@@ -582,6 +594,8 @@ struct replanner_t
       const double traj_duration{ _dirt_query->solution_traj.duration() };
       ml4kp_bridge::copy(_traj_msg, _dirt_query->solution_traj);
 
+      _dirt_query->solution_plan.copy_to(0, plan_duration, *_retained_plan);
+
       // if (_mode == planning_mode_t::REPLANNING)
       // {
       // plan_to_file(_dirt_query->solution_plan);
@@ -638,13 +652,10 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "MushrPlanner_example");
   ros::NodeHandle nh("~");
 
-  DEBUG_PRINT
   replanner_t::create_parameter_files(nh);
 
-  DEBUG_PRINT
   std::string experiments_node_id;
   PARAM_SETUP(nh, experiments_node_id)
-  DEBUG_PRINT
 
   std::shared_ptr<interface::node_status_t> node_status;
   std::shared_ptr<interface::node_status_t> experiments_node_status;
