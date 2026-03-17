@@ -16,6 +16,8 @@ float32 first_solution_time
 int64 first_solution_iterations
 
 ## Dirt-Specific
+float32 best_f_value 
+
 int32 random_g_rejected       # [Random] New nodes not added due to g(new_node) > g(current_sln)
 int32 random_prunning         # [Random] New nodes not added due to dirt-pruning (using dir_radius)
 int32 random_collision_check  # [Random] New nodes not added due to being in collision

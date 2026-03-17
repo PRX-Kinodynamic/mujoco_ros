@@ -429,10 +429,16 @@ struct replanner_t
       return _heuristic_map->get_cost(s);
     };
 
+    std::ofstream h_ofs(dbg::variables::lib_path + "/logs/h_" + _env_params["environment/name"].as<>() + ".txt");
+    _heuristic_map->to_csv(h_ofs);
+    h_ofs.close();
     // int row = (0.0 - (-1.0)) / 0.01 = 100
     // int col = (1.0 - (-0.5)) / 0.01 = 150
     _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
-      return _heuristic_map->get_cost(curr) / 0.3;
+      const double h{ _heuristic_map->get_cost(curr) / 0.3 };
+      // if (h < 100)
+      //   LOG_FILE_VARS(h_ofs, Vec(curr).transpose(), h);
+      return h;
       // return _dirt_spec->distance_function(s, s2) / 0.62;
       // return _dirt_spec->distance_function(s, s2) / 0.62;
       // return 0.0;
@@ -464,7 +470,7 @@ struct replanner_t
       // const mushr_types::State::type between{ goal_state->between() };
       const prx_models::mushr_types::State::type between{ xi.between(xg) };
       const Eigen::Vector3d error{ prx_models::mushr_types::State::type::Logmap(between) };
-      return error.norm() < _dirt_query->goal_region_radius;
+      return error.head(2).norm() < _dirt_query->goal_region_radius;
     };
     // _dirt_query->start_state = _state_space->make_point(plant_params["/start_state"]);
     // _dirt_query->goal_state = _state_space->make_point(params["/goal/state"]);
@@ -525,7 +531,10 @@ struct replanner_t
     {
       const double plan_duration{ _retained_plan->duration() };
       const double plan_offset{ request.retianment_offset.toSec() };
-      _retained_plan->copy_to(plan_offset, plan_duration, _dirt_query->retained_plan);
+      const double offset_to_retain{ std::min(plan_duration, plan_offset) };
+      DEBUG_VARS(plan_duration, plan_offset, offset_to_retain)
+      _dirt_query->retained_plan.clear();
+      _retained_plan->copy_to(offset_to_retain, plan_duration, _dirt_query->retained_plan);
       _dirt_query->retainment = true;
     }
   }
@@ -538,6 +547,8 @@ struct replanner_t
 
     LOG_MSG("PREPROCESSING");
     change_status(interface::ReplannerStatus::PREPROCESSING);
+
+    plan_retainment(request);
 
     // _dirt_spec->planning_cycle_duration = 1.0;  // TODO: Is this necessary?
 
@@ -590,6 +601,7 @@ struct replanner_t
     {
       _step_plan->clear();
       _rest_of_plan->clear();
+      _retained_plan->clear();
       const double plan_duration{ _dirt_query->solution_plan.duration() };
       const double traj_duration{ _dirt_query->solution_traj.duration() };
       ml4kp_bridge::copy(_traj_msg, _dirt_query->solution_traj);

@@ -38,6 +38,9 @@ inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& 
   req.solution_duration = ros::Duration(params["solution_duration"].as<double>());
   req.iterations = params["iterations"].as<int>();
   req.deadline = ros::Time::ZERO;  // This needs to be changed before sending the req.
+
+  req.retain_plan = params["retain/plan"].as<bool>();
+  req.retianment_offset = ros::Duration(params["retain/offset"].as<double>());
   // if (params.exists("goal"))
   // {
   //   req.radius = params["goal/radius"].as<double>();

@@ -37,6 +37,7 @@ void copy(PlannerStats& msg, const prx::dirt_replan_t::statistics_t& stats)
 {
   copy(msg, static_cast<prx::planner_t::statistics_t>(stats));
 
+  msg.best_f_value = stats.best_f_value;
   msg.random_g_rejected = stats.random_edges_counter.g_rejected;
   msg.random_prunning = stats.random_edges_counter.pruning;
   msg.random_collision_check = stats.random_edges_counter.collision_check;
@@ -68,6 +69,8 @@ inline std::string header(const prx_models::PlannerStats stats)
   strstr << "first_solution_time ";
   strstr << "first_solution_iterations ";
 
+  strstr << "best_f_value ";
+
   strstr << "random_g_rejected ";
   strstr << "random_prunning ";
   strstr << "random_collision_check ";
@@ -97,6 +100,8 @@ inline void to_stream(std::ofstream& ofs, const prx_models::PlannerStats& stats)
   ofs << stats.first_solution_cost << " ";
   ofs << stats.first_solution_time << " ";
   ofs << stats.first_solution_iterations << " ";
+
+  ofs << stats.best_f_value << " ";
 
   ofs << stats.random_g_rejected << " ";
   ofs << stats.random_prunning << " ";

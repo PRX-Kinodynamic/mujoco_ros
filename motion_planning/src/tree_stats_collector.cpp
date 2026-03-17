@@ -117,6 +117,7 @@ struct collector_t
       }
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
+        PRINT_MSG("[TreeStatsCollector] Resetting...")
         return;
       }
       else if (_node_status->status() == interface::NodeStatus::WAITING)

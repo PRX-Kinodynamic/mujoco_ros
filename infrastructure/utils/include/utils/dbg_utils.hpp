@@ -170,24 +170,26 @@ inline void print_variables(std::ostream& stream, bool color, std::string name, 
 }
 
 template <class... Vars>
-inline void log_variables(const std::string fn_name, const std::string name, Vars... vars)
+inline void log_variables(std::ofstream& ofs, const bool time_log, const std::string fn_name, const std::string name,
+                          Vars... vars)
 {
-  using dbg::variables::ofs_log;
-  if (not ofs_log.is_open())
+  // using dbg::variables::ofs_log;
+  if (not ofs.is_open())
   {
     const std::string log_filename{ dbg::variables::lib_path + dbg::variables::log_filename };
-    ofs_log.open(log_filename);
+    ofs.open(log_filename);
 
-    prx_assert(ofs_log.is_open(), "[log_variables] couldn't open log file: " << log_filename);
+    prx_assert(ofs.is_open(), "[log_variables] couldn't open log file: " << log_filename);
 
     const std::string msg{ "Log set to: " + log_filename };
     dbg::print_variables(std::cout, true, "msg", msg);
   }
   std::streambuf* coutbuf = std::cout.rdbuf();  // save old buf
-  std::cout.rdbuf(ofs_log.rdbuf());             // redirect std::cout to out.txt!
+  std::cout.rdbuf(ofs.rdbuf());                 // redirect std::cout to out.txt!
 
-  ofs_log << "[ " << fn_name << " " << ros::Time::now() << " ] ";
-  dbg::print_variables(ofs_log, false, name, vars...);
+  if (time_log)
+    ofs << "[ " << fn_name << " " << ros::Time::now() << " ] ";
+  dbg::print_variables(ofs, false, name, vars...);
   std::cout.rdbuf(coutbuf);
 }
 
@@ -240,7 +242,8 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
 #define LOG_FILENAME(FILENAME) dbg::set_log_filename(FILENAME);
 
 #define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
-#define LOG_VARS(...) dbg::log_variables(__FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
+#define LOG_VARS(...) dbg::log_variables(dbg::variables::ofs_log, true, __FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
+#define LOG_FILE_VARS(OFS, ...) dbg::log_variables(OFS, false, "", #__VA_ARGS__, __VA_ARGS__);
 #define ERROR_VARS(...)                                                                                                \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
@@ -306,7 +309,7 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
 #define LOG_KEY(KEY)                                                                                                   \
   {                                                                                                                    \
     const std::string _key{ SF::formatter(KEY) };                                                                      \
-    dbg::log_variables(__FUNCTION__, #KEY, _key);                                                                      \
+    dbg::log_variables(dbg::variables::ofs_log, true, __FUNCTION__, #KEY, _key);                                       \
   };
 #define LOG_KEYS(...) dbg::print_keys(__FUNCTION__, dbg::variables::ofs_log, __VA_ARGS__);
 // void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
