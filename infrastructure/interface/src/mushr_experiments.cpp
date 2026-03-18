@@ -32,14 +32,14 @@ struct runner_t
   State _state, _goal;
   double _goal_radius, _timeout;
 
-  bool _collision, _goal_reached, _initializing;
+  bool _collision, _goal_reached, _initializing, _recording;
   std::shared_ptr<interface::node_status_t> _mj_status, _stela_status, _rosbag_status, _replanner_status;
 
   std::vector<std::shared_ptr<interface::node_status_t>> _all_ns;
 
   std::ofstream _ofs;
   std::ofstream _ofs_planner;
-  ros::WallTime _start;
+  ros::Time _start;
   std::string _file_prefix;
 
   int _curr_experiment, _total_experiments, _experiment_num;
@@ -53,6 +53,7 @@ struct runner_t
     : _collision(false)
     , _goal_reached(false)
     , _initializing(true)
+    , _recording(false)
     , _curr_experiment(0)
     , _error(10, 10, 10)
     , _nh(nh)
@@ -85,12 +86,6 @@ struct runner_t
 
     _all_ns = { _mj_status, _stela_status, _rosbag_status, _replanner_status };
 
-    _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
-    _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
-    _planner_stats_subscriber = nh.subscribe(planner_stats_topic_name, 1, &runner_t::planner_stats_callback, this);
-
-    _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
-    _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
     init_experiment();
 
     // _stela_status->request_status(interface::NodeStatus::FINISH);
@@ -98,19 +93,22 @@ struct runner_t
 
     _mj_status->request_status(interface::NodeStatus::RESET);
     ros::Duration(1.0).sleep();
+
+    _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
+    _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
+    _planner_stats_subscriber = nh.subscribe(planner_stats_topic_name, 1, &runner_t::planner_stats_callback, this);
+
+    _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
+    _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
   }
 
   ~runner_t()
   {
     PRINT_MSG("finishing and waiting...");
     ros::param::del("/environment");
-    DEBUG_PRINT
     _stela_status->request_and_wait(interface::NodeStatus::FINISH);
-    DEBUG_PRINT
     _replanner_status->request_and_wait(interface::NodeStatus::FINISH);
-    DEBUG_PRINT
     _rosbag_status->request_and_wait(interface::NodeStatus::FINISH);
-    DEBUG_PRINT
   }
 
   void init_experiment()
@@ -146,12 +144,14 @@ struct runner_t
     const std::string timestamp{ utils::timestamp() };
     _ofs.open(rosbag_directory + "/data_" + timestamp + ".txt");
     _ofs_planner.open(rosbag_directory + "/planner_data_" + timestamp + ".txt");
+
+    ros::Duration(2.0).sleep();
     // return true;
   }
 
   void verbose_timer_callback(const ros::TimerEvent& event)
   {
-    const double time_spent{ (ros::WallTime::now() - _start).toSec() };
+    const double time_spent{ (ros::Time::now() - _start).toSec() };
     const double& timeout{ _timeout };
     const auto goal_error = _error.transpose();
     DEBUG_VARS(time_spent, timeout, goal_error);
@@ -159,9 +159,13 @@ struct runner_t
 
   void timer_callback(const ros::TimerEvent& event)
   {
-    const ros::WallTime now(ros::WallTime::now());
+    const ros::Time now(ros::Time::now());
 
-    if (_initializing)  // Start
+    if (_recording)
+    {
+      PRINT_MSG("Recording... ");
+    }
+    else if (_initializing)  // Start
     {
       // _node_status->status(interface::NodeStatus::INITIALIZING);
       DEBUG_VARS(*_mj_status, *_stela_status, *_rosbag_status, *_replanner_status)
@@ -172,8 +176,11 @@ struct runner_t
       {
         // _rosbag_status->status() == interface::NodeStatus::RUNNING and
         PRINT_MSG("ALL RUNNING ");
+        _start = ros::Time::now();
         _rosbag_status->request_status(interface::NodeStatus::RUNNING);
         _initializing = false;
+        _goal_reached = false;
+        _collision = false;
       }
       else if (_mj_status->status() == interface::NodeStatus::RUNNING and
                _rosbag_status->status() == interface::NodeStatus::READY)
@@ -181,11 +188,11 @@ struct runner_t
         // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
         _stela_status->request_status(interface::NodeStatus::RUNNING);
         _replanner_status->request_status(interface::NodeStatus::RUNNING);
-        _start = ros::WallTime::now();
+        _start = ros::Time::now();
       }
       else
       {
-        _start = ros::WallTime::now();
+        _start = ros::Time::now();
         _mj_status->request_status(interface::NodeStatus::RESET);
         // _rosbag_status->request_status(interface::NodeStatus::RUNNING);
         ros::Duration(1.0).sleep();
@@ -226,7 +233,10 @@ struct runner_t
 
   void record(const std::string reason)
   {
-    const double dt{ (ros::WallTime::now() - _start).toSec() };
+    _recording = true;
+    _goal_reached = false;
+    _collision = false;
+    const double dt{ (ros::Time::now() - _start).toSec() };
     _ofs << dt << " ";
     _ofs << reason << " ";
     _ofs << _state[0] << " ";
@@ -237,22 +247,10 @@ struct runner_t
     const std::string msg{ "[Mushr Experiment]" };
     DEBUG_VARS(msg, reason, _curr_experiment, _total_experiments);
 
-    // if (_curr_experiment == _total_experiments)
-    // {
-    // _node_status->status(interface::NodeStatus::FINISH);
-    // _ofs.close();
-    // for (auto stat : _all_ns)
-    // {
-    //   stat->request_status(interface::NodeStatus::FINISH);
-    // }
-    // ros::Duration(5.).sleep();
-    // ~runner_t();
-    // ros::shutdown();
-    // }
-    // _node_status->status(interface::NodeStatus::RESET);
     call_reset();
     ros::Duration(5.).sleep();  // sleep for resets to happen
     _curr_experiment++;
+    _recording = false;
     _initializing = true;
   }
 
@@ -260,7 +258,7 @@ struct runner_t
   {
     while (_curr_experiment < _total_experiments)
     {
-      DEBUG_VARS(_curr_experiment, _total_experiments)
+      DEBUG_VARS(_recording, _initializing, _goal_reached, _curr_experiment, _total_experiments)
       ros::Duration(1.).sleep();
     }
     PRINT_MSG("Experiments done!");
@@ -278,11 +276,17 @@ struct runner_t
 
   void collision_callback(const std_msgs::BoolConstPtr msg)
   {
+    if (_recording or _initializing)
+      return;
     _collision = msg->data;
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
+    if (_recording or _initializing)
+      return;
+    if (msg->header.stamp < _start)
+      return;
     const std::vector<double>& zi{ msg->raw_sensor_data };
     const Eigen::Quaterniond q{ Eigen::Quaterniond(zi[3], zi[4], zi[5], zi[6]) };
     _state[0] = zi[0];
@@ -293,7 +297,7 @@ struct runner_t
     {
       const State between{ _state.between(_goal) };
       _error = State::Logmap(between);
-      _goal_reached = _error.norm() < _goal_radius;
+      _goal_reached = _error.head(2).norm() < _goal_radius;
     }
   }
 };

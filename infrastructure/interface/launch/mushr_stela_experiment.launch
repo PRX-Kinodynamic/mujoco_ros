@@ -43,7 +43,7 @@
 
   <!-- <include file="$(find task_planning)/launch/fix_plan.launch"/> -->
   
-  <node pkg="interface" type="rosbag_record" name="rosbag_record" output="screen">
+  <node pkg="interface" type="rosbag_record" name="rosbag_record" output="log">
       <rosparam command="load" file="$(find interface)/config/rosbag_mj_experiments.yaml" />
       <param name="node_id" value="rosbag_recorder"/>
       <param name="verbose" value="true"/>

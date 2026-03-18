@@ -190,7 +190,7 @@ struct ros_qs_types_t
 
       bool registred{ register_topic_impl(qs, topic_name, topic_type, nh, std::make_index_sequence<qs_size>{}) };
 
-      DEBUG_VARS(topic_name, registred)
+      // DEBUG_VARS(topic_name, registred)
       prx_assert(registred, "Topic not supported: " << topic_name)
       // std::cout << "Unsupported topic '" << topic_name << "' type: " << topic_type << std::endl;
     }
