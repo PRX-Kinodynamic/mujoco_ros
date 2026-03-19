@@ -81,29 +81,33 @@ struct runner_t
 
     // _experiments_reader = std::make_shared<prx::utilities::csv_reader_t>(experiments_file);
 
-    DEBUG_VARS(stela_node_id, mj_node_id, rosbag_node_id)
+    DEBUG_VARS(stela_node_id, mj_node_id, rosbag_node_id, replanner_node_id)
 
     _mj_status = interface::node_status_t::create(nh, mj_node_id, true);
     _stela_status = interface::node_status_t::create(nh, stela_node_id, true);
     _rosbag_status = interface::node_status_t::create(nh, rosbag_node_id, true);
     _replanner_status = interface::node_status_t::create(nh, replanner_node_id, true);
 
-    _all_ns = { _mj_status, _stela_status, _rosbag_status, _replanner_status };
+    _all_ns = { _stela_status, _rosbag_status, _replanner_status, _mj_status };
 
+    PRINT_MSG("init_experiment")
     init_experiment();
 
-    // _stela_status->request_status(interface::NodeStatus::FINISH);
-    // _replanner_status->request_status(interface::NodeStatus::FINISH);
+    DEBUG_PRINT
 
-    _mj_status->request_status(interface::NodeStatus::RESET);
+    _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
     ros::Duration(1.0).sleep();
 
+    DEBUG_PRINT
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
     _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
     _planner_stats_subscriber = nh.subscribe(planner_stats_topic_name, 1, &runner_t::planner_stats_callback, this);
 
+    DEBUG_PRINT
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
     _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
+
+    DEBUG_PRINT
     _node_status->status(interface::NodeStatus::RUNNING, _node_status->sequence_id() + 1);
   }
 
@@ -118,14 +122,6 @@ struct runner_t
 
   void init_experiment()
   {
-    // auto exp_iter = experiment_params["/experiments"].begin();  ///.begin() + _exp_num;
-    // // exp_i = *(exp_i.begin() + _curr_experiment);
-    // std::advance(exp_iter, experiment_num);
-    // if (exp_iter != experiment_params["/experiments"].end())
-    // {
-    //   env_params = *exp_iter;
-    //   return true;
-    // prx::param_loader param = *exp_iter;
     std::vector<double> next_goal{ _env_params["goal/state"].as<std::vector<double>>() };
     _goal[0] = next_goal[0];
     _goal[1] = next_goal[1];
@@ -173,37 +169,47 @@ struct runner_t
     else if (_initializing)  // Start
     {
       // _node_status->status(interface::NodeStatus::INITIALIZING);
-      DEBUG_VARS(*_mj_status, *_stela_status, *_rosbag_status, *_replanner_status)
-      int tot_running{ 0 };
+      DEBUG_VARS(_mj_status, _stela_status, _rosbag_status, _replanner_status)
+      // int tot_running{ 0 };
+      _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
+      ros::Duration(1.0).sleep();
 
-      if (_mj_status->check(_node_status) and     // no-lint
-          _stela_status->check(_node_status) and  // no-lint
-          _replanner_status->check(_node_status))
-      {
-        // _rosbag_status->status() == interface::NodeStatus::RUNNING and
-        PRINT_MSG("ALL RUNNING ");
-        _start = ros::Time::now();
-        _rosbag_status->request_status(interface::NodeStatus::RUNNING);
-        _initializing = false;
-        _goal_reached = false;
-        _collision = false;
-      }
-      else if (_mj_status->check(_node_status) and  // no-lint
-               _rosbag_status->check(interface::NodeStatus::READY, _node_status->sequence_id()))
-      {
-        // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
-        _stela_status->request_status(interface::NodeStatus::RUNNING);
-        _replanner_status->request_status(interface::NodeStatus::RUNNING);
-        _start = ros::Time::now();
-      }
-      else
-      {
-        _start = ros::Time::now();
-        _mj_status->request_status(interface::NodeStatus::RESET);
-        // _rosbag_status->request_status(interface::NodeStatus::RUNNING);
-        ros::Duration(1.0).sleep();
-        // _stela_status->request_status(interface::NodeStatus::RUNNING);
-      }
+      _mj_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      _replanner_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      _stela_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      _rosbag_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      PRINT_MSG("ALL RUNNING ");
+      _initializing = false;
+      _goal_reached = false;
+      _collision = false;
+      _start = ros::Time::now();
+
+      // if (_mj_status->check(_node_status) and     // no-lint
+      //     _stela_status->check(_node_status) and  // no-lint
+      //     _replanner_status->check(_node_status))
+      // {
+      //   // _rosbag_status->status() == interface::NodeStatus::RUNNING and
+      //   PRINT_MSG("ALL RUNNING ");
+      //   _start = ros::Time::now();
+      //   _rosbag_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      //   _initializing = false;
+      //   _goal_reached = false;
+      //   _collision = false;
+      // }
+      // else if (_mj_status->check(interface::NodeStatus::RUNNING, _node_status->sequence_id()) and  // no-lint
+      //          _rosbag_status->check(interface::NodeStatus::READY, _node_status->sequence_id()))
+      // {
+      //   // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
+      //   _stela_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      //   _replanner_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+      //   _start = ros::Time::now();
+      // }
+      // else
+      // {
+      //   _start = ros::Time::now();
+      //   _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
+      //   ros::Duration(1.0).sleep();
+      // }
     }
     else if (_collision)  // Collision detected
     {
@@ -223,7 +229,7 @@ struct runner_t
     {
       if (_stela_status->status() != interface::NodeStatus::RUNNING)
       {
-        _stela_status->request_status(interface::NodeStatus::RUNNING);
+        _stela_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
       }
       // _node_status->status(interface::NodeStatus::RUNNING);
     }
@@ -233,7 +239,7 @@ struct runner_t
   {
     for (auto stat : _all_ns)
     {
-      stat->request_status(interface::NodeStatus::RESET);
+      stat->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
     }
   }
 

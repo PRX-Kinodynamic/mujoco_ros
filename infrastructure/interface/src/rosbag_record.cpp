@@ -232,8 +232,14 @@ struct bag_writer_t
   ros_qs_types_t _qs;
   ros::NodeHandle _nh;
 
-  bag_writer_t(ros::NodeHandle& nh)
-    : rosbag_directory(""), rosbag_prefix(""), _bag_num(0), _first(true), _verbose(false), _nh(nh)
+  bag_writer_t(ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status)
+    : rosbag_directory("")
+    , rosbag_prefix("")
+    , _bag_num(0)
+    , _first(true)
+    , _verbose(false)
+    , _nh(nh)
+    , _node_status(node_status)
   {
     bool& verbose{ _verbose };
     PARAM_SETUP(nh, topics);
@@ -241,7 +247,6 @@ struct bag_writer_t
     // PARAM_SETUP_WITH_DEFAULT(nh, rosbag_prefix, rosbag_prefix);
     PARAM_SETUP_WITH_DEFAULT(nh, verbose, verbose);
 
-    _node_status = interface::node_status_t::create(nh);
     _qs.register_topics(nh, topics);
     pause_queues(true);
 
@@ -453,45 +458,6 @@ struct bag_writer_t
     const std::size_t msgs_left{ process_all_queues(qs, std::make_index_sequence<qs_size>{}) };
     return msgs_left;
   }
-
-  // void bag_write()
-  // {
-  //   interface::init_bag(&bag, rosbag_directory, rosbag_prefix);
-
-  //   ros::Time msg_t;
-
-  //   std::size_t msgs_left{ 0 };
-
-  //   while (msgs_left > 0)
-  //   {
-  //     auto qs = _qs.all_qs();
-  //     const std::size_t qs_size{ std::tuple_size_v<decltype(qs)> };
-  //     // auto seq = std::make_index_sequence<qs_size>{};
-  //     msgs_left = process_all_queues(qs, std::make_index_sequence<qs_size>{});
-  //     // msgs_left = std::apply(&process_all_queues, all_qs());
-  //     // msgs_left = process_all_queues(bag,                                                    // no-lint
-  //     //                                float64_queue, string_queue, int32_queue, bool_queue,   // std_msgs
-  //     //                                ackermann_drive_stamped_queue,                          // ackermann
-  //     //                                image_queue, imu_queue, cam_info_queue,                 // Sensor::msgs
-  //     //                                twist_stamped_queue, pose2d_queue, pose_stamped_queue,  // geometry_msgs
-  //     //                                plan_queue, plan_st_queue, traj_queue, traj_st_queue,   // ml4kp
-  //     //                                spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
-  //     //                                prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         //
-  //     //                                prx_models 1 prx_mushr_obs_queue, // prx_models 2 tf_queue, // TF
-  //     //                                stamped_markers_queue, node_status_queue, planner_clock_queue,      //
-  //     interface
-  //     //                                1 stela_status_queue, ctrls_plot_queue, sensor_data_stamped_queue,    //
-  //     //                                interface 2 marker_queue, marker_array_queue // vis_msgs
-  //     // );
-  //     if (stop)
-  //     {
-  //       ROS_INFO_STREAM_ONCE("Remaining messages: " << msgs_left);
-  //     }
-  //   }
-
-  //   bag.close();
-  //   ROS_INFO_STREAM("Rosbag closed.");
-  // }
 };
 int main(int argc, char** argv)
 {
@@ -506,12 +472,15 @@ int main(int argc, char** argv)
   std::shared_ptr<interface::node_status_t> experiments_node_status;
   experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
 
+  std::shared_ptr<interface::node_status_t> node_status{ interface::node_status_t::create(nh) };
+
   ros::AsyncSpinner spinner(4);
   spinner.start();
 
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
-    bag_writer_t bag_writter(nh);
+    node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
+    bag_writer_t bag_writter(nh, node_status);
     bag_writter.run();
   }
   ros::waitForShutdown();

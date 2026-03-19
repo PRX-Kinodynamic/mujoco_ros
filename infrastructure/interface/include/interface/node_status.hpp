@@ -120,10 +120,10 @@ public:
     }
   }
 
-  friend std::ostream& operator<<(std::ostream& ost, const node_status_t& obj)
+  static std::string status_to_string(const StatusType status)
   {
     std::string str;
-    switch (obj._msg.status)
+    switch (status)
     {
       case NodeStatus::INITIALIZING:
         str = "INITIALIZING";
@@ -155,10 +155,21 @@ public:
       default:
         prx_throw("[node_status_t] Status unknown");
     }
+    return str;
+  }
+
+  friend std::ostream& operator<<(std::ostream& ost, const node_status_t& obj)
+  {
+    const std::string str{ status_to_string(obj._msg.status) };
     ost << "[" << obj._node_id << "]: " << str << " " << obj._msg.sequence_id;
     return ost;
   }
 
+  friend std::ostream& operator<<(std::ostream& ost, const node_status_t* obj)
+  {
+    ost << *obj;
+    return ost;
+  }
   friend std::ostream& operator<<(std::ostream& ost, const std::shared_ptr<node_status_t>& obj)
   {
     ost << *obj;
@@ -167,14 +178,20 @@ public:
 
   inline void request_and_wait(const StatusType status)
   {
+  }
+  inline void request_and_wait(const StatusType status, const int requested_sequence_id)
+  {
     if (_observer)
     {
       _msg_req.status = status;
+      _msg_req.sequence_id = requested_sequence_id;
 
-      while (_msg.status != status)
+      while (_msg.status != status and _msg.sequence_id != requested_sequence_id)
       {
-        const std::string WAITING_NODE{ _node_id };
-        DEBUG_VARS(WAITING_NODE)
+        const std::string requested_status{ status_to_string(status) };
+        const auto WAITING_NODE = this;
+        // const std::string WAITING_NODE{ _node_id };
+        DEBUG_VARS(WAITING_NODE, requested_status, requested_sequence_id)
         _change_publisher.publish(_msg_req);
         ros::Duration(1.0).sleep();
       }
