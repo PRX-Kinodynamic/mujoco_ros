@@ -49,7 +49,10 @@ struct runner_t
 
   prx::param_loader _experiment_params, _env_params;
 
-  runner_t(ros::NodeHandle& nh, prx::param_loader& experiment_params, prx::param_loader& env_params)
+  std::shared_ptr<interface::node_status_t> _node_status;
+
+  runner_t(ros::NodeHandle& nh, prx::param_loader& experiment_params, prx::param_loader& env_params,
+           std::shared_ptr<interface::node_status_t> node_status)
     : _collision(false)
     , _goal_reached(false)
     , _initializing(true)
@@ -59,6 +62,7 @@ struct runner_t
     , _nh(nh)
     , _experiment_params(experiment_params)
     , _env_params(env_params)
+    , _node_status(node_status)
   // , _experiment_num(experiment_num)
   {
     // DEBUG_VARS(param_file)
@@ -100,6 +104,7 @@ struct runner_t
 
     _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
     _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
+    _node_status->status(interface::NodeStatus::RUNNING, _node_status->sequence_id() + 1);
   }
 
   ~runner_t()
@@ -170,9 +175,10 @@ struct runner_t
       // _node_status->status(interface::NodeStatus::INITIALIZING);
       DEBUG_VARS(*_mj_status, *_stela_status, *_rosbag_status, *_replanner_status)
       int tot_running{ 0 };
-      if (_mj_status->status() == interface::NodeStatus::RUNNING and
-          _stela_status->status() == interface::NodeStatus::RUNNING and
-          _replanner_status->status() == interface::NodeStatus::RUNNING)
+
+      if (_mj_status->check(_node_status) and     // no-lint
+          _stela_status->check(_node_status) and  // no-lint
+          _replanner_status->check(_node_status))
       {
         // _rosbag_status->status() == interface::NodeStatus::RUNNING and
         PRINT_MSG("ALL RUNNING ");
@@ -182,8 +188,8 @@ struct runner_t
         _goal_reached = false;
         _collision = false;
       }
-      else if (_mj_status->status() == interface::NodeStatus::RUNNING and
-               _rosbag_status->status() == interface::NodeStatus::READY)
+      else if (_mj_status->check(_node_status) and  // no-lint
+               _rosbag_status->check(interface::NodeStatus::READY, _node_status->sequence_id()))
       {
         // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
         _stela_status->request_status(interface::NodeStatus::RUNNING);
@@ -314,13 +320,13 @@ int main(int argc, char** argv)
   std::string experiments_file;
   PARAM_SETUP(nh, experiments_file)
   prx::utilities::csv_reader_t reader(experiments_file);
-  std::shared_ptr<interface::node_status_t> _node_status{ interface::node_status_t::create(nh) };
+  std::shared_ptr<interface::node_status_t> node_status{ interface::node_status_t::create(nh) };
 
   int experiment_number{ 0 };
   while (reader.has_next_line())
   {
     DEBUG_VARS(experiment_number);
-    _node_status->status(interface::NodeStatus::INITIALIZING);
+    node_status->status(interface::NodeStatus::INITIALIZING);
     auto line = reader.next_line();
     std::string dir{ line[0] };
     const std::string replan_spec_filename{ dir + "/dirt_replan_spec.yaml" };
@@ -355,8 +361,7 @@ int main(int argc, char** argv)
     {
       prx::param_loader exp_param(exp_iter);  // = exp_iter;
       // exp_param = exp_iter;
-      runner_t runner(nh, experiment_params, exp_param);
-      _node_status->status(interface::NodeStatus::RUNNING);
+      runner_t runner(nh, experiment_params, exp_param, node_status);
       runner.run();
       PRINT_MSG("Done?")
     }
@@ -365,7 +370,7 @@ int main(int argc, char** argv)
     // _experiment_params.reset(new prx::param_loader());
     // _experiment_params->from_string(experiment_filename);
   }
-  _node_status->status(interface::NodeStatus::FINISH);
+  node_status->status(interface::NodeStatus::FINISH);
   ros::waitForShutdown();
   spinner.stop();
 

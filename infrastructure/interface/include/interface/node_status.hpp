@@ -228,6 +228,16 @@ public:
     return _msg.sequence_id;
   }
 
+  inline bool check(const std::shared_ptr<node_status_t> node_to_check_against) const
+  {
+    return check(node_to_check_against->status(), node_to_check_against->sequence_id());
+  }
+
+  inline bool check(const StatusType status_to_check, const int sequence_id_to_check) const
+  {
+    return _msg.status == status_to_check and _msg.sequence_id == sequence_id_to_check;
+  }
+
   inline void status(const StatusType new_status, const int new_sequence_id)
   {
     prx_assert(not _observer, "Trying to change status of observer " << *this);
