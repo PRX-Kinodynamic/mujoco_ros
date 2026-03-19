@@ -62,7 +62,8 @@ struct collector_t
   std::shared_ptr<interface::node_status_t> _node_status;
   std::string _prev_stela_kraft_request_params;
 
-  collector_t(ros::NodeHandle& nh) : _prev_stela_kraft_request_params("")
+  collector_t(ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status)
+    : _prev_stela_kraft_request_params(""), _node_status(node_status)
   {
     prx::simulation_step = 0.1;
 
@@ -71,8 +72,6 @@ struct collector_t
     PARAM_SETUP(nh, state_topic);
 
     // _ofs.open(output_file.c_str());
-
-    _node_status = interface::node_status_t::create(nh);
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
@@ -111,7 +110,7 @@ struct collector_t
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
       }
-      if (_node_status->status() == interface::NodeStatus::READY)
+      else if (_node_status->status() == interface::NodeStatus::READY)
       {
         continue;
       }
@@ -227,9 +226,11 @@ int main(int argc, char** argv)
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
+  std::shared_ptr<interface::node_status_t> node_status{ interface::node_status_t::create(nh) };
+
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
-    collector_t collector(nh);
+    collector_t collector(nh, node_status);
     collector.run_experiment();
     ros::Duration(2.0).sleep();
   }
