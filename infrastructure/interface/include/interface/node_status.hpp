@@ -19,6 +19,7 @@ class node_status_t
   {
     _node_id = node_id;
     _msg.status = NodeStatus::INITIALIZING;
+    _msg.sequence_id = 0;
     _new_request = false;
 
     const std::string current_topic{ "/nodes/status/" + node_id + "/current" };
@@ -28,7 +29,7 @@ class node_status_t
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
       _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, false);
       _timer = nh.createTimer(ros::Rate(1.0), &This::update, this);
-      status_change(NodeStatus::TIMEOUT);
+      status_change(NodeStatus::TIMEOUT, 0);
     }
     else
     {
@@ -85,7 +86,7 @@ public:
         if (_msg.status != NodeStatus::TIMEOUT)
         {
           DEBUG_VARS(TIMEOUT_NODE, SECONDS)
-          status_change(NodeStatus::TIMEOUT);
+          status_change(NodeStatus::TIMEOUT, _msg.sequence_id);
         }
       }
     }
@@ -102,7 +103,7 @@ public:
     {
       if (_observer)
       {
-        status_change(msg->status);
+        status_change(msg->status, msg->sequence_id);
         // DEBUG_VARS(*this)
       }
       else
@@ -182,11 +183,18 @@ public:
       ROS_WARN("[node_status_t] Request change status on remote node while not being observer");
     }
   }
+
   inline void request_status(const StatusType status)
+  {
+    request_status(status, _msg.sequence_id);
+  }
+
+  inline void request_status(const StatusType status, const int sequence_id)
   {
     if (_observer)
     {
       _msg_req.status = status;
+      _msg_req.sequence_id = sequence_id;
       _change_publisher.publish(_msg_req);
     }
     else
@@ -215,18 +223,29 @@ public:
     return _msg.status;
   }
 
+  inline int sequence_id() const
+  {
+    return _msg.sequence_id;
+  }
+
+  inline void status(const StatusType new_status, const int new_sequence_id)
+  {
+    prx_assert(not _observer, "Trying to change status of observer " << *this);
+    status_change(new_status, new_sequence_id);
+  }
   inline void status(const StatusType new_status)
   {
-    status_change(new_status);
+    status(new_status, _msg.sequence_id);
   }
 
 private:
-  void status_change(const StatusType new_status)
+  void status_change(const StatusType new_status, const int sequence_id)
   {
     const StatusType current{ _msg.status };
 
     _last_status_stamp = ros::Time::now();
     _msg.status = new_status;
+    _msg.sequence_id = sequence_id;
     if (not _observer)
       _status_publisher.publish(_msg);
   }

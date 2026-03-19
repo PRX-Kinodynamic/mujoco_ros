@@ -9,4 +9,4 @@ uint8 ERROR=100
 uint8 TIMEOUT=200   
 
 uint8 status
-int32 id
+int32 sequence_id
