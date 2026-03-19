@@ -109,6 +109,7 @@ public:
       else
       {
         _requested_status = msg->status;
+        _requested_sequence_id = msg->sequence_id;
         _new_request = true;
       }
       // status_change(msg->status);
@@ -154,7 +155,7 @@ public:
       default:
         prx_throw("[node_status_t] Status unknown");
     }
-    ost << "[" << obj._node_id << "]: " << str;
+    ost << "[" << obj._node_id << "]: " << str << " " << obj._msg.sequence_id;
     return ost;
   }
 
@@ -217,6 +218,10 @@ public:
   {
     return _requested_status;
   }
+  inline int requested_sequence_id() const
+  {
+    return _requested_sequence_id;
+  }
 
   inline StatusType status() const
   {
@@ -233,9 +238,13 @@ public:
     return check(node_to_check_against->status(), node_to_check_against->sequence_id());
   }
 
+  inline bool check(const StatusType status_to_check) const
+  {
+    return check(status_to_check, sequence_id());
+  }
   inline bool check(const StatusType status_to_check, const int sequence_id_to_check) const
   {
-    return _msg.status == status_to_check and _msg.sequence_id == sequence_id_to_check;
+    return status() == status_to_check and sequence_id() == sequence_id_to_check;
   }
 
   inline void status(const StatusType new_status, const int new_sequence_id)
@@ -267,6 +276,7 @@ private:
 
   bool _new_request;
   StatusType _requested_status;
+  int _requested_sequence_id;
 
   bool _observer;  // Monitor another node
 

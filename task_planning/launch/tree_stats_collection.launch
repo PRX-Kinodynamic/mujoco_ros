@@ -58,26 +58,19 @@
           output="screen" respawn="false" >
         <param name="node_id" value="replanner" />
         <param name="experiments_node_id" value="experiment_runner" />
-        <!-- <param name="params_file" value="$(arg params_file)" /> -->
         <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
-        
-        <!-- <param name="preprocess_timeout" value="$(arg preprocess_timeout)" /> -->
         <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
-        <!-- <param name="planning_cycle_duration" value="$(arg planning_cycle_duration)"/> -->
         <param name="planner_stats_topic_name" value="/replanner/stats" />
-
         <param name="estimation_tree_topic" value="/stela/estimation/tree"/>
         <param name="planner_clock_topic" value="/motion_planning/clock"/>
-
         <param name="sbmp_full_tree_topic" value="/mushr/tree"/>
         <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
         <param name="max_edge_duration" value="0.1"/>
-        <!-- <param name="use_contingency" value="$(arg use_contingency)"/> -->
     </node>
 
 
     <node pkg="motion_planning" name="tree_stats_collector" 
-            type="tree_stats_collector" output="screen" respawn="false" >
+            type="tree_stats_collector" output="log" respawn="false" >
         <param name="node_id" value="tree_stats_collector" />
         <param name="experiments_node_id" value="experiment_runner" />
         <param name="state_topic" value="/mushr/set_state" />

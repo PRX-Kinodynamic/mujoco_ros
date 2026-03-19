@@ -107,19 +107,20 @@ struct collector_t
     while (true)
     {
       manage_node_status();
-      if (_node_status->status() == interface::NodeStatus::RUNNING)
+
+      if (_node_status->check(interface::NodeStatus::RUNNING))
       {
       }
-      else if (_node_status->status() == interface::NodeStatus::READY)
+      else if (_node_status->check(interface::NodeStatus::READY))
       {
         continue;
       }
-      else if (_node_status->status() == interface::NodeStatus::RESET)
+      else if (_node_status->check(interface::NodeStatus::RESET))
       {
         PRINT_MSG("[TreeStatsCollector] Resetting...")
         return;
       }
-      else if (_node_status->status() == interface::NodeStatus::WAITING)
+      else if (_node_status->check(interface::NodeStatus::WAITING))
       {
         std::string stela_kraft_request_params;
 
@@ -140,15 +141,22 @@ struct collector_t
         }
         continue;
       }
-      else if (_node_status->status() == interface::NodeStatus::PAUSED)
+      else if (_node_status->check(interface::NodeStatus::PAUSED))
       {
         ros::Duration(1.0).sleep();
         continue;
       }
-      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      else if (_node_status->check(interface::NodeStatus::FINISH))
       {
         return;
       }
+      else
+      {
+        auto invalid_status = *_node_status;
+        DEBUG_VARS(invalid_status)
+        return;
+      }
+      DEBUG_VARS(*_node_status)
 
       // else if (_node_status->status() == interface::NodeStatus::FINISH)
       // {
@@ -161,6 +169,7 @@ struct collector_t
           ros::Time::now() + ros::Duration(_planner_service_call.request.solution_duration);
       // _planner_service_call.request.use_contingency = _use_contingency;
 
+      // DEBUG_VARS(_planner_service_call.request)
       if (_planner_service_client.call(_planner_service_call))
       {
         const bool planner_status{ _planner_service_call.response.planner_output ==
@@ -217,21 +226,32 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
+  DEBUG_PRINT
+
   std::string experiments_node_id;
   PARAM_SETUP(nh, experiments_node_id)
+  DEBUG_PRINT
 
   std::shared_ptr<interface::node_status_t> experiments_node_status;
   experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
+  DEBUG_PRINT
 
   ros::AsyncSpinner spinner(2);
   spinner.start();
+  DEBUG_PRINT
 
   std::shared_ptr<interface::node_status_t> node_status{ interface::node_status_t::create(nh) };
 
+  DEBUG_PRINT
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
+    DEBUG_PRINT
+    node_status->status(interface::NodeStatus::WAITING, experiments_node_status->sequence_id());
+    DEBUG_PRINT
     collector_t collector(nh, node_status);
+    DEBUG_PRINT
     collector.run_experiment();
+    DEBUG_PRINT
     ros::Duration(2.0).sleep();
   }
 

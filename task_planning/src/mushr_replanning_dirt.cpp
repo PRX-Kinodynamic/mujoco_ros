@@ -661,7 +661,7 @@ struct replanner_t
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "MushrPlanner_example");
+  ros::init(argc, argv, "MushrReplannerDirt");
   ros::NodeHandle nh("~");
 
   replanner_t::create_parameter_files(nh);
@@ -680,12 +680,13 @@ int main(int argc, char** argv)
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
     PRINT_MSG("[mushr_replanning_dirt] INIT")
-    node_status->status(interface::NodeStatus::INITIALIZING);
+    node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
 
     replanner_t replanner(nh);
     node_status->status(interface::NodeStatus::RUNNING);
 
-    while (node_status->status() != interface::NodeStatus::FINISH)
+    while (node_status->status() != interface::NodeStatus::FINISH and
+           node_status->sequence_id() == experiments_node_status->sequence_id())
     {
       if (node_status->new_request())
       {
