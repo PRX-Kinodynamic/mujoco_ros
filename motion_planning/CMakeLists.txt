@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 project(motion_planning)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
@@ -35,6 +35,14 @@ else()
   add_definitions(-DTORCH_NOT_BUILT)
 endif()
 
+MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+  MESSAGE(STATUS "Building with debug flags")
+  set(BUILD_FLAGS "-O0 -fno-inline -g")
+  # list(APPEND BUILD_FLAGS "-fsanitize=address")
+  add_definitions(-DDEBUG_BUILD)
+  add_definitions(${BUILD_FLAGS})
+endif()
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -174,7 +182,7 @@ file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
 
 foreach(f ${EXECUTABLE_FILES})
-    MESSAGE("file: ${f}")
+    # MESSAGE("file: ${f}")
     GET_FILENAME_COMPONENT(fname ${f} NAME_WE )
     add_executable(${fname} ${f})
     add_dependencies(${fname}

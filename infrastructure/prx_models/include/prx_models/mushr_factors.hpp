@@ -729,7 +729,7 @@ public:
     // DEBUG_VARS(deltaIn, delta);
     // DEBUG_VARS(Uaccel, AccIn);
     const double Vprev_pos{ xd0.head(2).norm() };
-    const double Vprev{ std::copysign(Vprev_pos, Uaccel) };
+    const double Vprev{ std::copysign(Vprev_pos, xd0[0]) };
     const Eigen::RowVector3d Vprev_H_xd0{ Vprev_pos < 1e-8 ? Eigen::RowVector3d::Zero() :
                                                              Eigen::RowVector3d(xd0[0] / Vprev, xd0[1] / Vprev, 0.0) };
 
@@ -758,7 +758,7 @@ public:
     const Eigen::Vector3d Tbprev_H_bprev{ 0, 0, 1 };
 
     const State Tbpinv{ T_beta_prev.inverse(Tpbinv_H_Tbprev) };
-    const double qd0_sign{ std::copysign(1.0, Uaccel) };
+    const double qd0_sign{ std::copysign(1.0, xd0[0]) };
     const StateDot qd0_adj{ Tbpinv.adjoint(xd0, Hu ? &qd0_H_Tbpinv : nullptr, Hxd0 ? &qd0_H_xd0 : nullptr) };
     const StateDot qd0{ qd0_sign * qd0_adj };
     const StateDotDot qdd{ AccIn, 0.0, 0.0 };
