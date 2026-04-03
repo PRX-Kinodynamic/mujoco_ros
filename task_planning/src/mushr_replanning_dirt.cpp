@@ -197,7 +197,7 @@ struct replanner_t
       GLOBAL_PARAM_SETUP_DEFAULT(environment, environment);
       ros::Duration(1.0).sleep();
     }
-    DEBUG_VARS(environment)
+    // DEBUG_VARS(environment)
     PRINT_MSG("Parameters set")
 
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
@@ -367,6 +367,10 @@ struct replanner_t
     {
       _dirt_spec->f_function = [&](const double& g, const double& h) { return h; };
     }
+    else if (_dirt_spec_params["f_type"].as<>() == "f=g")
+    {
+      _dirt_spec->f_function = [&](const double& g, const double& h) { return g; };
+    }
     else
     {
       prx_throw("Unknown PlannerSpec/f_type");
@@ -433,15 +437,34 @@ struct replanner_t
     _heuristic_map->to_csv(h_ofs);
     h_ofs.close();
     // int row = (0.0 - (-1.0)) / 0.01 = 100
-    // int col = (1.0 - (-0.5)) / 0.01 = 150
-    _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
-      const double h{ _heuristic_map->get_cost(curr) / 0.3 };
-      // if (h < 100)
-      //   LOG_FILE_VARS(h_ofs, Vec(curr).transpose(), h);
+
+    double conversion_velocity{ 0.3 };
+
+    if (_dirt_spec_params.exists("heuristic"))
+    {
+      auto heuristic_params = _dirt_spec_params["heuristic"];
+      //     heuristic:
+      // max_velocity: 0.3
+      // multiplier: 1.0
+      // h is in [m], need in duration (as g-value) <- h[m] * vel^-1 [s/m]
+      const double max_vel{ heuristic_params["max_velocity"].as<double>() };
+      const double multiplier{ heuristic_params["multiplier"].as<double>() };
+      DEBUG_VARS(heuristic_params)
+      DEBUG_VARS(max_vel, multiplier)
+      conversion_velocity = 1.0 / (max_vel * multiplier);
+    }
+    if (_dirt_spec_params["f_type"].as<>() == "f=g")
+    {
+      conversion_velocity = 0;
+    }
+    DEBUG_VARS(conversion_velocity)
+    _dirt_spec->heuristic = [&, conversion_velocity](const prx::space_point_t& curr, const prx::space_point_t& goal) {
+      const double wh{ _heuristic_map->get_cost(curr) };  // workspace - h
+      const double h{ wh * conversion_velocity };
+      // DEBUG_VARS(_dirt_spec_params)
+      // DEBUG_VARS(conversion_velocity)
+      // DEBUG_VARS(wh, conversion_velocity, h)
       return h;
-      // return _dirt_spec->distance_function(s, s2) / 0.62;
-      // return _dirt_spec->distance_function(s, s2) / 0.62;
-      // return 0.0;
     };
   }
 
@@ -470,7 +493,9 @@ struct replanner_t
       // const mushr_types::State::type between{ goal_state->between() };
       const prx_models::mushr_types::State::type between{ xi.between(xg) };
       const Eigen::Vector3d error{ prx_models::mushr_types::State::type::Logmap(between) };
-      return error.head(2).norm() < _dirt_query->goal_region_radius;
+      const double goal_error{ error.head(2).norm() };
+      // DEBUG_VARS(goal_error)
+      return goal_error < _dirt_query->goal_region_radius;
     };
     // _dirt_query->start_state = _state_space->make_point(plant_params["/start_state"]);
     // _dirt_query->goal_state = _state_space->make_point(params["/goal/state"]);
@@ -682,16 +707,23 @@ int main(int argc, char** argv)
     PRINT_MSG("[mushr_replanning_dirt] INIT")
     node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
 
+    DEBUG_PRINT
     replanner_t replanner(nh);
-    node_status->status(interface::NodeStatus::RUNNING);
+    DEBUG_PRINT
+    node_status->status(interface::NodeStatus::RUNNING, experiments_node_status->sequence_id());
+    DEBUG_PRINT
 
-    while (node_status->status() != interface::NodeStatus::FINISH and
-           node_status->sequence_id() == experiments_node_status->sequence_id())
+    while (node_status->status() != interface::NodeStatus::FINISH)
     {
       if (node_status->new_request())
       {
         node_status->status(node_status->requested_status());
       }
+      if (node_status->sequence_id() != experiments_node_status->sequence_id())
+      {
+        break;
+      }
+      DEBUG_VARS(node_status);
       ros::Duration(1.0).sleep();
     }
     replanner.shutdown();

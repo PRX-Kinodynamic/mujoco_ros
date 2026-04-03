@@ -24,6 +24,7 @@
 #include <interface/plan_tree_publisher.hpp>
 #include <interface/mushr_observation_to_marker.hpp>
 #include <interface/sensor_to_marker.hpp>
+#include <interface/spacepoint_to_marker.hpp>
 
 namespace interface
 {
@@ -56,6 +57,7 @@ using MushrObservationToMarkerNodelet = interface::mushr_observation_to_marker_t
 using GraphVizPublisher = graph_viz_publisher_t<nodelet::Nodelet>;
 using PlanToTreePublisher = plan_to_tree_publisher_t<nodelet::Nodelet>;
 using SensorToMarkerPublisher = sensor_to_marker_t<nodelet::Nodelet>;
+using SpacepointToMarkerPublisher = spacepoint_to_marker_t<nodelet::Nodelet>;
 
 }  // namespace interface
 PLUGINLIB_EXPORT_CLASS(interface::PlanToTreePublisher, nodelet::Nodelet);
@@ -70,3 +72,4 @@ PLUGINLIB_EXPORT_CLASS(interface::SensorDataStampedToFile, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::MushrObservationToMarkerNodelet, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::GraphVizPublisher, nodelet::Nodelet);
 PLUGINLIB_EXPORT_CLASS(interface::SensorToMarkerPublisher, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(interface::SpacepointToMarkerPublisher, nodelet::Nodelet);

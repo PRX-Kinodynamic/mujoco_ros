@@ -10,8 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  prx_models
   ml4kp_bridge
+  utils
+  interface
+  prx_models
   nodelet
   message_generation
 )
@@ -125,10 +127,10 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-#include_directories(
-#  include
-#  ${catkin_INCLUDE_DIRS}
-#)
+include_directories(
+ include
+ ${catkin_INCLUDE_DIRS}
+)
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}

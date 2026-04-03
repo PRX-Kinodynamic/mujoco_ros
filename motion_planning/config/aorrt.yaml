@@ -1,0 +1,25 @@
+query:
+  start_state:
+    [1.0, 0.0, 1.57]
+  goal:
+    state:
+      [1.0, 5.0, 1.57]
+    radius: 0.1
+  visualize: false
+  total_solutions: 100
+
+specification:
+  control_steps:
+    min: 2
+    max: 8
+
+  cost_multiplier: 1.25 # Retain solutions of up to 1.25 of best
+  w_c: 1.0
+  w_x: 1.0
+  bnb: true
+  use_replanning: false
+  blossom_number: 1
+
+checker: 
+  type: "time"
+  value: 60 # seconds
