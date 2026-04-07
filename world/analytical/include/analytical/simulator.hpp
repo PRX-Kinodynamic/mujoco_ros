@@ -140,7 +140,6 @@ protected:
   void step_simulation()
   {
     _collision_msg.data = false;
-    // DEBUG_VARS(_system_group != nullptr)
     _system_group->propagate_once();
     _system_group->sense();
 
@@ -184,7 +183,7 @@ protected:
   {
     if (_node_status->new_request())
     {
-      _node_status->status(_node_status->requested_status(), _node_status->requested_status());
+      _node_status->status(_node_status->requested_status());
       _node_status->request_acknowledged();
     }
 

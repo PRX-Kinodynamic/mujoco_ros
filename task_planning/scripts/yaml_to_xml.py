@@ -31,7 +31,7 @@ def get_fname(fname):
     # Remove ".yaml" from the end of the filename
     return fname[:-5]
 
-yaml_prefix = os.environ['DIRTMP_PATH'] + "/resources/input_files/environments/"
+yaml_prefitx = os.environ['DIRTMP_PATH'] + "/resources/input_files/environments/"
 xml_prefix = rospkg.RosPack().get_path('prx_models') + '/models/obstacles/'
 print(xml_prefix)
 

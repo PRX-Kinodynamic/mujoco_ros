@@ -3,19 +3,23 @@
     <arg name="file_out"/>
     <arg name="calculate_dt" default="false"/>
     <arg name="output_in_origin" default="false"/>
+    <arg name="random_seed" default="112392"/>
+    <arg name="output_filename" default="/tmp/aorrt_slns.txt"/>
 
     <!-- _random_seed:=112392  -->
-    _simulation_step:=0.1 
+    <!-- _simulation_step:=0.1  -->
     <arg name="plant_file" default="$(find motion_planning)/config/mushr_first_order.yaml"/>
     <arg name="planner_file" default="$(find motion_planning)/config/aorrt.yaml"/>
-    <arg name="environment_file" default="$(find prx_models)/models/environments/single_obstacle.yaml"/>
+    <arg name="environment" default="single_obstacle"/>
+    <arg name="environment_file" value="$(find prx_models)/models/environments/$(arg environment).yaml"/>
+
     <node pkg="motion_planning" name="aorrt" type="aorrt" output="screen" >
-        <param name="random_seed" value="112392"/>
+        <param name="random_seed" value="$(arg random_seed) "/>
         <param name="simulation_step" value="0.1"/>
-        <param name="tree_topic" value="/aorrt/tree"/>
         <param name="plant_file" value="$(arg plant_file)"/>
         <param name="planner_file" value="$(arg planner_file)"/>
         <param name="environment_file" value="$(arg environment_file)"/>
+        <param name="output_filename" value="$(arg output_filename)"/>
     </node>
     
     <node pkg="nodelet" type="nodelet" name="aorrt_nodelet"  args="manager" output="screen"/>
@@ -27,6 +31,20 @@
         <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]" />
         <param name="scale" value="0.1" />
     </node>
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher aorrt_nodelet" 
+        output="screen">
+        <param name="tree_topic_name" value="/aorrt/sln_tree" />
+        <param name="color" type="yaml" value="[1.0, 0.0, 1.0, 0.0]" />
+        <param name="scale" value="0.1" />
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
+        args="load utils/EnvironmentPublisher aorrt_nodelet" 
+        output="screen">
+    </node>  
+    
     <!-- <include file="$(find control)/launch/mushr_control.launch" /> -->
 </launch>
 
