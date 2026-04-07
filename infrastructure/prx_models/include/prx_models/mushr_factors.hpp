@@ -743,7 +743,6 @@ public:
     const double norm2{ xd0.head(2).squaredNorm() };
     const Eigen::RowVector3d bprev_H_xd0{ norm2 < 1e-6 ? Eigen::RowVector3d::Zero() :
                                                          Eigen::RowVector3d(-xd0[1] / norm2, xd0[0] / norm2, 0.0) };
-    // [-y/(x^2 + y^2), x/(x^2 + y^2)]
 
     const double omega{ 2.0 * std::sin(beta) / L };
     const double omega_prev{ 2.0 * std::sin(beta_prev) / L };

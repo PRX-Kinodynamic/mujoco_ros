@@ -92,7 +92,7 @@ public:
   static constexpr std::size_t velocity_idx{ prx_models::mushr_t::control::velocity_idx };
   static constexpr std::size_t steering_idx{ prx_models::mushr_t::control::steering_idx };
 
-  mushr_stela_t() : Base(){};
+  mushr_stela_t() : Base() {};
 
   mushr_stela_t(ros::NodeHandle& nh)
     : Base(nh, State::Zero(), StateDot::Zero(), Control::Zero(), 0.1, Control::Zero(), Control::Zero())
@@ -561,8 +561,9 @@ public:
     state_memory = { &_state[0],     &_state[1],     &_state[2],  // no-lint
                      &_state_dot[0], &_state_dot[1], &_state_dot[2] };
     state_space = new prx::space_t("EEREEE", state_memory, "mushr_state");
-    state_space->set_bounds({ -100, -100, -prx::constants::pi, -10, -10, -10 },
-                            { 100, 100, prx::constants::pi, 10, 10, 10 });
+    environment_bounds({ { -100, -100, -prx::constants::pi }, { 100, 100, prx::constants::pi } });
+    // state_space->set_bounds({ -100, -100, -prx::constants::pi, -10, -10, -10 },
+    //                         { 100, 100, prx::constants::pi, 10, 10, 10 });
 
     control_memory = { &_ctrl[mushr_types::Control::vel_desired], &_ctrl[mushr_types::Control::steering] };
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
@@ -600,7 +601,7 @@ public:
     // DEBUG_PRINT
     // DEBUG_VARS(_propagation_factor)
   }
-  ~mushrFG_t(){};
+  ~mushrFG_t() {};
 
   virtual prx::param_loader initialization_parameters() override
   {
@@ -609,15 +610,11 @@ public:
     return params;
   }
 
-  // static prx::param_loader init()
-  // {
-  //   prx::param_loader params{ prx::plant_t::init() };
-  //   params["state_space"] = space_t::init();
-  //   params["control_space"] = space_t::init();
-  //   params["parameter_space"] = space_t::init();
-  //   params["sensor_space"] = space_t::init();
-  // }
-
+  virtual void environment_bounds(const std::pair<Eigen::Vector3d, Eigen::Vector3d> bounds) override
+  {
+    state_space->set_bounds({ bounds.first[0], bounds.first[1], -prx::constants::pi, -10, -10, -10 },
+                            { bounds.second[0], bounds.second[1], prx::constants::pi, 10, 10, 10 });
+  }
   virtual void propagate(const double simulation_step) override final
   {
     // if (_propagation_factor == 0)

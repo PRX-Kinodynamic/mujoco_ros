@@ -200,12 +200,14 @@ struct mushr_kalman_t
     PARAM_SETUP(nh, control_topic_name);
     PARAM_SETUP(nh, stamped_estimation_topic);
 
+    DEBUG_PRINT
     prx::simulation_step = 0.1;
     // create_plan(nh);
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
     _control_subscriber = nh.subscribe(control_topic_name, 1, &This::control_callback, this);
     _estimation_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_estimation_topic, 1, true);
 
+    DEBUG_PRINT
     prx::param_loader plant_params(plant_params_filename);
     const std::vector<double> values{ plant_params["parameter_space/values"].as<std::vector<double>>() };
     for (int i = 0; i < _params.size(); ++i)
@@ -216,6 +218,7 @@ struct mushr_kalman_t
     {
       _poly[i] = values[5 + i];
     }
+    DEBUG_PRINT
     // ExtendedKalmanFilter<State> ekf(x0, x_initial, P_initial);
   }
 
@@ -233,6 +236,7 @@ struct mushr_kalman_t
   {
     if (_ekf)
     {
+      DEBUG_PRINT
       const gtsam::Symbol x0('x', _x_idx);
       const gtsam::Symbol x1('x', _x_idx + 1);
 
@@ -247,6 +251,7 @@ struct mushr_kalman_t
 
   void publish_estimate()
   {
+    DEBUG_PRINT
     ml4kp_bridge::SpacePointStamped msg;
     msg.header.stamp = ros::Time::now();
     msg.header.frame_id = "world";
@@ -256,12 +261,14 @@ struct mushr_kalman_t
     msg.space_point.point.push_back(_current_estimate.second[0]);
     msg.space_point.point.push_back(_current_estimate.second[1]);
     msg.space_point.point.push_back(_current_estimate.second[2]);
+    DEBUG_PRINT
 
     _estimation_publisher.publish(msg);
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
+    DEBUG_PRINT
     const std::vector<double>& sensor_data{ msg->raw_sensor_data };
     const Eigen::Quaterniond q{ Eigen::Quaterniond(sensor_data[3], sensor_data[4], sensor_data[5], sensor_data[6]) };
     const double x{ sensor_data[0] };
@@ -271,6 +278,7 @@ struct mushr_kalman_t
     const gtsam::Symbol xi('x', _x_idx);
     if (not _ekf)
     {
+      DEBUG_PRINT
       // Point2 x_initial(0.0, 0.0);
       MushrState x_initial(gtsam::Pose2(x, y, theta), Eigen::Vector3d::Zero());
       gtsam::SharedDiagonal P_initial{ gtsam::noiseModel::Isotropic::Sigma(6, 0.1) };
@@ -278,23 +286,15 @@ struct mushr_kalman_t
       // ExtendedKalmanFilter<Point2> ekf(x0, x_initial, P_initial);
       _ekf = std::make_shared<EKF>(xi, x_initial, P_initial);
       // _current_estimate = x0;
+      DEBUG_PRINT
     }
 
-    // const gtsam::Symbol x1('x', _x_idx + 1);
-
-    // gtsam::SharedDiagonal predict_nm{ noiseModel::Isotropic::Sigma(6, 0.1) };
-    // mushr_kalman_predict_t predict_factor(x0, x1, _ui, _poly, _params, predict_nm);
-
-    // BetweenFactor<Point2> factor1(x0, x1, difference, Q);
-    // Point2 predict1 = ekf.predict(predict_factor);
-    // EXPECT(assert_equal(expected1, predict1));
-
-    // Create the measurement factor
-    // gtsam::PriorFactor<MushrState> update_factor(x1, z1, R);
     const gtsam::Pose2 zi(x, y, theta);
     const mushr_kalman_update_t update_factor(xi, zi, _update_nm);
+    DEBUG_PRINT
     _current_estimate = _ekf->update(update_factor);
     publish_estimate();
+    DEBUG_PRINT
   }
 };
 

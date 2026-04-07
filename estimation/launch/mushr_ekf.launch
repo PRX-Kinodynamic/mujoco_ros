@@ -2,7 +2,7 @@
 
 
 
-  <arg name="plant_params_filename" default="$(fing motion_planning)/config/mushr.yaml"/>
+  <arg name="plant_params_filename" default="$(find motion_planning)/config/mushr.yaml"/>
 
   <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" output="screen">
     <param name="plant_params_filename" value="$(arg plant_params_filename)" />
@@ -13,6 +13,9 @@
 
   <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"
       args="standalone perception/SpacepointToMarkerPublisher " output="screen">
+    <param name="world_frame" value="world"/>
+    <param name="spacepoint_topic_name" value="/mushr/ekf"/>
+    <!-- <param name="color" value=""/> -->
   </node>
 
 </launch>

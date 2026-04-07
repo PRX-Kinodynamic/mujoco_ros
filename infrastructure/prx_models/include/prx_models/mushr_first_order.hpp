@@ -53,14 +53,16 @@ public:
     input_control_space = new prx::space_t("EE", control_memory, "mushr_ctrl");
     input_control_space->set_bounds({ -0.5, -1. }, { 0.5, 1. });
 
-    parameter_memory = {};
-    // const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
-    // parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
+    parameter_memory = { &_delta_poly[0], &_delta_poly[1], &_delta_poly[2], &_delta_poly[3] };
+    const std::string param_topology{ std::string(parameter_memory.size(), 'E') };
+    parameter_space = new prx::space_t(param_topology, parameter_memory, "mushr_params");
 
-    _sensor_memory = {};
-    // _sensor_space = new prx::space_t("EEEEEEE", _sensor_memory, "mushr_sensors");
+    _sensor_memory = { &_sensor_position[0],    &_sensor_position[1],    &_sensor_position[2],  // no-lint
+                       &_sensor_quaternion.w(), &_sensor_quaternion.x(), &_sensor_quaternion.y(),
+                       &_sensor_quaternion.z() };
+    _sensor_space = new prx::space_t("EEEEEEE", _sensor_memory, "mushr_sensors");
     // _sensor_space->set_bounds({ -100, -100, -100, -100, -100, -100, -100 },
-    //                           { +100, +100, +100, +100, +100, +100, +100 });
+    // { +100, +100, +100, +100, +100, +100, +100 });
 
     geometries["body"] = std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX);
     geometries["body"]->initialize_geometry({ 0.42, 0.25, 0.25 });
@@ -71,6 +73,11 @@ public:
   }
   ~mushr_first_order_t() {};
 
+  virtual void environment_bounds(const std::pair<Eigen::Vector3d, Eigen::Vector3d> bounds) override
+  {
+    state_space->set_bounds({ bounds.first[0], bounds.first[1], -prx::constants::pi },
+                            { bounds.second[0], bounds.second[1], prx::constants::pi });
+  }
   // virtual prx::param_loader initialization_parameters() override
   // {
   //   prx::param_loader params{ prx::plant_t::initialization_parameters() };
@@ -87,17 +94,24 @@ public:
   //   params["sensor_space"] = space_t::init();
   // }
 
+  virtual void sense() override
+  {
+    _sensor_position << _state[0], _state[1], 0.125;
+    _sensor_quaternion = Eigen::AngleAxisd(_state[2], Eigen::Vector3d::UnitZ());
+  }
+
   virtual void propagate(const double simulation_step) override final
   {
     const double& V{ _ctrl[mushr_types::Control::vel_desired] };
     const double& steering{ _ctrl[mushr_types::Control::steering] };
     const double& L{ prx_models::mushr_types::Parameters::L };
 
-    const double beta{ mushr_types::Control::beta(steering) };
+    const double delta{ mushr_types::Control::evaluate_polynomial(_delta_poly, steering) };
+    const double beta{ mushr_types::Control::beta(delta) };
     const double omega{ 2.0 * std::sin(beta) / L };
 
-    _state_dot[0] = V * std::cos(steering);
-    _state_dot[1] = V * std::sin(steering);
+    _state_dot[0] = V * std::cos(delta);
+    _state_dot[1] = V * std::sin(delta);
     _state_dot[2] = V * omega;  //(V / L) * std::tan(steering);
 
     _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
@@ -128,7 +142,12 @@ protected:
 
   // Control space
   mushr_types::Control::type _ctrl;
-  // mushr_types::Ubar::type _ubar;
+
+  // Sensor space
+  Eigen::Vector3d _sensor_position;
+  Eigen::Quaterniond _sensor_quaternion;
+
+  mushr_types::Control::Poly _delta_poly;
 };
 }  // namespace prx_models
 PRX_REGISTER_SYSTEM(prx_models::mushr_first_order_t, mushr_first_order)
