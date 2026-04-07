@@ -19,8 +19,8 @@
         <node unless="$(arg simulation)" pkg="nodelet" type="nodelet" name="AckermannFromSpacePointNodelet" 
             args="load interface/AckermannFromSpacePointNodelet mushr_interface_manager" 
             output="screen">
-            <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="subscriber_topic" value="$(arg plan_stepper_topic)" />
+            <param name="publisher_topic" value="/mushr/mux/ackermann_cmd_mux/output" />
             <param name="frequency" value="100" />
         </node>   
 

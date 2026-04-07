@@ -4,7 +4,9 @@
 
   <arg name="plant_params_filename" default="$(find motion_planning)/config/mushr.yaml"/>
 
-  <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" output="screen">
+    <!-- launch-prefix="lldb - -" -->
+  <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" output="screen"
+     >
     <param name="plant_params_filename" value="$(arg plant_params_filename)" />
     <param name="sensor_topic_name" value="/mushr/sensordata"/>
     <param name="control_topic_name" value="/mushr/plan_stepper/control"/>
@@ -12,7 +14,7 @@
   </node>   
 
   <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"
-      args="standalone perception/SpacepointToMarkerPublisher " output="screen">
+      args="standalone interface/SpacepointToMarkerPublisher " output="screen">
     <param name="world_frame" value="world"/>
     <param name="spacepoint_topic_name" value="/mushr/ekf"/>
     <!-- <param name="color" value=""/> -->

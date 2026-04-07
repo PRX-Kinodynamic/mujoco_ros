@@ -96,4 +96,13 @@
       Nodelet to translate
     </description>
   </class>
+
+  <class
+      name="interface/SpacepointToMarkerPublisher"
+      type="interface::SpacepointToMarkerPublisher"
+      base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to translate spacepoint to a marker
+    </description>
+  </class>
 </library>

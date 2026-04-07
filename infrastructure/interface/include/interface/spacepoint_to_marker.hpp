@@ -72,15 +72,19 @@ public:
   }
 
 protected:
-  void sensor_callback(const interface::SensorDataStampedConstPtr& msg)
+  void sensor_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
-    _sensor_marker.pose.position.x = msg->raw_sensor_data[0];
-    _sensor_marker.pose.position.y = msg->raw_sensor_data[1];
-    _sensor_marker.pose.position.z = msg->raw_sensor_data[2];
-    _sensor_marker.pose.orientation.w = msg->raw_sensor_data[3];
-    _sensor_marker.pose.orientation.x = msg->raw_sensor_data[4];
-    _sensor_marker.pose.orientation.y = msg->raw_sensor_data[5];
-    _sensor_marker.pose.orientation.z = msg->raw_sensor_data[6];
+    const double theta{ msg->space_point.point[2] };
+    const Eigen::Quaterniond quat{ Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ()) };
+
+    // Conversion for Mushr, need to add specializations for other systems
+    _sensor_marker.pose.position.x = msg->space_point.point[0];
+    _sensor_marker.pose.position.y = msg->space_point.point[1];
+    _sensor_marker.pose.position.z = 0.125;
+    _sensor_marker.pose.orientation.w = quat.w();
+    _sensor_marker.pose.orientation.x = quat.x();
+    _sensor_marker.pose.orientation.y = quat.y();
+    _sensor_marker.pose.orientation.z = quat.z();
 
     _viz_publisher.publish(_sensor_marker);
   }
