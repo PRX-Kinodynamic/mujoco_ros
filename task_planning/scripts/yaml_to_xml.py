@@ -31,16 +31,17 @@ def get_fname(fname):
     # Remove ".yaml" from the end of the filename
     return fname[:-5]
 
-yaml_prefitx = os.environ['DIRTMP_PATH'] + "/resources/input_files/environments/"
-xml_prefix = rospkg.RosPack().get_path('prx_models') + '/models/obstacles/'
-print(xml_prefix)
+# yaml_prefix = os.environ['DIRTMP_PATH'] + "/resources/input_files/environments/"
+# xml_prefix = rospkg.RosPack().get_path('prx_models') + '/models/obstacles/'
+# print(xml_prefix)
 
 if __name__ == "__main__":
     argparse = argparse.ArgumentParser()
     argparse.add_argument('-f', '--file', help='YAML file to convert to XML', required=True)
+    argparse.add_argument('-o', '--output', help='YAML file to convert to XML', required=True)
     args = argparse.parse_args()
 
-    with open(yaml_prefix + args.file, 'r') as stream:
+    with open(args.file, 'r') as stream:
         try:
             env_params = yaml.load(stream, Loader=yaml.FullLoader)
         except yaml.YAMLError as exc:
@@ -66,12 +67,27 @@ if __name__ == "__main__":
                     "\" euler=\""+str(euler[0])+" "+str(euler[1])+" "+str(euler[1])+ \
                     "\" size=\""+str(dims[0])+" "+str(dims[1])+" "+str(dims[2])+"\" rgba=\"1.0 0.0 0.0 1\"/>\n"
                 xml_string += "</body>\n"
+            elif collision_geometry['type'] == 'cylinder':
+                print("Cylinder geometry found with name ", name)
+
+                radius = collision_geometry['radius']
+                half_height = collision_geometry['height']/2.0
+                
+                pos = config['position']
+                quat = config['orientation']
+                euler = euler_from_quaternion(quat[0], quat[1], quat[2], quat[3])
+
+                xml_string += "<body name=\"obstacle_"+name+"\">\n"
+                xml_string += "\t<geom name=\"obstacle_"+name+"\" type=\"cylinder\" pos=\""+str(pos[0])+" "+str(pos[1])+" "+str(pos[2])+ \
+                    "\" euler=\""+str(euler[0])+" "+str(euler[1])+" "+str(euler[1])+ \
+                    "\" size=\""+str(radius)+" "+str(half_height)+"\" rgba=\"1.0 0.0 0.0 1\"/>\n"
+                xml_string += "</body>\n"
             else:
-                raise NotImplementedError("Only box geometries are supported at the moment")
+                raise NotImplementedError("Geometry " + collision_geometry['type'] + " not supported" )
 
         xml_string += "</worldbody>\n</mujoco>"
 
-        with open(xml_prefix + get_fname(args.file) + ".xml", 'w') as f:
+        with open(args.output, 'w') as f:
             f.write(xml_string)
         
     except KeyError:
