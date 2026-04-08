@@ -1,0 +1,295 @@
+environment:
+    type: obstacle
+    bounds:
+      min: [ -5, -5, -1]
+      max: [ 25, 25,  1]
+    root_configuration:
+      position: [0,0,0]
+      orientation: [0,0,0,1]
+    geometries:
+      -
+        name: wall_bottom
+        collision_geometry:
+          type: box
+          dims: [ 30, 1, 2]
+          material: 0xaaff0000
+        config:
+          position: [10, -5, 1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_left
+        collision_geometry:
+          type: box
+          dims: [ 1, 30, 2]
+          material: 0xaaff0000
+        config:
+          position: [-5, 10, 1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_right
+        collision_geometry:
+          type: box
+          dims: [ 1, 30, 2]
+          material: 0xaaff0000
+        config:
+          position: [25, 10, 1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_top
+        collision_geometry:
+          type: box
+          dims: [ 30, 1, 2]
+          material: 0xaaff0000
+        config:
+          position: [10, 25, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_0
+        collision_geometry:
+          type: cylinder
+          radius: 0.6279
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [22.0525  , 10.6602, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_1
+        collision_geometry:
+          type: cylinder
+          radius: 0.7814
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [-1.2113  , 1.645, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_2
+        collision_geometry:
+          type: cylinder
+          radius: 1.08915
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [17.5559  , 11.7564 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_3
+        collision_geometry:
+          type: cylinder
+          radius: 1.2712
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [15.8147  , 15.6713 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_4
+        collision_geometry:
+          type: cylinder
+          radius: 1.10825
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [17.6648  , -0.3313 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_5
+        collision_geometry:
+          type: cylinder
+          radius: 0.62285
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [1.3935 , 15.3704 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_6
+        collision_geometry:
+          type: cylinder
+          radius: 0.65305
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [ 6.3458  , 0.7246, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_7
+        collision_geometry:
+          type: cylinder
+          radius: 0.9272
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [1.1758, 9.9855 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_8
+        collision_geometry:
+          type: cylinder
+          radius: 1.2272
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [10.3006  , 11.5529 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_9
+        collision_geometry:
+          type: cylinder
+          radius: 0.8482
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [-0.6393  , 19.768, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_10
+        collision_geometry:
+          type: cylinder
+          radius: 0.5015
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [5.5745  , 9.8418 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_11
+        collision_geometry:
+          type: cylinder
+          radius: 0.5596
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [12.3608  , 17.5808 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_12
+        collision_geometry:
+          type: cylinder
+          radius: 0.4144
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [11.9689  , 23.2505 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_13
+        collision_geometry:
+          type: cylinder
+          radius: 0.371
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [ 12.254  , 6.2284, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_14
+        collision_geometry:
+          type: cylinder
+          radius: 0.3997
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [7.63 , 7.1285, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_15
+        collision_geometry:
+          type: cylinder
+          radius: 0.3786
+          height: 2.0 
+          material: 0xaaff0000
+        config:
+          position: [10.4201  , 19.5992 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_16
+        collision_geometry:
+          type: cylinder
+          radius: 0.3882
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [19.1218  , 6.7682, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_17
+        collision_geometry:
+          type: cylinder
+          radius: 0.3989  
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [4.0395  , 2.8232 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_18
+        collision_geometry:
+          type: cylinder
+          radius: 0.408 
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [ 4.5491, 7.0785 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_19
+        collision_geometry:
+          type: cylinder
+          radius: 0.3427
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [3.2165 , 14.6261, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_20
+        collision_geometry:
+          type: cylinder
+          radius: 0.3842
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [1.0053 , 5.9621 , 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_21
+        collision_geometry:
+          type: cylinder
+          radius: 0.7472
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [4.0598 , 17.4452, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_22
+        collision_geometry:
+          type: cylinder
+          radius: 0.4144
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [ 6.7937  , 15.8198, 1]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_23
+        collision_geometry:
+          type: cylinder
+          radius: 0.8569
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [ 9.5711  , 2.8666, 1]
+          orientation: [0,0,0,1]          
+      -
+        name: obstacle_24
+        collision_geometry:
+          type: cylinder
+          radius: 0.9375  
+          height: 2.0
+          material: 0xaaff0000
+        config:
+          position: [ 14.8719 , 2.5035, 1]
+          orientation: [0,0,0,1]
