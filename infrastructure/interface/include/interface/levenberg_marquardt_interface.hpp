@@ -7,10 +7,9 @@
 
 namespace interface
 {
-void initialize(gtsam::LevenbergMarquardtParams& lm_params, const std::string parent_namespace)
-{
-  ros::NodeHandle nh_optimizer(parent_namespace + "/optimizer/");
 
+void initialize(gtsam::LevenbergMarquardtParams& lm_params, const ros::NodeHandle& nh_optimizer)
+{
   int iterations;
   std::string verbosity_level{ "SILENT" };
 
@@ -22,5 +21,10 @@ void initialize(gtsam::LevenbergMarquardtParams& lm_params, const std::string pa
   lm_params.setMaxIterations(iterations);
   lm_params.setVerbosityLM(verbosity_level);
   DEBUG_VARS(lm_params.getVerbosityLM())
+}
+void initialize(gtsam::LevenbergMarquardtParams& lm_params, const std::string parent_namespace)
+{
+  ros::NodeHandle nh_optimizer(parent_namespace + "/optimizer/");
+  initialize(lm_params, nh_optimizer);
 }
 }  // namespace interface

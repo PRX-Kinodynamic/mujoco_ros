@@ -428,9 +428,6 @@ public:
   // Get stats on the total number of validations
   bool check_new_tree(prx_models::tree_msg_wrapper_t& new_tree) const
   {
-    // LOG_MSG("CHECKING NEW TREE")
-    // const ros::WallTime start{ ros::WallTime::now() };
-
     gtsam::Values proposed_values;
     gtsam::NonlinearFactorGraph proposed_graph;
 
@@ -642,7 +639,7 @@ public:
         if (not replanner_available)
         {
           change_status(stela_thread_t::REPLANNING, interface::StelaStatus::INITIALIZING);
-          _planner_service_client = _nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
+          _planner_service_client = _nh.serviceClient<prx_models::StelaKraft>("/dirt/replan");
           const bool replanner_init{ _planner_service_client.exists() };
           // LOG_VARS(replanner_available, replanner_init)
           if (not replanner_init)
@@ -697,6 +694,9 @@ public:
 
             if (_validation_plan_feasibility)
             {
+              // Change to:  check_new_tree(prx_models::tree_msg_wrapper_t& new_tree, const tree_validation_params_t
+              // params) ;
+              PRINT_MSG("Change [check_new_tree] to motion_planning::check_new_tree(tree, params)");
               _new_tree_available = check_new_tree(wrapped_tree);
               // _new_tree_available = _validate_replanner_sln ? check_new_tree(wrapped_tree) : true;
             }

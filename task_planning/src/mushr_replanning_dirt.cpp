@@ -88,11 +88,11 @@ struct replanner_t
 
   motion_planning::PlanningResult _planning_result_msg;
 
-  ros::Publisher _goal_pos_publisher;
-  ros::Publisher _goal_radius_publisher;
-  ros::Publisher _safety_radius_publisher;
-  ros::Publisher _planning_result_publisher;
-  ros::Publisher _reset_publisher;
+  // ros::Publisher _goal_pos_publisher;
+  // ros::Publisher _goal_radius_publisher;
+  // ros::Publisher _safety_radius_publisher;
+  // ros::Publisher _planning_result_publisher;
+  // ros::Publisher _reset_publisher;
   ros::Publisher _status_publisher;
   ros::Publisher _tree_publisher;
   ros::Publisher _sln_tree_publisher;
@@ -149,7 +149,7 @@ struct replanner_t
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
 
-    std::string params_file;
+    // std::string params_file;
     std::string sbmp_solution_tree_topic, sbmp_full_tree_topic;
     std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
@@ -169,7 +169,6 @@ struct replanner_t
     simulation_step = 0.0;  // Force to set simste
     int random_seed;
     // PARAM_SETUP(nh, plant_file);
-    // PARAM_SETUP(nh, params_file);
     // PARAM_SETUP(nh, planning_mode);
     // PARAM_SETUP(nh, planner_sln_recovery_type);
 
@@ -212,9 +211,6 @@ struct replanner_t
 
     // mode_check(planning_mode);
 
-    // std::string plan_params_file;
-    // PARAM_SETUP_WITH_DEFAULT(nh, plan_params_file, plan_params_file){ prx::param_loader(plan_params_file, "") };
-    // params = prx::param_loader(params_file, "");
     // _plant_params = prx::param_loader(plant_file, "");
     _dirt_spec_params.from_string(dirt_spec);
     _dirt_query_params.from_string(dirt_query);
@@ -226,11 +222,11 @@ struct replanner_t
     // params["solution_type"].set(planner_sln_recovery_type);
 
     // Publisher
-    _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
-    _goal_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/goal_radius", 10, true);
-    _safety_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/safety_radius", 10, true);
-    _planning_result_publisher = nh.advertise<motion_planning::PlanningResult>("/kraft/planning_result", 1, true);
-    _reset_publisher = nh.advertise<std_msgs::Empty>("/kraft/reset", 1, true);
+    // _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
+    // _goal_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/goal_radius", 10, true);
+    // _safety_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/safety_radius", 10, true);
+    // _planning_result_publisher = nh.advertise<motion_planning::PlanningResult>("/kraft/planning_result", 1, true);
+    // _reset_publisher = nh.advertise<std_msgs::Empty>("/kraft/reset", 1, true);
     _status_publisher = nh.advertise<interface::ReplannerStatus>("/kraft/status", 1, true);
     _sln_traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>("/kraft/solution/trajectory", 1, true);
     _tree_publisher = nh.advertise<prx_models::Tree>(sbmp_full_tree_topic, 1, true);
@@ -262,7 +258,7 @@ struct replanner_t
     _status.state = interface::ReplannerStatus::IDLE;
     _status_publisher.publish(_status);
 
-    _replanning_service = nh.advertiseService("/kraft/replan", &replanner_t::replan, this);
+    _replanning_service = nh.advertiseService("/dirt/replan", &replanner_t::replan, this);
 
     // LOG_FILENAME("logs/stela.txt");
 

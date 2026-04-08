@@ -1,0 +1,36 @@
+<launch>
+    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+    <arg name = "postprocess_timeout" default = "0.2" />
+    <arg name = "output_dir" default="$(env ML4KP_ROS)/data/"/>
+
+
+    <param name="plant_parameters" textfile="$(arg plant_file)" />
+
+    <!-- <include file="$(find estimation)/launch/mushr_ekf.launch"/> -->
+
+    <node pkg="motion_planning" type="sbmp_open_loop" name="sbmp_open_loop" 
+        output="screen">
+        <param name="replanner_service" value="/dirt/replan"/>
+        <param name="planner_clock_topic" value="/motion_planning/clock"/>
+        <param name="ekf_topic" value="/mushr/ekf"/>
+        <param name="replanner_solution_duration" value="1"/>
+        <param name="lm/iterations" value="10"/>
+        <!-- <param name="stamped_estimation_topic" value="/mushr/ekf"/> -->
+    </node> 
+
+    <!-- <node pkg="task_planning" name="replanner" type="mushr_replanning_dirt" 
+          output="screen" respawn="false" >
+        <param name="node_id" value="replanner" />
+        <param name="experiments_node_id" value="experiment_runner" />
+        <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
+        <param name="postprocess_timeout" value="$(arg postprocess_timeout)" />
+        <param name="planner_stats_topic_name" value="/replanner/stats" />
+        <param name="estimation_tree_topic" value="/stela/estimation/tree"/>
+        <param name="planner_clock_topic" value="/motion_planning/clock"/>
+        <param name="sbmp_full_tree_topic" value="/mushr/tree"/>
+        <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
+        <param name="max_edge_duration" value="0.1"/>
+    </node> -->
+
+</launch>
+
