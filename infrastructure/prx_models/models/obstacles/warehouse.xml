@@ -1,0 +1,62 @@
+<mujoco model = "obstacles">
+<compiler angle="radian" />
+<worldbody>
+<body name="obstacle_wall_bottom">
+	<geom name="obstacle_wall_bottom" type="box" pos="20.5 -5 1" euler="0.0 0.0 0.0" size="25.0 0.5 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_left">
+	<geom name="obstacle_wall_left" type="box" pos="-5 10.5 1" euler="0.0 0.0 0.0" size="0.5 16.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_right">
+	<geom name="obstacle_wall_right" type="box" pos="46 10.5 1" euler="0.0 0.0 0.0" size="0.5 16.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_wall_top">
+	<geom name="obstacle_wall_top" type="box" pos="20.5 26 1" euler="0.0 0.0 0.0" size="25.0 0.5 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_center_big">
+	<geom name="obstacle_obstacle_center_big" type="box" pos="20.5 21 1" euler="0.0 0.0 0.0" size="6.2 4.5 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_0">
+	<geom name="obstacle_obstacle_bottom_0" type="box" pos="4 9 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_1">
+	<geom name="obstacle_obstacle_bottom_1" type="box" pos="4 1 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_2">
+	<geom name="obstacle_obstacle_bottom_2" type="box" pos="15 9 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_3">
+	<geom name="obstacle_obstacle_bottom_3" type="box" pos="15 1 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_4">
+	<geom name="obstacle_obstacle_bottom_4" type="box" pos="26 9 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_5">
+	<geom name="obstacle_obstacle_bottom_5" type="box" pos="26 1 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_6">
+	<geom name="obstacle_obstacle_bottom_6" type="box" pos="37 9 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_bottom_7">
+	<geom name="obstacle_obstacle_bottom_7" type="box" pos="37 1 1" euler="0.0 0.0 0.0" size="3.0 1.875 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_left_0">
+	<geom name="obstacle_obstacle_top_left_0" type="box" pos="0 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_left_1">
+	<geom name="obstacle_obstacle_top_left_1" type="box" pos="5 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_left_2">
+	<geom name="obstacle_obstacle_top_left_2" type="box" pos="10 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_right_0">
+	<geom name="obstacle_obstacle_top_right_0" type="box" pos="31 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_right_1">
+	<geom name="obstacle_obstacle_top_right_1" type="box" pos="36 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+<body name="obstacle_obstacle_top_right_2">
+	<geom name="obstacle_obstacle_top_right_2" type="box" pos="41 18.5 1" euler="0.0 0.0 0.0" size="0.75 4.0 1.0" rgba="1.0 0.0 0.0 1"/>
+</body>
+</worldbody>
+</mujoco>

@@ -1,3 +1,5 @@
+#include <gtsam/geometry/Pose2.h>
+#include <gtsam/linear/NoiseModel.h>
 #include <ml4kp_bridge/defs.h>
 #include <memory>
 #include <prx/planning/planners/dirt_replanning.hpp>
@@ -38,6 +40,7 @@
 #include <interface/ExperimentParams.h>
 #include <interface/NodeStatus.h>
 #include <interface/node_status.hpp>
+#include <motion_planning/clustering.hpp>
 
 // Function to calculate safe distance based on speed
 template <typename ParamsType>
@@ -138,6 +141,9 @@ struct replanner_t
   prx::param_loader _plant_params, _dirt_spec_params, _dirt_query_params;
 
   std::mutex _service_mutex;
+
+  motion_planning::cluster_in_out_t<gtsam::Pose2, double> _cluster_SE3;
+
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
     LOG_FILENAME("logs/replanner.txt");
@@ -400,6 +406,71 @@ struct replanner_t
     };
 
     DEBUG_VARS(*_dirt_spec);
+  }
+
+  void init_cluster_heuristic()
+  {
+    prx_assert(_dirt_spec_params.exists("heuristic"), "Parameter 'heuristic' not found");
+    auto heuristic_params = _dirt_spec_params["heuristic"];
+    if (not heuristic_params.exists("clustering"))
+    {
+      return;
+    }
+    heuristic_params = heuristic_params["clustering"];
+    const std::string filename{ heuristic_params["filename"].as<>() };
+    if (heuristic_params["type"].as<>() == "SE3")
+    {
+      using CsvReader = prx::utilities::csv_reader_t;
+      using prx::utilities::convert_to;
+
+      std::vector<std::string> line;
+      prx::utilities::csv_reader_t reader(filename);
+      while (reader.next_valid_line(line))
+      {
+        Eigen::Matrix<double, 3, 3> R{ Eigen::Matrix<double, 3, 3>::Zero() };
+        R(0, 0) = convert_to<double>(line[0]);
+        R(0, 1) = convert_to<double>(line[1]);
+        R(0, 2) = convert_to<double>(line[2]);
+        R(1, 1) = convert_to<double>(line[3]);
+        R(1, 2) = convert_to<double>(line[4]);
+        R(2, 2) = convert_to<double>(line[5]);
+
+        const double x{ convert_to<double>(line[6]) };
+        const double y{ convert_to<double>(line[7]) };
+        const double theta{ convert_to<double>(line[8]) };
+
+        const double min_duration{ convert_to<double>(line[9]) };
+        const double max_duration{ convert_to<double>(line[10]) };
+        const double avg_duration{ convert_to<double>(line[11]) };
+
+        _cluster_SE3.noise_models.push_back(gtsam::noiseModel::Gaussian::SqrtInformation(R));
+        _cluster_SE3.values.emplace_back(x, y, theta);
+
+        if (heuristic_params["duration"].as<>() == "min")
+        {
+          _cluster_SE3.original_elements.push_back({ min_duration });
+        }
+        else if (heuristic_params["duration"].as<>() == "max")
+        {
+          _cluster_SE3.original_elements.push_back({ max_duration });
+        }
+        else if (heuristic_params["duration"].as<>() == "avg")
+        {
+          _cluster_SE3.original_elements.push_back({ avg_duration });
+        }
+        else
+        {
+          prx_throw("Unknown clustering heuristic param 'duration' - " << heuristic_params["duration"].as<>())
+        }
+      }
+      _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
+        const double h{ 0 };
+        const gtsam::Pose2 x(curr->at(0), curr->at(1), curr->at(2));
+        std::vector<double> duration{ motion_planning::query(_cluster_SE3, x, 7.815) };
+        prx_assert(duration.size() > 0, "clustering query output not valid");
+        return duration[0];
+      };
+    }
   }
 
   void init_heuristic_map()
