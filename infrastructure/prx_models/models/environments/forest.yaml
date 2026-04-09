@@ -1,4 +1,5 @@
 environment:
+    name: "forest"
     type: obstacle
     bounds:
       min: [ -5, -5, -1]
