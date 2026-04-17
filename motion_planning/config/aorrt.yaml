@@ -1,8 +1,9 @@
 query:
   start_state: [1.0, 0.0, 1.57]
   goal:
-    state: [1.0, 5.0, 1.57]
-    radius: 0.25
+    # state: [1.0, 5.0, 1.57]
+    state: [20.0, 20.0, 1.57] # Forest
+    radius: 0.5
     total_solutions: 100
   visualize: false
 
@@ -20,4 +21,4 @@ specification:
 
 checker: 
   type: "time"
-  value: 10 # seconds
+  value: 60 # seconds

@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   utils
   torch_bridge
   interface
+  control
 )
 
 set(MJ_LINK  mujoco::mujoco)

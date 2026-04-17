@@ -123,4 +123,14 @@ inline void get_value(gtsam::Pose3& value, const XmlRpc::XmlRpcValue& input)
     var = default_value;                                                                                               \
   }
 
+#define GLOBAL_PARAM_BLOCKER(var)                                                                                      \
+  std::cout << prx::constants::color::yellow << "Setting global parameter: ";                                          \
+  std::cout << GET_VARIABLE_NAME(var) << "..." << std::flush;                                                          \
+  while (not(ros::param::has(GET_VARIABLE_NAME(var)) and ros::param::get(GET_VARIABLE_NAME(var), var)))                \
+  {                                                                                                                    \
+    std::cout << "." << std::flush;                                                                                    \
+    ros::Duration(1.0).sleep();                                                                                        \
+  }                                                                                                                    \
+  std::cout << prx::constants::color::yellow << " done." << std::endl;
+
 }  // namespace utils

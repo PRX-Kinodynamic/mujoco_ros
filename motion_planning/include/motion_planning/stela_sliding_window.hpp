@@ -407,17 +407,14 @@ public:
     // const ros::Duration timer_duration(0.01);
     _clock_timer = private_nh.createTimer(timer_duration, &Derived::clock_timer_callback, this);
     // _replan_timer = private_nh.createTimer(timer_duration, &Derived::replan_timer_callback, this);
-    DEBUG_PRINT
 
     // update_estimated_tree();
     change_status(stela_thread_t::ISAM, interface::StelaStatus::IDLE);
-    DEBUG_PRINT
 
     _node_status->status(interface::NodeStatus::PAUSED);
 
     LOG_MSG("Initialization Done")
     PRINT_MSG("Stela Running")
-    DEBUG_PRINT
   }
 
   ~stela_windowed_t()

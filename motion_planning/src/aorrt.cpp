@@ -95,7 +95,7 @@ struct planning_experiments_t
     } while (_collision_group->in_collision());
   }
 
-  void run_planner()
+  bool run_planner()
   {
     prx::param_loader planner_params(planner_file);
     prx::aorrt_t aorrt("aorrt");
@@ -141,6 +141,9 @@ struct planning_experiments_t
     std::shared_ptr<prx::aorrt_t::Node> root{ solutions->get_vertex_as<prx::aorrt_t::Node>(root_idx) };
 
     traverse_tree_sln(root, solutions);
+
+    DEBUG_VARS(solutions->size());
+    return solutions->size() > 1;
   }
 };
 
@@ -149,11 +152,16 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "RosAORRT");
   ros::NodeHandle nh("~");
 
+  int total_solutions;
+  PARAM_SETUP(nh, total_solutions);
+
   planning_experiments_t experiments(nh);
 
-  for (int i = 0; i < 100; ++i)
+  int idx{ 0 };
+  while (idx < total_solutions)
   {
-    experiments.run_planner();
+    const bool sln_found{ experiments.run_planner() };
+    idx += sln_found ? 1 : 0;
   }
 
   PRINT_MSG("Experiments finished!");

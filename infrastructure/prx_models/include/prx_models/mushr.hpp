@@ -614,6 +614,10 @@ public:
   {
     state_space->set_bounds({ bounds.first[0], bounds.first[1], -prx::constants::pi, -10, -10, -10 },
                             { bounds.second[0], bounds.second[1], prx::constants::pi, 10, 10, 10 });
+
+    // DEBUG_VARS(bounds.first.transpose())
+    // DEBUG_VARS(bounds.second.transpose())
+    // DEBUG_VARS(*state_space)
   }
   virtual void propagate(const double simulation_step) override final
   {

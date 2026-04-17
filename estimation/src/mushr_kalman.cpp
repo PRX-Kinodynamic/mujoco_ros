@@ -29,6 +29,7 @@
 #include <gtsam/geometry/Pose2.h>
 // #include <gtsam/base/ProductLieGroup.h>
 #include <ml4kp_bridge/product_lie_group.hpp>
+#include <interface/node_status.hpp>
 
 using Pose = gtsam::Pose2;
 using Velocity = Eigen::Vector3d;
@@ -56,9 +57,9 @@ class mushr_kalman_predict_t : public gtsam::NoiseModelFactorN<MushrState, Mushr
   // mushr_kalman_predict_t(const mushr_kalman_predict_t& other) = delete;
 
 public:
-  mushr_kalman_predict_t(const gtsam::Key key_x0, const gtsam::Key key_x1, const Control ui, const Polynomial poly,
-                         const Parameters params, const NoiseModel& cost_model)
-    : Base(cost_model, key_x0, key_x1), _ui(ui), _poly(poly), _params(params)
+  mushr_kalman_predict_t(const gtsam::Key key_x0, const gtsam::Key key_x1, const Control ui, const double dt,
+                         const Polynomial poly, const Parameters params, const NoiseModel& cost_model)
+    : Base(cost_model, key_x0, key_x1), _ui(ui), _poly(poly), _params(params), _dt(dt)
 
   {
   }
@@ -72,26 +73,35 @@ public:
   {
     const bool compute_derivs{ Hx0 or Hx1 };
 
-    Eigen::Matrix<double, 3, 3> x1p_H_x0, x1p_H_xd0, xd1p_H_xd0;
+    // x = [q, qdot]
+    Eigen::Matrix<double, 3, 3> q1p_H_q0, q1p_H_qd0, qd1p_H_qd0;
     Eigen::Matrix<double, 6, 6> b_H_x1, b_H_x1p, err_H_b;
 
-    const Pose x1p{ prx_models::mushr_x_xdot_t::predict(x0.first, x0.second, prx::simulation_step, x1p_H_x0,
-                                                        x1p_H_xd0) };
-    const Velocity x1dot_p{ prx_models::mushr_CtrlAccel_t<>::predict(x0.second, _ui, prx::simulation_step, _params,
-                                                                     _poly, xd1p_H_xd0) };
+    const Pose x1p{ prx_models::mushr_x_xdot_t::predict(x0.first, x0.second, _dt, q1p_H_q0, q1p_H_qd0) };
+    const Velocity x1dot_p{ prx_models::mushr_CtrlAccel_t<>::predict(x0.second, _ui, _dt, _params, _poly, qd1p_H_qd0) };
     const MushrState predicted(x1p, x1dot_p);
     const MushrState between{ x1.between(predicted,                           // no-lint
                                          compute_derivs ? &b_H_x1 : nullptr,  // no-lint
                                          compute_derivs ? &b_H_x1p : nullptr) };
-    const Eigen::Vector<double, 6> error{ MushrState::Logmap(between, compute_derivs ? &err_H_b : nullptr) };
+    const Eigen::Vector<double, 6> predict_error{ MushrState::Logmap(between, compute_derivs ? &err_H_b : nullptr) };
 
+    // LOG_MSG("------ PREDICT ------")
+    // LOG_VARS(_params.transpose(), _poly.transpose());
+    // LOG_VARS(prx::simulation_step, _ui.transpose());
+    // LOG_VARS(x0.first);
+    // LOG_VARS(x0.second.transpose());
+    // LOG_VARS(x1.first);
+    // LOG_VARS(x1.second.transpose());
+    // LOG_VARS(x1p);
+    // LOG_VARS(x1dot_p.transpose());
+    // LOG_VARS(predict_error.transpose())
     if (Hx0)
     {
-      const Eigen::Matrix<double, 3, 3> xd1_H_x0{ Eigen::Matrix<double, 3, 3>::Zero() };
+      const Eigen::Matrix<double, 3, 3> qd1_H_q0{ Eigen::Matrix<double, 3, 3>::Zero() };
 
       Eigen::Matrix<double, 6, 6> x1p_H_x0;
-      x1p_H_x0 << x1p_H_x0, xd1_H_x0,  // no-lint
-          x1p_H_xd0, xd1p_H_xd0;
+      x1p_H_x0.block<3, 6>(0, 0) << q1p_H_q0, qd1_H_q0;  // no-lint
+      x1p_H_x0.block<3, 6>(3, 0) << q1p_H_qd0, qd1p_H_qd0;
 
       *Hx0 = err_H_b * b_H_x1p * x1p_H_x0;
     }
@@ -99,15 +109,14 @@ public:
     {
       *Hx1 = err_H_b * b_H_x1;
     }
-    return error;
+    return predict_error;
   }
 
 private:
+  const double _dt;
   const Control _ui;
   const Polynomial _poly;
   const Parameters _params;
-
-  // const double _dt;
 };
 
 class mushr_kalman_update_t : public gtsam::NoiseModelFactorN<MushrState>
@@ -126,12 +135,14 @@ class mushr_kalman_update_t : public gtsam::NoiseModelFactorN<MushrState>
   template <typename T>
   using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
 
+  using LieIntegrator = prx::fg::lie_integrator_t<Pose, Velocity>;
+
   // mushr_kalman_predict_t() = delete;
   // mushr_kalman_predict_t(const mushr_kalman_predict_t& other) = delete;
 
 public:
-  mushr_kalman_update_t(const gtsam::Key key_x, const Pose zi, const NoiseModel& cost_model)
-    : Base(cost_model, key_x), _zi(zi)
+  mushr_kalman_update_t(const gtsam::Key key_x, const Pose zi, const double dt, const NoiseModel& cost_model)
+    : Base(cost_model, key_x), _zi(zi), _dt(dt)
 
   {
   }
@@ -142,24 +153,38 @@ public:
 
   virtual Eigen::VectorXd evaluateError(const MushrState& x, OptDeriv Hx = boost::none) const override
   {
-    Eigen::Matrix<double, 3, 3> qb_H_x, err_H_qb;
+    Eigen::Matrix<double, 3, 3> qb_H_qdt, err_H_qb, qdt_H_q, qdt_H_qdot;
+
     const Pose& q{ x.first };
-    const Pose qb{ q.between(_zi,  // no-lint
-                             Hx ? &qb_H_x : nullptr) };
-    const Eigen::Vector<double, 3> error{ Pose::Logmap(qb, Hx ? &err_H_qb : nullptr) };
+    const Velocity& qdot{ x.second };
+    const Pose qdt{ LieIntegrator::integrate(q, qdot, _dt, Hx ? &qdt_H_q : nullptr, Hx ? &qdt_H_qdot : nullptr) };
+
+    const Pose qb{ qdt.between(_zi,  // no-lint
+                               Hx ? &qb_H_qdt : nullptr) };
+    const Eigen::Vector<double, 3> update_error{ Pose::Logmap(qb, Hx ? &err_H_qb : nullptr) };
+
+    // LOG_MSG("------ UPDATE ------")
+    // LOG_VARS(_dt)
+    // LOG_VARS(q)
+    // LOG_VARS(qdot.transpose())
+    // LOG_VARS(qdt)
+    // LOG_VARS(qb)
+    // LOG_VARS(update_error.transpose())
 
     if (Hx)
     {
+      *Hx = Eigen::Matrix<double, 3, 6>::Zero();
       // Block of size (p,q), starting at (i,j)
       // matrix.block(i,j,p,q);
 
-      Hx->block(0, 0, 3, 3) << err_H_qb * qb_H_x;
-      Hx->block(0, 4, 3, 3) << Eigen::Matrix<double, 3, 3>::Zero();
+      Hx->block<3, 3>(0, 0) = err_H_qb * qb_H_qdt * qdt_H_q;
+      Hx->block<3, 3>(0, 3) = err_H_qb * qb_H_qdt * qdt_H_qdot;
     }
-    return error;
+    return update_error;
   }
 
 private:
+  const double _dt;
   const Pose _zi;
 };
 
@@ -181,33 +206,43 @@ struct mushr_kalman_t
   std::shared_ptr<EKF> _ekf;
   std::size_t _x_idx;
 
+  Control _ui;
   Polynomial _poly;
   Parameters _params;
 
   MushrState _current_estimate;
+  ros::Time _prev_z_dt;
 
   gtsam::SharedDiagonal _predict_nm, _update_nm;
+  std::shared_ptr<interface::node_status_t> _simulator_node_status;
 
   mushr_kalman_t(ros::NodeHandle& nh)
     : _x_idx(0)
-    , _predict_nm(gtsam::noiseModel::Isotropic::Sigma(6, 0.1))
-    , _update_nm(gtsam::noiseModel::Isotropic::Sigma(3, 0.01))
+    , _predict_nm(gtsam::noiseModel::Isotropic::Sigma(6, 1))
+    , _update_nm(gtsam::noiseModel::Isotropic::Sigma(3, 0.1))
+    , _ui(0., 0.)
   {
     std::string sensor_topic_name, control_topic_name;
-    std::string plant_parameters, stamped_estimation_topic;
+    std::string plant_parameters, stamped_estimation_topic, simulator_node_id;
     PARAM_SETUP(nh, sensor_topic_name);
     PARAM_SETUP(nh, control_topic_name);
+    PARAM_SETUP(nh, simulator_node_id);
     PARAM_SETUP(nh, stamped_estimation_topic);
     GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
 
+    _simulator_node_status = interface::node_status_t::create(nh, simulator_node_id, true);
+
     prx::simulation_step = 0.1;
-    // create_plan(nh);
+
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
     _control_subscriber = nh.subscribe(control_topic_name, 1, &This::control_callback, this);
     _estimation_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_estimation_topic, 1, true);
 
-    prx::param_loader plant_params(plant_parameters);
+    prx::param_loader plant_params;
+    plant_params.from_string(plant_parameters);
+    DEBUG_VARS(plant_params)
     const std::vector<double> values{ plant_params["parameter_space/values"].as<std::vector<double>>() };
+    DEBUG_VARS(values)
     for (int i = 0; i < _params.size(); ++i)
     {
       _params[i] = values[i];
@@ -217,7 +252,7 @@ struct mushr_kalman_t
       _poly[i] = values[5 + i];
     }
 
-    // ExtendedKalmanFilter<State> ekf(x0, x_initial, P_initial);
+    PRINT_MSG("EKF initialized")
   }
 
   // void create_plant(ros::NodeHandle& nh)
@@ -230,20 +265,9 @@ struct mushr_kalman_t
   //   std::tie(_planning_model, _system_group, _collision_group) = prx::world_model_t::create(plant);
   // }
 
-  void control_callback(const ml4kp_bridge::SpacePointStampedConstPtr msg)
+  void control_callback(const ml4kp_bridge::SpacePointConstPtr msg)
   {
-    if (_ekf)
-    {
-      const gtsam::Symbol x0('x', _x_idx);
-      const gtsam::Symbol x1('x', _x_idx + 1);
-
-      Control ui{ msg->space_point.point[0], msg->space_point.point[1] };
-
-      mushr_kalman_predict_t predict_factor(x0, x1, ui, _poly, _params, _predict_nm);
-
-      // BetweenFactor<Point2> factor1(x0, x1, difference, Q);
-      _current_estimate = _ekf->predict(predict_factor);
-    }
+    _ui = Control(msg->point[0], msg->point[1]);
   }
 
   void publish_estimate()
@@ -263,28 +287,96 @@ struct mushr_kalman_t
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
+    if (_simulator_node_status->status() == interface::NodeStatus::RESET)
+    {
+      _ekf = nullptr;
+      return;
+    }
     const std::vector<double>& sensor_data{ msg->raw_sensor_data };
     const Eigen::Quaterniond q{ Eigen::Quaterniond(sensor_data[3], sensor_data[4], sensor_data[5], sensor_data[6]) };
     const double x{ sensor_data[0] };
     const double y{ sensor_data[1] };
     const double theta{ prx::quaternion_to_euler(q)[2] };
     // _observation = gtsam::Pose2(x, y, theta);
-    const gtsam::Symbol xi('x', _x_idx);
+    // const gtsam::Symbol xi('x', _x_idx);
     if (not _ekf)
     {
+      const gtsam::Symbol x0('x', _x_idx);
       // Point2 x_initial(0.0, 0.0);
       MushrState x_initial(gtsam::Pose2(x, y, theta), Eigen::Vector3d::Zero());
       gtsam::SharedDiagonal P_initial{ gtsam::noiseModel::Isotropic::Sigma(6, 0.1) };
       // Create an ExtendedKalmanFilter object
       // ExtendedKalmanFilter<Point2> ekf(x0, x_initial, P_initial);
-      _ekf = std::make_shared<EKF>(xi, x_initial, P_initial);
+      _ekf = std::make_shared<EKF>(x0, x_initial, P_initial);
       // _current_estimate = x0;
+      _prev_z_dt = msg->header.stamp;
+      // _x_idx++;
     }
+    else
+    {
+      const double dt{ (msg->header.stamp - _prev_z_dt).toSec() };
+      const gtsam::Pose2 zi(x, y, theta);
 
-    const gtsam::Pose2 zi(x, y, theta);
-    const mushr_kalman_update_t update_factor(xi, zi, _update_nm);
-    _current_estimate = _ekf->update(update_factor);
-    publish_estimate();
+      // const mushr_kalman_update_t update_factor(xi, zi, _update_nm);
+
+      // DEBUG_VARS(x, y, theta, dt)
+      // DEBUG_VARS(_current_estimate.second.transpose())
+
+      estimate(zi, dt);
+
+      publish_estimate();
+      _prev_z_dt = msg->header.stamp;
+    }
+  }
+
+  void estimate(const gtsam::Pose2& zi, const double& dt)
+  {
+    const gtsam::Symbol x0('x', _x_idx);
+    const gtsam::Symbol x1('x', _x_idx + 1);
+    auto previous_estimate = _current_estimate;
+    const mushr_kalman_predict_t predict_factor(x0, x1, _ui, dt, _poly, _params, _predict_nm);
+    const mushr_kalman_update_t update_factor(x1, zi, dt, _update_nm);
+    bool update_exception{ false };
+    try
+    {
+      _current_estimate = _ekf->predict(predict_factor);
+      update_exception = true;
+      _current_estimate = _ekf->update(update_factor);
+      _x_idx++;
+    }
+    catch (gtsam::IndeterminantLinearSystemException exception)
+    {
+      gtsam::GaussianFactorGraph linearFactorGraph;
+
+      gtsam::Values linearizationPoint;
+      linearizationPoint.insert(x0, previous_estimate);
+      linearizationPoint.insert(x1, previous_estimate);
+      if (update_exception)
+      {
+        linearFactorGraph.push_back(update_factor.linearize(linearizationPoint));
+      }
+      else
+      {
+        linearFactorGraph.push_back(predict_factor.linearize(linearizationPoint));
+      }
+      // linearFactorGraph.push_back(predict_factor);
+      auto Ab = linearFactorGraph.jacobian();
+      auto A = Ab.first;
+      auto b = Ab.second;
+      LOG_VARS(update_exception, _x_idx)
+      LOG_VARS(zi)
+      LOG_VARS(dt)
+      LOG_VARS(_ui.transpose())
+      LOG_VARS(_poly.transpose(), _params.transpose())
+      LOG_VARS(A)
+      LOG_VARS(b)
+
+      const std::string exception_nearby_variable{ gtsam::DefaultKeyFormatter(exception.nearbyVariable()) };
+      LOG_VARS(exception_nearby_variable);
+      LOG_VARS(exception.what());
+      // prx::fg::indeterminant_linear_system_helper(, _values, dbg::variables::ofs_log);
+      throw;
+    }
   }
 };
 

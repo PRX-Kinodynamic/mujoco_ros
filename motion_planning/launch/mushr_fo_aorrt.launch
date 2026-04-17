@@ -4,6 +4,7 @@
     <arg name="calculate_dt" default="false"/>
     <arg name="output_in_origin" default="false"/>
     <arg name="random_seed" default="112392"/>
+    <arg name="total_solutions" default="100"/>
     <arg name="output_filename" default="/tmp/aorrt_slns.txt"/>
 
     <!-- _random_seed:=112392  -->
@@ -20,6 +21,7 @@
         <param name="planner_file" value="$(arg planner_file)"/>
         <param name="environment_file" value="$(arg environment_file)"/>
         <param name="output_filename" value="$(arg output_filename)"/>
+        <param name="total_solutions" value="$(arg total_solutions)"/>
     </node>
     
     <node pkg="nodelet" type="nodelet" name="aorrt_nodelet"  args="manager" output="screen"/>

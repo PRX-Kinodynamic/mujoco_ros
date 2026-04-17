@@ -74,7 +74,7 @@ struct collector_t
     // _ofs.open(output_file.c_str());
 
     _state_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(state_topic, 1, true);
-    _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/kraft/replan");
+    _planner_service_client = nh.serviceClient<prx_models::StelaKraft>("/dirt/replan");
 
     // _ofs << "# " << prx_models::header(prx_models::PlannerStats()) << "\n";
 

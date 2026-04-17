@@ -142,7 +142,8 @@ struct replanner_t
 
   std::mutex _service_mutex;
 
-  motion_planning::cluster_in_out_t<gtsam::Pose2, double> _cluster_SE3;
+  using ClusterData = std::tuple<Eigen::Matrix<double, 1, 3>, Eigen::Vector3d>;
+  motion_planning::cluster_in_out_t<gtsam::Pose2, ClusterData> _cluster_SE3;
 
   replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
   {
@@ -192,16 +193,24 @@ struct replanner_t
     // PARAM_SETUP(nh, sbmp_solution_tree_topic);
     // PARAM_SETUP(nh, environment);
 
-    while (simulation_step == 0.0 or plant_parameters == "" or dirt_spec == "" or dirt_query == "" or environment == "")
-    {
-      GLOBAL_PARAM_SETUP_DEFAULT(random_seed, random_seed);
-      GLOBAL_PARAM_SETUP_DEFAULT(simulation_step, simulation_step);
-      GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
-      GLOBAL_PARAM_SETUP_DEFAULT(dirt_spec, dirt_spec);
-      GLOBAL_PARAM_SETUP_DEFAULT(dirt_query, dirt_query);
-      GLOBAL_PARAM_SETUP_DEFAULT(environment, environment);
-      ros::Duration(1.0).sleep();
-    }
+    PRINT_MSG("[Replanner] Retrieving parameters")
+
+    GLOBAL_PARAM_BLOCKER(random_seed);
+    GLOBAL_PARAM_BLOCKER(simulation_step);
+    GLOBAL_PARAM_BLOCKER(plant_parameters);
+    GLOBAL_PARAM_BLOCKER(dirt_spec);
+    GLOBAL_PARAM_BLOCKER(dirt_query);
+    GLOBAL_PARAM_BLOCKER(environment);
+    // while (simulation_step == 0.0 or plant_parameters == "" or dirt_spec == "" or dirt_query == "" or environment ==
+    // "")
+    // {
+    //   // GLOBAL_PARAM_SETUP_DEFAULT(random_seed, random_seed);
+    //   GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
+    //   GLOBAL_PARAM_SETUP_DEFAULT(dirt_spec, dirt_spec);
+    //   GLOBAL_PARAM_SETUP_DEFAULT(dirt_query, dirt_query);
+    //   GLOBAL_PARAM_SETUP_DEFAULT(environment, environment);
+    //   ros::Duration(1.0).sleep();
+    // }
     // DEBUG_VARS(environment)
     PRINT_MSG("Parameters set")
 
@@ -216,6 +225,8 @@ struct replanner_t
     _dirt_query_params.from_string(dirt_query);
     _plant_params.from_string(plant_parameters);
     _env_params.from_string(_environment);
+
+    // DEBUG_VARS(_env_params)
 
     _postprocess_rate = _dirt_query_params["postprocess_rate"].as<double>();
 
@@ -238,8 +249,12 @@ struct replanner_t
 
     init_planner_spec(nh);
     init_planner_query();
-    init_heuristic_map();
 
+    bool h_initialized{ false };
+    // h_initialized = init_cluster_heuristic();
+    // h_initialized = h_initialized ? true : init_heuristic_map();
+    h_initialized = init_heuristic_map();
+    prx_assert(h_initialized, "Heuristic not initialized");
     // get an initial plan
     _dirt = std::make_shared<prx::dirt_replan_t>("dirt");
     _dirt->link_and_setup_spec(_dirt_spec.get());
@@ -343,10 +358,10 @@ struct replanner_t
     // const std::string plant_path{ plant_params["path"].as<std::string>() };
     // _plant = prx::system_factory_t::create_system(plant_name, plant_path);
     // _plant->init(plant_params);
-    DEBUG_VARS(_plant);
     // prx_assert(_plant != nullptr, "Failed to create plant");
 
     std::tie(_planning_model, _system_group, _collision_group) = prx::world_model_t::create(_env_params, _plant);
+    DEBUG_VARS(_plant);
 
     _state_space = _system_group->get_state_space();
     _control_space = _system_group->get_control_space();
@@ -404,18 +419,20 @@ struct replanner_t
     DEBUG_VARS(*_dirt_spec);
   }
 
-  void init_cluster_heuristic()
+  bool init_cluster_heuristic()
   {
     prx_assert(_dirt_spec_params.exists("heuristic"), "Parameter 'heuristic' not found");
     auto heuristic_params = _dirt_spec_params["heuristic"];
+    if (heuristic_params["type"].as<>() != "clustering")
+      return false;
     if (not heuristic_params.exists("clustering"))
-    {
-      return;
-    }
+      return false;
+    PRINT_MSG("Using Clustering Heuristic")
     heuristic_params = heuristic_params["clustering"];
     const std::string filename{ heuristic_params["filename"].as<>() };
     if (heuristic_params["type"].as<>() == "SE3")
     {
+      PRINT_MSG("Using Clustering SE3")
       using CsvReader = prx::utilities::csv_reader_t;
       using prx::utilities::convert_to;
 
@@ -439,39 +456,83 @@ struct replanner_t
         const double max_duration{ convert_to<double>(line[10]) };
         const double avg_duration{ convert_to<double>(line[11]) };
 
+        const double total_clustered{ convert_to<double>(line[12]) };
+
+        if (total_clustered < 5)
+          continue;
+
+        const double A0{ convert_to<double>(line[13]) };
+        const double A1{ convert_to<double>(line[14]) };
+        const double A2{ convert_to<double>(line[15]) };
+
+        const double expmap_0{ convert_to<double>(line[16]) };
+        const double expmap_1{ convert_to<double>(line[17]) };
+        const double expmap_2{ convert_to<double>(line[18]) };
+
+        const Eigen::Matrix<double, 1, 3> A{ (Eigen::Matrix<double, 1, 3>() << A0, A1, A2).finished() };
+        const Eigen::Vector3d expmap(expmap_0, expmap_1, expmap_2);
+
+        DEBUG_VARS(A)
+        DEBUG_VARS(expmap.transpose())
+        // DEBUG_VARS(R)
+        // DEBUG_VARS(x, y, theta)
+        // DEBUG_VARS(min_duration, max_duration, avg_duration)
         _cluster_SE3.noise_models.push_back(gtsam::noiseModel::Gaussian::SqrtInformation(R));
         _cluster_SE3.values.emplace_back(x, y, theta);
+        _cluster_SE3.original_elements.push_back({ std::make_tuple(A, expmap) });
 
-        if (heuristic_params["duration"].as<>() == "min")
-        {
-          _cluster_SE3.original_elements.push_back({ min_duration });
-        }
-        else if (heuristic_params["duration"].as<>() == "max")
-        {
-          _cluster_SE3.original_elements.push_back({ max_duration });
-        }
-        else if (heuristic_params["duration"].as<>() == "avg")
-        {
-          _cluster_SE3.original_elements.push_back({ avg_duration });
-        }
-        else
-        {
-          prx_throw("Unknown clustering heuristic param 'duration' - " << heuristic_params["duration"].as<>())
-        }
+        // if (heuristic_params["duration"].as<>() == "min")
+        // {
+        //   _cluster_SE3.original_elements.push_back({ min_duration });
+        // }
+        // else if (heuristic_params["duration"].as<>() == "max")
+        // {
+        //   _cluster_SE3.original_elements.push_back({ max_duration });
+        // }
+        // else if (heuristic_params["duration"].as<>() == "avg")
+        // {
+        //   _cluster_SE3.original_elements.push_back({ avg_duration });
+        // }
+        // else
+        // {
+        //   prx_throw("Unknown clustering heuristic param 'duration' - " << heuristic_params["duration"].as<>())
+        // }
       }
+      DEBUG_VARS(_cluster_SE3.original_elements.size());
+      DEBUG_VARS(_cluster_SE3.values.size());
+      DEBUG_VARS(_cluster_SE3.noise_models.size());
+
       _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
-        const double h{ 0 };
         const gtsam::Pose2 x(curr->at(0), curr->at(1), curr->at(2));
-        std::vector<double> duration{ motion_planning::query(_cluster_SE3, x, 7.815) };
-        prx_assert(duration.size() > 0, "clustering query output not valid");
-        return duration[0];
+
+        DEBUG_VARS(x)
+        const std::vector<ClusterData> data{ motion_planning::query(_cluster_SE3, x, 7.815) };
+        // prx_assert(duration.size() > 0, "clustering query output not valid");
+        const Eigen::Vector3d expmap{ gtsam::traits<gtsam::Pose2>::Logmap(x) };
+        DEBUG_VARS(expmap.transpose())
+        const Eigen::Matrix<double, 1, 3>& A{ std::get<0>(data[0]) };
+        const Eigen::Vector<double, 3>& em0{ std::get<1>(data[0]) };
+        DEBUG_VARS(A)
+        DEBUG_VARS(em0.transpose())
+        DEBUG_VARS(A * (em0 - expmap))
+        const double duration{ std::fabs((A * (em0 - expmap))) };
+        DEBUG_VARS(duration)
+        // LOG_VARS(x.x(), x.y(), x.theta(), duration[0])
+        return duration;
+        // return 5.0;
       };
     }
+    return true;
   }
 
-  void init_heuristic_map()
+  bool init_heuristic_map()
   {
-    // _collision_group
+    prx_assert(_dirt_spec_params.exists("heuristic"), "Parameter 'heuristic' not found");
+    auto heuristic_params = _dirt_spec_params["heuristic"];
+    if (heuristic_params["type"].as<>() != "2DPoint")
+      return false;
+
+    PRINT_MSG("Using heuristic map");
     auto heuristic_plant = prx::system_factory_t::create_system("2D_Point", "2D_Point");
     prx_assert(heuristic_plant != nullptr, "Failed to create plant");
     // prx::world_model_t heuristic_model({ heuristic_plant }, { _obstacle_list });
@@ -496,9 +557,9 @@ struct replanner_t
     file << *_heuristic_map;
     file.close();
 
-    _dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-      return _heuristic_map->get_cost(s);
-    };
+    // _dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+    //   return _heuristic_map->get_cost(s);
+    // };
 
     std::ofstream h_ofs(dbg::variables::lib_path + "/logs/h_" + _env_params["environment/name"].as<>() + ".txt");
     _heuristic_map->to_csv(h_ofs);
@@ -518,7 +579,7 @@ struct replanner_t
       const double multiplier{ heuristic_params["multiplier"].as<double>() };
       DEBUG_VARS(heuristic_params)
       DEBUG_VARS(max_vel, multiplier)
-      conversion_velocity = 1.0 / (max_vel * multiplier);
+      conversion_velocity = max_vel * multiplier;
     }
     if (_dirt_spec_params["f_type"].as<>() == "f=g")
     {
@@ -526,13 +587,15 @@ struct replanner_t
     }
     DEBUG_VARS(conversion_velocity)
     _dirt_spec->heuristic = [&, conversion_velocity](const prx::space_point_t& curr, const prx::space_point_t& goal) {
-      const double wh{ _heuristic_map->get_cost(curr) };  // workspace - h
-      const double h{ wh * conversion_velocity };
+      const double distance{ _heuristic_map->get_cost(curr) };  // workspace - h
+      const double h{ distance / conversion_velocity };
       // DEBUG_VARS(_dirt_spec_params)
       // DEBUG_VARS(conversion_velocity)
       // DEBUG_VARS(wh, conversion_velocity, h)
       return h;
     };
+
+    return true;
   }
 
   void init_planner_query()
@@ -769,32 +832,60 @@ int main(int argc, char** argv)
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
+  std::shared_ptr<replanner_t> replanner;
+
+  PRINT_MSG("[mushr_replanning_dirt] INIT")
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
-    PRINT_MSG("[mushr_replanning_dirt] INIT")
-    node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
+    // node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
 
-    DEBUG_PRINT
-    replanner_t replanner(nh);
-    DEBUG_PRINT
-    node_status->status(interface::NodeStatus::RUNNING, experiments_node_status->sequence_id());
-    DEBUG_PRINT
-
-    while (node_status->status() != interface::NodeStatus::FINISH)
+    DEBUG_VARS(node_status);
+    if (node_status->new_request())
     {
-      if (node_status->new_request())
+      auto requested_status = interface::node_status_t::status_to_string(node_status->requested_status());
+      DEBUG_VARS(requested_status);
+
+      if (node_status->requested_status() == interface::NodeStatus::RESET or
+          node_status->requested_status() == interface::NodeStatus::FINISH)
       {
+        if (replanner)
+        {
+          PRINT_MSG("Resetting replanner")
+          replanner->shutdown();
+        }
+        replanner = nullptr;
         node_status->status(node_status->requested_status());
       }
-      if (node_status->sequence_id() != experiments_node_status->sequence_id())
+      else if (node_status->requested_status() == interface::NodeStatus::RUNNING)
       {
-        break;
+        if (not replanner)
+        {
+          PRINT_MSG("Initializing replanner")
+          replanner = std::make_shared<replanner_t>(nh);
+        }
+        node_status->status(node_status->requested_status());
       }
-      DEBUG_VARS(node_status);
-      ros::Duration(1.0).sleep();
+      else
+      {
+        auto INVALID_STATUS_REQUESTED = *node_status;
+        DEBUG_VARS(INVALID_STATUS_REQUESTED);
+      }
+
+      node_status->status(node_status->requested_status());
     }
-    replanner.shutdown();
-    PRINT_MSG("Resetting replanner")
+    if (node_status->sequence_id() != experiments_node_status->sequence_id())
+    {
+      node_status->status(interface::NodeStatus::RESET);
+      if (replanner)
+      {
+        PRINT_MSG("Sequence id mismatch")
+        replanner->shutdown();
+      }
+      replanner = nullptr;
+    }
+    ros::Duration(1.0).sleep();
+    // }
+    // replanner.shutdown();
   }
   PRINT_MSG("[mushr_replanning_dirt] FINISHED")
   // ros::AsyncSpinner spinner(4);

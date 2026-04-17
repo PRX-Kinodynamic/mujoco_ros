@@ -251,7 +251,7 @@ static std::vector<Data> query(const cluster_in_out_t<Element, Data>& input,  //
   double prev_error{ 0 };
   double adjusted_error{ 0 };
 
-  double min_error;
+  double min_error{ std::numeric_limits<double>::max() };
   std::vector<Data> best_data;
 
   const gtsam::Key key{ gtsam::Symbol('X', 0) };
@@ -260,6 +260,9 @@ static std::vector<Data> query(const cluster_in_out_t<Element, Data>& input,  //
   gtsam::Ordering key_ordering;
   key_ordering += key;
 
+  auto nm = gtsam::noiseModel::Isotropic::Sigma(3, 0.1);
+  const gtsam::PriorFactor<Element> curr_prior(key, query_element, nm);
+  auto linearized_factor = curr_prior.linearize(values);
   for (int i = 0; i < input.values.size(); ++i)
   {
     const Element& zi{ input.values[i] };
@@ -267,10 +270,9 @@ static std::vector<Data> query(const cluster_in_out_t<Element, Data>& input,  //
 
     gtsam::GaussianFactorGraph linear_fg;
 
-    const gtsam::PriorFactor<Element> curr_prior(key, zi, z_noise);
-    linear_fg.push_back(curr_prior.linearize(values));
+    linear_fg.push_back(linearized_factor);
 
-    const gtsam::PriorFactor<Element> proposed_prior(key, query_element, z_noise);
+    const gtsam::PriorFactor<Element> proposed_prior(key, zi, z_noise);
     linear_fg.push_back(proposed_prior.linearize(values));
 
     const gtsam::GaussianConditional::shared_ptr marginal{
@@ -280,6 +282,8 @@ static std::vector<Data> query(const cluster_in_out_t<Element, Data>& input,  //
     const gtsam::VectorValues result{ marginal->solve(gtsam::VectorValues()) };
     const double error{ linear_fg.error(result) };
 
+    // DEBUG_VARS(zi)
+    // DEBUG_VARS(error)
     if (error < confidence)
     {
       return input.original_elements[i];
@@ -290,6 +294,8 @@ static std::vector<Data> query(const cluster_in_out_t<Element, Data>& input,  //
       min_error = error;
     }
   }
+  // DEBUG_VARS(min_error)
+  // return { 20.0 };
   return best_data;
   // const Element& res{ values.at<Element>(key) };
   // Covariance cov{ prev_noise->covariance() };
