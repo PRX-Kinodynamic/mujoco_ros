@@ -255,7 +255,7 @@ struct bag_writer_t
 
     dbg::set_log_filename("log_rosbag_record.txt");
 
-    _node_status->status(interface::NodeStatus::WAITING);
+    _node_status->status(interface::NodeStatus::READY);
   }
 
   ~bag_writer_t()
@@ -387,6 +387,8 @@ struct bag_writer_t
       {
         if (_first)
         {
+          init_bag();
+
           pause_queues(false);
           reset_queues();
           _first = false;
@@ -411,24 +413,39 @@ struct bag_writer_t
       {
         LOG_MSG("RESET");
         pause_queues(true);
-        write();
-        _node_status->status(interface::NodeStatus::WAITING);
-      }
-      else if (_node_status->status() == interface::NodeStatus::WAITING)
-      {
-        pause_queues(true);
-        _msgs_in_queue = write();
-        // DEBUG_VARS(msgs_left)
-        if (_msgs_in_queue == 0)
+        //   write();
+        //   _node_status->status(interface::NodeStatus::WAITING);
+        // }
+        // else if (_node_status->status() == interface::NodeStatus::WAITING)
+        // {
+        //   pause_queues(true);
+        if (_msgs_in_queue > 0)
         {
-          LOG_MSG("WAITING")
-          bag.close();
-          if (init_bag())
+          _msgs_in_queue = write();
+
+          if (_msgs_in_queue == 0)
           {
+            bag.close();
             _first = true;
-            _node_status->status(interface::NodeStatus::READY);
           }
         }
+        else
+        {
+          if (_node_status->new_request())
+          {
+            const interface::node_status_t::StatusType current_status{ _node_status->status() };
+            const interface::node_status_t::StatusType req_status{ _node_status->requested_status() };
+            _node_status->status(_node_status->requested_status());
+            _node_status->request_acknowledged();
+          }
+        }
+        // DEBUG_VARS(msgs_left)
+        // // LOG_MSG("WAITING")
+        // if (init_bag())
+        // {
+        //   _node_status->status(interface::NodeStatus::READY);
+        //   // }
+        // }
       }
       else if (_node_status->status() == interface::NodeStatus::FINISH)
       {

@@ -18,7 +18,7 @@ class node_status_t
   void init(ros::NodeHandle& nh, const std::string node_id)
   {
     _node_id = node_id;
-    _msg.status = NodeStatus::INITIALIZING;
+    _msg.status = NodeStatus::TIMEOUT;
     _msg.sequence_id = 0;
     _new_request = false;
 
@@ -27,6 +27,7 @@ class node_status_t
     if (_observer)
     {
       _status_subscriber = nh.subscribe(current_topic, 1, &This::callback, this);
+      _timeout_publisher = nh.advertise<interface::NodeStatus>(current_topic, 1, false);
       _change_publisher = nh.advertise<interface::NodeStatus>(change_topic, 1, false);
       _timer = nh.createTimer(ros::Rate(1.0), &This::update, this);
       status_change(NodeStatus::TIMEOUT, 0);
@@ -82,12 +83,13 @@ public:
       const double SECONDS{ (ros::Time::now() - _last_status_stamp).toSec() };
       if (SECONDS > 5.0)
       {
-        const std::string TIMEOUT_NODE{ _node_id };
-        if (_msg.status != NodeStatus::TIMEOUT)
-        {
-          DEBUG_VARS(TIMEOUT_NODE, SECONDS)
-          status_change(NodeStatus::TIMEOUT, _msg.sequence_id);
-        }
+        status_change(NodeStatus::TIMEOUT, _msg.sequence_id);
+        _timeout_publisher.publish(_msg);
+        // const std::string TIMEOUT_NODE{ _node_id };
+        // if (_msg.status != NodeStatus::TIMEOUT)
+        // {
+        //   DEBUG_VARS(TIMEOUT_NODE, SECONDS)
+        // }
       }
     }
     else
@@ -152,6 +154,9 @@ public:
       case NodeStatus::TIMEOUT:
         str = "TIMEOUT";
         break;
+      case NodeStatus::EXIT:
+        str = "EXIT";
+        break;
       default:
         prx_throw("[node_status_t] Status unknown");
     }
@@ -186,10 +191,13 @@ public:
       _msg_req.status = status;
       _msg_req.sequence_id = requested_sequence_id;
 
-      while (_msg.status != status and _msg.sequence_id != requested_sequence_id)
+      const auto WAITING_NODE = this;
+      const std::string requested_status{ status_to_string(status) };
+      const std::string current_status{ status_to_string(_msg.status) };
+      DEBUG_VARS(WAITING_NODE, requested_status, requested_sequence_id)
+      DEBUG_VARS(current_status, _msg.sequence_id)
+      while (_msg.status != status or _msg.sequence_id != requested_sequence_id)
       {
-        const std::string requested_status{ status_to_string(status) };
-        const auto WAITING_NODE = this;
         // const std::string WAITING_NODE{ _node_id };
         DEBUG_VARS(WAITING_NODE, requested_status, requested_sequence_id)
         _change_publisher.publish(_msg_req);
@@ -299,7 +307,7 @@ private:
 
   ros::Timer _timer;
   ros::Publisher _change_publisher;
-  ros::Publisher _status_publisher;
+  ros::Publisher _status_publisher, _timeout_publisher;
   ros::Subscriber _status_subscriber;
 };
 }  // namespace interface

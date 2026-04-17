@@ -1,5 +1,6 @@
 #pragma once
 #include "defs.h"
+#include <prx/utilities/general/prx_assert.hpp>
 #include <sstream>
 #include <cstdio>
 #include <mutex>
@@ -7,9 +8,11 @@
 
 #include <geometry_msgs/Pose2D.h>
 #include <ros/init.h>
+#include <ros/subscriber.h>
 #include <std_msgs/Float64.h>
 #include <ml4kp_bridge/defs.h>
 #include "interface/NodeStatus.h"
+#include "ml4kp_bridge/SpacePoint.h"
 #include "mujoco_ros/Collision.h"
 #include "utils/dbg_utils.hpp"
 
@@ -26,6 +29,10 @@ using VisualizerPtr = std::shared_ptr<simulator_visualizer_t>;
 
 class simulator_t : public std::enable_shared_from_this<simulator_t>
 {
+protected:
+  std::string collision_body1, collision_body2;
+  bool collision_in_history = false;
+
 private:
   bool visualize;
   std::vector<std::vector<double>> trajectory;
@@ -38,25 +45,34 @@ private:
 
   GLFWwindow* window;
 
+  ros::Subscriber _control_subscriber;
+
   ros::Timer _timer;
-  ros::Publisher _collision_pub;
+  ros::Publisher _collision_pub, _sensor_pub;
   std::shared_ptr<interface::node_status_t> _node_status;
+  interface::SensorDataStamped _sensor_msg;
 
-  simulator_t(const std::string node_name, ros::NodeHandle& nh)
+  simulator_t(const std::string node_name, ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status)
+    : _node_status(node_status)
   {
-    _node_status = interface::node_status_t::create(nh);
-
     std::string model_path;
     std::string collision_topic;
+    std::string control_topic, sensor_topic;
+    double sensor_frequency;
 
     PARAM_SETUP(nh, collision_topic)
     PARAM_SETUP(nh, model_path)
+    PARAM_SETUP(nh, control_topic)
+    PARAM_SETUP(nh, sensor_topic)
+    PARAM_SETUP(nh, sensor_frequency)
 
     DEBUG_VARS(model_path)
     DEBUG_VARS(collision_topic)
 
     _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
-    _timer = nh.createTimer(ros::Duration(1.0), &simulator_t::timer_callback, this);
+    _timer = nh.createTimer(ros::Duration(1. / sensor_frequency), &simulator_t::timer_callback, this);
+    _control_subscriber = nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
+    _sensor_pub = nh.advertise<interface::SensorDataStamped>(sensor_topic, 1, true);
 
     // utils::get_param_and_check(nh, node_name + "/model_path", model_path);
 
@@ -87,18 +103,20 @@ private:
     DEBUG_VARS(_node_status)
   }
 
-protected:
-  std::string collision_body1, collision_body2;
-  bool collision_in_history = false;
+  void control_callback(const ml4kp_bridge::SpacePointConstPtr& msg)
+  {
+    set_control(msg->point);
+  }
 
 public:
   std::mutex _mj_reset_mutex;
   mjModel* m;
   mjData* d;
 
-  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string node_name, ros::NodeHandle& nh)
+  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string node_name, ros::NodeHandle& nh,
+                                                               std::shared_ptr<interface::node_status_t> node_status)
   {
-    return std::shared_ptr<simulator_t>(new simulator_t(node_name, nh));
+    return std::shared_ptr<simulator_t>(new simulator_t(node_name, nh, node_status));
   }
 
   ~simulator_t()
@@ -143,11 +161,6 @@ public:
     ros::Rate rate(1.0 / m->opt.timestep);
     while (ros::ok())
     {
-      if (_node_status->new_request())
-      {
-        _node_status->status(_node_status->requested_status());
-        _node_status->request_acknowledged();
-      }
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
         step_simulation();
@@ -156,10 +169,11 @@ public:
       else if (_node_status->status() == interface::NodeStatus::RESET)
       {
         reset_simulation();
-        _node_status->status(interface::NodeStatus::RUNNING);
+        // _node_status->status(interface::NodeStatus::RUNNING);
         rate.sleep();
       }
-      else if (_node_status->status() == interface::NodeStatus::FINISH)
+      else if (_node_status->status() == interface::NodeStatus::FINISH or
+               _node_status->status() == interface::NodeStatus::EXIT)
       {
         PRINT_MSG("[mj_ros::simulator_t] Finished, exiting...")
         return;
@@ -215,7 +229,16 @@ public:
   {
     std_msgs::Bool msg;
     msg.data = collision_in_history;
+
+    _sensor_msg.raw_sensor_data.resize(m->nsensordata);
+    for (int i = 0; i < m->nsensordata; ++i)
+    {
+      _sensor_msg.raw_sensor_data[i] = d->sensordata[i];
+    }
+    _sensor_msg.header.seq++;
+    _sensor_msg.header.stamp = ros::Time::now();
     _collision_pub.publish(msg);
+    _sensor_pub.publish(_sensor_msg);
   }
 
   bool in_collision(mujoco_ros::Collision::Request& req, mujoco_ros::Collision::Response& res)
@@ -270,8 +293,11 @@ public:
 
 class simulator_visualizer_t
 {
+  std::shared_ptr<interface::node_status_t> _node_status;
+
 public:
-  simulator_visualizer_t(SimulatorPtr& sim) : _sim(sim)
+  simulator_visualizer_t(SimulatorPtr& sim, std::shared_ptr<interface::node_status_t> node_status)
+    : _sim(sim), _node_status(node_status)
   {
     button_left = button_middle = button_right = false;
     lastx = lasty = 0;
@@ -306,10 +332,11 @@ public:
     });
   }
 
-  static VisualizerPtr initialize(SimulatorPtr& sim, const bool viz = true)
+  static VisualizerPtr initialize(SimulatorPtr& sim, std::shared_ptr<interface::node_status_t> node_status,
+                                  const bool viz = true)
   {
     if (viz)
-      return std::make_shared<simulator_visualizer_t>(sim);
+      return std::make_shared<simulator_visualizer_t>(sim, node_status);
     return nullptr;
   }
 
@@ -390,12 +417,13 @@ public:
 
       r.sleep();
 
-      if (_sim->status() == interface::NodeStatus::FINISH)
+      if (_node_status->status() == interface::NodeStatus::FINISH or
+          _node_status->status() == interface::NodeStatus::EXIT)
       {
         break;
       }
     }
-    ros::shutdown();
+    // ros::shutdown();
   }
 
   inline void set_goal_pos(const geometry_msgs::Pose2D::ConstPtr& msg)
@@ -504,9 +532,11 @@ void run_thread(std::vector<std::thread>& threads, RunnableObjects&... runnable_
 }
 
 template <class First, class... RunnableObjects>
-inline void run_thread(std::vector<std::thread>& threads, First& first, RunnableObjects&... runnable_objects)
+inline void run_thread(std::vector<std::thread>& threads, First first, RunnableObjects&... runnable_objects)
 {
-  threads.emplace_back(&First::run, &first);
+  auto& first_ref = *first;
+
+  threads.emplace_back(&First::T::run, &first_ref);
   run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
 }
 // Run simulation with visualization and callbacks. Blocking function.
@@ -514,11 +544,11 @@ template <class... RunnableObjects>
 void run_simulation(SimulatorPtr sim, VisualizerPtr visualizer, const std::size_t callback_threads = 1,
                     RunnableObjects&... runnable_objects)
 {
-  simulator_t& sim_ref{ *sim };
+  // simulator_t& sim_ref{ *sim };
   // std::thread step_thread(&simulator_t::run, &(*sim));  // Mj sim
   std::vector<std::thread> threads{};
 
-  run_thread(threads, sim_ref, runnable_objects...);
+  run_thread(threads, sim, runnable_objects...);
 
   ros::AsyncSpinner spinner(callback_threads);  // 1 thread for the controller
 

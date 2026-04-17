@@ -1,3 +1,4 @@
+#include <memory>
 #include <thread>
 
 #include <ros/ros.h>
@@ -21,16 +22,40 @@ int main(int argc, char** argv)
   const std::string root{ ros::this_node::getNamespace() };
   const std::string node_name_prefix{ ros::this_node::getName() };
 
+  std::shared_ptr<interface::node_status_t> node_status{ interface::node_status_t::create(nh_priv) };
   bool visualize_sim, visualize_output, publish_ground_truth_pose;
+  bool publish_camera{ true };
 
   PARAM_SETUP(nh_priv, visualize_sim)
   PARAM_SETUP(nh_priv, visualize_output)
   PARAM_SETUP(nh_priv, publish_ground_truth_pose)
+  PARAM_SETUP_WITH_DEFAULT(nh_priv, publish_camera, publish_camera);
   // utils::get_param_and_check(n, node_name_prefix + "/visualize_sim", visualize_sim);
   // utils::get_param_and_check(n, node_name_prefix + "/visualize_output", visualize_output);
   // utils::get_param_and_check(n, node_name_prefix + "/publish_ground_truth_pose", publish_ground_truth_pose);
 
-  // mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(node_name_prefix, nh_priv) };
+  while (node_status->status() != interface::NodeStatus::EXIT)
+  {
+    if (node_status->new_request())
+    {
+      node_status->status(node_status->requested_status());
+      node_status->request_acknowledged();
+    }
+    if (node_status->status() == interface::NodeStatus::INITIALIZING)
+    {
+      continue;
+    }
+    mj_ros::SimulatorPtr sim{ mj_ros::simulator_t::initialize(node_name_prefix, nh_priv, node_status) };
+    mj_ros::VisualizerPtr visualizer{ mj_ros::simulator_visualizer_t::initialize(sim, node_status, visualize_sim) };
+
+    std::shared_ptr<mj_ros::camera_rgb_publisher_t> camera_publisher;  //(nh_priv, sim, "observer_camera");
+    if (publish_camera)
+    {
+      camera_publisher = std::make_shared<mj_ros::camera_rgb_publisher_t>(nh_priv, sim, "observer_camera");
+    }
+    mj_ros::run_simulation(sim, visualizer, 3, camera_publisher);
+  }
+
   // controller_listener_t<CtrlMsg, PlanMsg> controller_listener(nh_priv, sim->d);
   // mj_ros::sensordata_publisher_t sensordata_publisher(nh_priv, sim, 15);
 
@@ -63,17 +88,11 @@ int main(int argc, char** argv)
   // if (publish_camera)
   // {
   //   mj_ros::camera_rgb_publisher_t camera_publisher(nh_priv, sim, "observer_camera");
-  //   // mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher, camera_publisher);
+  //   mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher, camera_publisher);
   // }
   // else
   // {
   //   mj_ros::run_simulation(sim, visualizer, 3, sensordata_publisher);
-  // }
-  // if (publish_ground_truth_pose)
-  // {
-  // }
-  // else
-  // {
   // }
 
   ROS_INFO_STREAM(node_name << " finished.");

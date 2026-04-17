@@ -89,8 +89,10 @@
     </body>
   </worldbody>
   <actuator>
-    <motor gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity"
-      tendon="buddy_throttle" />
+    <!-- <motor gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity" -->
+      <!-- tendon="buddy_throttle" /> -->
+    <general gear="1" forcelimited="true" forcerange="-4000 4000" name="buddy_throttle_velocity"
+      tendon="buddy_throttle" dyntype="integrator" />
     <position class="buddy_steering" kp="25.0" name="buddy_steering_pos"
       joint="buddy_steering_wheel" />
   </actuator>

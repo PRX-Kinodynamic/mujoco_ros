@@ -32,10 +32,10 @@ struct runner_t
   State _state, _goal;
   double _goal_radius, _timeout;
 
-  bool _collision, _goal_reached, _initializing, _recording;
-  std::shared_ptr<interface::node_status_t> _mj_status, _stela_status, _rosbag_status, _replanner_status;
+  bool _collision, _goal_reached, _experiment_running;
+  std::shared_ptr<interface::node_status_t> _mj_status, _controller_status, _rosbag_status, _replanner_status;
 
-  std::vector<std::shared_ptr<interface::node_status_t>> _all_ns;
+  // std::vector<std::shared_ptr<interface::node_status_t>> _all_ns;
 
   std::ofstream _ofs;
   std::ofstream _ofs_planner;
@@ -55,8 +55,7 @@ struct runner_t
            std::shared_ptr<interface::node_status_t> node_status)
     : _collision(false)
     , _goal_reached(false)
-    , _initializing(true)
-    , _recording(false)
+    , _experiment_running(false)
     , _curr_experiment(0)
     , _error(10, 10, 10)
     , _nh(nh)
@@ -79,45 +78,37 @@ struct runner_t
     _total_experiments = _experiment_params["total_experiments"].as<int>();
     _file_prefix = _experiment_params["file_prefix"].as<>();
 
-    // _experiments_reader = std::make_shared<prx::utilities::csv_reader_t>(experiments_file);
-
     DEBUG_VARS(stela_node_id, mj_node_id, rosbag_node_id, replanner_node_id)
 
     _mj_status = interface::node_status_t::create(nh, mj_node_id, true);
-    _stela_status = interface::node_status_t::create(nh, stela_node_id, true);
+    _controller_status = interface::node_status_t::create(nh, stela_node_id, true);
     _rosbag_status = interface::node_status_t::create(nh, rosbag_node_id, true);
     _replanner_status = interface::node_status_t::create(nh, replanner_node_id, true);
-
-    _all_ns = { _stela_status, _rosbag_status, _replanner_status, _mj_status };
 
     PRINT_MSG("init_experiment")
     init_experiment();
 
-    DEBUG_PRINT
+    // _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
+    // ros::Duration(1.0).sleep();
 
-    _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
-    ros::Duration(1.0).sleep();
-
-    DEBUG_PRINT
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &runner_t::sensor_callback, this);
     _collision_subscriber = nh.subscribe(collision_topic_name, 1, &runner_t::collision_callback, this);
     _planner_stats_subscriber = nh.subscribe(planner_stats_topic_name, 1, &runner_t::planner_stats_callback, this);
 
-    DEBUG_PRINT
-    _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
-    _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
+    // _timer = nh.createTimer(ros::Duration(1.0 / 10.0), &runner_t::timer_callback, this);
+    // _verbose_timer = nh.createTimer(ros::Duration(5.0), &runner_t::verbose_timer_callback, this);
 
-    DEBUG_PRINT
-    _node_status->status(interface::NodeStatus::RUNNING, _node_status->sequence_id() + 1);
+    // _node_status->status(interface::NodeStatus::RUNNING, _node_status->sequence_id() + 1);
   }
 
   ~runner_t()
   {
     PRINT_MSG("finishing and waiting...");
     ros::param::del("/environment");
-    _stela_status->request_and_wait(interface::NodeStatus::FINISH);
+    _controller_status->request_and_wait(interface::NodeStatus::FINISH);
     _replanner_status->request_and_wait(interface::NodeStatus::FINISH);
     _rosbag_status->request_and_wait(interface::NodeStatus::FINISH);
+    PRINT_MSG("Runner finished!");
   }
 
   void init_experiment()
@@ -150,6 +141,29 @@ struct runner_t
     // return true;
   }
 
+  void setup_experiments()
+  {
+    PRINT_MSG("Setting experiments");
+    _rosbag_status->request_and_wait(interface::NodeStatus::RESET, _node_status->sequence_id());
+    _controller_status->request_and_wait(interface::NodeStatus::RESET, _node_status->sequence_id());
+    _replanner_status->request_and_wait(interface::NodeStatus::RESET, _node_status->sequence_id());
+    _mj_status->request_and_wait(interface::NodeStatus::RESET, _node_status->sequence_id());
+
+    DEBUG_VARS(_mj_status)
+    ros::Duration(1.0).sleep();
+    _goal_reached = false;
+    _collision = false;
+
+    _mj_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+    _rosbag_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+    _controller_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+    _replanner_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
+
+    PRINT_MSG("Experiment setup done");
+    _start = ros::Time::now();
+    _experiment_running = true;
+  }
+
   void verbose_timer_callback(const ros::TimerEvent& event)
   {
     const double time_spent{ (ros::Time::now() - _start).toSec() };
@@ -160,94 +174,44 @@ struct runner_t
 
   void timer_callback(const ros::TimerEvent& event)
   {
-    const ros::Time now(ros::Time::now());
-
-    if (_recording)
-    {
-      PRINT_MSG("Recording... ");
-    }
-    else if (_initializing)  // Start
-    {
-      // _node_status->status(interface::NodeStatus::INITIALIZING);
-      DEBUG_VARS(_mj_status, _stela_status, _rosbag_status, _replanner_status)
-      // int tot_running{ 0 };
-      _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
-      ros::Duration(1.0).sleep();
-
-      _mj_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      _replanner_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      _stela_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      _rosbag_status->request_and_wait(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      PRINT_MSG("ALL RUNNING ");
-      _initializing = false;
-      _goal_reached = false;
-      _collision = false;
-      _start = ros::Time::now();
-
-      // if (_mj_status->check(_node_status) and     // no-lint
-      //     _stela_status->check(_node_status) and  // no-lint
-      //     _replanner_status->check(_node_status))
-      // {
-      //   // _rosbag_status->status() == interface::NodeStatus::RUNNING and
-      //   PRINT_MSG("ALL RUNNING ");
-      //   _start = ros::Time::now();
-      //   _rosbag_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      //   _initializing = false;
-      //   _goal_reached = false;
-      //   _collision = false;
-      // }
-      // else if (_mj_status->check(interface::NodeStatus::RUNNING, _node_status->sequence_id()) and  // no-lint
-      //          _rosbag_status->check(interface::NodeStatus::READY, _node_status->sequence_id()))
-      // {
-      //   // PRINT_MSG("MJ & Rosbag running, setting STELA to 'RUNNING' ");
-      //   _stela_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      //   _replanner_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      //   _start = ros::Time::now();
-      // }
-      // else
-      // {
-      //   _start = ros::Time::now();
-      //   _mj_status->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
-      //   ros::Duration(1.0).sleep();
-      // }
-    }
-    else if (_collision)  // Collision detected
-    {
-      record("collision");
-      _collision = false;
-    }
-    else if (_goal_reached)  // Goal Reached
-    {
-      record("goal_reached");
-      _goal_reached = false;
-    }
-    else if ((now - _start).toSec() > _timeout)  // timeout check
-    {
-      record("timeout");
-    }
-    else  // keep running
-    {
-      if (_stela_status->status() != interface::NodeStatus::RUNNING)
-      {
-        _stela_status->request_status(interface::NodeStatus::RUNNING, _node_status->sequence_id());
-      }
-      // _node_status->status(interface::NodeStatus::RUNNING);
-    }
   }
 
-  void call_reset()
+  void run()
   {
-    for (auto stat : _all_ns)
+    const ros::Time now(ros::Time::now());
+    while (_curr_experiment < _total_experiments)
     {
-      stat->request_status(interface::NodeStatus::RESET, _node_status->sequence_id());
+      //   // DEBUG_VARS(_recording, _initializing, _goal_reached, _curr_experiment, _total_experiments)
+      //   ros::Duration(1.).sleep();
+      //   PRINT_MSG("Experiments done!");
+      //   _timer.stop();
+      //   _verbose_timer.stop();
+      //   // _node_status->status(interface::NodeStatus::FINISH);
+      //   _ofs.close();
+
+      if (_collision)  // Collision detected
+      {
+        record("collision");
+        _collision = false;
+      }
+      else if (_goal_reached)  // Goal Reached
+      {
+        record("goal_reached");
+        _goal_reached = false;
+      }
+      else if ((now - _start).toSec() > _timeout)  // timeout check
+      {
+        record("timeout");
+      }
     }
+    _ofs.close();
   }
 
   void record(const std::string reason)
   {
-    _recording = true;
-    _goal_reached = false;
-    _collision = false;
+    // _recording = true;
+    // _goal_reached = false;
+    _experiment_running = false;
     const double dt{ (ros::Time::now() - _start).toSec() };
     _ofs << dt << " ";
     _ofs << reason << " ";
@@ -259,43 +223,52 @@ struct runner_t
     const std::string msg{ "[Mushr Experiment]" };
     DEBUG_VARS(msg, reason, _curr_experiment, _total_experiments);
 
-    call_reset();
+    // call_reset();
     ros::Duration(5.).sleep();  // sleep for resets to happen
     _curr_experiment++;
-    _recording = false;
-    _initializing = true;
+    setup_experiments();
+    // _recording = false;
+    // if (_curr_experiment < _total_experiments)
+    // {
+    //   // _initializing = true;
+    // }
   }
 
-  void run()
-  {
-    while (_curr_experiment < _total_experiments)
-    {
-      DEBUG_VARS(_recording, _initializing, _goal_reached, _curr_experiment, _total_experiments)
-      ros::Duration(1.).sleep();
-    }
-    PRINT_MSG("Experiments done!");
-    _timer.stop();
-    _verbose_timer.stop();
-    // _node_status->status(interface::NodeStatus::FINISH);
-    _ofs.close();
-  }
+  // void run()
+  // {
+  //   while (_curr_experiment < _total_experiments)
+  //   {
+  //     DEBUG_VARS(_recording, _initializing, _goal_reached, _curr_experiment, _total_experiments)
+  //     ros::Duration(1.).sleep();
+  //   }
+  //   PRINT_MSG("Experiments done!");
+  //   _timer.stop();
+  //   _verbose_timer.stop();
+  //   // _node_status->status(interface::NodeStatus::FINISH);
+  //   _ofs.close();
+  // }
 
   void planner_stats_callback(const prx_models::PlannerStats msg)
   {
-    prx_models::to_stream(_ofs_planner, msg);
-    _ofs_planner << std::endl;
+    if (_experiment_running)
+    {
+      prx_models::to_stream(_ofs_planner, msg);
+
+      _ofs_planner << std::endl;
+    }
   }
 
   void collision_callback(const std_msgs::BoolConstPtr msg)
   {
-    if (_recording or _initializing)
-      return;
-    _collision = msg->data;
+    if (_experiment_running)
+    {
+      _collision = msg->data;
+    }
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
   {
-    if (_recording or _initializing)
+    if (not _experiment_running)
       return;
     if (msg->header.stamp < _start)
       return;
@@ -368,7 +341,11 @@ int main(int argc, char** argv)
       prx::param_loader exp_param(exp_iter);  // = exp_iter;
       // exp_param = exp_iter;
       runner_t runner(nh, experiment_params, exp_param, node_status);
+      runner.setup_experiments();
+      node_status->status(interface::NodeStatus::RUNNING);
       runner.run();
+      node_status->status(interface::NodeStatus::INITIALIZING);
+
       PRINT_MSG("Done?")
     }
 

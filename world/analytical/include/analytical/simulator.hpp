@@ -75,7 +75,7 @@ public:
 
     _step_timer = nh.createTimer(ros::Duration(prx::simulation_step), &simulator_t::step_callback, this);
 
-    _node_status->status(interface::NodeStatus::WAITING);
+    _node_status->status(interface::NodeStatus::INITIALIZING);
   }
 
   virtual ~simulator_t()
@@ -140,7 +140,9 @@ protected:
   void step_simulation()
   {
     _collision_msg.data = false;
+
     _system_group->propagate_once();
+
     _system_group->sense();
 
     if (_collision_group->in_collision())
@@ -183,43 +185,54 @@ protected:
   {
     if (_node_status->new_request())
     {
-      _node_status->status(_node_status->requested_status());
-      _node_status->request_acknowledged();
-    }
+      if (_node_status->requested_status() == interface::NodeStatus::RESET)
+      {
+        if (_node_status->status() != interface::NodeStatus::RESET)
+        {
+          PRINT_MSG("[mj_ros::simulator_t] Setting to reset")
+          if (reset_simulation())
+          {
+            _node_status->status(_node_status->requested_status());
+            _node_status->request_acknowledged();
 
+            // _node_status->status(interface::NodeStatus::RUNNING);
+          }
+          else
+          {
+            PRINT_MSG("[mj_ros::simulator_t] reset failed!")
+          }
+        }
+      }
+      else if (_node_status->requested_status() == interface::NodeStatus::RUNNING)
+      {
+        PRINT_MSG("[mj_ros::simulator_t] Setting to running")
+
+        _node_status->status(_node_status->requested_status());
+        _node_status->request_acknowledged();
+      }
+      else if (_node_status->requested_status() == interface::NodeStatus::FINISH)
+      {
+        PRINT_MSG("[mj_ros::simulator_t] Finished, exiting...")
+        ros::shutdown();
+      }
+      else if (_node_status->requested_status() == interface::NodeStatus::PAUSED)
+      {
+        _node_status->status(_node_status->requested_status());
+        _node_status->request_acknowledged();
+        return;
+      }
+      else
+      {
+        auto invalid_status = _node_status;
+        DEBUG_VARS(invalid_status);
+      }
+    }
     if (_node_status->status() == interface::NodeStatus::RUNNING)
     {
       step_simulation();
     }
-    else if (_node_status->status() == interface::NodeStatus::WAITING)
-    {
-      if (reset_simulation())
-      {
-        _node_status->status(interface::NodeStatus::RUNNING);
-      }
-    }
-    else if (_node_status->status() == interface::NodeStatus::RESET)
-    {
-      if (reset_simulation())
-      {
-        _node_status->status(interface::NodeStatus::RUNNING);
-      }
-    }
-    else if (_node_status->status() == interface::NodeStatus::FINISH)
-    {
-      PRINT_MSG("[mj_ros::simulator_t] Finished, exiting...")
-      ros::shutdown();
-    }
-    else if (_node_status->status() == interface::NodeStatus::PAUSED)
-    {
-      return;
-    }
-    else
-    {
-      auto invalid_status = _node_status;
-      DEBUG_VARS(invalid_status);
-    }
   }
+
   std::string _environment_file;
 
   prx::param_loader _prx_params;
