@@ -6,7 +6,7 @@
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
 #include <interface/SetDuration.h>
-
+#include <std_msgs/Int16.h>
 struct sim_clock_t
 {
   sim_clock_t(ros::NodeHandle& nh, double sim_step, double sleep_dur)
@@ -15,11 +15,17 @@ struct sim_clock_t
     const std::string duration_service_name{ "/sim_clock/set_duration" };
 
     duration_service = nh.advertiseService(duration_service_name, &sim_clock_t::service_callback, this);
+    clock_subscriber = nh.subscribe("/clock/step", 1, &sim_clock_t::callback, this);
     clock_publisher = nh.advertise<rosgraph_msgs::Clock>("/clock", 1);
 
     nanosecs = std::chrono::round<std::chrono::nanoseconds>(std::chrono::duration<double>{ sleep_dur });
     msg.clock.sec = 0.0;
     msg.clock.nsec = 0.0;
+  }
+  void callback(const std_msgs::Int16ConstPtr msg)
+  {
+    steps = msg->data;
+    step_and_publish();
   }
 
   bool service_callback(interface::SetDuration::Request& req, interface::SetDuration::Response& res)
@@ -69,6 +75,7 @@ struct sim_clock_t
 
   ros::ServiceServer duration_service;
   ros::Publisher clock_publisher;
+  ros::Subscriber clock_subscriber;
 
   std::chrono::nanoseconds nanosecs;
   rosgraph_msgs::Clock msg;

@@ -2002,9 +2002,7 @@ public:
     LOG_VARS(node_current.index);
     if (_tree.root != edge.source)
     {
-      LOG_LINE();
       const prx_models::Node& node_parent{ _tree.nodes[edge.source] };
-      LOG_LINE();
       _active_nodes.insert(node_parent.index);
     }
     LOG_VARS(node_current);
