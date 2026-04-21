@@ -1,0 +1,22 @@
+<launch>
+
+    <arg name="dt" value="0.0666692"/>
+    <arg name="control" value="[0, 0]"/>
+    <arg name="pose" value="[1.4549, 27.3669, 1.5362]"/>
+    <arg name="velocity" value="[0.458378, -0.0168525,  0.279324]"/>
+    
+    <arg name="poly" value="[-0.4397, 3.773e-5, 0.8677, 5.8e-6]"/>
+    <arg name="params" value="[0.09, 0.2, .10, 0.9, 1.05]"/>
+
+    <node pkg="interface" type="mushr_debugger" name="mushr_debugger" 
+        launch-prefix="lldb --" output="screen">
+        <param name="dt" value="$(arg dt)"/>
+        <param name="pose" type="yaml" value="$(arg pose)"/>
+        <param name="poly" type="yaml" value="$(arg poly)"/>
+        <param name="params" type="yaml" value="$(arg params)"/>
+        <param name="control" type="yaml" value="$(arg control)"/>
+        <param name="velocity" type="yaml" value="$(arg velocity)"/>
+    </node>
+
+  
+</launch>

@@ -1,0 +1,19 @@
+<launch>
+   
+    <arg name="sdf_params_file" default="$(find utils)/config/sdf.yaml"/>
+
+    <arg name="filename" />
+    <arg name="output_prefix" default="f_" />
+    <arg name="output_directory" default="/tmp/" />
+    <arg name="lines_per_file" default="1000" />
+
+    <node pkg="utils" type="file_divider" name="file_divider" output="screen">
+        <param name="filename" value="$(arg filename)" />
+        <param name="output_prefix" value="$(arg output_prefix)" />
+        <param name="output_directory" value="$(arg output_directory)" />
+        <param name="lines_per_file" value="$(arg lines_per_file)" />
+    </node>  
+    
+
+</launch>
+

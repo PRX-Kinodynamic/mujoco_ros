@@ -13,12 +13,15 @@
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
 
     <group ns="mushr">
-        <node pkg="mujoco_ros" name="simulation" type="mushr_simulation" output="screen" required="true">
+        <node pkg="mujoco_ros" name="simulation" type="mujoco_simulator" output="screen" required="true">
             <!-- <param name="model_path" type="string" value="$(find prx_models)/models/mushr/mushr.xml"/> -->
             <param name="model_path" type="string" value="$(find prx_models)/models/mushr/$(arg environment).xml"/>
             <param name="visualize_sim" value="$(arg visualize_sim)" />
-            <param name="visualize_output" value="$(arg visualize_output)" />
-            <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" />
+            <!-- <param name="visualize_output" value="$(arg visualize_output)" /> -->
+            <!-- <param name="publish_ground_truth_pose" value="$(arg publish_ground_truth_pose)" /> -->
+            <param name="control_topic" value="/mushr/control" />
+            <param name="sensor_topic" value="/mushr/sensordata" />
+            <param name="sensor_frequency" value="30" />
             <param name="publish_camera" value="$(arg publish_camera)" />
             <param name="node_id" value="mujoco" />
             <!-- <param name="node_id" value="/mushr/collision" /> -->
@@ -27,9 +30,9 @@
         </node>
     </group>
     <!-- <include unless="$(arg publish_ground_truth_pose)" file="$(find estimation)/launch/mj_estimation.launch" /> -->
-    <include file="$(find interface)/launch/mushr_interface.launch">
-        <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" />
-    </include>
+    <!-- <include file="$(find interface)/launch/mushr_interface.launch"> -->
+        <!-- <arg name="ground_truth_pose_used" value="$(arg publish_ground_truth_pose)" /> -->
+    <!-- </include> -->
 
     <node pkg="nodelet" type="nodelet" name="mj_nodelet"  args="manager" output="screen"/>
 

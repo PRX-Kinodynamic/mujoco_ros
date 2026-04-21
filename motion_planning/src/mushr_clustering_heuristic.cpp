@@ -2,7 +2,6 @@
 #include <prx/simulation/system.hpp>
 #include <thread>
 #include <Eigen/src/Core/Matrix.h>
-#include <Eigen/src/Geometry/Quaternion.h>
 #include <gtsam/base/Testable.h>
 #include <gtsam/geometry/Pose2.h>
 #include <ml4kp_bridge/defs.h>
@@ -17,6 +16,7 @@
 #include <motion_planning/clustering.hpp>
 #include "utils/dbg_utils.hpp"
 #include <visualization_msgs/MarkerArray.h>
+#include <interface/gaussian_to_ellipse_marker.hpp>
 
 using Element = gtsam::Pose2;
 using Data = std::pair<double, Element>;
@@ -107,6 +107,10 @@ int main(int argc, char** argv)
   std::ofstream ofs_values(values_filename.c_str());
   std::ofstream ofs_covs(covs_filename.c_str());
   std::ofstream ofs_clusters(clusters_filename.c_str());
+
+  interface::gaussian_params_t marker_params;
+  marker_params.color = Eigen::Vector4d(1.0, 1.0, 0.0, 0.0);
+
   for (int i = 0; i < output.original_elements.size(); ++i)
   {
     const Eigen::MatrixXd R{ dynamic_cast<gtsam::noiseModel::Gaussian*>(output.noise_models[i].get())->R() };
@@ -130,6 +134,7 @@ int main(int argc, char** argv)
     double min_duration{ std::numeric_limits<double>::max() };
     double max_duration{ 0.0 };
     double accum{ 0.0 };
+    const Eigen::Vector3d expmap_0{ gtsam::traits<gtsam::Pose2>::Logmap(output.values[i]) };
     for (auto ei : output.original_elements[i])
     {
       ofs << ei.first << " ";
@@ -141,9 +146,16 @@ int main(int argc, char** argv)
       max_duration = std::max(max_duration, ei.first);
       accum += ei.first;
       all_durations.emplace_back(ei.first);
-      all_zts.push_back(gtsam::traits<gtsam::Pose2>::Logmap(ei.second));
+      const Eigen::Vector3d expmap{ expmap_0 - gtsam::traits<gtsam::Pose2>::Logmap(ei.second) };
+      all_zts.push_back(expmap);
+      // DEBUG_VARS(ei.first, expmap.transpose())
     }
     const double avg_duration{ accum / output.original_elements[i].size() };
+    const Amat Ai{ compute_linear_system(all_zts, all_durations) };
+
+    if (std::isnan(Ai.template maxCoeff<Eigen::PropagateNaN>()))
+      continue;
+    DEBUG_VARS(i, Ai);
     // R is upper triangular
     ofs_clusters << R(0, 0) << " ";
     ofs_clusters << R(0, 1) << " ";
@@ -157,40 +169,31 @@ int main(int argc, char** argv)
     ofs_clusters << min_duration << " ";
     ofs_clusters << max_duration << " ";
     ofs_clusters << avg_duration << " ";
+    ofs_clusters << output.original_elements[i].size() << " ";
+    ofs_clusters << Ai << " ";
+    ofs_clusters << expmap_0.transpose() << " ";
     ofs_clusters << "\n";
 
     Eigen::MatrixXd cov{ (R.transpose() * R).inverse() };
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
     Eigen::VectorXd D = es.eigenvalues();
     Eigen::Matrix<double, 3, 3> V = es.eigenvectors();
-    Eigen::Quaterniond q_cov(V);
+    // Eigen::Quaterniond q_cov(V);
     // DEBUG_VARS(D.transpose())
-    DEBUG_VARS(q_cov)
+    // DEBUG_VARS(q_cov)
 
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "world";
-    marker.header.stamp = ros::Time();
-    marker.ns = "clustering";
-    marker.id = i;
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = output.values[i].x();
-    marker.pose.position.y = output.values[i].y();
-    marker.pose.position.z = output.values[i].theta();
-    marker.pose.orientation.x = q_cov.x();
-    marker.pose.orientation.y = q_cov.y();
-    marker.pose.orientation.z = q_cov.z();
-    marker.pose.orientation.w = q_cov.w();
-    marker.color.a = std::min(1.0, (0.1 + min_duration) / 20.0);  // Don't forget to set the alpha!
-    marker.color.r = 1.0;
-    marker.color.g = 0.0;
-    marker.color.b = 0.0;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.scale.x = 7.815 * std::sqrt(D[0]);  // Ros needs diameter, prx in rad
-    marker.scale.y = 7.815 * std::sqrt(D[1]);  // Ros needs diameter, prx in rad
-    marker.scale.z = 7.815 * std::sqrt(D[2]);
+    marker_params.idx = i;
+    marker_params.position[0] = output.values[i].x();
+    marker_params.position[1] = output.values[i].y();
+    marker_params.position[2] = output.values[i].theta();
+    marker_params.orientation = Eigen::Quaterniond(V);
+    marker_params.color[0] = std::min(1.0, (0.1 + min_duration) / 20.0);  // alpha first: ARGB
+    marker_params.axis = es.eigenvalues();
+    visualization_msgs::Marker marker{ interface::gaussian_to_ellipse_marker(marker_params) };
+
     marker_msg.markers.push_back(marker);
-    // const Amat Ai{ compute_linear_system(all_zts, all_durations) };
-    // DEBUG_VARS(i, all_zts.size(), Ai);
+
+    // break;
   }
   ofs_clusters.close();
   markers_publisher.publish(marker_msg);

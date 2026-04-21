@@ -1,5 +1,6 @@
 #pragma once
 #include "defs.h"
+#include <memory>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <sstream>
 #include <cstdio>
@@ -13,6 +14,7 @@
 #include <ml4kp_bridge/defs.h>
 #include "interface/NodeStatus.h"
 #include "ml4kp_bridge/SpacePoint.h"
+#include "ml4kp_bridge/SpacePointStamped.h"
 #include "mujoco_ros/Collision.h"
 #include "utils/dbg_utils.hpp"
 
@@ -45,23 +47,22 @@ private:
 
   GLFWwindow* window;
 
-  ros::Subscriber _control_subscriber;
+  ros::Subscriber _control_subscriber, _control_stamped_subscriber;
 
   ros::Timer _timer;
   ros::Publisher _collision_pub, _sensor_pub;
   std::shared_ptr<interface::node_status_t> _node_status;
   interface::SensorDataStamped _sensor_msg;
 
-  simulator_t(const std::string node_name, ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status)
-    : _node_status(node_status)
+  simulator_t(ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status) : _node_status(node_status)
   {
     std::string model_path;
     std::string collision_topic;
     std::string control_topic, sensor_topic;
     double sensor_frequency;
 
-    PARAM_SETUP(nh, collision_topic)
     PARAM_SETUP(nh, model_path)
+    PARAM_SETUP(nh, collision_topic)
     PARAM_SETUP(nh, control_topic)
     PARAM_SETUP(nh, sensor_topic)
     PARAM_SETUP(nh, sensor_frequency)
@@ -72,14 +73,28 @@ private:
     _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
     _timer = nh.createTimer(ros::Duration(1. / sensor_frequency), &simulator_t::timer_callback, this);
     _control_subscriber = nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
+    _control_stamped_subscriber =
+        nh.subscribe(control_topic + "_stamped", 1, &simulator_t::control_stamped_callback, this);
     _sensor_pub = nh.advertise<interface::SensorDataStamped>(sensor_topic, 1, true);
 
-    // utils::get_param_and_check(nh, node_name + "/model_path", model_path);
+    init(model_path);
 
-    ROS_INFO("Loading model from %s", model_path.c_str());
+    _node_status->status(interface::NodeStatus::RUNNING);
+    DEBUG_VARS(_node_status)
+  }
+
+  simulator_t(const std::string model_path)
+  {
+    init(model_path);
+  }
+
+  void init(const std::string mj_model_path)
+  {
+    DEBUG_VARS(mj_model_path)
+    // ROS_INFO("Loading model from %s", mj_model_path.c_str());
     std::string error;
     error.reserve(1000);
-    m = mj_loadXML(model_path.c_str(), NULL, error.data(), error.capacity());
+    m = mj_loadXML(mj_model_path.c_str(), NULL, error.data(), error.capacity());
     if (!m or error.size() != 0)
     {
       std::cerr << "Error in loading model." << std::endl;
@@ -87,20 +102,21 @@ private:
     }
 
     d = mj_makeData(m);
-    std::cout << "Simulation timestep: " << m->opt.timestep << std::endl;
-    ROS_ASSERT(m->opt.timestep > 0);
-    for (int i = 0; i < 1.0 / m->opt.timestep; i++)
-    {
-      mj_step(m, d);
-    }
-    for (int i = 0; i < m->nq; i++)
-    {
-      std::cout << d->qpos[i] << " ";
-    }
-    std::cout << std::endl;
+    const double simulation_step{ m->opt.timestep };
+    DEBUG_VARS(simulation_step)
 
-    _node_status->status(interface::NodeStatus::RUNNING);
-    DEBUG_VARS(_node_status)
+    ROS_ASSERT(simulation_step > 0);
+    reset_simulation();
+    // for (int i = 0; i < m->nq; i++)
+    // {
+    //   std::cout << d->qpos[i] << " ";
+    // }
+    // std::cout << std::endl;
+  }
+
+  void control_stamped_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
+  {
+    set_control(msg->space_point.point);
   }
 
   void control_callback(const ml4kp_bridge::SpacePointConstPtr& msg)
@@ -113,10 +129,10 @@ public:
   mjModel* m;
   mjData* d;
 
-  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(const std::string node_name, ros::NodeHandle& nh,
-                                                               std::shared_ptr<interface::node_status_t> node_status)
+  template <typename... Args>
+  [[nodiscard]] static std::shared_ptr<simulator_t> initialize(Args... args)
   {
-    return std::shared_ptr<simulator_t>(new simulator_t(node_name, nh, node_status));
+    return std::shared_ptr<simulator_t>(new simulator_t(args...));
   }
 
   ~simulator_t()
@@ -225,16 +241,27 @@ public:
     }
   }
 
+  void sense(std::vector<double>& vec)
+  {
+    vec.resize(m->nsensordata);
+    for (int i = 0; i < m->nsensordata; ++i)
+    {
+      vec[i] = d->sensordata[i];
+    }
+  }
+
   void timer_callback(const ros::TimerEvent& event)
   {
     std_msgs::Bool msg;
     msg.data = collision_in_history;
 
-    _sensor_msg.raw_sensor_data.resize(m->nsensordata);
-    for (int i = 0; i < m->nsensordata; ++i)
-    {
-      _sensor_msg.raw_sensor_data[i] = d->sensordata[i];
-    }
+    sense(_sensor_msg.raw_sensor_data);
+
+    // _sensor_msg.raw_sensor_data.resize(m->nsensordata);
+    // for (int i = 0; i < m->nsensordata; ++i)
+    // {
+    //   _sensor_msg.raw_sensor_data[i] = d->sensordata[i];
+    // }
     _sensor_msg.header.seq++;
     _sensor_msg.header.stamp = ros::Time::now();
     _collision_pub.publish(msg);
@@ -286,6 +313,11 @@ public:
   {
     _mj_reset_mutex.lock();
     mj_resetData(m, d);
+    const double simulation_step{ m->opt.timestep };
+    for (int i = 0; i < 1.0 / simulation_step; i++)
+    {
+      mj_step(m, d);
+    }
     collision_in_history = false;
     _mj_reset_mutex.unlock();
   }
@@ -332,7 +364,7 @@ public:
     });
   }
 
-  static VisualizerPtr initialize(SimulatorPtr& sim, std::shared_ptr<interface::node_status_t> node_status,
+  static VisualizerPtr initialize(SimulatorPtr& sim, std::shared_ptr<interface::node_status_t> node_status = nullptr,
                                   const bool viz = true)
   {
     if (viz)
@@ -417,8 +449,8 @@ public:
 
       r.sleep();
 
-      if (_node_status->status() == interface::NodeStatus::FINISH or
-          _node_status->status() == interface::NodeStatus::EXIT)
+      if (_node_status and (_node_status->status() == interface::NodeStatus::FINISH or
+                            _node_status->status() == interface::NodeStatus::EXIT))
       {
         break;
       }
@@ -536,7 +568,7 @@ inline void run_thread(std::vector<std::thread>& threads, First first, RunnableO
 {
   auto& first_ref = *first;
 
-  threads.emplace_back(&First::T::run, &first_ref);
+  threads.emplace_back(&First::element_type::run, &first_ref);
   run_thread<RunnableObjects...>(threads, runnable_objects...);  // line A
 }
 // Run simulation with visualization and callbacks. Blocking function.

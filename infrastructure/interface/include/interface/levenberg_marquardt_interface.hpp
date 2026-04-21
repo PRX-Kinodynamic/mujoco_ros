@@ -13,7 +13,7 @@ void initialize(gtsam::LevenbergMarquardtParams& lm_params, const ros::NodeHandl
   int iterations;
   std::string verbosity_level{ "SILENT" };
 
-  PARAM_SETUP(nh_optimizer, iterations);
+  PARAM_SETUP_WITH_DEFAULT(nh_optimizer, iterations, 10);
   PARAM_SETUP_WITH_DEFAULT(nh_optimizer, verbosity_level, verbosity_level);
 
   DEBUG_VARS(iterations)

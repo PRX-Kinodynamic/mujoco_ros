@@ -23,6 +23,7 @@
 #include <ml4kp_bridge/space_bridge.hpp>
 #include <ml4kp_bridge/trajectory_bridge.hpp>
 
+#include <ml4kp_bridge/PlanTrajectory.h>
 #include <ml4kp_bridge/PlanStamped.h>
 #include <ml4kp_bridge/PlanStepStamped.h>
 #include <ml4kp_bridge/SpacePointStamped.h>

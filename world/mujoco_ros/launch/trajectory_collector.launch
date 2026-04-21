@@ -1,0 +1,50 @@
+<launch>
+    <arg name="step_size" default="0.1" />
+    <arg name="model_path" default="$(find prx_models)/models/mushr/empty.xml" />
+    <arg name="steps_bounds" default="[2, 8]" />
+    <arg name="control_bounds_min" default="[-1.0, -1.0]" />
+    <arg name="control_bounds_max" default="[+1.0, +1.0]" />
+
+    <arg name="visualize_sim" default="true" />
+    <arg name="sensor_frequency" default="30" />
+    <arg name="total_trajectories" default="1" />
+    <arg name="min_trajectory_duration" default="10" />
+    <arg name="total_simulations" default="1"/>
+    <arg name="data_topic"  default="/mj/plan_trajectory"/>
+    <!-- <arg name="camera_config_file" default="$(find mujoco_ros)/config/mushr_mujoco_cam_0.yaml"/> -->
+    
+    <!-- <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" /> -->
+
+    <group ns="mushr">
+        <node pkg="mujoco_ros" name="simulation" type="trajectory_collector" output="screen" required="true">
+            <param name="model_path" type="string" value="$(arg model_path)"/>
+            <param name="data_topic" type="string" value="$(arg data_topic)"/>
+            <param name="total_simulations" value="$(arg total_simulations)"/>
+            <param name="sensor_frequency" value="$(arg sensor_frequency)" />
+            <param name="step_size" value="$(arg step_size)" />
+            <param name="model_path" value="$(arg model_path)" />
+            <param name="steps_bounds" type="yaml" value="$(arg steps_bounds)" />
+            <param name="control_bounds_min" type="yaml" value="$(arg control_bounds_min)" />
+            <param name="control_bounds_max" type="yaml" value="$(arg control_bounds_max)" />
+            <param name="visualize_sim" value="$(arg visualize_sim)" />
+            <param name="total_trajectories" value="$(arg total_trajectories)" />
+            <param name="min_trajectory_duration" value="$(arg min_trajectory_duration)" />
+            <!-- <param name="publish_camera" value="$(arg publish_camera)" /> -->
+            <!-- <param name="node_id" value="mujoco" /> -->
+            <!-- <param name="collision_topic" value="/mushr/collision"/> -->
+        </node>
+    </group>
+
+    <!-- <node pkg="nodelet" type="nodelet" name="mj_nodelet"  args="manager" output="screen"/> -->
+
+    <!-- <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher"  -->
+        <!-- args="load utils/EnvironmentPublisher mj_nodelet"  -->
+        <!-- output="screen"> -->
+    <!-- </node>    -->
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"
+        args="0 0 0 0 0 0 1  marker_50 world" />
+    
+   
+</launch>
+
