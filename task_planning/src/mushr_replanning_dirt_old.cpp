@@ -89,9 +89,9 @@ int main(int argc, char** argv)
   file << heuristic_map;
   file.close();
 
-  dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-    return heuristic_map.get_cost(s);
-  };
+  // dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+  //   return heuristic_map.get_cost(s);
+  // };
 
   dirt_spec->heuristic = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.62;

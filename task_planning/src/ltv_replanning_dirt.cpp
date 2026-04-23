@@ -102,9 +102,9 @@ int main(int argc, char** argv)
   heuristic_map.set_heuristic_grid(goal);
   heuristic_map.set_u_rep_coeff(params["planner/u_rep"].as<double>());
 
-  dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-    return heuristic_map.get_cost(s);
-  };
+  // dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+  //   return heuristic_map.get_cost(s);
+  // };
 
   dirt_spec->heuristic = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
     return dirt_spec->distance_function(s, s2) / 0.62;

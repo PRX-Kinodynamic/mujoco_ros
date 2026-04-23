@@ -18,6 +18,10 @@ duration retianment_offset # PrevPlan[0:T] -> retained plan will be [offset:T]
 int32 TYPE_FAILURE=0
 int32 TYPE_SUCCESS=1
 prx_models/Tree sln_tree
+
+ml4kp_bridge/SpacePointStamped[] trajectory 
+ml4kp_bridge/PlanStepStamped[] piecewise_plan 
+
 int32 planner_output
 # Planner Stats
 prx_models/PlannerStats stats

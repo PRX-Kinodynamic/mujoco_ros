@@ -366,9 +366,9 @@ struct replanner_t
     file << *_heuristic_map;
     file.close();
 
-    _dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
-      return _heuristic_map->get_cost(s);
-    };
+    // _dirt_spec->wavefront_h = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
+    //   return _heuristic_map->get_cost(s);
+    // };
 
     _dirt_spec->heuristic = [&](const prx::space_point_t& s, const prx::space_point_t& s2) {
       return _dirt_spec->distance_function(s, s2) / 0.62;

@@ -320,9 +320,13 @@ public:
     init();
   }
 
-  static std::shared_ptr<signed_distance_field_t> create(ros::NodeHandle& nh)
+  static std::shared_ptr<signed_distance_field_t> create(ros::NodeHandle nh)
   {
-    return std::make_shared<signed_distance_field_t>(nh);
+    bool create;
+    PARAM_SETUP(nh, create)
+    if (create)
+      return std::make_shared<signed_distance_field_t>(nh);
+    return nullptr;
   }
 
   virtual ~signed_distance_field_t() {};
