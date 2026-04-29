@@ -890,6 +890,149 @@ private:
   const double _dt;
 };
 
+template <typename... Types>
+class mushr_accel_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot::type, mushr_types::StateDot::type,
+                                                      mushr_types::Control::type, Types...>
+{
+  using State = mushr_types::State::type;
+  using StateDot = mushr_types::StateDot::type;
+  using StateDotDot = mushr_types::StateDot::type;
+
+  using Params = mushr_types::Control::params;
+  using Control = mushr_types::Control::type;
+  using Polynomial = mushr_types::Control::Poly;
+
+  static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
+  static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
+
+  static constexpr Eigen::Index DimParams{ mushr_types::Control::ParamsDim };
+
+  using Base = gtsam::NoiseModelFactorN<StateDot, StateDot, Control, Types...>;
+
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+  using Error = Eigen::VectorXd;
+
+  using OptDeriv = boost::optional<Eigen::MatrixXd&>;
+
+  template <typename T>
+  using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
+  static constexpr std::size_t NumTypes{ sizeof...(Types) };
+
+  mushr_accel_t() = delete;
+  mushr_accel_t(const mushr_accel_t& other) = delete;
+
+public:
+  template <std::size_t Num = NumTypes, typename std::enable_if_t<(1 == Num), bool> = true>
+  mushr_accel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const gtsam::Key dt,
+                const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
+    : Base(cost_model, xd1, xd0, u, dt), _params(params), _steering_poly(steering_poly), _dt(-1)
+  {
+  }
+
+  template <std::size_t Num = NumTypes, typename std::enable_if_t<(0 == Num), bool> = true>
+  mushr_accel_t(const gtsam::Key xd1, const gtsam::Key xd0, const gtsam::Key u, const double& dt,
+                const NoiseModel& cost_model, const Params params, const Polynomial& steering_poly)
+    : Base(cost_model, xd1, xd0, u), _params(params), _steering_poly(steering_poly), _dt(dt)
+  {
+  }
+
+  ~mushr_accel_t() override
+  {
+  }
+
+  template <typename Matrix>
+  static boost::optional<Eigen::MatrixXd&> check_opt_H(const bool check, Matrix& matrix)
+  {
+    if (check)
+      return matrix;
+    return boost::none;
+  }
+
+  // Vb= Ad(0,0,beta)*[xr/dt;0;th1/dt]*dt;
+  // T(x,y,th)*Exp(Vb(1),Vb(2),Vb(3))
+  static StateDot predict(const StateDot xd0, const Control u, const double dt,  // no-lint
+                          const Params& params, const Polynomial steering_poly,  // no-lint
+                          gtsam::OptionalJacobian<3, 3> Hxd0 = boost::none,
+                          gtsam::OptionalJacobian<3, 2> Hu = boost::none,
+                          gtsam::OptionalJacobian<3, 1> Hdt = boost::none,
+                          gtsam::OptionalJacobian<3, DimParams> Hparams = boost::none)
+  {
+    // PRINT_MSG("---------------------");
+    using StateDDot = Eigen::Vector3d;
+    using Integration = prx::fg::euler_integration_factor_t<StateDot, StateDDot, double>;
+
+    Eigen::MatrixXd xd1Z_H_qd0, xd1Zero_H_qdd, xd1Zero_H_dt;
+    Eigen::Matrix<double, 3, 3> xdd_H_Tb, xdd_H_stateDD;
+    Eigen::Matrix<double, 3, 3> qd0_H_Tbpinv, qd0_H_xd0;
+    Eigen::Matrix<double, 3, 3> Tpbinv_H_Tbprev;
+    Eigen::Matrix<double, 1, 1> beta_H_delta;
+    Eigen::Matrix<double, 3, 3> xd1Adj_H_xd1Z, xd1Adj_H_Tbeta;
+    Eigen::Matrix<double, 1, 1> delta_H_deltaIn;
+
+    const double& L{ mushr_types::Parameters::L };
+    const double& acc_damp{ params[0] };
+    const double& angular_damp{ params[1] };
+    // const double& friction{ params[mushr_types::Control::friction] };
+
+    const double& deltaIn{ u[mushr_types::Control::steering] };
+    const double delta{ mushr_types::Control::evaluate_polynomial(steering_poly, deltaIn, delta_H_deltaIn) };
+
+    const double Uaccel{ u[mushr_types::Control::vel_desired] };
+    const Eigen::Vector2d acc_in(Uaccel * acc_damp, 0.0);
+
+    const gtsam::Rot2 rot(delta);
+    const Eigen::Vector2d linear_frame_accel{ rot.rotate(acc_in) };
+    const double beta{ mushr_types::Control::beta(delta, Hu ? &beta_H_delta : nullptr) };
+    const double omega{ angular_damp * acc_in[0] * 2.0 * std::sin(beta) / L };
+    // const double w_accel{std::tan()};
+    const Eigen::Vector3d qdd{ (Eigen::Vector3d() << linear_frame_accel, omega).finished() };
+
+    const StateDot xd1{ Integration::integrate(xd0, qdd, dt, xd1Z_H_qd0, xd1Zero_H_qdd, xd1Zero_H_dt) };
+
+    if (Hxd0)
+    {
+      // *Hxd0 =
+    }
+    if (Hu)
+    {
+    }
+    if (Hdt)
+    {
+    }
+    return xd1;
+  }
+
+  virtual Eigen::VectorXd evaluateError(const StateDot& xd1, const StateDot& xd0, const Control& u,
+                                        const Types&... dt01,  // no-lint
+                                        OptDeriv Hxd1 = boost::none, OptDeriv Hxd0 = boost::none,
+                                        OptDeriv Hu = boost::none, OptionalMatrix<Types>... H) const override
+  {
+    StateDot xdp1{};
+    if constexpr (0 == NumTypes)
+    {
+      xdp1 = predict(xd0, u, _dt, _params, _steering_poly, Hxd0, Hu);
+      // return error(x1, x0, xdot, _h, H1, H0, Hdot);
+    }
+    else
+    {
+      xdp1 = predict(xd0, u, dt01..., _params, _steering_poly, Hxd0, Hu, H...);
+      // return error(x1, x0, xdot, xd..., H1, H0, Hdot, H...);
+    }
+
+    if (Hxd1)
+    {
+      *Hxd1 = -Eigen::Matrix<double, 3, 3>::Identity();
+    }
+    return xdp1 - xd1;
+  }
+
+private:
+  const Polynomial _steering_poly;
+  const Params _params;
+
+  const double _dt;
+};
+
 // Non-holonomic constraints
 class mushr_NHC_t : public gtsam::NoiseModelFactorN<mushr_types::StateDot::type, mushr_types::Control::type>
 {

@@ -1,0 +1,41 @@
+<launch> 
+    <arg name="replanner_service" default="/motion_planning/replan" />
+    <arg name="planner_stats_topic_name" default="/replanner/stats"/>
+
+    <arg name="output_dir" default="$(env ML4KP_ROS)/data/"/>
+
+
+    <arg name="dbg" value="lldb --"/>
+    <node pkg="task_planning" name="replanner" type="mushr_replanning_dirt" 
+          output="screen" respawn="false">
+        <!-- launch-prefix="$(arg dbg)" -->
+
+        <param name="node_id" value="replanner"/>
+        <param name="experiments_node_id" value="NONE"/>
+        <param name="heuristic_map_filename" value="$(arg output_dir)/heuristic_map.txt"/>
+        <param name="sbmp_full_tree_topic" value="/mushr/tree"/>
+        <param name="sbmp_solution_tree_topic" value="/mushr/sln/tree"/>
+        <param name="planner_stats_topic_name" value="$(arg planner_stats_topic_name)"/>
+        <param name="replanner_service" value="$(arg replanner_service)"/>
+        <param name="max_edge_duration" value="0.1"/>
+        
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="kraft_nodelet"  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+        output="screen">
+        <param name="tree_topic_name" value="/mushr/tree" />
+        <param name="color" type="yaml" value="[1.0, 1.0, 0.0, 1.0]" />
+        <param name="scale" value="0.1" />
+    </node>     
+
+    <node pkg="nodelet" type="nodelet" name="MotionPlanningSlnTreeVizPublisher" 
+        args="load motion_planning/MotionPlanningTreeVizPublisher kraft_nodelet" 
+        output="screen">
+        <param name="tree_topic_name" value="/mushr/sln/tree" />
+        <param name="color" type="yaml" value="[1.0, 0.0, 0.8, 1.0]" />
+        <param name="scale" value="0.2" />
+    </node>    
+</launch>

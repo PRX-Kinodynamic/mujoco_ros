@@ -1,0 +1,29 @@
+<launch>
+  
+  <!-- <arg name="planning_plant_file" value="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+
+
+  <arg name="random_seed" default="112392"/>
+  <arg name="cycle_duration" default="1.0" />
+  <arg name="replanner_service" default="/motion_planning/replan" />
+
+  <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+  <arg name="dirt_spec" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/dirt_replan_spec.yaml"/>
+  <arg name="dirt_query" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/dirt_replan_query.yaml"/>
+
+  <param name="random_seed" value="$(arg random_seed)"/>
+  <param name="simulation_step" value="0.1"/>
+  <param name="dirt_spec" textfile="$(arg dirt_spec)"/>
+  <param name="dirt_query" textfile="$(arg dirt_query)"/>
+  <param name="plant_parameters" textfile="$(arg plant_file)"/>
+
+  <include file="$(find interface)/launch/stela.launch">
+    <arg name="cycle_duration"    default="$(arg cycle_duration)"/>
+    <arg name="replanner_service" default="$(arg replanner_service)"/>
+  </include>
+  
+  <include file="$(find motion_planning)/launch/replanner_dirt.launch">
+    <arg name="replanner_service" default="$(arg replanner_service)"/>
+  </include>
+
+</launch>

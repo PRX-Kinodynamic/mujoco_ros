@@ -52,16 +52,8 @@ public:
     PARAM_SETUP(nh, sensor_topic);
     // GLOBAL_PARAM_SETUP(environment);
 
-    // ml4kp_bridge::copy(_prx_params, env_nh);
-    // _prx_params.from_string(environment);
-    DEBUG_PRINT
     // prx::param_loader plant_params;
     ml4kp_bridge::copy(_plant_params, nh);
-    DEBUG_PRINT
-
-    // DEBUG_VARS(_prx_params)
-
-    // init_ml4kp(_prx_params);
 
     _node_status = interface::node_status_t::create(nh);
 
@@ -139,6 +131,11 @@ protected:
 
   void step_simulation()
   {
+    if (not _system_group)
+    {
+      PRINT_MSG("[simulator_t] not initialize yet... call Reset on node status")
+      return;
+    }
     _collision_msg.data = false;
 
     _system_group->propagate_once();

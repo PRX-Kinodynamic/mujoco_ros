@@ -3,6 +3,7 @@
 #include <ros/assert.h>
 #include <prx/utilities/spaces/space.hpp>
 #include <ml4kp_bridge/SpacePointStamped.h>
+#include <visualization_msgs/Marker.h>
 
 namespace ml4kp_bridge
 {
@@ -12,6 +13,10 @@ inline prx::param_loader create(const ml4kp_bridge::SpacePoint msg)
   prx::param_loader params;
   params.set(msg.point);
   return params;
+}
+inline prx::param_loader create(const ml4kp_bridge::SpacePointStamped msg)
+{
+  return create(msg.space_point);
 }
 
 inline void copy(ml4kp_bridge::SpacePoint& msg, const prx::param_loader params)
@@ -78,4 +83,5 @@ inline void to_file(const ml4kp_bridge::SpacePointStamped& msg, std::ofstream& o
   to_file(msg.header, ofs);
   to_file(msg.space_point, ofs);
 }
+
 }  // namespace ml4kp_bridge

@@ -28,8 +28,12 @@
 #include <ml4kp_bridge/PlanStepStamped.h>
 #include <ml4kp_bridge/SpacePointStamped.h>
 #include <ml4kp_bridge/TrajectoryStamped.h>
+#include <ml4kp_bridge/SpacePointStampedArray.h>
+#include <ml4kp_bridge/PlanStepStampedArray.h>
 
 #include <ml4kp_bridge/fg_ltv_sde.hpp>
 #include <ml4kp_bridge/param_loader_bridge.hpp>
+#include <ml4kp_bridge/system_group_bridge.hpp>
 
 #include <ml4kp_bridge/gtsam_bridge.hpp>
+#include <ml4kp_bridge/marker_utils.hpp>

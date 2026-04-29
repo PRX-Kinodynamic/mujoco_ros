@@ -83,6 +83,12 @@ public:
     const std::scoped_lock lock{ _clock_mutex };
     return _planner_clock_msg.cycle_end;
   }
+
+  int cycle() const
+  {
+    const std::scoped_lock lock{ _clock_mutex };
+    return _planner_clock_msg.cycle;
+  }
   ros::Duration cycle_duration() const
   {
     return _planner_clock_msg.cycle_duration;

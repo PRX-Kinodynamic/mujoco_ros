@@ -1,0 +1,40 @@
+<launch> 
+    <arg name="replanner_service" default="/motion_planning/replan" />
+    <arg name="planner_stats_topic_name" default="/replanner/stats"/>
+    <arg name="cycle_duration" default="1.0"/>
+    <arg name="control_topic"/>
+    <arg name="estimation_topic"/>
+    <arg name="contingency_topic"/>
+
+
+    <arg name="output_dir" default="$(env ML4KP_ROS)/data/"/>
+
+    <arg name="dbg" value="lldb --"/>
+
+    <node pkg="motion_planning" name="sbmp_open_loop" type="sbmp_open_loop" 
+          output="screen" respawn="false">
+        <!-- launch-prefix="$(arg dbg)" -->
+        <param name="node_id" value="sbmp_open_loop"/>
+        <param name="experiments_node_id" value="NONE"/>
+        <param name="control_topic" value="$(arg control_topic)"/>
+        <param name="estimation_topic" value="$(arg estimation_topic)"/>
+        <param name="contingency_topic" value="$(arg contingency_topic)"/>
+        
+        <param name="clock/cycle_duration" value="$(arg cycle_duration)" />
+        
+        <param name="contingency/control" value="LQR" />
+        
+        <param name="goal_checker/radius" value="0.5" />
+        <param name="goal_checker/weights" type="yaml" value="[1,1,0.5]" />
+
+        <!-- <param name="replanner/condition" value="ITERATIONS" /> -->
+        <!-- <param name="replanner/iterations" value="3000" /> -->
+        <param name="replanner/condition" value="TIME" />
+        <param name="replanner/retain_plan" value="false" />
+        <param name="replanner/replanner_service" value="$(arg replanner_service)" />
+        <param name="replanner/solution_duration" value="$(arg cycle_duration)" />
+        <param name="replanner/postprocessing_rate" value="0.8" />
+        
+    </node>
+
+</launch>

@@ -1,4 +1,5 @@
 #include <chrono>
+#include <future>
 #include <iterator>
 #include <memory>
 
@@ -86,6 +87,10 @@ class stela_windowed_t
   using SdfPtr = std::shared_ptr<Sdf>;
   using SdfFactor = motion_planning::sdf_factor_t<State, typename RobotInterface::ConfigFromState>;
 
+  using RePlanner = motion_planning::sbmp_caller_t;
+  using RePlannerPlan = RePlanner::Plan;
+  using RePlannerResult = RePlanner::Result;
+
   static constexpr Eigen::Index XDim{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index UDim{ gtsam::traits<Control>::dimension };
 
@@ -114,9 +119,8 @@ public:
   {
     _node_status = interface::node_status_t::create(nh);
     _clock = std::make_unique<motion_planning::planner_clock_t>(ros::NodeHandle(nh, "clock"));
-    _replanner = std::make_unique<motion_planning::sbmp_caller_t>(ros::NodeHandle(nh, "replanner"));
+    _replanner = std::make_shared<motion_planning::sbmp_caller_t>(ros::NodeHandle(nh, "replanner"));
 
-    // PARAM_SETUP(private_nh, use_contingency);
     // PARAM_SETUP(private_nh, estimated_tree_topic);
 
     // Control parameters
@@ -199,6 +203,74 @@ public:
   {
   }
 
+  void handle_node_state()
+  {
+    if (_node_status->new_request())
+    {
+      _node_status->status(_node_status->requested_status());
+    }
+  }
+
+  ml4kp_bridge::SpacePointStamped get_replanner_x0(const ros::Time& deadline)
+  {
+    ml4kp_bridge::SpacePointStamped root;
+    root.header.stamp = _clock->cycle_end();
+    root.space_point.point = { 1.0, 0.0, 1.57, 0.0, 0.0, 0.0 };
+    return root;
+  }
+
+  RePlannerPlan get_retainment_plan()
+  {
+    return RePlannerPlan();
+  }
+
+  void replanning_loop()
+  {
+    int current_cycle{ -1 };
+    // std::variant<ros::Time, int> deadline_or_iterations;
+
+    while (ros::ok())
+    {
+      handle_node_state();
+      if (_node_status->status() != interface::NodeStatus::RUNNING)
+        continue;
+      if (not _replanner->valid())
+      {
+        PRINT_MSG("Replanning not available...")
+        ros::Duration(1.0).sleep();
+        continue;
+      }
+
+      if (current_cycle < _clock->cycle())
+      {
+        current_cycle = _clock->cycle();
+
+        const ros::Time deadline{ _clock->cycle_end() };
+
+        const ml4kp_bridge::SpacePointStamped root_state{ get_replanner_x0(deadline) };
+        const RePlannerPlan plan{ get_retainment_plan() };
+
+        const double planning_time{ (deadline - ros::Time::now()).toSec() };
+        const auto future_limit = std::chrono::steady_clock::now() + std::chrono::duration<double>(planning_time);
+        std::future<RePlannerResult> future_result{ std::async(&RePlanner::call, _replanner,  // no-lint
+                                                               planning_time, root_state, plan) };
+
+        std::future_status status{ future_result.wait_until(future_limit) };
+
+        if (status == std::future_status::ready)
+        {
+          RePlannerResult result{ future_result.get() };
+        }
+        else
+        {
+          const ros::Time replanner_failed_time{ ros::Time::now() };
+          DEBUG_VARS(replanner_failed_time)
+          // PRINT_MSG("Replanner failed!")
+        }
+      }
+    }
+  }
+
 private:
   Values _values;
 
@@ -209,10 +281,11 @@ private:
   gtsam::ISAM2UpdateParams _isam2_update_params;
 
   std::unique_ptr<motion_planning::planner_clock_t> _clock;
-  std::unique_ptr<motion_planning::sbmp_caller_t> _replanner;
+  std::shared_ptr<motion_planning::sbmp_caller_t> _replanner;
 
   std::shared_ptr<interface::node_status_t> _node_status;
 
+  ros::Duration _postprocessing_duration;
 #ifdef GTSAM_USE_TBB
   tbb::global_control _tbb_control;
 #endif

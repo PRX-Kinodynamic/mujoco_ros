@@ -78,6 +78,20 @@ public:
 
   void update(const ros::TimerEvent& t)
   {
+    if (not ros::ok())
+    {
+      status_change(NodeStatus::FINISH, _msg.sequence_id);
+      if (_observer)
+      {
+        _timeout_publisher.publish(_msg);
+      }
+      else
+      {
+        _status_publisher.publish(_msg);
+      }
+      return;
+    }
+
     if (_observer)
     {
       const double SECONDS{ (ros::Time::now() - _last_status_stamp).toSec() };

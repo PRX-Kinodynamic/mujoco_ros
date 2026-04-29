@@ -7,11 +7,12 @@ namespace interface
 
 struct gaussian_params_t
 {
-  gaussian_params_t() : idx(0), frame_id("world"), color(1, 0, 0, 0), confidence(7.815)
+  gaussian_params_t() : idx(0), frame_id("world"), color(1, 0, 0, 0), confidence(7.815), ns("confidence_ellipse")
   {
   }
   int idx;
   std::string frame_id;
+  std::string ns;
   Eigen::Vector<double, 3> position;
   Eigen::Quaterniond orientation;
   Eigen::Vector<double, 4> color;  // alpha first: ARGB
@@ -24,7 +25,7 @@ static visualization_msgs::Marker gaussian_to_ellipse_marker(const gaussian_para
   visualization_msgs::Marker marker;
   marker.header.frame_id = input.frame_id;
   marker.header.stamp = ros::Time::now();
-  marker.ns = "confidence_ellipse";
+  marker.ns = input.ns;
   marker.id = input.idx;
   marker.action = visualization_msgs::Marker::ADD;
   marker.pose.position.x = input.position[0];

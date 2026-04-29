@@ -98,7 +98,8 @@ struct collector_t
     _x_curr[1] = new_tree.nodes[curr_node_idx].point.point[1];
     _x_curr[2] = new_tree.nodes[curr_node_idx].point.point[2];
 
-    _planner_service_call.request.root = new_tree.nodes[curr_node_idx];
+    prx_throw("[tree_stats_collector] TODO: Change root to root_state")
+    // _planner_service_call.request.root = new_tree.nodes[curr_node_idx];
   }
 
   void run_experiment()
@@ -164,9 +165,8 @@ struct collector_t
       // }
 
       const bool replanner_available{ _planner_service_client.exists() };
-      _planner_service_call.request.root.stamp = ros::Time::now();
-      _planner_service_call.request.deadline =
-          ros::Time::now() + ros::Duration(_planner_service_call.request.solution_duration);
+      _planner_service_call.request.root_state.header.stamp = ros::Time::now();
+      _planner_service_call.request.planning_time = _planner_service_call.request.solution_duration.toSec();
       // _planner_service_call.request.use_contingency = _use_contingency;
 
       // DEBUG_VARS(_planner_service_call.request)
@@ -177,9 +177,10 @@ struct collector_t
         // prx_assert(planner_status, "Planner error!");
         if (planner_status)
         {
-          prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
+          prx_throw("[tree_stats_collector] Change sln_tree to traj/plan");
+          // prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
 
-          get_next_state(wrapped_tree);
+          // get_next_state(wrapped_tree);
           // goal_reached = distance(_x_curr, _x_goal) < _goal_radius;
           // prx_models::to_stream(_ofs, _planner_service_call.response.stats);
           // _ofs << "\n";

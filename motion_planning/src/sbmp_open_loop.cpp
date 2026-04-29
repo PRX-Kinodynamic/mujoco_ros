@@ -22,229 +22,299 @@
 #include <interface/levenberg_marquardt_interface.hpp>
 #include <interface/StelaStatus.h>
 #include <control/mushr_contingency_controllers.hpp>
+#include <motion_planning/goal_checker.hpp>
+
+void handle_node_state(std::shared_ptr<interface::node_status_t> node_status)
+{
+  if (node_status->new_request())
+  {
+    node_status->status(node_status->requested_status());
+  }
+}
 
 struct mushr_sbmp_open_loop_t
 {
-  using This = mushr_sbmp_open_loop_t;
-  using RobotInterface = prx_models::mushr_stela_t;
-  using State = prx_models::mushr_types::State::type;
-  using StateDot = prx_models::mushr_types::StateDot::type;
+  using RePlanner = motion_planning::sbmp_caller_t;
+  using RePlannerResult = RePlanner::Result;
 
-  prx_models::StelaKraft _planner_service_call;
-  ros::ServiceClient _planner_service_client;
-  interface::PlannerClock _planner_clock_msg;
+  using RePlannerPlan = RePlanner::Plan;
+  using RePlannerTrajectory = RePlanner::Trajectory;
 
-  ros::Timer _clock_timer, _control_publisher_timer;
-  ros::Publisher _planner_clock_publisher;
+  using ContingencyController = control::contingency_controller_t;
+  ml4kp_bridge::SpacePointStamped _current_control;
+
+  ml4kp_bridge::SpacePointStamped _state_estimate;
+  ml4kp_bridge::SpacePointStamped _end_window_estimate;
+  prx::system_ptr_t _plant;
+
+  RePlannerPlan _current_plan, _next_plan;
+  RePlannerTrajectory _current_trajectory, _next_trajectory;
+
+  std::shared_ptr<prx::system_group_t> _system_group;
+  std::shared_ptr<prx::world_model_t> _planning_model;
+  std::shared_ptr<prx::collision_group_t> _collision_group;
+
+  visualization_msgs::Marker _trajectory_marker;
+
+  ros::Timer _timer;
+  ros::Publisher _traj_estimation_publisher, _contingency_publisher;
+  ros::Publisher _control_publisher, _control_stamped_publisher;
   ros::Subscriber _ekf_subscriber;
-  ros::Publisher _stamped_control_publisher, _control_publisher;
 
-  bool _call_replanner, _new_tree_available;
-  bool _validation_plan_feasibility, _validation_collision_only;
+  std::shared_ptr<ContingencyController> _contingency_controller;
+  std::shared_ptr<motion_planning::goal_checker_t> _goal_checker;
 
-  std::shared_ptr<RobotInterface> _robot;
+  std_msgs::Bool _contingency_msg;
 
-  ros::Time _next_control_dt;
-
-  ml4kp_bridge::Plan _plan;
-
-  State _q_hat;
-  StateDot _qdot_hat;
-  Eigen::Matrix3d _q_cov, _qdot_cov;
-  motion_planning::tree_validation_params_t<RobotInterface> _validation_params;
-  prx_models::tree_msg_wrapper_t _new_tree;
-  ml4kp_bridge::SpacePointStamped _control_stamped;
-
-  std::shared_ptr<control::contingency_controller_t> _contingency;
-
-  mushr_sbmp_open_loop_t(ros::NodeHandle& nh)
-    : _call_replanner(false)
-    , _validation_plan_feasibility(false)
-    , _validation_collision_only(false)
-    , _new_tree_available(false)
-    , _q_cov(Eigen::Matrix3d::Identity())
-    , _qdot_cov(Eigen::Matrix3d::Identity())
+public:
+  mushr_sbmp_open_loop_t(ros::NodeHandle& nh, std::shared_ptr<interface::node_status_t> node_status)
+    : _node_status(node_status), _current_cycle(0)
   {
-    double cycle_duration{ 1.0 };
-    double replanner_solution_duration;
-    std::string replanner_service, planner_clock_topic, plant_parameters, ekf_topic;
-    std::string control_topic;
+    // _node_status = interface::node_status_t::create(nh);
+    _node_status->status(interface::NodeStatus::INITIALIZING);
+    _clock = std::make_unique<motion_planning::planner_clock_t>(ros::NodeHandle(nh, "clock"));
+    _replanner = std::make_shared<motion_planning::sbmp_caller_t>(ros::NodeHandle(nh, "replanner"));
+    _contingency_controller = std::make_shared<ContingencyController>(ros::NodeHandle(nh, "contingency"));
+    _goal_checker = std::make_shared<motion_planning::goal_checker_t>(ros::NodeHandle(nh, "goal_checker"));
 
-    PARAM_SETUP(nh, replanner_service)
-    PARAM_SETUP(nh, planner_clock_topic)
+    // PRX FILES
+    std::string environment;
+    std::string plant_parameters;
+
+    // PRX PARAM LOADERS FOR PRX FILES
+    prx::param_loader plant_params, env_params;
+
+    // TOPICS
+    std::string control_topic, estimation_topic, contingency_topic;
+
     PARAM_SETUP(nh, control_topic)
-    PARAM_SETUP(nh, ekf_topic)
-    PARAM_SETUP(nh, replanner_solution_duration)
-    PARAM_SETUP(nh, cycle_duration);
-    GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
+    PARAM_SETUP(nh, estimation_topic)
+    PARAM_SETUP(nh, contingency_topic)
+    GLOBAL_PARAM_BLOCKER(environment);
+    GLOBAL_PARAM_BLOCKER(plant_parameters);
 
-    _contingency = std::make_shared<control::contingency_controller_t>(nh, "LQR");
-    _control_stamped.space_point.point.push_back(0.);
-    _control_stamped.space_point.point.push_back(0.);
+    env_params.from_string(environment);
+    plant_params.from_string(plant_parameters);
 
-    const std::string stamped_control_topic{ control_topic + "_stamped" };
+    _plant = prx::system_factory_t::create_system(plant_params);
+    std::tie(_planning_model, _system_group, _collision_group) = prx::world_model_t::create(env_params, _plant);
 
-    interface::initialize(_validation_params.lm_params, ros::NodeHandle(nh, "lm"));
+    prx_assert(_plant != nullptr, "[mushr_sbmp_open_loop_t] prx::system_factory_t::create_system failed.");
 
-    prx::param_loader params;
-    params.from_string(plant_parameters);
-    _robot = std::make_shared<RobotInterface>();
-    _robot->init(params);
-    _validation_params.robot = _robot;
+    _trajectory_marker = ml4kp_bridge::create_marker(0.1, { 1, 1, 0, 0 });
+    _trajectory_marker.type = visualization_msgs::Marker::LINE_STRIP;
+    _current_control.space_point.point.emplace_back();  // u0
+    _current_control.space_point.point.emplace_back();  // u1
 
+    // PUBLISHERS
+    _traj_estimation_publisher = nh.advertise<visualization_msgs::Marker>("/prediction/trajectory/marker", 1);
+    _control_publisher = nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1);
+    _control_stamped_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(control_topic + "_stamped", 1);
+    _contingency_publisher = nh.advertise<std_msgs::Bool>(contingency_topic, 1);
+
+    // SUBSCRIBERS
+    _ekf_subscriber = nh.subscribe(estimation_topic, 1, &mushr_sbmp_open_loop_t::ekf_callback, this);
+
+    // TIMERS
     const ros::Duration timer_duration(0.01);
-    _planner_service_client = nh.serviceClient<prx_models::StelaKraft>(replanner_service);
-    _planner_clock_publisher = nh.advertise<interface::PlannerClock>(planner_clock_topic, 1);
-    _clock_timer = nh.createTimer(timer_duration, &This::clock_timer_callback, this);
-    _control_publisher_timer = nh.createTimer(timer_duration, &This::control_timer_callback, this);
+    _timer = nh.createTimer(timer_duration, &mushr_sbmp_open_loop_t::timer_callback, this);
 
-    _ekf_subscriber = nh.subscribe(ekf_topic, 1, &This::ekf_callback, this);
-    _control_publisher = nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1, true);
-    _stamped_control_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
+    _node_status->status(interface::NodeStatus::RUNNING);
+  }
 
-    _planner_service_call.request.condition = prx_models::StelaKraft::Request::CONDITION_TIME;
-    _planner_service_call.request.solution_duration = ros::Duration(replanner_solution_duration);
-
-    DEBUG_VARS(cycle_duration)
-    _planner_clock_msg.cycle_duration = ros::Duration(cycle_duration);
-    _planner_clock_msg.header.stamp = ros::Time::now();
-    _planner_clock_msg.cycle_start = ros::Time::now();
-    _planner_clock_msg.cycle_end = _planner_clock_msg.cycle_start + _planner_clock_msg.cycle_duration;
+  ~mushr_sbmp_open_loop_t()
+  {
   }
 
   void ekf_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
-    _q_hat[0] = msg->space_point.point[0];
-    _q_hat[1] = msg->space_point.point[1];
-    _q_hat[2] = msg->space_point.point[2];
-    _qdot_hat[0] = msg->space_point.point[3];
-    _qdot_hat[1] = msg->space_point.point[4];
-    _qdot_hat[2] = msg->space_point.point[5];
+    _state_estimate = *msg;
   }
 
-  void clock_timer_callback(const ros::TimerEvent& event)
+  void merge_result()
   {
-    _planner_clock_msg.state = interface::PlannerClock::LOW;
-    if (_planner_clock_msg.cycle_start > ros::Time::now())
+    for (auto&& step : _next_plan)
     {
+      _current_plan.push_back(step);
+    }
+    for (auto&& state : _next_trajectory)
+    {
+      _current_trajectory.push_back(state);
+    }
+    // std::copy(_next_plan.begin(), _next_plan.end(), _current_plan.end());
+    // std::copy(_next_trajectory.begin(), _next_trajectory.end(), _current_trajectory.end());
+  }
+
+  template <typename Control>
+  void publish_control(const Control& control)
+  {
+    _current_control.header.stamp = ros::Time::now();
+    _current_control.space_point.point[0] = control[0];
+    _current_control.space_point.point[1] = control[1];
+    _control_publisher.publish(_current_control.space_point);
+    _control_stamped_publisher.publish(_current_control);
+  }
+
+  void apply_contingency(const std::vector<double>& state)
+  {
+    const Eigen::Vector3d xdot(state[3], state[4], state[5]);
+    const Eigen::Vector2d ctrl{ _contingency_controller->control(xdot) };
+    publish_control(ctrl);
+
+    _contingency_msg.data = true;
+    _contingency_publisher.publish(_contingency_msg);
+  }
+
+  void timer_callback(const ros::TimerEvent& event)
+  {
+    auto& state = _state_estimate.space_point.point;
+    if (state.size() != 6)
+    {
+      prx_warn("[sbmp_open_loop] EKF state is empty!");
+      return;
+    }
+    if (_current_plan.size() == 0)
+    {
+      apply_contingency(state);
+      return;
+    }
+    const gtsam::Pose2 x_hat(state[0], state[1], state[2]);
+    if (_goal_checker->goal_reached(x_hat))
+    {
+      apply_contingency(state);
       return;
     }
 
-    _planner_clock_msg.header.stamp = ros::Time::now();
-    if (_planner_clock_msg.header.stamp > _planner_clock_msg.cycle_end)
+    _system_group->get_state_space()->copy_from(_current_trajectory.back().space_point.point);
+    const bool collision{ _collision_group->in_collision() };
+
+    ml4kp_bridge::update_marker(_trajectory_marker, _current_trajectory, 0, 1, 0.0);
+    _traj_estimation_publisher.publish(_trajectory_marker);
+
+    if (collision)
     {
-      _planner_clock_msg.state = interface::PlannerClock::HIGH;
-      _planner_clock_msg.cycle++;
-      _planner_clock_msg.cycle_start = _planner_clock_msg.cycle_end;
-      _planner_clock_msg.cycle_end = _planner_clock_msg.cycle_end + _planner_clock_msg.cycle_duration;
-      // _planner_clock_msg.cycle_duration = _cycle_duration;
-      _call_replanner = true;
+      apply_contingency(_current_trajectory.back().space_point.point);
+      return;
     }
-    _planner_clock_publisher.publish(_planner_clock_msg);
-  }
 
-  void get_next_root(prx_models::Node& node)
-  {
-    node.point.point.resize(6);
-    node.point.point[0] = _q_hat[0];
-    node.point.point[1] = _q_hat[1];
-    node.point.point[2] = _q_hat[2];
-    node.point.point[3] = _qdot_hat[0];
-    node.point.point[4] = _qdot_hat[1];
-    node.point.point[5] = _qdot_hat[2];
-  }
-
-  void control_timer_callback(const ros::TimerEvent& event)
-  {
-    if (ros::Time::now() > _next_control_dt)
+    if (ros::Time::now() > _current_plan.front().header.stamp)
     {
-      _control_stamped.header.stamp = ros::Time::now();
-      if (_plan.steps.size() > 0)
+      // _current_control.space_point = _current_plan.front().plan_step.control;
+      auto& ctrl{ _current_plan.front().plan_step.control.point };
+      publish_control(ctrl);
+
+      _current_plan.erase(_current_plan.begin());
+      ml4kp_bridge::propagate(_state_estimate, _current_plan, _current_trajectory, _system_group);
+    }
+    _contingency_msg.data = false;
+    _contingency_publisher.publish(_contingency_msg);
+  }
+
+  ml4kp_bridge::SpacePointStamped next_replanner_root()
+  {
+    ml4kp_bridge::SpacePointStamped root;
+    root.header.stamp = _clock->cycle_end();
+
+    prx_warn_cond((ros::Time::now() - _state_estimate.header.stamp).toSec() < 1.0,
+                  "[sbmp_open_loop] EKF estimate is older than 1 sec.");
+
+    // No trajectory available -> use current EKF state
+    if (_current_trajectory.size() == 0)
+    {
+      root.space_point = _state_estimate.space_point;
+    }
+    else
+    {
+      // Find the state closer to the end cycle.
+      for (auto state : _current_trajectory)
       {
-        auto current_step = _plan.steps.front();
-        _next_control_dt = _next_control_dt + current_step.duration.data;
-        _control_stamped.space_point = current_step.control;
-        DEBUG_VARS(current_step)
-        _plan.steps.erase(_plan.steps.begin());
-        _control_publisher.publish(_control_stamped.space_point);
-        _stamped_control_publisher.publish(_control_stamped);
+        if (state.header.stamp >= root.header.stamp)
+        {
+          root.space_point = state.space_point;
+          break;
+        }
+      }
+      // Trajectory is shorter than the window -> just use the last point
+      root.space_point = _current_trajectory.back().space_point;
+    }
+    return root;
+  }
+
+  RePlannerPlan get_retainment_plan()
+  {
+    return RePlannerPlan();
+  }
+
+  void replanning_loop()
+  {
+    // PRINT_MSG("Starting Replanning Loop");
+    // while (_node_status->status() != interface::NodeStatus::FINISH)
+    // {
+    // handle_node_state();
+    // if (_node_status->status() != interface::NodeStatus::RUNNING)
+    //   break;
+    if (not _replanner->valid())
+    {
+      // PRINT_MSG("Replanning not available...")
+      // ros::Duration(1.0).sleep();
+      return;
+    }
+
+    if (_current_cycle < _clock->cycle())
+    {
+      _current_cycle = _clock->cycle();
+
+      const ros::Time deadline{ _clock->cycle_end() };
+      // const double planning_time{ (deadline - ros::Time::now()).toSec() };
+      const ros::Duration planning_duration{ deadline - ros::Time::now() };
+      // const auto future_limit = std::chrono::steady_clock::now() + std::chrono::duration<double>(planning_time);
+      const std::chrono::time_point future_limit{ std::chrono::steady_clock::now() +
+                                                  std::chrono::seconds(planning_duration.sec) +
+                                                  std::chrono::nanoseconds(planning_duration.nsec) };
+
+      const ml4kp_bridge::SpacePointStamped root{ next_replanner_root() };
+
+      // DEBUG_VARS(ros::Time::now(), root)
+      // const ml4kp_bridge::SpacePointStamped root_state;  // get_replanner_x0(deadline) };
+      const RePlannerPlan plan{ get_retainment_plan() };
+
+      const double planning_time{ planning_duration.toSec() };
+      std::future<RePlannerResult> future_result{ std::async(&RePlanner::call, _replanner,  // no-lint
+                                                             planning_time, root, plan) };
+
+      std::future_status status{ future_result.wait_until(future_limit) };
+
+      if (status == std::future_status::ready)
+      {
+        std::tie(_next_trajectory, _next_plan) = future_result.get();
+        // DEBUG_VARS(_next_trajectory.size())
+        // DEBUG_VARS(_next_plan.size())
+        merge_result();
       }
       else
       {
-        // PRINT_MSG("CONTINGENCY")
-        // DEBUG_VARS(_qdot_hat.transpose())
-        const Eigen::Vector<double, 2> ui{ _contingency->control(_qdot_hat) };
-        // DEBUG_VARS(ui[0], ui[1])
-        _control_stamped.space_point.point[0] = ui[0];
-        _control_stamped.space_point.point[1] = ui[1];
-        _control_publisher.publish(_control_stamped.space_point);
-        _stamped_control_publisher.publish(_control_stamped);
-        // PRINT_MSG("CONTINGENCY sent")
+        auto now = std::chrono::steady_clock::now();
+        auto ms_now = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        auto ms_limit = std::chrono::duration_cast<std::chrono::milliseconds>(future_limit.time_since_epoch()).count();
+        // std::cout << "Future limit: " << future_limit << "\n";
+        // const std::time_t limit{ std::chrono::system_clock::to_time_t(future_limit) };
+        // std::string planner_time_limit{ std::put_time(&limit, "%H:%M:%S") };
+        const ros::Time replanner_failed_time{ ros::Time::now() };
+        DEBUG_VARS(ms_now, ms_limit)
+        DEBUG_VARS(deadline, replanner_failed_time)
       }
     }
+    // }
   }
 
-  void replanner()
-  {
-    if (not _call_replanner)
-      return;
-    _planner_service_call.request.retain_plan = true;
-    _planner_service_call.request.retianment_offset = _planner_clock_msg.cycle_duration;
-    _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
-    _planner_service_call.request.root.stamp = _planner_clock_msg.cycle_end;
-    get_next_root(_planner_service_call.request.root);
+private:
+  int _current_cycle;
+  std::unique_ptr<motion_planning::planner_clock_t> _clock;
+  std::shared_ptr<motion_planning::sbmp_caller_t> _replanner;
 
-    if (_planner_service_client.call(_planner_service_call))
-    {
-      if (_planner_service_call.response.planner_output == prx_models::StelaKraft::Response::TYPE_SUCCESS)
-      {
-        const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
-        prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
-        _new_tree_available = true;
+  std::shared_ptr<interface::node_status_t> _node_status;
 
-        if (_validation_plan_feasibility)
-        {
-          // auto graph_values = _robot->estimate_to_prior(0, , );
-          _validation_params.estimates = { _q_hat, _qdot_hat };
-          _validation_params.covariances = { _q_cov, _qdot_cov };
-          _new_tree_available = motion_planning::check_new_tree(wrapped_tree, _validation_params);
-        }
-
-        if (_new_tree_available and _validation_collision_only)
-        {
-          _new_tree_available =
-              _robot->propagate_plan({ _q_hat, _qdot_hat }, wrapped_tree);  // check_new_tree(wrapped_tree);
-        }
-        if (_new_tree_available)
-        {
-          _new_tree = wrapped_tree;
-          if (_new_tree.nodes[_new_tree.root].children.size() > 0)
-          {
-            double t_accum{ 0.0 };
-            while (t_accum < _planner_clock_msg.cycle_duration.toSec())
-            {
-              auto child = _new_tree.nodes[_new_tree.root].children[0];
-              auto parent_edge = _new_tree.nodes[child].parent_edge;
-              _plan.steps.push_back(_new_tree.edges[parent_edge].plan.steps[0]);
-              t_accum += _new_tree.edges[parent_edge].plan.steps[0].duration.data.toSec();
-
-              DEBUG_VARS(t_accum);
-              // _planned_steps.push();
-            }
-            // if (_new_tree.edges[parent_edge].plan.steps.size() > 0)
-            // {
-            //   _control_publisher.publish(_control_stamped.space_point);
-            //   _stamped_control_publisher.publish(_control_stamped);
-            // }
-          }
-
-          const double dt_used_acepted{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
-          const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
-          // LOG_VARS(_new_tree_available, dt_used_acepted, dt_remaining_accepted)
-        }
-      }
-    }
-  }
+  ros::Duration _postprocessing_duration;
 };
 
 int main(int argc, char** argv)
@@ -260,32 +330,26 @@ int main(int argc, char** argv)
   std::shared_ptr<interface::node_status_t> node_status;
   std::shared_ptr<interface::node_status_t> experiments_node_status;
   node_status = interface::node_status_t::create(nh);
+  node_status->status(interface::NodeStatus::INITIALIZING);
+
   experiments_node_status = interface::node_status_t::create(nh, experiments_node_id, true);
 
   std::shared_ptr<mushr_sbmp_open_loop_t> sbmp_caller;
-  ros::AsyncSpinner spinner(2);
+  ros::AsyncSpinner spinner(4);
   spinner.start();
 
   while (experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
-    if (node_status->new_request())
-    {
-      node_status->status(node_status->requested_status());
-    }
-    if (node_status->sequence_id() != experiments_node_status->sequence_id())
+    handle_node_state(node_status);
+    if (node_status->status() == interface::NodeStatus::RESET)
     {
       sbmp_caller = nullptr;
-      continue;
     }
     if (node_status->status() == interface::NodeStatus::RUNNING)
     {
       if (sbmp_caller == nullptr)
-        sbmp_caller = std::make_shared<mushr_sbmp_open_loop_t>(nh);
-      sbmp_caller->replanner();
-    }
-    else
-    {
-      sbmp_caller = nullptr;
+        sbmp_caller = std::make_shared<mushr_sbmp_open_loop_t>(nh, node_status);
+      sbmp_caller->replanning_loop();
     }
   }
   spinner.stop();

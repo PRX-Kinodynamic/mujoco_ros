@@ -1,16 +1,21 @@
 <launch>
 
+  <arg name="sensor_topic_name" default="/mushr/sensordata"/>
+  <arg name="control_topic" default="/mushr/control"/>
+  <arg name="estimation_topic" default="/mushr/ekf"/>
+
   <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" output="screen">
-    <param name="sensor_topic_name" value="/mushr/sensordata"/>
-    <param name="control_topic_name" value="/mushr/plan_stepper/control"/>
-		<param name="stamped_estimation_topic" value="/mushr/ekf"/>
+    <param name="sensor_topic_name" value="$(arg sensor_topic_name)"/>
+    <param name="control_topic" value="$(arg control_topic)"/>
+		<param name="estimation_topic" value="$(arg estimation_topic)"/>
     <param name="simulator_node_id" value="mujoco"/>
+    <param name="implicit" value="true"/>
   </node>   
 
   <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"
       args="standalone interface/SpacepointToMarkerPublisher " output="screen">
     <param name="world_frame" value="world"/>
-    <param name="spacepoint_topic_name" value="/mushr/ekf"/>
+    <param name="spacepoint_topic_name" value="$(arg estimation_topic)"/>
     <!-- <param name="color" value=""/> -->
   </node>
 

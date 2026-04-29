@@ -49,7 +49,7 @@ private:
 
   ros::Subscriber _control_subscriber, _control_stamped_subscriber;
 
-  ros::Timer _timer;
+  ros::Timer _timer, _collision_timer;
   ros::Publisher _collision_pub, _sensor_pub;
   std::shared_ptr<interface::node_status_t> _node_status;
   interface::SensorDataStamped _sensor_msg;
@@ -71,6 +71,7 @@ private:
     DEBUG_VARS(collision_topic)
 
     _collision_pub = nh.advertise<std_msgs::Bool>(collision_topic, 1, true);
+    _collision_timer = nh.createTimer(ros::Duration(1. / sensor_frequency), &simulator_t::collision_updater, this);
     _timer = nh.createTimer(ros::Duration(1. / sensor_frequency), &simulator_t::timer_callback, this);
     _control_subscriber = nh.subscribe(control_topic, 1, &simulator_t::control_callback, this);
     _control_stamped_subscriber =
@@ -177,6 +178,11 @@ public:
     ros::Rate rate(1.0 / m->opt.timestep);
     while (ros::ok())
     {
+      if (_node_status->new_request())
+      {
+        _node_status->status(_node_status->requested_status());
+        _node_status->request_acknowledged();
+      }
       if (_node_status->status() == interface::NodeStatus::RUNNING)
       {
         step_simulation();

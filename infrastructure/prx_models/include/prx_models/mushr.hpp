@@ -612,8 +612,8 @@ public:
 
   virtual void environment_bounds(const std::pair<Eigen::Vector3d, Eigen::Vector3d> bounds) override
   {
-    state_space->set_bounds({ bounds.first[0], bounds.first[1], -prx::constants::pi, -10, -10, -10 },
-                            { bounds.second[0], bounds.second[1], prx::constants::pi, 10, 10, 10 });
+    state_space->set_bounds({ bounds.first[0], bounds.first[1], -prx::constants::pi, -5, -5, -5 },
+                            { bounds.second[0], bounds.second[1], prx::constants::pi, 5, 5, 5 });
 
     // DEBUG_VARS(bounds.first.transpose())
     // DEBUG_VARS(bounds.second.transpose())
@@ -626,8 +626,13 @@ public:
     // }
 
     _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
+    // _state_dot = mushr_accel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
+
     _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
-    // DEBUG_VARS(_state, _state_dot.transpose());
+    // auto x = _state;
+    // auto xdot = _state_dot.transpose();
+    // auto u = _ctrl.transpose();
+    // DEBUG_VARS(x, xdot, u);
     // DEBUG_VARS(_state.matrix())
     // DEBUG_VARS(_state, _state_dot.transpose(), _ubar.transpose(), _ctrl.transpose(), simulation_step);
     // state_space->enforce_bounds();

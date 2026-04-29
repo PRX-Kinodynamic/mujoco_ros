@@ -36,14 +36,15 @@ using Velocity = Eigen::Vector3d;
 using MushrState = gtsam::ProductLieGroupV43<Pose, Velocity>;
 using Control = prx_models::mushr_types::Control::type;
 
+using Polynomial = prx_models::mushr_types::Control::Poly;
+using Parameters = prx_models::mushr_types::Control::params;
+using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
+
 class mushr_kalman_predict_t : public gtsam::NoiseModelFactorN<MushrState, MushrState>
 {
   // static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
   // static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
-  using Polynomial = prx_models::mushr_types::Control::Poly;
-  using Parameters = prx_models::mushr_types::Control::params;
   using Base = gtsam::NoiseModelFactorN<MushrState, MushrState>;
-  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
 
   using Error = Eigen::VectorXd;
 
@@ -52,14 +53,16 @@ class mushr_kalman_predict_t : public gtsam::NoiseModelFactorN<MushrState, Mushr
   // using MushrCtrlAccel = mushr_CtrlAccel_t<>;
   template <typename T>
   using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
+  using LieIntegrator = prx::fg::lie_integrator_t<Pose, Velocity>;
 
   // mushr_kalman_predict_t() = delete;
   // mushr_kalman_predict_t(const mushr_kalman_predict_t& other) = delete;
 
 public:
   mushr_kalman_predict_t(const gtsam::Key key_x0, const gtsam::Key key_x1, const Control ui, const double dt,
-                         const Polynomial poly, const Parameters params, const NoiseModel& cost_model)
-    : Base(cost_model, key_x0, key_x1), _ui(ui), _poly(poly), _params(params), _dt(dt)
+                         const Polynomial poly, const Parameters params, const NoiseModel& cost_model,
+                         const bool implicit)
+    : Base(cost_model, key_x0, key_x1), _ui(ui), _poly(poly), _params(params), _dt(dt), _implicit(implicit)
 
   {
   }
@@ -68,51 +71,138 @@ public:
   {
   }
 
-  virtual Eigen::VectorXd evaluateError(const MushrState& x0, const MushrState& x1, OptDeriv Hx0 = boost::none,
-                                        OptDeriv Hx1 = boost::none) const override
+  static Eigen::Vector<double, 6> error_implicit_model(const MushrState& x0, const MushrState& x1, const double dt,
+                                                       OptDeriv Hx0 = boost::none, OptDeriv Hx1 = boost::none)
   {
-    const bool compute_derivs{ Hx0 or Hx1 };
+    const bool deriv{ Hx0 or Hx1 };
+    Eigen::Matrix3d qb_H_qdt, qErr_H_qb, qdt_H_q0, qdt_H_qdot1, qb_H_q1;
 
-    // x = [q, qdot]
-    Eigen::Matrix<double, 3, 3> q1p_H_q0, q1p_H_qd0, qd1p_H_qd0;
-    Eigen::Matrix<double, 6, 6> b_H_x1, b_H_x1p, err_H_b;
+    const Pose& q0{ x0.first };
+    const Velocity& qdot0{ x0.second };
 
-    const Pose x1p{ prx_models::mushr_x_xdot_t::predict(x0.first, x0.second, _dt, q1p_H_q0, q1p_H_qd0) };
-    const Velocity x1dot_p{ prx_models::mushr_CtrlAccel_t<>::predict(x0.second, _ui, _dt, _params, _poly, qd1p_H_qd0) };
-    const MushrState predicted(x1p, x1dot_p);
-    const MushrState between{ x1.between(predicted,                           // no-lint
-                                         compute_derivs ? &b_H_x1 : nullptr,  // no-lint
-                                         compute_derivs ? &b_H_x1p : nullptr) };
-    const Eigen::Vector<double, 6> predict_error{ MushrState::Logmap(between, compute_derivs ? &err_H_b : nullptr) };
+    const Pose& q1{ x1.first };
+    const Velocity& qdot1{ x1.second };
 
-    // LOG_MSG("------ PREDICT ------")
-    // LOG_VARS(_params.transpose(), _poly.transpose());
-    // LOG_VARS(prx::simulation_step, _ui.transpose());
-    // LOG_VARS(x0.first);
-    // LOG_VARS(x0.second.transpose());
-    // LOG_VARS(x1.first);
-    // LOG_VARS(x1.second.transpose());
-    // LOG_VARS(x1p);
-    // LOG_VARS(x1dot_p.transpose());
-    // LOG_VARS(predict_error.transpose())
+    const Pose qdt{ LieIntegrator::integrate(q0, qdot1, dt,                // no-lint
+                                             deriv ? &qdt_H_q0 : nullptr,  // no-lint
+                                             deriv ? &qdt_H_qdot1 : nullptr) };
+
+    const Pose qb{ qdt.between(q1,                           // no-lint
+                               deriv ? &qb_H_qdt : nullptr,  // no-lint
+                               deriv ? &qb_H_q1 : nullptr) };
+    const Eigen::Vector<double, 3> q_error{ Pose::Logmap(qb, deriv ? &qErr_H_qb : nullptr) };
+    const Velocity& vel_error{ qdot1 - qdot0 };
+    const Eigen::Vector<double, 6> predict_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
+
     if (Hx0)
     {
-      const Eigen::Matrix<double, 3, 3> qd1_H_q0{ Eigen::Matrix<double, 3, 3>::Zero() };
+      const Eigen::Matrix3d velErr_H_qdot0{ -Eigen::Matrix3d::Identity() };
+      *Hx0 = Eigen::Matrix<double, 6, 6>::Zero();
 
-      Eigen::Matrix<double, 6, 6> x1p_H_x0;
-      x1p_H_x0.block<3, 6>(0, 0) << q1p_H_q0, qd1_H_q0;  // no-lint
-      x1p_H_x0.block<3, 6>(3, 0) << q1p_H_qd0, qd1p_H_qd0;
-
-      *Hx0 = err_H_b * b_H_x1p * x1p_H_x0;
+      // dqerr / dq0
+      Hx0->block<3, 3>(0, 0) = qErr_H_qb * qb_H_qdt * qdt_H_q0;
+      // dvelErr / dq0
+      Hx0->block<3, 3>(3, 0) = Eigen::Matrix3d::Zero();
+      // dqerr / dqdot0
+      Hx0->block<3, 3>(0, 3) = Eigen::Matrix3d::Zero();  // qErr_H_qb * qb_H_qdt * qdt_H_qdot0;
+      // dvelErr / dqdot0
+      Hx0->block<3, 3>(3, 3) = velErr_H_qdot0;
     }
     if (Hx1)
     {
-      *Hx1 = err_H_b * b_H_x1;
+      // const Eigen::Matrix3d qErr_H_qdot1{ -Eigen::Matrix3d::Identity() };
+      const Eigen::Matrix3d velErr_H_qdot1{ Eigen::Matrix3d::Identity() };
+      *Hx1 = Eigen::Matrix<double, 6, 6>::Zero();
+      // dqerr / dq1
+      Hx1->block<3, 3>(0, 0) = qErr_H_qb * qb_H_q1;
+      // dvelErr / dq1
+      Hx1->block<3, 3>(3, 0) = Eigen::Matrix3d::Zero();
+      // dqerr / dqdot1
+      Hx1->block<3, 3>(0, 3) = qErr_H_qb * qb_H_qdt * qdt_H_qdot1;
+      // dvelErr / dqdot1
+      Hx1->block<3, 3>(3, 3) = velErr_H_qdot1;
     }
+
     return predict_error;
   }
 
+  static Eigen::Vector<double, 6> error_explicit_model(const MushrState& x0, const MushrState& x1, const double dt,
+                                                       OptDeriv Hx0 = boost::none, OptDeriv Hx1 = boost::none)
+  {
+    const bool deriv{ Hx0 or Hx1 };
+    Eigen::Matrix3d qb_H_qdt, qErr_H_qb, qdt_H_q0, qdt_H_qdot0, qb_H_q1;
+
+    const Pose& q0{ x0.first };
+    const Velocity& qdot0{ x0.second };
+
+    const Pose& q1{ x1.first };
+    const Velocity& qdot1{ x1.second };
+
+    const Pose qdt{ LieIntegrator::integrate(q0, qdot0, dt,                // no-lint
+                                             deriv ? &qdt_H_q0 : nullptr,  // no-lint
+                                             deriv ? &qdt_H_qdot0 : nullptr) };
+
+    const Pose qb{ qdt.between(q1,                           // no-lint
+                               deriv ? &qb_H_qdt : nullptr,  // no-lint
+                               deriv ? &qb_H_q1 : nullptr) };
+    const Eigen::Vector<double, 3> q_error{ Pose::Logmap(qb, deriv ? &qErr_H_qb : nullptr) };
+    const Velocity& vel_error{ qdot1 - qdot0 };
+    const Eigen::Vector<double, 6> predict_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
+
+    // LOG_MSG("------ PREDICT ------")
+    // auto error = predict_error.transpose();
+    // LOG_VARS(_dt)
+    // LOG_VARS(q)
+    // LOG_VARS(qdot.transpose())
+    // LOG_VARS(qdt)
+    // LOG_VARS(qb)
+    // LOG_VARS(error)
+
+    if (Hx0)
+    {
+      const Eigen::Matrix3d velErr_H_qdot0{ -Eigen::Matrix3d::Identity() };
+      *Hx0 = Eigen::Matrix<double, 6, 6>::Zero();
+
+      // dqerr / dq0
+      Hx0->block<3, 3>(0, 0) = qErr_H_qb * qb_H_qdt * qdt_H_q0;
+      // dvelErr / dq0
+      Hx0->block<3, 3>(3, 0) = Eigen::Matrix3d::Zero();
+      // dqerr / dqdot0
+      Hx0->block<3, 3>(0, 3) = qErr_H_qb * qb_H_qdt * qdt_H_qdot0;
+      // dvelErr / dqdot0
+      Hx0->block<3, 3>(3, 3) = velErr_H_qdot0;
+    }
+    if (Hx1)
+    {
+      // const Eigen::Matrix3d qErr_H_qdot1{ -Eigen::Matrix3d::Identity() };
+      const Eigen::Matrix3d velErr_H_qdot1{ Eigen::Matrix3d::Identity() };
+      *Hx1 = Eigen::Matrix<double, 6, 6>::Zero();
+      // dqerr / dq1
+      Hx1->block<3, 3>(0, 0) = qErr_H_qb * qb_H_q1;
+      // dvelErr / dq1
+      Hx1->block<3, 3>(3, 0) = Eigen::Matrix3d::Zero();
+      // dqerr / dqdot1
+      Hx1->block<3, 3>(0, 3) = Eigen::Matrix3d::Zero();
+      // dvelErr / dqdot1
+      Hx1->block<3, 3>(3, 3) = velErr_H_qdot1;
+    }
+
+    return predict_error;
+  }
+
+  virtual Eigen::VectorXd evaluateError(const MushrState& x0, const MushrState& x1, OptDeriv Hx0 = boost::none,
+                                        OptDeriv Hx1 = boost::none) const override
+  {
+    if (_implicit)
+    {
+      return error_implicit_model(x0, x1, _dt, Hx0, Hx1);
+    }
+    // else
+    return error_explicit_model(x0, x1, _dt, Hx0, Hx1);
+  }
+
 private:
+  const bool _implicit;
   const double _dt;
   const Control _ui;
   const Polynomial _poly;
@@ -125,7 +215,6 @@ class mushr_kalman_update_t : public gtsam::NoiseModelFactorN<MushrState>
   // static constexpr Eigen::Index DimXdot{ gtsam::traits<StateDot>::dimension };
 
   using Base = gtsam::NoiseModelFactorN<MushrState>;
-  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
 
   using Error = Eigen::VectorXd;
 
@@ -134,11 +223,6 @@ class mushr_kalman_update_t : public gtsam::NoiseModelFactorN<MushrState>
   // using MushrCtrlAccel = mushr_CtrlAccel_t<>;
   template <typename T>
   using OptionalMatrix = boost::optional<Eigen::MatrixXd&>;
-
-  using LieIntegrator = prx::fg::lie_integrator_t<Pose, Velocity>;
-
-  // mushr_kalman_predict_t() = delete;
-  // mushr_kalman_predict_t(const mushr_kalman_predict_t& other) = delete;
 
 public:
   mushr_kalman_update_t(const gtsam::Key key_x, const Pose zi, const double dt, const NoiseModel& cost_model)
@@ -153,32 +237,17 @@ public:
 
   virtual Eigen::VectorXd evaluateError(const MushrState& x, OptDeriv Hx = boost::none) const override
   {
-    Eigen::Matrix<double, 3, 3> qb_H_qdt, err_H_qb, qdt_H_q, qdt_H_qdot;
-
+    Eigen::Matrix3d qBtw_H_q, qErr_H_qBtw;
     const Pose& q{ x.first };
-    const Velocity& qdot{ x.second };
-    const Pose qdt{ LieIntegrator::integrate(q, qdot, _dt, Hx ? &qdt_H_q : nullptr, Hx ? &qdt_H_qdot : nullptr) };
 
-    const Pose qb{ qdt.between(_zi,  // no-lint
-                               Hx ? &qb_H_qdt : nullptr) };
-    const Eigen::Vector<double, 3> update_error{ Pose::Logmap(qb, Hx ? &err_H_qb : nullptr) };
-
-    // LOG_MSG("------ UPDATE ------")
-    // LOG_VARS(_dt)
-    // LOG_VARS(q)
-    // LOG_VARS(qdot.transpose())
-    // LOG_VARS(qdt)
-    // LOG_VARS(qb)
-    // LOG_VARS(update_error.transpose())
-
+    const Pose q_btw{ q.between(_zi, Hx ? &qBtw_H_q : nullptr) };
+    const Eigen::Vector<double, 3> update_error{ Pose::Logmap(q_btw, Hx ? &qErr_H_qBtw : nullptr) };
     if (Hx)
     {
       *Hx = Eigen::Matrix<double, 3, 6>::Zero();
-      // Block of size (p,q), starting at (i,j)
-      // matrix.block(i,j,p,q);
-
-      Hx->block<3, 3>(0, 0) = err_H_qb * qb_H_qdt * qdt_H_q;
-      Hx->block<3, 3>(0, 3) = err_H_qb * qb_H_qdt * qdt_H_qdot;
+      // dqerr / dq0
+      Hx->block<3, 3>(0, 0) = qErr_H_qBtw * qBtw_H_q;
+      // dqerr / dqdot0 = Zero;
     }
     return update_error;
   }
@@ -216,33 +285,36 @@ struct mushr_kalman_t
   gtsam::SharedDiagonal _predict_nm, _update_nm;
   std::shared_ptr<interface::node_status_t> _simulator_node_status;
 
-  mushr_kalman_t(ros::NodeHandle& nh)
-    : _x_idx(0)
-    , _predict_nm(gtsam::noiseModel::Isotropic::Sigma(6, 1))
-    , _update_nm(gtsam::noiseModel::Isotropic::Sigma(3, 0.1))
-    , _ui(0., 0.)
+  bool _predict_implicit;
+  mushr_kalman_t(ros::NodeHandle& nh) : _x_idx(0), _ui(0., 0.), _predict_implicit(false)
   {
-    std::string sensor_topic_name, control_topic_name;
-    std::string plant_parameters, stamped_estimation_topic, simulator_node_id;
+    std::string sensor_topic_name, control_topic;
+    std::string plant_parameters, estimation_topic, simulator_node_id;
+
+    bool& implicit{ _predict_implicit };
+
     PARAM_SETUP(nh, sensor_topic_name);
-    PARAM_SETUP(nh, control_topic_name);
+    PARAM_SETUP(nh, control_topic);
     PARAM_SETUP(nh, simulator_node_id);
-    PARAM_SETUP(nh, stamped_estimation_topic);
+    PARAM_SETUP(nh, estimation_topic);
+    PARAM_SETUP(nh, implicit);
     GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
 
-    _simulator_node_status = interface::node_status_t::create(nh, simulator_node_id, true);
+    _update_nm = gtsam::noiseModel::Isotropic::Sigma(3, 0.1);
+    _predict_nm = gtsam::noiseModel::Isotropic::Sigma(6, 1);
 
+    _simulator_node_status = interface::node_status_t::create(nh, simulator_node_id, true);
     prx::simulation_step = 0.1;
 
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
-    _control_subscriber = nh.subscribe(control_topic_name, 1, &This::control_callback, this);
-    _estimation_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_estimation_topic, 1, true);
+    _control_subscriber = nh.subscribe(control_topic, 1, &This::control_callback, this);
+    _estimation_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(estimation_topic, 1, true);
 
     prx::param_loader plant_params;
     plant_params.from_string(plant_parameters);
-    DEBUG_VARS(plant_params)
+    // DEBUG_VARS(plant_params)
     const std::vector<double> values{ plant_params["parameter_space/values"].as<std::vector<double>>() };
-    DEBUG_VARS(values)
+    // DEBUG_VARS(values)
     for (int i = 0; i < _params.size(); ++i)
     {
       _params[i] = values[i];
@@ -317,11 +389,6 @@ struct mushr_kalman_t
       const double dt{ (msg->header.stamp - _prev_z_dt).toSec() };
       const gtsam::Pose2 zi(x, y, theta);
 
-      // const mushr_kalman_update_t update_factor(xi, zi, _update_nm);
-
-      // DEBUG_VARS(x, y, theta, dt)
-      // DEBUG_VARS(_current_estimate.second.transpose())
-
       estimate(zi, dt);
 
       publish_estimate();
@@ -334,7 +401,7 @@ struct mushr_kalman_t
     const gtsam::Symbol x0('x', _x_idx);
     const gtsam::Symbol x1('x', _x_idx + 1);
     auto previous_estimate = _current_estimate;
-    const mushr_kalman_predict_t predict_factor(x0, x1, _ui, dt, _poly, _params, _predict_nm);
+    const mushr_kalman_predict_t predict_factor(x0, x1, _ui, dt, _poly, _params, _predict_nm, _predict_implicit);
     const mushr_kalman_update_t update_factor(x1, zi, dt, _update_nm);
     bool update_exception{ false };
     try
@@ -380,6 +447,123 @@ struct mushr_kalman_t
   }
 };
 
+void test_predict_factor()
+{
+  using Factor = mushr_kalman_predict_t;
+  const gtsam::Key key_x0{ 0 };
+  const gtsam::Key key_x1{ 1 };
+  Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
+  const double dt{ 0.1 };
+  NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1) };
+
+  // mushr_kalman_predict_t predict_factor(key_x0, key_x1, u, 0.1, Polynomial(), Parameters(), nm);
+  std::function<gtsam::Vector(const MushrState& x0, const MushrState& x1)> fn_proxy =
+      [&](const MushrState& x0, const MushrState& x1) { return Factor::error_explicit_model(x0, x1, dt); };
+
+  const MushrState x0(gtsam::Pose2(0, 0, 0), Eigen::Vector3d::Zero());
+  const MushrState x1(gtsam::Pose2(0.1, 0.1, 0.1), Eigen::Vector3d(0.1, 0.1, 0.1));
+
+  Eigen::MatrixXd actualHx0, expectedHx0;
+  Eigen::MatrixXd actualHx1, expectedHx1;
+
+  Factor::error_explicit_model(x0, x1, dt, actualHx0, actualHx1);
+
+  expectedHx0 = gtsam::numericalDerivative21(fn_proxy, x0, x1);
+  expectedHx1 = gtsam::numericalDerivative22(fn_proxy, x0, x1);
+
+  const double tolerance{ 1e-5 };
+
+  const bool test_x0_passed{ expectedHx0.isApprox(actualHx0, tolerance) };
+  if (not test_x0_passed)
+  {
+    DEBUG_VARS(expectedHx0);
+    DEBUG_VARS(actualHx0);
+    prx_throw("Update factor Hx0 test error");
+  }
+
+  const bool test_x1_passed{ expectedHx1.isApprox(actualHx1, tolerance) };
+  if (not test_x1_passed)
+  {
+    DEBUG_VARS(expectedHx1);
+    DEBUG_VARS(actualHx1);
+    prx_throw("Update factor Hx1 test error");
+  }
+}
+
+void test_update_factor()
+{
+  const gtsam::Key key_x0{ 0 };
+  Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
+  NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1) };
+  const gtsam::Pose2 zi(0.1, 0.1, 0.1);
+
+  mushr_kalman_update_t update_factor(key_x0, zi, 0.1, nm);
+  std::function<gtsam::Vector(const MushrState& x0)> fn_proxy = [&](const MushrState& x0) {
+    return update_factor.evaluateError(x0);
+  };
+
+  const MushrState x0(gtsam::Pose2(0, 0, 0), Eigen::Vector3d::Zero());
+
+  Eigen::MatrixXd actualHx0, expectedHx0;
+
+  update_factor.evaluateError(x0, actualHx0);
+
+  // MushrCtrl::velocity_delta(xd0, dt, xdotDesired, K, &actualHxd0, &actualHdt, &actualHxdotd, &actualHK);
+  expectedHx0 = gtsam::numericalDerivative11(fn_proxy, x0);
+
+  const double tolerance{ 1e-5 };
+  const bool test_passed{ expectedHx0.isApprox(actualHx0, tolerance) };
+  if (not test_passed)
+  {
+    DEBUG_VARS(expectedHx0);
+    DEBUG_VARS(actualHx0);
+    prx_throw("Update factor Hx0 test error");
+  }
+}
+
+void test_predict_implicit_error()
+{
+  using Factor = mushr_kalman_predict_t;
+  const gtsam::Key key_x0{ 0 };
+  const gtsam::Key key_x1{ 1 };
+  Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
+  const double dt{ 0.1 };
+  NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1) };
+
+  // mushr_kalman_predict_t predict_factor(key_x0, key_x1, u, dt, Polynomial(), Parameters(), nm);
+  std::function<gtsam::Vector(const MushrState& x0, const MushrState& x1)> fn_proxy =
+      [&](const MushrState& x0, const MushrState& x1) { return Factor::error_implicit_model(x0, x1, dt); };
+
+  const MushrState x0(gtsam::Pose2(0, 0, 0), Eigen::Vector3d::Zero());
+  const MushrState x1(gtsam::Pose2(0.1, 0.1, 0.1), Eigen::Vector3d(0.1, 0.1, 0.1));
+
+  Eigen::MatrixXd actualHx0, expectedHx0;
+  Eigen::MatrixXd actualHx1, expectedHx1;
+
+  Factor::error_implicit_model(x0, x1, dt, actualHx0, actualHx1);
+
+  expectedHx0 = gtsam::numericalDerivative21(fn_proxy, x0, x1);
+  expectedHx1 = gtsam::numericalDerivative22(fn_proxy, x0, x1);
+
+  const double tolerance{ 1e-5 };
+
+  const bool test_x0_passed{ expectedHx0.isApprox(actualHx0, tolerance) };
+  if (not test_x0_passed)
+  {
+    DEBUG_VARS(expectedHx0);
+    DEBUG_VARS(actualHx0);
+    prx_throw("Update implicit Hx0 test error");
+  }
+
+  const bool test_x1_passed{ expectedHx1.isApprox(actualHx1, tolerance) };
+  if (not test_x1_passed)
+  {
+    DEBUG_VARS(expectedHx1);
+    DEBUG_VARS(actualHx1);
+    prx_throw("Update implicit Hx1 test error");
+  }
+}
+
 // Mujoco-Ros visualization in (almost) RT:
 // Depends on the vizualization thread, but if the viz thread slows down, it won't affect mujoco
 int main(int argc, char** argv)
@@ -387,6 +571,10 @@ int main(int argc, char** argv)
   const std::string node_name{ "MuSHRKalman" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
+
+  test_predict_factor();
+  test_update_factor();
+  test_predict_implicit_error();
 
   mushr_kalman_t estimator(nh);
   ros::spin();

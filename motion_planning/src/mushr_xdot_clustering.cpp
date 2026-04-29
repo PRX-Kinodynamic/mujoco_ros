@@ -18,7 +18,6 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <interface/gaussian_to_ellipse_marker.hpp>
 
-// using Xdot = Eigen::Vector<double, 3>;
 // using XDdot = Eigen::Vector<double, 3>;
 using Control = Eigen::Vector<double, 2>;
 using Element = Eigen::Vector<double, 5>;
@@ -34,22 +33,23 @@ using prx::utilities::convert_to;
 
 //  (1x1)   = (1x3)*(3x1) + (0x0)*(0x0)
 // Duration = A*x + B*u
-using Amat = Eigen::Matrix<double, 1, 3>;
-using ExpPose = Eigen::Matrix<double, 3, 1>;
-using Durations = Eigen::Vector<double, 1>;
+using Xdot = Eigen::Vector<double, 3>;
+using Amat = Eigen::Matrix<double, 3, 5>;
+// using Ele = Eigen::Matrix<double, 3, 1>;
+// using Durations = Eigen::Vector<double, 1>;
 // using Bmat = Eigen::Matrix<double, 3, 2>;
 
-Amat compute_linear_system(const std::vector<ExpPose> all_zts, const std::vector<Durations> all_durations)
+Amat compute_linear_system(const std::vector<Element> all_zts, const std::vector<Xdot> all_xdots)
 {
-  Eigen::MatrixXd theta(all_zts.size(), 3);      // (Nx3)
-  Eigen::MatrixXd xs1(all_durations.size(), 1);  // (Nx1)
+  Eigen::MatrixXd theta(all_zts.size(), 5);  // (Nx5)
+  Eigen::MatrixXd xs1(all_xdots.size(), 3);  // (Nx3)
 
   for (int i = 0; i < all_zts.size(); ++i)
   {
     theta.row(i) = all_zts[i];
-    xs1.row(i) = all_durations[i];
+    xs1.row(i) = all_xdots[i];
   }
-  //                                    ( (3xN)              (Nx3))               (3xN)             (Nx1)
+  //                                       (5xN)              (Nx5)               (5xN)             (Nx3)
   const Eigen::MatrixXd theta_estimate{ (theta.transpose() * theta).inverse() * theta.transpose() * xs1 };
 
   // DEBUG_VARS(theta_estimate.transpose())
@@ -64,12 +64,14 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  visualization_msgs::MarkerArray marker_msg, marker_ellipses, marker_controls;
+  visualization_msgs::MarkerArray marker_msg, marker_ellipses, marker_controls, marker_controls_data;
 
   ros::Publisher markers_publisher{ nh.advertise<visualization_msgs::MarkerArray>("/clustering/points/markers", 1,
                                                                                   true) };
   ros::Publisher markers_ellipses_publisher{ nh.advertise<visualization_msgs::MarkerArray>(
       "/clustering/ellipses/markers", 1, true) };
+  ros::Publisher markers_controls_data_publisher{ nh.advertise<visualization_msgs::MarkerArray>(
+      "/clustering/controls/data/markers", 1, true) };
   ros::Publisher markers_controls_publisher{ nh.advertise<visualization_msgs::MarkerArray>(
       "/clustering/controls/markers", 1, true) };
 
@@ -90,7 +92,7 @@ int main(int argc, char** argv)
   Element element;
   // auto nm = IsotropicNM::Sigma(8, 0.10);
   Eigen::VectorXd sigmas(5);
-  sigmas << 0.05, 0.05, 0.05, 0.05, 0.05;
+  // sigmas << 0.05, 0.05, 0.05, 0.05, 0.05;
   sigmas << 0.1, 0.1, 0.1, 0.1, 0.1;
   auto nm = DiagonalNM::Sigmas(sigmas);
 
@@ -134,63 +136,87 @@ int main(int argc, char** argv)
   const std::string clusters_filename{ output_dir + "/clusters.txt" };
   const std::string values_filename{ output_dir + "/values.txt" };
   const std::string covs_filename{ output_dir + "/covariances.txt" };
+  const std::string covs_Ais{ output_dir + "/linear_systems.txt" };
   std::ofstream ofs_values(values_filename.c_str());
   std::ofstream ofs_covs(covs_filename.c_str());
   std::ofstream ofs_clusters(clusters_filename.c_str());
+  std::ofstream ofs_Ais(covs_Ais.c_str());
 
   interface::gaussian_params_t marker_params, marker_ctrl_params;
 
+  int rejected{ 0 };
   for (int i = 0; i < output.original_elements.size(); ++i)
   {
     visualization_msgs::Marker marker;
+    visualization_msgs::Marker marker_ctrl_data;
     marker.type = visualization_msgs::Marker::POINTS;
     marker.action = visualization_msgs::Marker::ADD;
     marker.header.frame_id = "world";
+    marker_ctrl_data.type = visualization_msgs::Marker::POINTS;
+    marker_ctrl_data.action = visualization_msgs::Marker::ADD;
+    marker_ctrl_data.header.frame_id = "world";
 
     if (output.total_clustered[i] < 10)
     {
+      rejected++;
       continue;
     }
-    // DEBUG_VARS(i)
     const Eigen::MatrixXd R{ dynamic_cast<gtsam::noiseModel::Gaussian*>(output.noise_models[i].get())->R() };
+
+    // DEBUG_VARS(i)
     // DEBUG_VARS(R)
-    // ofs_values << i << " ";
-    // ofs_values << output.total_clustered[i] << " ";
-    // // ofs_values << output.values[i].x() << " ";
-    // // ofs_values << output.values[i].y() << " ";
-    // // ofs_values << output.values[i].theta() << " ";
+    ofs_values << i << " ";
+    ofs_values << output.total_clustered[i] << " ";
+    ofs_values << output.values[i].transpose() << " ";
+    ofs_values << "\n";
+    // ofs_values << output.values[i].y() << " ";
+    // ofs_values << output.values[i].theta() << " ";
     // ofs_values << "\n";
-    ofs_covs << i << "\n";
-    ofs_covs << R << "\n";
 
+    std::stringstream strstr;
+    strstr << std::setfill('0') << std::setw(5) << convert_to<std::string>(i);
     // std::stringstream strstr;
-    // strstr << output_dir << "/cluster_" << std::setw(6) << std::setfill('0') << i << ".txt";
-
-    // std::ofstream ofs(strstr.str().c_str());
+    // strstr << output_dir << "/cluster_" << std::setw(5) << std::setfill('0') << i << ".txt";
+    const std::string filename{ output_dir + "/cluster_" + strstr.str() + ".txt" };
+    std::ofstream ofs(filename.c_str());
     // ofs << "# Clustered_element " << "\n";
     // // ofs << output.values[i].transpose() << "\n";
     // std::vector<Eigen::Vector3d> all_zts;
     // std::vector<Durations> all_durations;
     // double min_duration{ std::numeric_limits<double>::max() };
     // double max_duration{ 0.0 };
-    // double accum{ 0.0 };
+    std::vector<Element> clustered_elements;
+
+    // const std::vector<Element> all_zts;
+    std::vector<Xdot> all_xdots;
     for (auto ei : output.original_elements[i])
     {
       marker.points.emplace_back();
+      marker_ctrl_data.points.emplace_back();
+
       marker.points.back().x = ei[0];
       marker.points.back().y = ei[1];
       marker.points.back().z = ei[2];
-      //   ofs << ei.first << " ";
+
+      marker_ctrl_data.points.back().x = ei[6];
+      marker_ctrl_data.points.back().y = ei[7];
+      marker_ctrl_data.points.back().z = 0.0;
+
+      clustered_elements.emplace_back(ei[0], ei[1], ei[2], ei[6], ei[7]);
+      ofs << ei.head(3).transpose() << " ";
+      ofs << ei.tail(2).transpose() << " ";
+      ofs << "\n";
+
+      all_xdots.emplace_back(ei[3], ei[4], ei[5]);
       //   ofs << ei.second.x() << " ";
       //   ofs << ei.second.y() << " ";
       //   ofs << ei.second.theta() << " ";
       //   ofs << "\n";
-      //   min_duration = std::min(min_duration, ei.first);
-      //   max_duration = std::max(max_duration, ei.first);
-      //   accum += ei.first;
-      //   all_durations.emplace_back(ei.first);
-      //   all_zts.push_back(gtsam::traits<gtsam::Pose2>::Logmap(ei.second));
     }
+    const Eigen::MatrixXd cov{ (R.transpose() * R).inverse() };
+    // Eigen::MatrixXd cov{ Eigen::Matrix<double, 5, 5>::Identity() };
+    // motion_planning::compute_cluster_covariance(cov, output.values[i], clustered_elements, 0);
+
     // const double avg_duration{ accum / output.original_elements[i].size() };
     // // R is upper triangular
     // ofs_clusters << R(0, 0) << " ";
@@ -207,31 +233,61 @@ int main(int argc, char** argv)
     // ofs_clusters << avg_duration << " ";
     // ofs_clusters << "\n";
 
-    Eigen::MatrixXd cov{ (R.transpose() * R).inverse() };
+    auto A_xdot = cov.block<3, 3>(0, 0);
+    auto B_xdot = cov.block<3, 2>(0, 3);
+    auto C_xdot = cov.block<2, 2>(3, 3);
+
+    auto A_ctrl = cov.block<2, 2>(3, 3);
+    auto B_ctrl = cov.block<2, 3>(3, 0);
+    auto C_ctrl = cov.block<3, 3>(0, 0);
+
+    Eigen::Matrix3d cov_xdot{ A_xdot - B_xdot * C_xdot.inverse() * B_xdot.transpose() };
+    Eigen::Matrix2d cov_ctrl{ A_ctrl - B_ctrl * C_ctrl.inverse() * B_ctrl.transpose() };
+
+    ofs_covs << i << "\n";
+    ofs_covs << cov << "\n";
     // DEBUG_VARS(cov)
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
-    Eigen::VectorXd D = es.eigenvalues();
-    Eigen::Matrix<double, 5, 5> V = es.eigenvectors();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es_xdot(cov_xdot);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es_ctrl(cov_ctrl);
+    Eigen::VectorXd D_xdot = es_xdot.eigenvalues();
+    Eigen::VectorXd D_ctrl = es_ctrl.eigenvalues();
+    Eigen::Matrix<double, 3, 3> V_xdot = es_xdot.eigenvectors();
+    Eigen::Matrix<double, 2, 2> V_ctrl = es_ctrl.eigenvectors();
     // Eigen::Quaterniond q_cov(V);
     // DEBUG_VARS(D.transpose())
     // DEBUG_VARS(V)
 
     marker.id = i;
+    marker_ctrl_data.id = i;
     marker_params.idx = i;
     marker_ctrl_params.idx = i;
+
+    marker.ns = "Data_" + strstr.str();
+    marker_params.ns = "Xdot_" + strstr.str();
+    marker_ctrl_data.ns = "Data_" + strstr.str();
+    marker_ctrl_params.ns = "Ctrl_" + strstr.str();
+
     const double xdot{ output.values[i][0] };
     const double ydot{ output.values[i][1] };
     const double thdot{ output.values[i][2] };
     const double u0{ output.values[i][3] };
     const double u1{ output.values[i][4] };
     marker.color.a = 1.0;
-    marker.color.r = std::fabs(xdot);
-    marker.color.g = std::fabs(ydot);
-    marker.color.b = std::fabs(thdot);
+    marker.color.r = std::fabs(std::sin(xdot));
+    marker.color.g = std::fabs(std::sin(ydot));
+    marker.color.b = std::fabs(std::sin(thdot));
+
+    marker_ctrl_data.color.a = 1.0;
+    marker_ctrl_data.color.r = std::abs(u0);
+    marker_ctrl_data.color.g = std::abs(u1);
+    marker_ctrl_data.color.b = .00;
 
     marker.scale.x = 0.1;  // is point width,
     marker.scale.y = 0.1;  // is point height
     marker.scale.z = 0.1;  // is point height
+    marker_ctrl_data.scale.x = 0.1;
+    marker_ctrl_data.scale.y = 0.1;
+    marker_ctrl_data.scale.z = 0.1;
 
     marker_params.position[0] = xdot;
     marker_params.position[1] = ydot;
@@ -239,30 +295,42 @@ int main(int argc, char** argv)
     marker_ctrl_params.position[0] = u0;
     marker_ctrl_params.position[1] = u1;
     marker_ctrl_params.position[2] = 0.0;
-    marker.pose.position.x = xdot;
-    marker.pose.position.y = ydot;
-    marker.pose.position.z = thdot;
+
+    marker.pose.position.x = 0.0;
+    marker.pose.position.y = 0.0;
+    marker.pose.position.z = 0.0;
+    marker_ctrl_data.pose.position.x = 0.0;
+    marker_ctrl_data.pose.position.y = 0.0;
+    marker_ctrl_data.pose.position.z = 0.0;
 
     Eigen::Matrix3d u_mat{ Eigen::Matrix3d::Identity() };
-    u_mat.block<2, 2>(0, 0) = V.block<2, 2>(3, 3);
-    marker_params.orientation = Eigen::Quaterniond(V.block<3, 3>(0, 0));
+    u_mat.block<2, 2>(0, 0) = V_ctrl;
+    marker_params.orientation = Eigen::Quaterniond(V_xdot);
     marker_ctrl_params.orientation = Eigen::Quaterniond(u_mat);
     // DEBUG_VARS(marker_params.orientation)
     marker.pose.orientation.w = 1.0;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
     marker.pose.orientation.z = 0.0;
+    marker_ctrl_data.pose.orientation = marker.pose.orientation;
 
-    marker_params.color = Eigen::Vector4d(1.0, xdot, ydot, thdot).cwiseAbs();
-    marker_ctrl_params.color = Eigen::Vector4d(1.0, u0, u1, 0.0).cwiseAbs();
+    marker_params.color = Eigen::Vector4d(0.8, std::sin(xdot), std::sin(ydot), std::sin(thdot)).cwiseAbs();
+    marker_ctrl_params.color = Eigen::Vector4d(0.5, std::abs(u0), std::abs(u1), 0.0);
+
     // marker_params.color[0] = std::min(1.0, (0.1 + min_duration) / 20.0);  // alpha first: ARGB
-    marker_params.axis = D.head(3);
-    marker_ctrl_params.axis.head(2) = D.tail(2);
+    marker_params.axis = D_xdot;
+    marker_ctrl_params.axis[2] = 0.01;
+    marker_ctrl_params.axis.head(2) = D_ctrl;
     visualization_msgs::Marker marker_ellipse{ interface::gaussian_to_ellipse_marker(marker_params) };
     visualization_msgs::Marker marker_ellipse_ctrl{ interface::gaussian_to_ellipse_marker(marker_ctrl_params) };
     marker_msg.markers.push_back(marker);
     marker_ellipses.markers.push_back(marker_ellipse);
     marker_controls.markers.push_back(marker_ellipse_ctrl);
+    marker_controls_data.markers.push_back(marker_ctrl_data);
+
+    const Amat Ai{ compute_linear_system(clustered_elements, all_xdots) };
+    ofs_Ais << i << " ";
+    ofs_Ais << Ai.reshaped().transpose() << "\n";
     // const Amat Ai{ compute_linear_system(all_zts, all_durations) };
     // DEBUG_VARS(i, all_zts.size(), Ai);
   }
@@ -270,7 +338,14 @@ int main(int argc, char** argv)
   markers_publisher.publish(marker_msg);
   markers_ellipses_publisher.publish(marker_ellipses);
   markers_controls_publisher.publish(marker_controls);
-  PRINT_MSG("DONE!")
+  markers_controls_data_publisher.publish(marker_controls_data);
+
+  ofs_values.close();
+  ofs_covs.close();
+  ofs_clusters.close();
+  ofs_Ais.close();
+  DEBUG_VARS(rejected);
+  PRINT_MSG("DONE!");
   ros::spin();
   return 0;
 }

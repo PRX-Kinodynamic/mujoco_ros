@@ -1,12 +1,10 @@
 <launch>
   <arg name="estimations_file" />
-  <arg name="failures_file" />
   <arg name="step_size" default="0.1" />
-  <arg name="model_path" default="$(find prx_models)/models/mushr/empty.xml" />
-  <!-- <arg name="steps_bounds" default="[2, 8]" /> -->
-  <arg name="steps_bounds" default="[8, 8]" />
-  <arg name="control_bounds_min" default="[-1.0, -1.0]" />
-  <arg name="control_bounds_max" default="[+1.0, +1.0]" />
+  <arg name="model_path" default="$(find prx_models)/models/pendulum/pendulum.xml" />
+  <arg name="steps_bounds" default="[2, 8]" />
+  <arg name="control_bounds_min" default="[-1.0]" />
+  <arg name="control_bounds_max" default="[+1.0]" />
 
   <arg name="visualize_sim" default="true" />
   <arg name="sensor_frequency" default="30" />
@@ -32,12 +30,12 @@
         <!-- launch-prefix="lldb - -" -->
     
 
-  <node pkg="estimation" type="SE2_trajectory_estimation" name="SE2_trajectory_estimation"
-      output="screen" >
+  <node pkg="estimation" type="pendulum_trajectory_estimation"
+      name="pendulum_trajectory_estimation" output="screen" >
     <param name="trajectory_topic" value="$(arg data_topic)"/>
     <param name="estimations_file" value="$(arg estimations_file)"/>
-    <param name="failures_file" value="$(arg failures_file)"/>
     <param name="lm/iterations" value="100"/>
+    <!-- <param name="lm/verbosity_level" value="SUMMARY"/> -->
     <param name="lm/verbosity_level" value="SILENT"/>
   </node>
 

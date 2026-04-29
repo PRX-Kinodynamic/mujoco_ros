@@ -17,12 +17,14 @@
 template <typename MushrModel>
 void run(ros::NodeHandle nh)
 {
-  ros::MultiThreadedSpinner spinner(8);
+  ros::AsyncSpinner spinner(8);
+  spinner.start();
   try
   {
     motion_planning::stela_windowed_t<MushrModel> stela;
     stela.onInit(nh);
-    spinner.spin();
+    stela.replanning_loop();
+    // spinner.spin();
 
     // stela.replanner_service_main();
   }
@@ -30,6 +32,7 @@ void run(ros::NodeHandle nh)
   {
     PRINT_MSG("Stela exception...\n");
   }
+  spinner.stop();
 }
 
 int main(int argc, char** argv)

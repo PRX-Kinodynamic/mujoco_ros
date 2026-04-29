@@ -1,17 +1,27 @@
+f_type: "f=g+h"
+heuristic:
+  # type: "clustering" # "2DPoint"
+  type: "2DPoint"
+  max_velocity: 0.5
+  multiplier: 0.25 # 0.25 0.5 1.0
+  
 bnb: false
+use_pruning: false
+
+planning_cycle_duration: 1.0
+
+use_contingency: false
+
 use_replanning: true
 control_steps:
   min: 2
   max: 8
 blossom_number: 10
-planning_cycle_duration: 1.0
-use_pruning: false
-use_contingency: false
 profile: false
+
 # output_path: "${ML4KP_ROS}/data/dirt"
 output_path: "/tmp/"
-# f_type: "f=g+h"
-f_type: "f=h"
+
 plan_safety_params:
   safe_min: 0.02
   safe_mul: 0.15

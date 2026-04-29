@@ -61,6 +61,7 @@ struct replanner_t
   // };
   //
   ml4kp_bridge::Trajectory _traj_msg;
+  visualization_msgs::Marker _traj_marker;
 
   prx::system_ptr_t _plant;
   prx::param_loader params;
@@ -84,7 +85,7 @@ struct replanner_t
 
   std::shared_ptr<prx::dirt_replan_query_t> _dirt_query;
 
-  bool _use_contingency, _cycle_update;
+  // bool _use_contingency, _cycle_update;
 
   motion_planning::PlanningResult _planning_result_msg;
 
@@ -97,14 +98,14 @@ struct replanner_t
   ros::Publisher _tree_publisher;
   ros::Publisher _sln_tree_publisher;
   ros::Publisher _planner_stats_publisher;
-  ros::Publisher _sln_traj_publisher;
+  ros::Publisher _sln_traj_publisher, _viz_traj_publisher;
+  ros::Publisher _sln_plan_publisher;
 
   ros::Subscriber _z_tree_subscriber;
   ros::Subscriber _planner_clock_subscriber;
 
-  ros::Timer _clock_timer, _replan_timer, _tree_timer;
+  ros::Timer _viz_timer;
 
-  // int _max_cycles;
   double _postprocess_rate;
 
   double _max_edge_duration;
@@ -114,7 +115,6 @@ struct replanner_t
   bool _z_received, _start_replanning;
 
   int _current_cycle;
-  ros::Time _cycle_end, _cycle_start;
   ros::Duration _cycle_duration;
 
   // bool _propagate_dynamics, retain_previous, use_contingency;
@@ -129,7 +129,6 @@ struct replanner_t
 
   std::string _environment;
 
-  bool _new_tree;
   prx::tree_t _full_tree;
 
   std::size_t _tot_replans;
@@ -145,7 +144,7 @@ struct replanner_t
   using ClusterData = std::tuple<Eigen::Matrix<double, 1, 3>, Eigen::Vector3d>;
   motion_planning::cluster_in_out_t<gtsam::Pose2, ClusterData> _cluster_SE3;
 
-  replanner_t(ros::NodeHandle& nh) : _z_received(false), _cycle_start(ros::Time::ZERO), _new_tree(false)
+  replanner_t(ros::NodeHandle& nh) : _z_received(false)
   {
     LOG_FILENAME("logs/replanner.txt");
     LOG_MSG("Replanner Initialized")
@@ -155,10 +154,6 @@ struct replanner_t
     std::string planner_stats_topic_name;
     std::string& heuristic_map_filename{ _heuristic_map_filename };
 
-    // int& max_cycles{ _max_cycles };
-
-    // double& preprocess_timeout{ _preprocess_timeout };
-    // double& postprocess_rate{ _postprocess_rate };
     double& max_edge_duration{ _max_edge_duration };
 
     // std::string planning_mode;
@@ -170,19 +165,19 @@ struct replanner_t
     simulation_step = 0.0;  // Force to set simste
     int random_seed;
     // PARAM_SETUP(nh, plant_file);
-    // PARAM_SETUP(nh, planning_mode);
     // PARAM_SETUP(nh, planner_sln_recovery_type);
 
     // PARAM_SETUP(nh, preprocess_timeout);
     // PARAM_SETUP(nh, max_cycles);
 
-    // PARAM_SETUP(nh, estimation_tree_topic);
+    std::string replanner_service;
 
     PARAM_SETUP(nh, heuristic_map_filename);
     // PARAM_SETUP(nh, postprocess_rate);
     PARAM_SETUP(nh, sbmp_full_tree_topic);
     PARAM_SETUP(nh, sbmp_solution_tree_topic);
     PARAM_SETUP(nh, planner_stats_topic_name);
+    PARAM_SETUP(nh, replanner_service);
 
     DEBUG_VARS(heuristic_map_filename);
     // DEBUG_VARS(postprocess_rate);
@@ -201,48 +196,30 @@ struct replanner_t
     GLOBAL_PARAM_BLOCKER(dirt_spec);
     GLOBAL_PARAM_BLOCKER(dirt_query);
     GLOBAL_PARAM_BLOCKER(environment);
-    // while (simulation_step == 0.0 or plant_parameters == "" or dirt_spec == "" or dirt_query == "" or environment ==
-    // "")
-    // {
-    //   // GLOBAL_PARAM_SETUP_DEFAULT(random_seed, random_seed);
-    //   GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
-    //   GLOBAL_PARAM_SETUP_DEFAULT(dirt_spec, dirt_spec);
-    //   GLOBAL_PARAM_SETUP_DEFAULT(dirt_query, dirt_query);
-    //   GLOBAL_PARAM_SETUP_DEFAULT(environment, environment);
-    //   ros::Duration(1.0).sleep();
-    // }
-    // DEBUG_VARS(environment)
+
     PRINT_MSG("Parameters set")
 
     PARAM_SETUP_WITH_DEFAULT(nh, max_edge_duration, max_edge_duration);
 
     prx::init_random(random_seed);
 
-    // mode_check(planning_mode);
-
-    // _plant_params = prx::param_loader(plant_file, "");
     _dirt_spec_params.from_string(dirt_spec);
     _dirt_query_params.from_string(dirt_query);
     _plant_params.from_string(plant_parameters);
     _env_params.from_string(_environment);
 
-    // DEBUG_VARS(_env_params)
-
-    _postprocess_rate = _dirt_query_params["postprocess_rate"].as<double>();
-
-    // params["solution_type"].set(planner_sln_recovery_type);
-
-    // Publisher
-    // _goal_pos_publisher = nh.advertise<geometry_msgs::Pose2D>("/kraft/goal_pose", 10, true);
-    // _goal_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/goal_radius", 10, true);
-    // _safety_radius_publisher = nh.advertise<std_msgs::Float64>("/kraft/safety_radius", 10, true);
-    // _planning_result_publisher = nh.advertise<motion_planning::PlanningResult>("/kraft/planning_result", 1, true);
-    // _reset_publisher = nh.advertise<std_msgs::Empty>("/kraft/reset", 1, true);
-    _status_publisher = nh.advertise<interface::ReplannerStatus>("/kraft/status", 1, true);
-    _sln_traj_publisher = nh.advertise<ml4kp_bridge::Trajectory>("/kraft/solution/trajectory", 1, true);
+    // PUBLISHERS
+    const std::string publishers_ns{ "/motion_planning/dirt" };
+    const std::string trajectory_topic{ publishers_ns + "/solution/trajectory" };
+    _status_publisher = nh.advertise<interface::ReplannerStatus>(publishers_ns + "/status", 1, true);
     _tree_publisher = nh.advertise<prx_models::Tree>(sbmp_full_tree_topic, 1, true);
     _sln_tree_publisher = nh.advertise<prx_models::Tree>(sbmp_solution_tree_topic, 1, true);
     _planner_stats_publisher = nh.advertise<prx_models::PlannerStats>(planner_stats_topic_name, 1, true);
+    _sln_plan_publisher = nh.advertise<ml4kp_bridge::PlanStepStampedArray>(publishers_ns + "/solution/plan", 1, true);
+    _sln_traj_publisher = nh.advertise<ml4kp_bridge::SpacePointStampedArray>(trajectory_topic, 1, true);
+    _viz_traj_publisher = nh.advertise<visualization_msgs::Marker>(trajectory_topic + "/marker", 1, true);
+    // _trajectory_marker_publisher =
+    // nh.advertise<visualization_msgs::Marker>("/motion_planning/dirt/trajectory/marker", 1, true);
 
     _status.state = interface::ReplannerStatus::INITIALIZING;
     _status_publisher.publish(_status);
@@ -262,26 +239,50 @@ struct replanner_t
     _dirt->link_and_setup_query(_dirt_query.get());
 
     // Subscribers
-    // _z_tree_subscriber = nh.subscribe(estimation_tree_topic, 10, &replanner_t::observation_callback, this);
-    // _planner_clock_subscriber = nh.subscrib, 1, &replanner_t::clock_callback, this);
 
     // Timers
     const ros::Duration timer_duration(0.01);
-    // _clock_timer = nh.createTimer(timer_duration, &replanner_t::timer_callback, this);
-    _tree_timer = nh.createTimer(timer_duration, &replanner_t::tree_publish_callback, this);
+    // _viz_timer = nh.createTimer(timer_duration, &replanner_t::viz_callback, this);
 
     _status.state = interface::ReplannerStatus::IDLE;
     _status_publisher.publish(_status);
 
-    _replanning_service = nh.advertiseService("/dirt/replan", &replanner_t::replan, this);
+    _replanning_service = nh.advertiseService(replanner_service, &replanner_t::replan, this);
 
     // LOG_FILENAME("logs/stela.txt");
-
+    init_marker();
     PRINT_MSG("Replanner Ready!");
   }
 
   ~replanner_t()
   {
+  }
+
+  void init_marker()
+  {
+    _traj_marker.header.frame_id = "world";
+    _traj_marker.header.stamp = ros::Time();
+    _traj_marker.ns = "trajectory";
+    _traj_marker.id = 0;
+    _traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
+    _traj_marker.action = visualization_msgs::Marker::ADD;
+
+    _traj_marker.pose.position.x = 0;
+    _traj_marker.pose.position.y = 0;
+    _traj_marker.pose.position.z = 0;
+    _traj_marker.pose.orientation.x = 0.0;
+    _traj_marker.pose.orientation.y = 0.0;
+    _traj_marker.pose.orientation.z = 0.0;
+    _traj_marker.pose.orientation.w = 1.0;
+
+    _traj_marker.scale.x = 0.01;
+    _traj_marker.scale.y = 0.01;
+    _traj_marker.scale.z = 0.01;
+
+    _traj_marker.color.a = 1.0;  // Don't forget to set the alpha!
+    _traj_marker.color.r = 0.0;
+    _traj_marker.color.g = 1.0;
+    _traj_marker.color.b = 0.0;
   }
 
   static void create_parameter_files(ros::NodeHandle& nh)
@@ -304,51 +305,24 @@ struct replanner_t
       prx::param_loader::create_file<prx::dirt_replan_query_t>(query_file);
       prx::system_factory_t::initialization_parameters(plant_name).save(plant_file);
 
-      DEBUG_VARS(spec_file)
-      DEBUG_VARS(query_file)
-      DEBUG_VARS(plant_file)
+      // DEBUG_VARS(spec_file)
+      // DEBUG_VARS(query_file)
+      // DEBUG_VARS(plant_file)
       ros::shutdown();
     }
   }
 
-  void tree_publish_callback(const ros::TimerEvent& event)
+  void publish_visualization(const std::vector<ml4kp_bridge::SpacePointStamped> trajectory)
   {
-    if (_new_tree)
+    _traj_marker.points.clear();
+    for (auto pt : trajectory)
     {
+      _traj_marker.points.emplace_back();
+      _traj_marker.points.back().x = pt.space_point.point[0];
+      _traj_marker.points.back().y = pt.space_point.point[1];
+      _traj_marker.points.back().z = 0.0;
     }
-  }
-
-  void observation_callback(prx_models::TreePtr msg)
-  {
-    if (msg->nodes.size() > 0)
-    {
-      // _received_tree = *msg;
-      get_next_prediction(msg);
-      _z_received = true;
-    }
-  }
-
-  void get_next_prediction(prx_models::TreePtr msg)
-  {
-    prx_models::Node node{ motion_planning::get_root(*msg) };
-    prx_models::Edge edge;
-
-    ros::Time curr_time{ msg->header.stamp };
-    // double remaining_dt{ _planning_cycle };
-    while (_cycle_end > curr_time or node.children.size() > 0)
-    {
-      // _current_node_idx = node.children[0];
-      node = motion_planning::get_node(*msg, node.children[0]);
-      edge = motion_planning::get_edge(*msg, node.parent_edge);
-      for (auto& step : edge.plan.steps)
-      {
-        curr_time += ros::Duration(step.duration.data);
-      }
-      // _obs_received = true;
-    }
-    // DEBUG_VARS(_current_node_idx);
-    // _future_state = node.point;
-    ml4kp_bridge::copy(_future_state, node.point);
+    _viz_traj_publisher.publish(_traj_marker);
   }
 
   void init_planner_spec(ros::NodeHandle& nh)
@@ -419,112 +393,6 @@ struct replanner_t
     DEBUG_VARS(*_dirt_spec);
   }
 
-  bool init_cluster_heuristic()
-  {
-    prx_assert(_dirt_spec_params.exists("heuristic"), "Parameter 'heuristic' not found");
-    auto heuristic_params = _dirt_spec_params["heuristic"];
-    if (heuristic_params["type"].as<>() != "clustering")
-      return false;
-    if (not heuristic_params.exists("clustering"))
-      return false;
-    PRINT_MSG("Using Clustering Heuristic")
-    heuristic_params = heuristic_params["clustering"];
-    const std::string filename{ heuristic_params["filename"].as<>() };
-    if (heuristic_params["type"].as<>() == "SE3")
-    {
-      PRINT_MSG("Using Clustering SE3")
-      using CsvReader = prx::utilities::csv_reader_t;
-      using prx::utilities::convert_to;
-
-      std::vector<std::string> line;
-      prx::utilities::csv_reader_t reader(filename);
-      while (reader.next_valid_line(line))
-      {
-        Eigen::Matrix<double, 3, 3> R{ Eigen::Matrix<double, 3, 3>::Zero() };
-        R(0, 0) = convert_to<double>(line[0]);
-        R(0, 1) = convert_to<double>(line[1]);
-        R(0, 2) = convert_to<double>(line[2]);
-        R(1, 1) = convert_to<double>(line[3]);
-        R(1, 2) = convert_to<double>(line[4]);
-        R(2, 2) = convert_to<double>(line[5]);
-
-        const double x{ convert_to<double>(line[6]) };
-        const double y{ convert_to<double>(line[7]) };
-        const double theta{ convert_to<double>(line[8]) };
-
-        const double min_duration{ convert_to<double>(line[9]) };
-        const double max_duration{ convert_to<double>(line[10]) };
-        const double avg_duration{ convert_to<double>(line[11]) };
-
-        const double total_clustered{ convert_to<double>(line[12]) };
-
-        if (total_clustered < 5)
-          continue;
-
-        const double A0{ convert_to<double>(line[13]) };
-        const double A1{ convert_to<double>(line[14]) };
-        const double A2{ convert_to<double>(line[15]) };
-
-        const double expmap_0{ convert_to<double>(line[16]) };
-        const double expmap_1{ convert_to<double>(line[17]) };
-        const double expmap_2{ convert_to<double>(line[18]) };
-
-        const Eigen::Matrix<double, 1, 3> A{ (Eigen::Matrix<double, 1, 3>() << A0, A1, A2).finished() };
-        const Eigen::Vector3d expmap(expmap_0, expmap_1, expmap_2);
-
-        DEBUG_VARS(A)
-        DEBUG_VARS(expmap.transpose())
-        // DEBUG_VARS(R)
-        // DEBUG_VARS(x, y, theta)
-        // DEBUG_VARS(min_duration, max_duration, avg_duration)
-        _cluster_SE3.noise_models.push_back(gtsam::noiseModel::Gaussian::SqrtInformation(R));
-        _cluster_SE3.values.emplace_back(x, y, theta);
-        _cluster_SE3.original_elements.push_back({ std::make_tuple(A, expmap) });
-
-        // if (heuristic_params["duration"].as<>() == "min")
-        // {
-        //   _cluster_SE3.original_elements.push_back({ min_duration });
-        // }
-        // else if (heuristic_params["duration"].as<>() == "max")
-        // {
-        //   _cluster_SE3.original_elements.push_back({ max_duration });
-        // }
-        // else if (heuristic_params["duration"].as<>() == "avg")
-        // {
-        //   _cluster_SE3.original_elements.push_back({ avg_duration });
-        // }
-        // else
-        // {
-        //   prx_throw("Unknown clustering heuristic param 'duration' - " << heuristic_params["duration"].as<>())
-        // }
-      }
-      DEBUG_VARS(_cluster_SE3.original_elements.size());
-      DEBUG_VARS(_cluster_SE3.values.size());
-      DEBUG_VARS(_cluster_SE3.noise_models.size());
-
-      _dirt_spec->heuristic = [&](const prx::space_point_t& curr, const prx::space_point_t& goal) {
-        const gtsam::Pose2 x(curr->at(0), curr->at(1), curr->at(2));
-
-        DEBUG_VARS(x)
-        const std::vector<ClusterData> data{ motion_planning::query(_cluster_SE3, x, 7.815) };
-        // prx_assert(duration.size() > 0, "clustering query output not valid");
-        const Eigen::Vector3d expmap{ gtsam::traits<gtsam::Pose2>::Logmap(x) };
-        DEBUG_VARS(expmap.transpose())
-        const Eigen::Matrix<double, 1, 3>& A{ std::get<0>(data[0]) };
-        const Eigen::Vector<double, 3>& em0{ std::get<1>(data[0]) };
-        DEBUG_VARS(A)
-        DEBUG_VARS(em0.transpose())
-        DEBUG_VARS(A * (em0 - expmap))
-        const double duration{ std::fabs((A * (em0 - expmap))) };
-        DEBUG_VARS(duration)
-        // LOG_VARS(x.x(), x.y(), x.theta(), duration[0])
-        return duration;
-        // return 5.0;
-      };
-    }
-    return true;
-  }
-
   bool init_heuristic_map()
   {
     prx_assert(_dirt_spec_params.exists("heuristic"), "Parameter 'heuristic' not found");
@@ -593,6 +461,7 @@ struct replanner_t
       // DEBUG_VARS(conversion_velocity)
       // DEBUG_VARS(wh, conversion_velocity, h)
       return h;
+      // return 0.0;
     };
 
     return true;
@@ -662,11 +531,9 @@ struct replanner_t
     }
     else if (request.condition == prx_models::StelaKraft::Request::CONDITION_TIME)
     {
-      const ros::Time start_plan_stamp{ ros::Time::now() };
-      const ros::Duration dt_available{ request.deadline - start_plan_stamp };
-      const double time_limit{ std::max(dt_available.toSec() * _postprocess_rate, 0.0) };
-
-      LOG_VARS(request.deadline, dt_available, time_limit);
+      // const ros::Time start_plan_stamp{ ros::Time::now() };
+      const double time_limit{ request.planning_time };
+      LOG_VARS(time_limit);
 
       return prx::condition_check_t("time", time_limit);
     }
@@ -693,27 +560,65 @@ struct replanner_t
       _dirt_query->retainment = true;
     }
   }
-  // void replan()
+
+  void copy_solution(std::vector<ml4kp_bridge::SpacePointStamped>& trajectory,    // no-lint
+                     std::vector<ml4kp_bridge::PlanStepStamped>& piecewise_plan,  // no-lint
+                     const prx::trajectory_t& traj, const prx::plan_t plan,       // no-lint
+                     const double& max_solution_duration, const ros::Time& root_stamp)
+  {
+    // DEBUG_VARS(traj)
+    // DEBUG_VARS(plan)
+    int idx{ 0 };
+    double ti{ 0.0 };
+    const double solution_duration{ std::min(max_solution_duration, plan.duration()) };
+    // DEBUG_VARS(solution_duration, max_solution_duration, plan.duration(), traj.duration())
+    for (; ti < solution_duration; ti += prx::simulation_step, ++idx)
+    {
+      trajectory.emplace_back();
+      trajectory.back().header.stamp = root_stamp + ros::Duration(ti);
+      ml4kp_bridge::copy(trajectory.back().space_point, traj[idx]);
+    }
+    // DEBUG_VARS(trajectory.size())
+    idx = 0;
+    ti = 0.0;
+    double dt{ 0.0 };
+    while (ti < solution_duration)
+    {
+      piecewise_plan.emplace_back();
+      piecewise_plan.back().header.stamp = root_stamp + ros::Duration(ti);
+      ml4kp_bridge::copy(piecewise_plan.back().plan_step.control, plan[idx].control);
+      piecewise_plan.back().plan_step.duration.data = ros::Duration(prx::simulation_step);
+
+      if (dt >= plan[idx].duration)
+      {
+        dt = 0;
+        idx++;
+      }
+      dt += prx::simulation_step;
+      ti += prx::simulation_step;
+    }
+    // DEBUG_VARS(piecewise_plan.size())
+  }
+
   bool replan(prx_models::StelaKraft::Request& request, prx_models::StelaKraft::Response& response)
   {
     std::scoped_lock lock(_service_mutex);
-    LOG_MSG("START REPLANNING");
+    // PRINT_MSG("START REPLANNING");
     response.planner_output = prx_models::StelaKraft::Response::TYPE_FAILURE;
 
-    LOG_MSG("PREPROCESSING");
+    // PRINT_MSG("PREPROCESSING");
     change_status(interface::ReplannerStatus::PREPROCESSING);
 
     plan_retainment(request);
 
-    // _dirt_spec->planning_cycle_duration = 1.0;  // TODO: Is this necessary?
-
     _dirt_query->clear_outputs();
 
-    prx_assert(_dirt_query->start_state->size() == request.root.point.point.size(),
-               "[mushr_replanning] Size "
-               "mismatch ");
+    prx_assert(_dirt_query->start_state->size() == request.root_state.space_point.point.size(),
+               "[mushr_replanning_dirt] Size mismatch: Expected: "
+                   << _dirt_query->start_state->size() << " Got: " << request.root_state.space_point.point.size()
+                   << ".\n Requested state: [ " << request.root_state.space_point.point << " ]\n");
 
-    ml4kp_bridge::copy(_dirt_query->start_state, request.root.point);
+    ml4kp_bridge::copy(_dirt_query->start_state, request.root_state.space_point);
 
     _traj_msg.data.clear();
     _step_traj->clear();
@@ -722,90 +627,47 @@ struct replanner_t
     _dirt->preprocess();
     _dirt->link_and_setup_query(_dirt_query.get());
 
-    const ros::Time start_plan_stamp{ ros::Time::now() };
-    const ros::Duration dt_available{ request.deadline - start_plan_stamp };
-
-    // double time_limit{ dt_available.toSec() - _postprocess_timeout };
-
     prx::condition_check_t checker{ create_condition(request) };
 
     change_status(interface::ReplannerStatus::PLANNING);
-    LOG_MSG("PLANNING");
+    // PRINT_MSG("PLANNING");
 
     _dirt->resolve_query(&checker);
 
     // const ros::Time end{ ros::Time::now() };
-    // const double real_plan_dt{ (end - start_plan_stamp).toSec() };
-    // const double dt_diff{ time_limit - real_plan_dt };
     change_status(interface::ReplannerStatus::POSTPROCESSING);
 
-    LOG_MSG("POSTPROCESSING");
+    // PRINT_MSG("POSTPROCESSING");
 
     _dirt->fulfill_query();
 
     std::shared_ptr<prx::planner_t::statistics_t> planner_stats{ _dirt->statistics() };
-    // std::cout << planner_stats << std::endl;
     std::shared_ptr<prx::dirt_replan_t::statistics_t> stats{
       std::dynamic_pointer_cast<prx::dirt_replan_t::statistics_t>(planner_stats)
     };
     prx_assert(stats != nullptr, "Couldn't cast stats to dirt stats");
     prx_models::copy(response.stats, *stats);
     _planner_stats_publisher.publish(response.stats);
-    LOG_VARS(_dirt_query->solution_traj.size());
+    prx_models::Tree sln_tree;
+
     if (_dirt_query->solution_traj.size() > 0)
     {
-      _step_plan->clear();
-      _rest_of_plan->clear();
-      _retained_plan->clear();
-      const double plan_duration{ _dirt_query->solution_plan.duration() };
-      const double traj_duration{ _dirt_query->solution_traj.duration() };
-      ml4kp_bridge::copy(_traj_msg, _dirt_query->solution_traj);
+      copy_solution(response.trajectory.data, response.piecewise_plan.data,  // no-lint
+                    _dirt_query->solution_traj, _dirt_query->solution_plan,  // no-lint
+                    request.solution_duration.toSec(), request.root_state.header.stamp);
 
-      _dirt_query->solution_plan.copy_to(0, plan_duration, *_retained_plan);
-
-      // if (_mode == planning_mode_t::REPLANNING)
-      // {
-      // plan_to_file(_dirt_query->solution_plan);
-      // DEBUG_VARS(plan_duration, traj_duration);
-      if (plan_duration < request.solution_duration.toSec())
-      {
-        _dirt_query->solution_plan.copy_to(0, plan_duration, *_step_plan);
-        // _dirt_query->solution_plan.copy_to(planning_duration, _dirt_query->solution_plan.duration(),
-        // *_rest_of_plan);
-      }
-      else
-      {
-        _dirt_query->solution_plan.copy_to(0, request.solution_duration.toSec(), *_step_plan);
-      }
-      // }
-      // else if (_mode == planning_mode_t::SINGLE_SHOT)
-      // {
-      //   (*_step_plan) += _dirt_query->solution_plan;
-      //   _mode = planning_mode_t::FINISHED;
-      // }
-      // else
-      // {
-      //   prx_throw("[replanner_t] Invalid mode (unreachable line?)");
-      // }
-      response.sln_tree.root = request.root.index;
-      response.sln_tree.nodes.push_back(request.root);
       response.planner_output = prx_models::StelaKraft::Response::TYPE_SUCCESS;
-
-      prx_models::tree_from_plan_traj(response.sln_tree, *_step_plan, _dirt_query->solution_traj, _max_edge_duration);
-      _sln_tree_publisher.publish(response.sln_tree);
-      // LOG_MSG("Result ready");
     }
 
-    LOG_MSG("POSTPROCESSING");
-
-    _sln_tree_publisher.publish(response.sln_tree);
-    _sln_traj_publisher.publish(_traj_msg);
+    _sln_traj_publisher.publish(response.trajectory);
+    _sln_plan_publisher.publish(response.piecewise_plan);
 
     prx_models::Tree ros_tree;
     motion_planning::copy<prx::dirt_replan_t::Node, prx::dirt_replan_t::Edge>(ros_tree, _dirt->tree());
     _tree_publisher.publish(ros_tree);
     _dirt->reset();
 
+    publish_visualization(response.trajectory.data);
     change_status(interface::ReplannerStatus::IDLE);
 
     _tot_replans++;
@@ -832,6 +694,7 @@ int main(int argc, char** argv)
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
+  node_status->status(interface::NodeStatus::INITIALIZING);
   std::shared_ptr<replanner_t> replanner;
 
   PRINT_MSG("[mushr_replanning_dirt] INIT")
@@ -839,7 +702,7 @@ int main(int argc, char** argv)
   {
     // node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
 
-    DEBUG_VARS(node_status);
+    // DEBUG_VARS(node_status);
     if (node_status->new_request())
     {
       auto requested_status = interface::node_status_t::status_to_string(node_status->requested_status());
@@ -855,6 +718,7 @@ int main(int argc, char** argv)
         }
         replanner = nullptr;
         node_status->status(node_status->requested_status());
+        node_status->request_acknowledged();
       }
       else if (node_status->requested_status() == interface::NodeStatus::RUNNING)
       {
@@ -864,6 +728,7 @@ int main(int argc, char** argv)
           replanner = std::make_shared<replanner_t>(nh);
         }
         node_status->status(node_status->requested_status());
+        node_status->request_acknowledged();
       }
       else
       {
@@ -871,7 +736,7 @@ int main(int argc, char** argv)
         DEBUG_VARS(INVALID_STATUS_REQUESTED);
       }
 
-      node_status->status(node_status->requested_status());
+      // node_status->status(node_status->requested_status());
     }
     if (node_status->sequence_id() != experiments_node_status->sequence_id())
     {

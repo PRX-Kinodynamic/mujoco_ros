@@ -44,10 +44,20 @@ struct contingency_controller_t
 
   ros::Subscriber _sensor_subscriber;
   ros::Publisher _stamped_control_publisher;
-  contingency_controller_t(ros::NodeHandle& nh, std::string control) : _pid(nullptr)
+  contingency_controller_t(ros::NodeHandle nh) : _pid(nullptr)
   {
-    // std::string control, stamped_control_topic, sensor_topic_name;
-    PARAM_SETUP_WITH_DEFAULT(nh, control, control);
+    std::string control;
+    PARAM_SETUP(nh, control);
+    init(nh, control);
+  }
+
+  contingency_controller_t(ros::NodeHandle nh, std::string control) : _pid(nullptr), _lqr(nullptr)
+  {
+    init(nh, control);
+  }
+
+  void init(ros::NodeHandle& nh, const std::string control)
+  {
     // PARAM_SETUP(nh, sensor_topic_name);
     // PARAM_SETUP(nh, stamped_control_topic);
     if (control == "PID")
@@ -91,13 +101,17 @@ struct contingency_controller_t
       DEBUG_VARS(R);
       DEBUG_VARS(K);
     }
+    else
+    {
+      prx_throw("[mushr_contingency_controllers] Unknown controller: " << control);
+    }
 
     // _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
     // _stamped_control_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(stamped_control_topic, 1, true);
   }
 
   // u = Ctrl(xi)
-  Eigen::Vector<double, 2> control(Eigen::Vector3d xdot)
+  Eigen::Vector<double, 2> control(const Eigen::Vector3d xdot)
   {
     Eigen::Vector<double, 2> ui;
     if (_pid)

@@ -24,13 +24,12 @@ catkin_make run_tests     # Run tests
 catkin_test_results       # Check for failures
 ```
 
-## TODOs
-- [x] Visualization support
-- [x] Executing an open-loop plan from a file
-- [x] Closed-loop execution via a service (control in, next observation out) 
-- [x] Use nodelets for faster message copies?
-- [x] Replace the old message translation code while having a way to simulate sensor data if necessary.
-- [ ] Check nodelet frequencies and topic names
-- [ ] Check for unnecessary copies
-- [ ] Check if Xacro can be used to configure MJ models (i.e. change environment)
-- [ ] Replace the current `feedback_client` (or at least refactor it) so it spawns `mushr_simulation` and connects via topics.
+
+## Run Experiments
+
+* Launch Mujoco Mushr in an specify environment: 
+  ``` roslaunch mujoco_ros mushr.launch environment:=*environment* ```
+* Launch Stela window Replanning with Dirt:
+  ``` roslaunch interface stela_replanning.launch  ``` 
+* Read Mujoco trajectories, propagate on mushr model and publish marker
+  ``` roslaunch interface mj_data_comparison.launch  ``` 

@@ -13,6 +13,7 @@
 
 namespace prx_models
 {
+
 inline prx::param_loader create(const prx_models::Node msg)
 {
   prx::param_loader params;

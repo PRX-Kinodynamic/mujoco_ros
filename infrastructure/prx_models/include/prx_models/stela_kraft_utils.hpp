@@ -9,8 +9,9 @@
 #include <prx_models/PlannerStats.h>
 #include <prx_models/StelaKraft.h>
 
-#include <prx_models/tree_utils.hpp>
+// #include <prx_models/tree_utils.hpp>
 #include <type_traits>
+#include <utils/dbg_utils.hpp>
 #include "tree_utils.hpp"
 // #include <utils/rosp>
 // #include <utils/dbg_utils.hpp>
@@ -26,7 +27,7 @@ inline prx::param_loader create(const prx_models::StelaKraft::Request req)
   params["iterations"].set(req.iterations);
   params["condition"].set("ITERATIONS | TIME");
   // params["radius"].set(req.radius);
-  params["root"] = prx_models::create(req.root);
+  params["root_state"] = ml4kp_bridge::create(req.root_state);
   // params["goal/state"] = ml4kp_bridge::create(req.goal);
   // params["goal/region_radius"] = ml4kp_bridge::create(req.goal);
 
@@ -37,7 +38,7 @@ inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& 
 {
   req.solution_duration = ros::Duration(params["solution_duration"].as<double>());
   req.iterations = params["iterations"].as<int>();
-  req.deadline = ros::Time::ZERO;  // This needs to be changed before sending the req.
+  req.planning_time = params["planning_time"].as<double>();  // This needs to be changed before sending the req.
 
   req.retain_plan = params["retain/plan"].as<bool>();
   req.retianment_offset = ros::Duration(params["retain/offset"].as<double>());
@@ -46,10 +47,10 @@ inline void copy(prx_models::StelaKraft::Request& req, const prx::param_loader& 
   //   req.radius = params["goal/radius"].as<double>();
   //   ml4kp_bridge::copy(req.goal, params["goal/state"]);
   // }
-  if (params.exists("root"))
+  if (params.exists("root_state"))
   {
-    auto root_params = params["root"];
-    prx_models::copy(req.root, root_params);
+    auto root_params = params["root_state"];
+    ml4kp_bridge::copy(req.root_state.space_point, root_params);
   }
   const std::string condition{ params["condition"].as<>() };
   if (condition == "ITERATIONS")

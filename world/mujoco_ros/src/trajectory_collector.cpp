@@ -63,7 +63,7 @@ struct collector_t
 
     sim = mj_ros::simulator_t::initialize(model_path);
 
-    publisher = nh.advertise<ml4kp_bridge::PlanTrajectory>(data_topic, 1000, true);
+    publisher = nh.advertise<ml4kp_bridge::PlanTrajectory>(data_topic, 10000, true);
   }
 
   void run()

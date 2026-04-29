@@ -3,24 +3,27 @@ int32 CONDITION_ITERATIONS=1
 
 int32 condition
 
-time deadline # Only used if condition==CONDITION_TIME
+float64 planning_time # Only used if condition==CONDITION_TIME
+# time deadline # Only used if condition==CONDITION_TIME
 int32 iterations # Only used if condition==CONDITION_ITERATIONS
 
 duration solution_duration # maximum trajectory/plan to return in the response
 # bool use_contingency			 # should the sln_tree include a contingency plan
-prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
+# prx_models/Node root 			 # the root of the sln_tree (if a sln is found)
+ml4kp_bridge/SpacePointStamped root_state 
 
 bool retain_plan
 duration retianment_offset # PrevPlan[0:T] -> retained plan will be [offset:T]
+ml4kp_bridge/PlanStepStamped[] retainment_plan 
 # ml4kp_bridge/SpacePoint goal # Goal of the planner
 # float32 radius
 ---
 int32 TYPE_FAILURE=0
 int32 TYPE_SUCCESS=1
-prx_models/Tree sln_tree
+# prx_models/Tree sln_tree
 
-ml4kp_bridge/SpacePointStamped[] trajectory 
-ml4kp_bridge/PlanStepStamped[] piecewise_plan 
+ml4kp_bridge/SpacePointStampedArray trajectory 
+ml4kp_bridge/PlanStepStampedArray piecewise_plan 
 
 int32 planner_output
 # Planner Stats

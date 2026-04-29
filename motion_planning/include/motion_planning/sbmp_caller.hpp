@@ -10,6 +10,7 @@
 #include <prx/utilities/general/prx_assert.hpp>
 #include <ml4kp_bridge/defs.h>
 #include <utils/std_utils.hpp>
+#include <prx_models/StelaKraft.h>
 
 #include <interface/PlannerClock.h>
 
@@ -17,6 +18,9 @@
 
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 #include <utils/dbg_utils.hpp>
+#include <utils/rosparams_utils.hpp>
+#include <interface/ReplannerStatus.h>
+#include <visualization_msgs/Marker.h>
 
 namespace motion_planning
 {
@@ -30,23 +34,86 @@ public:
 
   sbmp_caller_t(ros::NodeHandle nh)
   {
-    std::string replanner_service;
+    std::string replanner_service, condition;
+
+    bool retain_plan;
+    double solution_duration;
+    double& postprocessing_rate{ _postprocessing_rate };
+
+    PARAM_SETUP(nh, condition);
+    PARAM_SETUP(nh, retain_plan);
     PARAM_SETUP(nh, replanner_service);
+    PARAM_SETUP(nh, solution_duration);
+    PARAM_SETUP(nh, postprocessing_rate);
+
+    prx_assert(condition == "TIME" or condition == "ITERATIONS",
+               "[sbmp_caller_t] Condition must be 'TIME' or 'ITERATIONS'");
+    _planner_service_call.request.condition = condition == "TIME" ?
+                                                  prx_models::StelaKraft::Request::CONDITION_TIME :
+                                                  prx_models::StelaKraft::Request::CONDITION_ITERATIONS;
+
+    if (_planner_service_call.request.condition == prx_models::StelaKraft::Request::CONDITION_ITERATIONS)
+    {
+      int& iterations{ _planner_service_call.request.iterations };
+      PARAM_SETUP(nh, iterations);
+    }
+    _planner_service_call.request.solution_duration = ros::Duration(solution_duration);
+    _planner_service_call.request.retain_plan = retain_plan;
+
+    const ros::Duration timer_duration(0.01);
+
     _planner_service_client = nh.serviceClient<prx_models::StelaKraft>(replanner_service);
+    _planner_status = nh.advertise<interface::ReplannerStatus>(replanner_service + "/status", 1, true);
+
+    _status_timer = nh.createTimer(timer_duration, &sbmp_caller_t::timer_callback, this);
+
+    status(interface::ReplannerStatus::IDLE);
+  }
+
+  void timer_callback(const ros::TimerEvent& event)
+  {
+    _status.header.stamp = ros::Time::now();
+    _planner_status.publish(_status);
   }
 
   ~sbmp_caller_t()
   {
   }
 
-  std::optional<Result> call()
+  bool valid()
   {
+    return _planner_service_client.exists();
+  }
+
+  int condition() const
+  {
+    return _planner_service_call.request.condition;
+  }
+
+  Result call(const double planning_time, const ml4kp_bridge::SpacePointStamped& root_state, const Plan& plan)
+  {
+    status(interface::ReplannerStatus::PREPROCESSING);
+    _trajectory.clear();
+
+    if (_planner_service_call.request.condition == prx_models::StelaKraft::Request::CONDITION_TIME)
+    {
+      // _planner_service_call.request.deadline = deadline;
+
+      _planner_service_call.request.planning_time = planning_time * _postprocessing_rate;
+    }
+
+    _planner_service_call.request.root_state = root_state;
+    _planner_service_call.request.retainment_plan = plan;
+
+    status(interface::ReplannerStatus::PLANNING);
     if (_planner_service_client.call(_planner_service_call))
     {
+      status(interface::ReplannerStatus::POSTPROCESSING);
+
       if (_planner_service_call.response.planner_output == prx_models::StelaKraft::Response::TYPE_SUCCESS)
       {
-        Plan plan{ _planner_service_call.response.piecewise_plan };
-        Trajectory trajectory{ _planner_service_call.response.trajectory };
+        Plan plan{ _planner_service_call.response.piecewise_plan.data };
+        _trajectory = _planner_service_call.response.trajectory.data;
         // const double dt_used{ (ros::Time::now() - cycle_start).toSec() };
         // const double dt_remaining{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
         // change_status(stela_thread_t::REPLANNING, interface::StelaStatus::VALIDATING);
@@ -80,19 +147,36 @@ public:
         //   _new_tree = wrapped_tree;
 
         //   const double dt_used_acepted{ (ros::Time::now() - cycle_start).toSec() };
-        //   const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
-        //   LOG_VARS(_new_tree_available, dt_used_acepted, dt_remaining_accepted)
+        //   const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec()
+        //   }; LOG_VARS(_new_tree_available, dt_used_acepted, dt_remaining_accepted)
         // }
-        return std::make_pair(trajectory, plan);
+        status(interface::ReplannerStatus::SUCCESS);
+        return std::make_pair(_trajectory, plan);
       }
 
       // change_status(stela_thread_t::REPLANNING, interface::StelaStatus::IDLE);
     }
-    return {};
+    status(interface::ReplannerStatus::FAILURE);
+    return { {}, {} };
   }
 
-private:
+protected:
+  void status(const int status)
+  {
+    _status.state = status;
+  }
+
+  Trajectory _trajectory;
+
+  double _postprocessing_rate;
   prx_models::StelaKraft _planner_service_call;
+
+  interface::ReplannerStatus _status;
+
+  visualization_msgs::Marker _traj_marker;
+
+  ros::Timer _status_timer;
+  ros::Publisher _planner_status;
   ros::ServiceClient _planner_service_client;
 };
 }  // namespace motion_planning

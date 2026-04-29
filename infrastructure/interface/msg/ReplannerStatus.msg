@@ -3,6 +3,8 @@ int16 PREPROCESSING=1
 int16 PLANNING=2
 int16 POSTPROCESSING=3
 int16 INITIALIZING=4
+int16 SUCCESS=5
+int16 FAILURE=6
 
 std_msgs/Header header
 int16 state

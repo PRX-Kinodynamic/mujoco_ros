@@ -1,6 +1,7 @@
 <launch>
     
     <arg name="cycle_duration" default="1.0" />
+    <arg name="replanner_service" default="/motion_planning/replan" />
     
 
     <node pkg="motion_planning" type="stela_mushr" name="stela_mushr" 
@@ -8,8 +9,17 @@
         >
         <param name="node_id" value="stela"/>
         <param name="mushr_model" value="mushr"/>
+        <param name="postprocessing_rate" value="0.8"/>
 
         <param name="clock/cycle_duration" value="$(arg cycle_duration)" />
+
+        <!-- <param name="replanner/condition" value="ITERATIONS" /> -->
+        <!-- <param name="replanner/iterations" value="3000" /> -->
+        <param name="replanner/condition" value="TIME" />
+        <param name="replanner/retain_plan" value="false" />
+        <param name="replanner/replanner_service" value="$(arg replanner_service)" />
+        <param name="replanner/solution_duration" value="$(arg cycle_duration)" />
+        <param name="replanner/postprocessing_rate" value="0.8" />
     </node> 
 
     <node pkg="nodelet" type="nodelet" name="stela_nodelet_aux"  args="manager" output="screen"/>

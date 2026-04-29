@@ -147,70 +147,6 @@ struct mushr_sbmp_open_loop_t
     //   GraphValues graph_values{ _robot->node_edge_to_fg(node_current, edge) };
     // }
   }
-
-  void replanner()
-  {
-    if (not _call_replanner)
-      return;
-    _planner_service_call.request.retain_plan = true;
-    _planner_service_call.request.retianment_offset = _planner_clock_msg.cycle_duration;
-    _planner_service_call.request.deadline = _planner_clock_msg.cycle_end;
-    _planner_service_call.request.root.stamp = _planner_clock_msg.cycle_end;
-    // get_next_root(_planner_service_call.request.root);
-
-    if (_planner_service_client.call(_planner_service_call))
-    {
-      if (_planner_service_call.response.planner_output == prx_models::StelaKraft::Response::TYPE_SUCCESS)
-      {
-        const std::size_t root_idx{ _planner_service_call.response.sln_tree.root };
-        prx_models::tree_msg_wrapper_t wrapped_tree(_planner_service_call.response.sln_tree);
-        _new_tree_available = true;
-
-        if (_validation_plan_feasibility)
-        {
-          PRINT_MSG("Not implemented");
-          // auto graph_values = _robot->estimate_to_prior(0, , );
-          // _validation_params.estimates = { _q_hat, _qdot_hat };
-          // _validation_params.covariances = { _q_cov, _qdot_cov };
-          // _new_tree_available = motion_planning::check_new_tree(wrapped_tree, _validation_params);
-        }
-
-        if (_new_tree_available and _validation_collision_only)
-        {
-          PRINT_MSG("Not implemented");
-          // _new_tree_available =
-          //     _robot->propagate_plan({ _q_hat, _qdot_hat }, wrapped_tree);  // check_new_tree(wrapped_tree);
-        }
-        if (_new_tree_available)
-        {
-          _new_tree = wrapped_tree;
-          if (_new_tree.nodes[_new_tree.root].children.size() > 0)
-          {
-            double t_accum{ 0.0 };
-            while (t_accum < _planner_clock_msg.cycle_duration.toSec())
-            {
-              auto child = _new_tree.nodes[_new_tree.root].children[0];
-              auto parent_edge = _new_tree.nodes[child].parent_edge;
-              _plan.steps.push_back(_new_tree.edges[parent_edge].plan.steps[0]);
-              t_accum += _new_tree.edges[parent_edge].plan.steps[0].duration.data.toSec();
-
-              DEBUG_VARS(t_accum);
-              // _planned_steps.push();
-            }
-            // if (_new_tree.edges[parent_edge].plan.steps.size() > 0)
-            // {
-            //   _control_publisher.publish(_control_stamped.space_point);
-            //   _stamped_control_publisher.publish(_control_stamped);
-            // }
-          }
-
-          const double dt_used_acepted{ (ros::Time::now() - _planner_clock_msg.cycle_start).toSec() };
-          const double dt_remaining_accepted{ (_planner_service_call.request.deadline - ros::Time::now()).toSec() };
-          // LOG_VARS(_new_tree_available, dt_used_acepted, dt_remaining_accepted)
-        }
-      }
-    }
-  }
 };
 
 int main(int argc, char** argv)
@@ -247,7 +183,7 @@ int main(int argc, char** argv)
     {
       if (sbmp_caller == nullptr)
         sbmp_caller = std::make_shared<mushr_sbmp_open_loop_t>(nh);
-      sbmp_caller->replanner();
+      // sbmp_caller->replanner();
     }
     else
     {
