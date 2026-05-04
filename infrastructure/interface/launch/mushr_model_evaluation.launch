@@ -1,0 +1,9 @@
+<launch>
+    <arg name="datasets" value="$(find interface)/config/mushr_datasets.yaml"/>
+    <node pkg="interface" type="mushr_model_evaluation" name="mushr_model_evaluation"
+          output="screen">
+        <!-- <param name="output_directory" value="/tmp/" /> -->
+        <rosparam command="load" file="$(arg datasets)" />
+    </node>
+</launch>
+

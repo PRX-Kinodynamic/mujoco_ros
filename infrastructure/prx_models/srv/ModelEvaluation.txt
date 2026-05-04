@@ -1,0 +1,27 @@
+ModelEvaluation.srv
+  
+
+ml4kp_bridge/SpacePoint[] start_states
+ml4kp_bridge/Plan[] plans
+
+---
+
+
+
+
+MODEL     <------------------------>     EVALUATOR <------> FILE
+
+0. Start 
+ (check for evaluator) ------MSG-----> Init  
+ 								 # <---------	AWK ------ 
+1. Ask for data   -------------------> Batch size
+ 								 					Respond with:
+ 								 					 * Ids
+ 								 					 * X0s
+ 								 					 * Plans
+					   <--------- AWK ------ * 
+2. Compute 
+   trajectories   -------------------> Evaluate   --------> Write to file
+ 											(Go to 1)
+N. Finish       ---------------------> Close file --------> close
+END 

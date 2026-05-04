@@ -16,7 +16,7 @@
       args="standalone interface/SpacepointToMarkerPublisher " output="screen">
     <param name="world_frame" value="world"/>
     <param name="spacepoint_topic_name" value="$(arg estimation_topic)"/>
-    <!-- <param name="color" value=""/> -->
+    <param name="color" type="yaml" value="[0.8, 0.0, .78, 1.0]"/>
   </node>
 
 </launch>

@@ -59,14 +59,5 @@ public:
     const double err2{ v_err.transpose() * _weights * v_err };
     return std::sqrt(err2) < _radius;
   }
-
-private:
-  mutable std::mutex _clock_mutex;
-
-  ros::Publisher _planner_clock_publisher;
-
-  ros::Timer _clock_timer;
-
-  interface::PlannerClock _planner_clock_msg;
 };
 }  // namespace motion_planning

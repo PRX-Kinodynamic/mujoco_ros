@@ -1,0 +1,5 @@
+output_directory: "/tmp/"
+datasets:
+  TEST: "/Users/Gary/pracsys/catkin_ws/data/mj_mushr/TEST.txt"
+  TEST1: "/Users/Gary/pracsys/catkin_ws/data/mj_mushr/TEST.txt"
+

@@ -3,7 +3,7 @@
 
 
   <!-- TOPICS -->
-  <arg name="control_topic" value="/mushr/control"/>
+  <arg name="control_topic" default="/mushr/control"/>
   <arg name="sensor_topic_name" default="/mushr/sensordata"/>
   <arg name="contingency_topic" default="/mushr/contingency"/>
 

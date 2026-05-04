@@ -23,6 +23,7 @@
 #include <interface/StelaStatus.h>
 #include <control/mushr_contingency_controllers.hpp>
 #include <motion_planning/goal_checker.hpp>
+#include <motion_planning/safety_checker.hpp>
 
 void handle_node_state(std::shared_ptr<interface::node_status_t> node_status)
 {
@@ -45,24 +46,18 @@ struct mushr_sbmp_open_loop_t
 
   ml4kp_bridge::SpacePointStamped _state_estimate;
   ml4kp_bridge::SpacePointStamped _end_window_estimate;
-  prx::system_ptr_t _plant;
 
   RePlannerPlan _current_plan, _next_plan;
   RePlannerTrajectory _current_trajectory, _next_trajectory;
 
-  std::shared_ptr<prx::system_group_t> _system_group;
-  std::shared_ptr<prx::world_model_t> _planning_model;
-  std::shared_ptr<prx::collision_group_t> _collision_group;
-
-  visualization_msgs::Marker _trajectory_marker;
-
   ros::Timer _timer;
-  ros::Publisher _traj_estimation_publisher, _contingency_publisher;
+  ros::Publisher _contingency_publisher;
   ros::Publisher _control_publisher, _control_stamped_publisher;
   ros::Subscriber _ekf_subscriber;
 
   std::shared_ptr<ContingencyController> _contingency_controller;
   std::shared_ptr<motion_planning::goal_checker_t> _goal_checker;
+  std::shared_ptr<motion_planning::safety_checker_t> _safety_checker;
 
   std_msgs::Bool _contingency_msg;
 
@@ -76,13 +71,7 @@ public:
     _replanner = std::make_shared<motion_planning::sbmp_caller_t>(ros::NodeHandle(nh, "replanner"));
     _contingency_controller = std::make_shared<ContingencyController>(ros::NodeHandle(nh, "contingency"));
     _goal_checker = std::make_shared<motion_planning::goal_checker_t>(ros::NodeHandle(nh, "goal_checker"));
-
-    // PRX FILES
-    std::string environment;
-    std::string plant_parameters;
-
-    // PRX PARAM LOADERS FOR PRX FILES
-    prx::param_loader plant_params, env_params;
+    _safety_checker = std::make_shared<motion_planning::safety_checker_t>(ros::NodeHandle(nh, "safety"));
 
     // TOPICS
     std::string control_topic, estimation_topic, contingency_topic;
@@ -90,24 +79,11 @@ public:
     PARAM_SETUP(nh, control_topic)
     PARAM_SETUP(nh, estimation_topic)
     PARAM_SETUP(nh, contingency_topic)
-    GLOBAL_PARAM_BLOCKER(environment);
-    GLOBAL_PARAM_BLOCKER(plant_parameters);
 
-    env_params.from_string(environment);
-    plant_params.from_string(plant_parameters);
-
-    _plant = prx::system_factory_t::create_system(plant_params);
-    std::tie(_planning_model, _system_group, _collision_group) = prx::world_model_t::create(env_params, _plant);
-
-    prx_assert(_plant != nullptr, "[mushr_sbmp_open_loop_t] prx::system_factory_t::create_system failed.");
-
-    _trajectory_marker = ml4kp_bridge::create_marker(0.1, { 1, 1, 0, 0 });
-    _trajectory_marker.type = visualization_msgs::Marker::LINE_STRIP;
     _current_control.space_point.point.emplace_back();  // u0
     _current_control.space_point.point.emplace_back();  // u1
 
     // PUBLISHERS
-    _traj_estimation_publisher = nh.advertise<visualization_msgs::Marker>("/prediction/trajectory/marker", 1);
     _control_publisher = nh.advertise<ml4kp_bridge::SpacePoint>(control_topic, 1);
     _control_stamped_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(control_topic + "_stamped", 1);
     _contingency_publisher = nh.advertise<std_msgs::Bool>(contingency_topic, 1);
@@ -141,8 +117,6 @@ public:
     {
       _current_trajectory.push_back(state);
     }
-    // std::copy(_next_plan.begin(), _next_plan.end(), _current_plan.end());
-    // std::copy(_next_trajectory.begin(), _next_trajectory.end(), _current_trajectory.end());
   }
 
   template <typename Control>
@@ -170,7 +144,7 @@ public:
     auto& state = _state_estimate.space_point.point;
     if (state.size() != 6)
     {
-      prx_warn("[sbmp_open_loop] EKF state is empty!");
+      // prx_warn("[sbmp_open_loop] EKF state is empty!");
       return;
     }
     if (_current_plan.size() == 0)
@@ -185,29 +159,25 @@ public:
       return;
     }
 
-    _system_group->get_state_space()->copy_from(_current_trajectory.back().space_point.point);
-    const bool collision{ _collision_group->in_collision() };
+    // if (collision)
+    // {
+    //   apply_contingency(_current_trajectory.back().space_point.point);
+    // }
 
-    ml4kp_bridge::update_marker(_trajectory_marker, _current_trajectory, 0, 1, 0.0);
-    _traj_estimation_publisher.publish(_trajectory_marker);
-
-    if (collision)
+    if (_safety_checker->is_safe(_state_estimate, _current_plan))
     {
-      apply_contingency(_current_trajectory.back().space_point.point);
-      return;
+      apply_contingency(state);
     }
-
-    if (ros::Time::now() > _current_plan.front().header.stamp)
+    else if (ros::Time::now() > _current_plan.front().header.stamp)
     {
       // _current_control.space_point = _current_plan.front().plan_step.control;
       auto& ctrl{ _current_plan.front().plan_step.control.point };
       publish_control(ctrl);
 
       _current_plan.erase(_current_plan.begin());
-      ml4kp_bridge::propagate(_state_estimate, _current_plan, _current_trajectory, _system_group);
+      _contingency_msg.data = false;
+      _contingency_publisher.publish(_contingency_msg);
     }
-    _contingency_msg.data = false;
-    _contingency_publisher.publish(_contingency_msg);
   }
 
   ml4kp_bridge::SpacePointStamped next_replanner_root()
@@ -222,6 +192,7 @@ public:
     if (_current_trajectory.size() == 0)
     {
       root.space_point = _state_estimate.space_point;
+      prx_assert(root.space_point.point.size() > 0, "[sbmp_open_loop] Empty point ekf state");
     }
     else
     {
@@ -231,11 +202,13 @@ public:
         if (state.header.stamp >= root.header.stamp)
         {
           root.space_point = state.space_point;
+          prx_assert(root.space_point.point.size() > 0, "[sbmp_open_loop] Empty point in current trajectory");
           break;
         }
       }
       // Trajectory is shorter than the window -> just use the last point
       root.space_point = _current_trajectory.back().space_point;
+      prx_assert(root.space_point.point.size() > 0, "[sbmp_open_loop] Empty root -- last point of current trajectory");
     }
     return root;
   }
@@ -247,35 +220,29 @@ public:
 
   void replanning_loop()
   {
-    // PRINT_MSG("Starting Replanning Loop");
-    // while (_node_status->status() != interface::NodeStatus::FINISH)
-    // {
-    // handle_node_state();
-    // if (_node_status->status() != interface::NodeStatus::RUNNING)
-    //   break;
     if (not _replanner->valid())
     {
-      // PRINT_MSG("Replanning not available...")
-      // ros::Duration(1.0).sleep();
+      return;
+    }
+    if (_state_estimate.space_point.point.size() == 0)
+    {
+      const ros::Time deadline{ _clock->cycle_end() };
+      const ros::Duration next_cycle{ (deadline - ros::Time::now()) * 0.8 };
+      next_cycle.sleep();
       return;
     }
 
     if (_current_cycle < _clock->cycle())
     {
       _current_cycle = _clock->cycle();
-
       const ros::Time deadline{ _clock->cycle_end() };
-      // const double planning_time{ (deadline - ros::Time::now()).toSec() };
       const ros::Duration planning_duration{ deadline - ros::Time::now() };
-      // const auto future_limit = std::chrono::steady_clock::now() + std::chrono::duration<double>(planning_time);
       const std::chrono::time_point future_limit{ std::chrono::steady_clock::now() +
                                                   std::chrono::seconds(planning_duration.sec) +
                                                   std::chrono::nanoseconds(planning_duration.nsec) };
 
       const ml4kp_bridge::SpacePointStamped root{ next_replanner_root() };
 
-      // DEBUG_VARS(ros::Time::now(), root)
-      // const ml4kp_bridge::SpacePointStamped root_state;  // get_replanner_x0(deadline) };
       const RePlannerPlan plan{ get_retainment_plan() };
 
       const double planning_time{ planning_duration.toSec() };
@@ -287,21 +254,15 @@ public:
       if (status == std::future_status::ready)
       {
         std::tie(_next_trajectory, _next_plan) = future_result.get();
-        // DEBUG_VARS(_next_trajectory.size())
-        // DEBUG_VARS(_next_plan.size())
         merge_result();
       }
       else
       {
         auto now = std::chrono::steady_clock::now();
+        const ros::Time replanner_failed_time{ ros::Time::now() };
         auto ms_now = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         auto ms_limit = std::chrono::duration_cast<std::chrono::milliseconds>(future_limit.time_since_epoch()).count();
-        // std::cout << "Future limit: " << future_limit << "\n";
-        // const std::time_t limit{ std::chrono::system_clock::to_time_t(future_limit) };
-        // std::string planner_time_limit{ std::put_time(&limit, "%H:%M:%S") };
-        const ros::Time replanner_failed_time{ ros::Time::now() };
-        DEBUG_VARS(ms_now, ms_limit)
-        DEBUG_VARS(deadline, replanner_failed_time)
+        DEBUG_VARS(ms_now, ms_limit, deadline, replanner_failed_time)
       }
     }
     // }

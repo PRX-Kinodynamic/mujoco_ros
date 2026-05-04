@@ -10,6 +10,7 @@
 #include <prx/utilities/general/template_utils.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <ml4kp_bridge/template_utils.hpp>
+#include <ml4kp_bridge/product_lie_group.hpp>
 #include <gtsam/base/types.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -69,6 +70,19 @@ inline void print_value(std::ostream& stream, const Value& graph)
       // graph.at(i)->print(ss.str(), prx::fg::symbol_factory_t::formatter);
     }
   }
+}
+
+// std::enable_if_t<std::is_same<Value, gtsam::ProductLieGroupV43<First, Second>>::value, bool> = true>
+template <typename First, typename Second>
+inline void print_value(std::ostream& stream, const std::pair<First, Second>& value)
+{
+  stream << value.first << " " << value.second << " ";
+}
+
+template <int Dim>
+inline void print_value(std::ostream& stream, const Eigen::Vector<double, Dim>& value)
+{
+  stream << value.transpose() << " ";
 }
 
 template <typename Value, std::enable_if_t<std::is_same<Value, gtsam::Values>::value, bool> = true>
