@@ -24,7 +24,7 @@ using Pose = gtsam::Pose2;
 using Velocity = Eigen::Vector3d;
 using State = gtsam::ProductLieGroupV43<Pose, Velocity>;
 using Trajectory = std::vector<State>;
-struct error_t
+struct model_error_t
 {
   double position_error;
   double orientation_error;
@@ -35,7 +35,7 @@ struct error_t
   double state_error;
   std::size_t total;
 
-  error_t()
+  model_error_t()
     : position_error(0.)
     , orientation_error(0.)
     , pose_error(0.)
@@ -45,7 +45,7 @@ struct error_t
     , state_error(0.)
     , total(0) {};
 
-  error_t(const Eigen::VectorXd error)
+  model_error_t(const Eigen::VectorXd error)
     : position_error(error.head(2).norm())
     , orientation_error(error[2])
     , pose_error(error.head(3).norm())
@@ -56,7 +56,7 @@ struct error_t
     , total(1)
   {
   }
-  error_t& operator+=(const error_t& other)
+  model_error_t& operator+=(const model_error_t& other)
   {
     this->position_error += other.position_error;
     this->orientation_error += other.orientation_error;
@@ -69,7 +69,7 @@ struct error_t
     return *this;
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const error_t& obj)
+  friend std::ostream& operator<<(std::ostream& os, const model_error_t& obj)
   {
     os << obj.position_error << " ";
     os << obj.orientation_error << " ";
@@ -110,7 +110,7 @@ std::string fix_string(const double dt)
 struct query_t
 {
   std::map<int, Trajectory> trajectories;
-  std::vector<error_t> errors;
+  std::vector<model_error_t> errors;
   // ros::Subscriber subscriber;
   ros::Subscriber request_subscriber, evaluation_subscriber;
   ros::Publisher response_publisher;
@@ -135,7 +135,7 @@ struct query_t
       ofs[i].open(strstr.str());
       filenames.push_back(strstr.str());
 
-      ofs[i] << error_t::header();
+      ofs[i] << model_error_t::header();
     }
     avg_filename = output_dir + "/avg_errors_" + timestamp + ".txt";
   }
@@ -156,7 +156,7 @@ struct query_t
     avg_ofs.close();
   }
 
-  void to_file(std::vector<error_t>& errors)
+  void to_file(std::vector<model_error_t>& errors)
   {
     for (int i = 0; i < 11; ++i)
     {
@@ -249,7 +249,7 @@ struct query_t
     csv_reader = std::make_shared<CsvReader>(filename);
   }
 
-  void add(const std::vector<error_t>& new_errors)
+  void add(const std::vector<model_error_t>& new_errors)
   {
     for (int i = 0; i < errors.size(); ++i)
     {
@@ -441,7 +441,7 @@ struct evaluator_t
         continue;
       }
       const Trajectory traj_gt{ query->trajectories[id] };
-      std::vector<error_t> errors{ trajectory_error(traj_gt, traj) };
+      std::vector<model_error_t> errors{ trajectory_error(traj_gt, traj) };
       query->trajectories.erase(query->trajectories.find(id));
 
       if (errors.size() != 11)
@@ -486,7 +486,7 @@ struct evaluator_t
     return traj;
   }
 
-  std::vector<error_t> trajectory_error(const Trajectory x_gt, const Trajectory x_hat)
+  std::vector<model_error_t> trajectory_error(const Trajectory x_gt, const Trajectory x_hat)
   {
     // DEBUG_VARS(x_gt.size())
     // DEBUG_VARS(x_hat.size())
@@ -495,7 +495,7 @@ struct evaluator_t
       publish_error("TrajectoryError: trajectories sizes mismatch.");
       return {};
     }
-    std::vector<error_t> errors;
+    std::vector<model_error_t> errors;
     for (int i = 0; i < x_gt.size(); ++i)
     {
       errors.push_back(state_error(x_gt[i], x_hat[i]));
@@ -503,12 +503,12 @@ struct evaluator_t
     return errors;
   }
 
-  error_t state_error(const State x_gt, const State x_hat)
+  model_error_t state_error(const State x_gt, const State x_hat)
   {
     const State btw{ gtsam::traits<State>::Between(x_gt, x_hat) };
     const Eigen::VectorXd error{ gtsam::traits<State>::Logmap(btw) };
     // DEBUG_VARS(error.transpose());
-    return error_t(error);
+    return model_error_t(error);
   }
 };
 
