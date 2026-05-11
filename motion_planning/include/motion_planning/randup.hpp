@@ -78,14 +78,6 @@ public:
     _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
 
     _system_geoms = _plant->geometries();
-    // for (int i = 0; i < total_threads; ++i)
-    // {
-    //   _queries.emplace_back();
-    //   _queries.back().pqp_models = prx::collision_checking::pqp::create_pqp_models(system_geoms);
-    // }
-
-    // _trajectory_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
-    // _trajectory_marker.type = visualization_msgs::Marker::LINE_STRIP;
 
     _markers_publisher = nh.advertise<visualization_msgs::MarkerArray>("/randup/trajectories/marker", 1);
     _collision_publisher = nh.advertise<std_msgs::Bool>("/randup/collision", 1);
@@ -140,20 +132,12 @@ public:
     _collision_found = _collision_found or collision;
     std::scoped_lock lock(_checked_trajectories_mutex);
     _checked_trajectories.push_back(traj);
-    // return tr
-    // _unchecked_trajectories--;
-    // _total_checked_trajectories++;
-    // return false;
-    // return prx::collision_checking::pqp::collision(_query, _obstacles_bodies);
-
-    ////////////////////////////
   }
 
   void propagate()
   {
     if (_collision_found)  // short-circuit
       return;
-    // PRINT_MSG("Propagate")
     const State x0_noise{ _x0_sampler(_state) };
     Trajectory traj;
     FwdProp::propagate(traj, x0_noise, _controller, _plant, _w_sampler);
@@ -165,30 +149,6 @@ public:
     }
 
     _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
-  }
-
-  void iterate()
-  {
-    // if (_unchecked_trajectories < _half_threads)
-    // {
-
-    // }
-    // if (_unchecked_trajectories > 0 and _collisions_in_check < _half_threads)
-    // {
-    //   // _pool.detach_task([&] {
-    //   // });
-
-    //   // _collision_futures.push_back(_pool.submit_task(collion_check(prx::collision_checking::pqp::query_t & query,
-    //   // _plant));
-    // }
-    // if (not _vis_thread and _total_checked_trajectories > 0)
-    // {
-    //   std::scoped_lock lock(_checked_trajectories_mutex);
-
-    //   const Trajectory traj{ _checked_trajectories.back() };
-    //   _checked_trajectories.pop_back();
-    //   _pool.detach_task([&] { this->trajectory_to_marker(traj); });
-    // }
   }
 
   bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& x0,
@@ -248,13 +208,8 @@ public:
 
   void trajectories_to_marker()
   {
-    // _vis_thread = true;
-
     if (_visualize)
     {
-      // for (int i = 0; i < _trajectory_markers.markers.size(); ++i)
-      // {
-      // }
       visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
       marker.type = visualization_msgs::Marker::LINE_STRIP;
       marker.action = visualization_msgs::Marker::DELETEALL;
@@ -262,16 +217,12 @@ public:
       _markers_publisher.publish(_trajectory_markers);
 
       _trajectory_markers.markers.clear();
-      DEBUG_VARS(_checked_trajectories.size())
-      // DEBUG_VARS(_checked_trajectories[0])
       marker.action = visualization_msgs::Marker::ADD;
-      // visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
-      for (auto traj : _checked_trajectories)
+      std::scoped_lock lock(_checked_trajectories_mutex);
+      while (_checked_trajectories.size() > 0)
       {
-        // _trajectory_markers.markers.back().id = ;
-
+        ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, 0.0);
         _checked_trajectories.pop_back();
-        ml4kp_bridge::update_marker(marker, traj, 0, 1, 0.0);
         _trajectory_markers.markers.push_back(marker);
       }
 
@@ -280,8 +231,8 @@ public:
       _trajectory_markers.markers.clear();
     }
 
+    std::scoped_lock lock(_checked_trajectories_mutex);
     _checked_trajectories.clear();
-    // _vis_thread = false;
   }
 
 private:

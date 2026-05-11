@@ -1,0 +1,21 @@
+<launch>
+  
+
+  <arg name="path" default="$(env HOME)/Downloads/real_world_eval_units/1step/"/>
+  <arg name="random_seed" default="112392"/>
+
+  <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+
+  <param name="random_seed" value="$(arg random_seed)"/>
+  <param name="simulation_step" value="0.1"/>
+  <param name="plant_parameters" textfile="$(arg plant_file)"/>
+
+  <param name="environment" textfile="$(find prx_models)/models/environments/empty.yaml" />
+
+  <node pkg="interface" type="real_mushr_data_evaluation" name="real_mushr_data_evaluation" 
+        output="screen" respawn="false"
+        >
+    <param name="path" value="$(arg path)"/>
+  </node>
+
+</launch>
