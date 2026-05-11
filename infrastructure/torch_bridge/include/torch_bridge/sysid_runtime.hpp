@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <Eigen/Core>
+#include <utils/dbg_utils.hpp>
 #include <torch/script.h>
 // #include <c10/cuda/CUDAStream.h>
 // #include <c10/cuda/CUDAGuard.h>
@@ -11,7 +12,6 @@
 #include <boost/optional.hpp>
 #include "torch_eigen_bridge.hpp"
 #include "gpu_plant.hpp"
-#include <utils/dbg_utils.hpp>
 
 #include <ros/console.h>
 

@@ -1,8 +1,10 @@
 #pragma once
+#include <gtsam/geometry/Rot2.h>
 #include <visualization_msgs/Marker.h>
 #include <ml4kp_bridge/SpacePointStamped.h>
 #include <prx/utilities/general/prx_assert.hpp>
 #include <prx/utilities/general/type_conversions.hpp>
+#include "ml4kp_bridge/product_lie_group.hpp"
 
 namespace ml4kp_bridge
 {
@@ -56,8 +58,27 @@ inline double value_or_index(const IndexOrValue index, const VectorOfValues& vec
 }
 
 template <typename XValue, typename YValue, typename ZValue>
+inline void update_point(geometry_msgs::Point& pt, const ml4kp_bridge::SpacePointStamped& state,  // no-lint
+                         const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  pt.x = value_or_index(x_value, state.space_point.point, x_value);
+  pt.y = value_or_index(y_value, state.space_point.point, y_value);
+  pt.z = value_or_index(z_value, state.space_point.point, z_value);
+}
+
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_point(geometry_msgs::Point& pt,
+                         const gtsam::ProductLieGroupV43<gtsam::Rot2, double>& state,  // no-lint
+                         const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  pt.x = state.first.theta();
+  pt.y = state.second;
+  pt.z = 0.0;
+}
+
+template <typename State, typename XValue, typename YValue, typename ZValue>
 inline void update_marker(visualization_msgs::Marker& marker,
-                          const std::vector<ml4kp_bridge::SpacePointStamped>& traj,  // no-lint
+                          const std::vector<State>& traj,  // no-lint
                           const XValue x_value, const YValue y_value, const ZValue z_value)
 {
   marker.id++;
@@ -69,10 +90,12 @@ inline void update_marker(visualization_msgs::Marker& marker,
   for (auto&& state : traj)
   {
     marker.points.emplace_back();
+    update_point(marker.points.back(), state, x_value, y_value, z_value);
 
-    marker.points.back().x = value_or_index(x_value, state.space_point.point, x_value);
-    marker.points.back().y = value_or_index(y_value, state.space_point.point, y_value);
-    marker.points.back().z = value_or_index(z_value, state.space_point.point, z_value);
+    // marker.points.back().x = value_or_index(x_value, state.space_point.point, x_value);
+    // marker.points.back().y = value_or_index(y_value, state.space_point.point, y_value);
+    // marker.points.back().z = value_or_index(z_value, state.space_point.point, z_value);
   }
 }
+
 }  // namespace ml4kp_bridge

@@ -7,7 +7,10 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Quaternion.h>
 
+#include <ml4kp_bridge/SpacePoint.h>
 #include <ml4kp_bridge/msgs_utils.hpp>
+#include "ml4kp_bridge/SpacePointStamped.h"
+#include "ml4kp_bridge/product_lie_group.hpp"
 
 namespace ml4kp_bridge
 {
@@ -30,4 +33,32 @@ inline void copy(geometry_msgs::TransformStamped& msg, const gtsam::Pose3& pose)
   copy(msg.transform, pose);
 }
 
+template <typename Type>
+inline void copy(Type& type, const ml4kp_bridge::SpacePointStamped& msg)
+{
+  copy(type, msg.space_point);
+}
+
+template <typename G, typename H>
+inline void copy(gtsam::ProductLieGroupV43<G, H>& type, const ml4kp_bridge::SpacePoint& vector)
+{
+  static constexpr Eigen::Index DimG{ gtsam::traits<G>::dimension };
+  static constexpr Eigen::Index DimH{ gtsam::traits<H>::dimension };
+  ml4kp_bridge::SpacePoint vG;
+  vG.point = std::vector<double>(vector.point.begin(), vector.point.begin() + DimG);
+  ml4kp_bridge::SpacePoint vH;
+  vH.point = std::vector<double>(vector.point.begin() + DimG, vector.point.end());
+  copy(type.first, vG);
+  copy(type.second, vH);
+}
+
+inline void copy(gtsam::Rot2& type, const ml4kp_bridge::SpacePoint& vector)
+{
+  type = gtsam::Rot2(vector.point[0]);
+}
+
+inline void copy(double& type, const ml4kp_bridge::SpacePoint& vector)
+{
+  type = vector.point[0];
+}
 }  // namespace ml4kp_bridge

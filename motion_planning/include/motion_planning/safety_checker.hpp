@@ -18,19 +18,18 @@
 
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 #include <prx/simulation/collision_checking/pqp_collision_checker.hpp>
+#include <utils/rosparams_utils.hpp>
+#include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
 
 namespace motion_planning
 {
 
 class safety_checker_t
 {
-  using RePlanner = motion_planning::sbmp_caller_t;
-  using RePlannerResult = RePlanner::Result;
+  using Trajectory = std::vector<ml4kp_bridge::SpacePointStamped>;
+  using Plan = std::vector<ml4kp_bridge::PlanStepStamped>;
 
-  using Plan = RePlanner::Plan;
-  using Trajectory = RePlanner::Trajectory;
-
-  using PqpInfo = prx::collision_checking::system_pqp_info_t;
+  // using PqpInfo = prx::collision_checking::system_pqp_info_t;
   Trajectory _trajectory;
   prx::system_ptr_t _plant;
 
@@ -42,12 +41,12 @@ class safety_checker_t
 
   visualization_msgs::Marker _trajectory_marker;
 
-  PqpInfo _pqp_info;
+  // PqpInfo _pqp_info;
 
-  prx::collision_checking::system_pqp_info_t _system_pqp_info;
+  // prx::collision_checking::system_pqp_info_t _system_pqp_info;
 
-  PQP_CollideResult _collision_result;
-  std::vector<std::shared_ptr<prx::collision_checking::pqp_info_t>> _obstacles_pqp_infos;
+  // PQP_CollideResult _collision_result;
+  // std::vector<std::shared_ptr<prx::collision_checking::pqp_info_t>> _obstacles_pqp_infos;
 
 public:
   safety_checker_t(ros::NodeHandle nh)
@@ -77,13 +76,13 @@ public:
     auto movable_object = std::dynamic_pointer_cast<prx::movable_object_t>(_plant);
     prx_assert(movable_object != nullptr, "[mushr_sbmp_open_loop_t] Couldn't cast plant to prx::movable_object.");
 
-    _pqp_info = prx::collision_checking::system_pqp_info_t::from_geometries(movable_object);
+    // _pqp_info = prx::collision_checking::system_pqp_info_t::from_geometries(movable_object);
 
     // SET OBSTACLES
     prx::obstacle_loader_t obstacle_loader{ prx::obstacle_loader_t(env_params) };
     auto obstacle_list = obstacle_loader.get_obstacles();
     const std::vector<std::shared_ptr<prx::movable_object_t>> all_obstacles{ { obstacle_list } };
-    _obstacles_pqp_infos = prx::collision_checking::pqp_info_t::from_obstacles(all_obstacles);
+    // _obstacles_pqp_infos = prx::collision_checking::pqp_info_t::from_obstacles(all_obstacles);
 
     _trajectory_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
     _trajectory_marker.type = visualization_msgs::Marker::LINE_STRIP;
@@ -95,9 +94,69 @@ public:
   {
   }
 
-  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const Plan& plan)
+  const Plan expand_plan(const Plan& plan)
+  {
+    Plan expanded_plan;
+
+    for (auto step : plan)
+    {
+      const double dt{ step.plan_step.duration.data.toSec() };
+      for (double ti = 0.; ti < dt; ti += prx::simulation_step)
+      {
+        expanded_plan.emplace_back();
+        expanded_plan.back().plan_step.duration.data = ros::Duration(prx::simulation_step);
+        expanded_plan.back().plan_step.control = step.plan_step.control;
+      }
+    }
+
+    return expanded_plan;
+  }
+
+  template <typename X0>
+  Trajectory propagate(const X0& x0, const Plan& plan)
+  {
+    Trajectory result;
+    const std::size_t state_dim{ 6 };
+
+    // result.push_back(x0);
+    result.emplace_back();
+    result.back().space_point.point.resize(state_dim);
+    _system_group->get_state_space()->copy_to(result.back().space_point.point);
+
+    for (auto step : plan)
+    {
+      const double dt{ step.plan_step.duration.data.toSec() };
+      _system_group->get_control_space()->copy_from(step.plan_step.control.point);
+
+      for (double ti = 0.; ti < dt; ti += prx::simulation_step)
+      {
+        _planning_model->step_simulation();
+        result.emplace_back();
+        result.back().space_point.point.resize(state_dim);
+        _system_group->get_state_space()->copy_to(result.back().space_point.point);
+      }
+    }
+    return result;
+  }
+
+  void randup(const ml4kp_bridge::SpacePointStamped& x_hat, const Plan& plan_in, const int n,  // no-lint
+              Eigen::Matrix<double, 6, 6> x_cov, Eigen::Matrix<double, 2, 2> u_cov, Eigen::Matrix<double, 6, 6> w_cov)
+  {
+    // prx_models::multivariate_gaussian_t<6> x_gaussian_sampler(x_cov);
+    // prx_models::multivariate_gaussian_t<2> u_gaussian_sampler(u_cov);
+    // prx_models::multivariate_gaussian_t<6> w_gaussian_sampler(w_cov);
+
+    // _system_group->get_state_space()->copy_to(, x_hat.space_point.point);
+    // for (int i = 0; i < n; ++i)
+    // {
+    //   Trajectory propagate(const X0& x0, const Plan& plan);
+    // }
+  }
+
+  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const Plan& plan_in)
   {
     DEBUG_VARS(x_hat)
+    const Plan plan{ expand_plan(plan_in) };
     ml4kp_bridge::propagate(x_hat, plan, _trajectory, _system_group);
     // _system_group->get_state_space()->copy_from(_current_trajectory.back().space_point.point);
     // const bool collision{ _collision_group->in_collision() };
@@ -107,23 +166,28 @@ public:
     _trajectory_marker.id = 0;
     _traj_estimation_publisher.publish(_trajectory_marker);
 
-    int idx{ 0 };
-    for (auto state : _trajectory)
-    {
-      auto& pt = state.space_point.point;
-      _system_pqp_info.configurations[0].first = prx::axis_to_rotation_matrix(pt[2], 'Z');
-      _system_pqp_info.configurations[0].second[0] = pt[0];
-      _system_pqp_info.configurations[0].second[1] = pt[1];
-      _system_pqp_info.configurations[0].second[2] = 0.;
-      // _system_pqp_info.configurations = _system->configuration(state);
-      const bool coll{ prx::collision_checking::collision(_collision_result, _pqp_info, _obstacles_pqp_infos) };
-      DEBUG_VARS(idx);
-      idx++;
-      if (coll)
-        return false;
-    }
     return true;
     // std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> configurations;
+  }
+
+  bool trajectory_in_collision(const Trajectory& trajectory)
+  {
+    int idx{ 0 };
+    for (auto state : trajectory)
+    {
+      auto& pt = state.space_point.point;
+      // _system_pqp_info.configurations[0].first = prx::axis_to_rotation_matrix(pt[2], 'Z');
+      // _system_pqp_info.configurations[0].second[0] = pt[0];
+      // _system_pqp_info.configurations[0].second[1] = pt[1];
+      // _system_pqp_info.configurations[0].second[2] = 0.;
+      // _system_pqp_info.configurations = _system->configuration(state);
+      // const bool coll{ prx::collision_checking::collision(_collision_result, _pqp_info, _obstacles_pqp_infos) };
+      // DEBUG_VARS(idx);
+      idx++;
+      // if (coll)
+      //   return false;
+    }
+    return true;
   }
 
 private:

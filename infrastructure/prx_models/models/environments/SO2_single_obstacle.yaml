@@ -1,0 +1,37 @@
+environment:
+    name: "single_obstacle"
+    type: obstacle
+    bounds:
+      min: [ -3.14159, -6.28318, -1.]
+      max: [ +3.14159, +6.28318,  1.]
+    root_configuration:
+      position: [0,0,0]
+      orientation: [0,0,0,1]
+    geometries:
+      -
+        name: obstacle_0
+        collision_geometry:
+          type: box
+          dims: [ .2, .2, .2]
+          material: 0x0015ff
+        config:
+          position: [1, 2.5, .1]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_down
+        collision_geometry:
+          type: box
+          dims: [6.2831853072, .1, .2]
+          material: 0x0015ff
+        config:
+          position: [0, -6.2831853072, .1]
+          orientation: [0,0,0,1]
+      -
+        name: wall_up
+        collision_geometry:
+          type: box
+          dims: [6.2831853072, .1, .2]
+          material: 0x0015ff
+        config:
+          position: [0, 6.2831853072, .1]
+          orientation: [0,0,0,1]

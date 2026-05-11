@@ -8,12 +8,16 @@
 
 #include <prx/utilities/general/constants.hpp>
 #include <prx/utilities/general/template_utils.hpp>
+#include <prx/utilities/spaces/streamer.hpp>
 #include <prx/factor_graphs/utilities/symbols_factory.hpp>
 #include <ml4kp_bridge/template_utils.hpp>
-#include <ml4kp_bridge/product_lie_group.hpp>
+// #include <ml4kp_bridge/product_lie_group.hpp>
 #include <gtsam/base/types.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <ml4kp_bridge/eigen_utils.hpp>
+#include <ml4kp_bridge/gtsam_traits.hpp>
+// #include <ml4kp_bridge/streamer_bridge.hpp>
 
 #define DEBUG_PRINT std::cout << __PRETTY_FUNCTION__ << ": " << __LINE__ << std::endl;
 
@@ -39,17 +43,24 @@ inline void close_log()
     variables::ofs_log.close();
   }
 }
-// template <std::size_t I, typename TupleValue>
-// inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
 
-// template <std::size_t I, typename TupleValue>  // no-lint
-// inline void print_tuple(std::ostream& stream, const TupleValue& tuple);
-
-template <typename Value, std::enable_if_t<prx::utilities::is_streamable<Value>::value, bool> = true>
+// template <typename Value,                                   // no-lint
+//           std::enable_if_t<                                 // no-lint
+// prx::utilities::is_streamable<Value>::value,  // no-lint
+//               bool> = true>
+template <typename Value>  // no-lint
 inline void print_value(std::ostream& stream, const Value& value)
 {
-  stream << value << " ";
+  prx::streamer_t<Value>::to_stream(stream, value);
 }
+
+// template <typename Value,                                                 // no-lint
+//           std::enable_if_t<                                               // no-lint
+//               ml4kp_bridge::is_eigen_vector<Value>::value, bool> = true>  // no-lint
+// inline void print_value(std::ostream& stream, const Value& value)
+// {
+//   stream << value.transpose() << " ";
+// }
 
 template <typename Value, std::enable_if_t<std::is_same<Value, gtsam::NonlinearFactorGraph>::value, bool> = true>
 inline void print_value(std::ostream& stream, const Value& graph)
@@ -73,17 +84,28 @@ inline void print_value(std::ostream& stream, const Value& graph)
 }
 
 // std::enable_if_t<std::is_same<Value, gtsam::ProductLieGroupV43<First, Second>>::value, bool> = true>
-template <typename First, typename Second>
-inline void print_value(std::ostream& stream, const std::pair<First, Second>& value)
-{
-  stream << value.first << " " << value.second << " ";
-}
+// template <typename First, typename Second>
+// inline void print_value(std::ostream& stream, const gtsam::ProductLieGroupV43<First, Second>& value)
+// {
+//   // stream << value.first << " " << value.second << " ";
+// }
 
-template <int Dim>
-inline void print_value(std::ostream& stream, const Eigen::Vector<double, Dim>& value)
-{
-  stream << value.transpose() << " ";
-}
+// inline void print_value(std::ostream& stream, const gtsam::Rot2& value)
+// {
+//   stream << value.theta() << " ";
+// }
+// inline void print_value(std::ostream& stream, const gtsam::Pose2& value)
+// {
+//   stream << value.x() << " ";
+//   stream << value.y() << " ";
+//   stream << value.theta() << " ";
+// }
+
+// template <int Dim>
+// inline void print_value(std::ostream& stream, const Eigen::Vector<double, Dim>& value)
+// {
+//   stream << value.transpose() << " ";
+// }
 
 template <typename Value, std::enable_if_t<std::is_same<Value, gtsam::Values>::value, bool> = true>
 inline void print_value(std::ostream& stream, const Value& values)
@@ -107,20 +129,20 @@ inline void print_value(std::ostream& stream, const PairValue& pair)
   print_value(stream, pair.second);
 }
 
-template <typename Value, std::enable_if_t<prx::utilities::is_iterable<Value>::value and
-                                               not prx::utilities::is_streamable<Value>::value and
-                                               not std::is_same<Value, gtsam::NonlinearFactorGraph>::value and
-                                               not std::is_same<Value, gtsam::Values>::value,
-                                           bool> = true>
-inline void print_value(std::ostream& stream, const Value& value)
-{
-  for (auto& e : value)
-  {
-    print_value(stream, e);
-    // print_value(stream, "\n");
-  }
-  // stream << "\n";
-}
+// template <typename Value, std::enable_if_t<prx::utilities::is_iterable<Value>::value and
+//                                                not prx::utilities::is_streamable<Value>::value and
+//                                                not std::is_same<Value, gtsam::NonlinearFactorGraph>::value and
+//                                                not std::is_same<Value, gtsam::Values>::value,
+//                                            bool> = true>
+// inline void print_value(std::ostream& stream, const Value& value)
+// {
+//   for (auto& e : value)
+//   {
+//     print_value(stream, e);
+//     // print_value(stream, "\n");
+//   }
+//   // stream << "\n";
+// }
 
 template <std::size_t I, typename TupleValue,
           std::enable_if_t<(I == std::tuple_size<TupleValue>{}), bool> = true>  // no-lint
@@ -149,13 +171,13 @@ inline void print_value(std::ostream& stream, const TupleValue& tuple)
   // stream << "\n";
 }
 
-inline void print_variables(std::ostream& stream, bool color, std::string name)
+inline void print_all_variables(std::ostream& stream, bool color, std::string name)
 {
   stream << std::endl;
 }
 
 template <typename Var0, class... Vars>
-inline void print_variables(std::ostream& stream, bool color, std::string name, Var0 var, Vars... vars)
+inline void print_all_variables(std::ostream& stream, bool color, std::string name, Var0 var, Vars... vars)
 {
   const std::regex regex(",(\\s*)+");
   std::string var_name{ name };
@@ -180,7 +202,7 @@ inline void print_variables(std::ostream& stream, bool color, std::string name, 
   }
 
   print_value(stream, var);
-  print_variables(stream, color, other_names, vars...);
+  print_all_variables(stream, color, other_names, vars...);
 }
 
 template <class... Vars>
@@ -196,14 +218,14 @@ inline void log_variables(std::ofstream& ofs, const bool time_log, const std::st
     prx_assert(ofs.is_open(), "[log_variables] couldn't open log file: " << log_filename);
 
     const std::string msg{ "Log set to: " + log_filename };
-    dbg::print_variables(std::cout, true, "msg", msg);
+    dbg::print_all_variables(std::cout, true, "msg", msg);
   }
   std::streambuf* coutbuf = std::cout.rdbuf();  // save old buf
   std::cout.rdbuf(ofs.rdbuf());                 // redirect std::cout to out.txt!
 
   if (time_log)
     ofs << "[ " << fn_name << " " << ros::Time::now() << " ] ";
-  dbg::print_variables(ofs, false, name, vars...);
+  dbg::print_all_variables(ofs, false, name, vars...);
   std::cout.rdbuf(coutbuf);
 }
 
@@ -253,15 +275,15 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
 
 }  // namespace dbg
 #define LOG_CLOSE dbg::close_log();
-#define LOG_FILENAME(FILENAME) dbg::set_log_filename(FILENAME);
+#define LOG_FILENAME(FILENAME) ::dbg::set_log_filename(FILENAME);
 
-#define DEBUG_VARS(...) dbg::print_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
-#define LOG_VARS(...) dbg::log_variables(dbg::variables::ofs_log, true, __FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
+#define DEBUG_VARS(...) ::dbg::print_all_variables(std::cout, true, #__VA_ARGS__, __VA_ARGS__);
+#define LOG_VARS(...) ::dbg::log_variables(dbg::variables::ofs_log, true, __FUNCTION__, #__VA_ARGS__, __VA_ARGS__);
 #define LOG_FILE_VARS(OFS, ...) dbg::log_variables(OFS, false, "", #__VA_ARGS__, __VA_ARGS__);
 #define ERROR_VARS(...)                                                                                                \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
-    dbg::print_variables(std::cout, false, #__VA_ARGS__, __VA_ARGS__);                                                 \
+    dbg::print_all_variables(std::cout, false, #__VA_ARGS__, __VA_ARGS__);                                             \
     std::cout << prx::constants::color::normal;                                                                        \
   };
 #define PRINT_ERROR(MSG)                                                                                               \
@@ -294,20 +316,20 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
     std::string all_names = "msg, " + std::string(#__VA_ARGS__);                                                       \
-    dbg::print_variables(std::cout, true, all_names, msg, __VA_ARGS__);                                                \
+    dbg::print_all_variables(std::cout, true, all_names, msg, __VA_ARGS__);                                            \
   };
 
 #define PRINT_KEY(KEY)                                                                                                 \
   {                                                                                                                    \
     const std::string _key{ SF::formatter(KEY) };                                                                      \
-    dbg::print_variables(std::cout, true, #KEY, _key);                                                                 \
+    dbg::print_all_variables(std::cout, true, #KEY, _key);                                                             \
   };
 
 #define PRINT_KEY_ERROR(KEY)                                                                                           \
   {                                                                                                                    \
     std::cout << prx::constants::color::red;                                                                           \
     const std::string _key{ SF::formatter(KEY) };                                                                      \
-    dbg::print_variables(std::cout, false, #KEY, _key);                                                                \
+    dbg::print_all_variables(std::cout, false, #KEY, _key);                                                            \
     std::cout << prx::constants::color::normal;                                                                        \
   };
 #define PRINT_KEYS_CONTAINER(KEYS)                                                                                     \
@@ -318,7 +340,7 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
       const std::string key_str{ SF::formatter(key) };                                                                 \
       dbg::print_value(std::cout, key_str);                                                                            \
     }                                                                                                                  \
-    dbg::print_variables(std::cout, true, "");                                                                         \
+    dbg::print_all_variables(std::cout, true, "");                                                                     \
   };
 #define LOG_KEY(KEY)                                                                                                   \
   {                                                                                                                    \

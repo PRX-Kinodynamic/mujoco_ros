@@ -6,3 +6,4 @@
 #include <prx_models/mushr_mujoco.hpp>
 #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_first_order.hpp>
+#include <prx_models/SO2_system.hpp>

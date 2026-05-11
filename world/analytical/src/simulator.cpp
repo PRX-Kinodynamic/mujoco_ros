@@ -7,6 +7,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <analytical/simulator.hpp>
 #include <utils/dbg_utils.hpp>
+#include <prx_models/SO2_system.hpp>
 
 int main(int argc, char** argv)
 {
@@ -14,9 +15,19 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  analytical::simulator_t sim(nh);
+  std::string plant_name;
+  PARAM_SETUP(nh, plant_name);
 
-  ros::spin();
+  if (plant_name == "prx_system")
+  {
+    analytical::simulator_t<prx::system_t> sim(nh);
+    ros::spin();
+  }
+  else if (plant_name == "SO2_system")
+  {
+    analytical::simulator_t<prx::SO2_system_t> sim(nh);
+    ros::spin();
+  }
 
   return 0;
 }
