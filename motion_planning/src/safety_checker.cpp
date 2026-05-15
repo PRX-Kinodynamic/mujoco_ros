@@ -23,15 +23,18 @@
 #include <motion_planning/goal_checker.hpp>
 #include <motion_planning/safety_checker.hpp>
 #include <motion_planning/randup.hpp>
+#include <prx_models/mushr.hpp>
 
 // #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_mujoco.hpp>
 #include <prx_models/StelaKraft.h>
+#include <motion_planning/morse_graph_reachability.hpp>
 template <typename DynamicalSystem, typename Controller>
 struct safety_helper_t
 {
   using Randup = motion_planning::randup_t<DynamicalSystem, Controller>;
   using RandupCovariance = typename Randup::Covariance;
+  using MGReachability = motion_planning::morse_graph_reachability_t<DynamicalSystem, Controller>;
 
   ros::Timer timer;
   ros::Subscriber _total_time_subscriber;
@@ -41,25 +44,41 @@ struct safety_helper_t
   ml4kp_bridge::SpacePointStamped _state_estimate;
   ml4kp_bridge::PlanStepStampedArray _plan;
 
+  // randup
   bool _randup_time;
   Randup _randup;
-  RandupCovariance _cov_x0, _cov_w;
   int _total_trajs;
+
+  // MG
+  MGReachability _mg_reach;
+
+  // Both
+  RandupCovariance _cov_x0, _cov_w;
   ros::Duration _check_duration;
 
   bool valid_state, valid_plan;
+  std::string algorithm;
   safety_helper_t(ros::NodeHandle& nh)
     : valid_state(false)
     , valid_plan(false)
     , _randup(nh)
+    , _mg_reach(nh)
     , _total_trajs(100)
     , _cov_x0(RandupCovariance::Identity() * 0.1)
     , _cov_w(RandupCovariance::Identity() * 0.1)
   {
-    bool& randup_time{ _randup_time };
     std::string state_topic;
+
     PARAM_SETUP(nh, state_topic)
-    PARAM_SETUP(nh, randup_time)
+    PARAM_SETUP(nh, algorithm)
+
+    prx_assert(algorithm == "randup" or algorithm == "mg",
+               "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
+    if (algorithm == "randup")
+    {
+      bool& randup_time{ _randup_time };
+      PARAM_SETUP(nh, randup_time)
+    }
     // safety_checker = std::make_shared<motion_planning::safety_checker_t>(ros::NodeHandle(nh, "safety"));
     timer = nh.createTimer(ros::Duration(1.0), &safety_helper_t::timer_callback, this);
 
@@ -114,6 +133,39 @@ struct safety_helper_t
     DEBUG_VARS(valid_plan)
   }
 
+  void randup_call()
+  {
+    if (_randup_time)
+    {
+      auto start = ros::Time::now();
+      const std::chrono::time_point randup_limit{ std::chrono::steady_clock::now() +
+                                                  std::chrono::seconds(_check_duration.sec) +
+                                                  std::chrono::nanoseconds(_check_duration.nsec) };
+
+      _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, randup_limit);
+      auto end = ros::Time::now();
+      auto randup_real_dt = (end - start).toSec();
+      DEBUG_VARS(randup_real_dt)
+    }
+    else
+    {
+      _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+    }
+  }
+
+  void mg_call()
+  {
+    auto start = ros::Time::now();
+    const std::chrono::time_point mg_limit{ std::chrono::steady_clock::now() +
+                                            std::chrono::seconds(_check_duration.sec) +
+                                            std::chrono::nanoseconds(_check_duration.nsec) };
+
+    _mg_reach.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, mg_limit);
+    auto end = ros::Time::now();
+    auto mg_real_dt = (end - start).toSec();
+    DEBUG_VARS(mg_real_dt)
+  }
+
   void timer_callback(const ros::TimerEvent& event)
   {
     if (valid_state and valid_plan)
@@ -121,23 +173,15 @@ struct safety_helper_t
       PRINT_MSG("Calling safety checker")
       DEBUG_VARS(_state_estimate, _plan)
       DEBUG_VARS(_cov_x0, _cov_w, _total_trajs)
-
-      if (_randup_time)
+      if (algorithm == "randup")
       {
-        auto start = ros::Time::now();
-        const std::chrono::time_point randup_limit{ std::chrono::steady_clock::now() +
-                                                    std::chrono::seconds(_check_duration.sec) +
-                                                    std::chrono::nanoseconds(_check_duration.nsec) };
-
-        _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, randup_limit);
-        auto end = ros::Time::now();
-        auto randup_real_dt = (end - start).toSec();
-        DEBUG_VARS(randup_real_dt)
+        randup_call();
       }
-      else
+      else if (algorithm == "mg")
       {
-        _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+        mg_call();
       }
+
       PRINT_MSG("Safety checker finished")
       valid_state = false;
       valid_plan = false;
@@ -151,9 +195,33 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  using PieceWiseStep = prx::piecewise_step_t<prx::SO2_system_t::Control, double>;
-  using Controller = std::vector<PieceWiseStep>;
-  safety_helper_t<prx::SO2_system_t, Controller> helper(nh);
+  using SO2PieceWiseStep = prx::piecewise_step_t<prx::SO2_system_t::Control, double>;
+  using SO2Controller = std::vector<SO2PieceWiseStep>;
+
+  using MushrPieceWiseStep = prx::piecewise_step_t<prx::mushrPolynomial_t::Control, double>;
+  using MushrController = std::vector<MushrPieceWiseStep>;
+
+  using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller>;
+  using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController>;
+
+  std::shared_ptr<SO2HelperPiecewise> SO2_helper;
+  std::shared_ptr<MushrHelperPiecewise> mushr_helper;
+
+  std::string plant;
+  PARAM_SETUP(nh, plant)
+
+  if (plant == "SO2System")
+  {
+    SO2_helper = std::make_shared<SO2HelperPiecewise>(nh);
+  }
+  else if (plant == "mushrPolynomial")
+  {
+    mushr_helper = std::make_shared<MushrHelperPiecewise>(nh);
+  }
+  else
+  {
+    prx_throw("Invalid 'plant' parameter")
+  }
 
   ros::spin();
   // ros::AsyncSpinner spinner(4);

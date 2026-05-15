@@ -16,6 +16,7 @@
 #include <prx_models/stela_robot_interface.hpp>
 #include <prx_models/Edge.h>
 #include <prx_models/tree_utils.hpp>
+#include <ml4kp_bridge/sampler_bridge.hpp>
 #include <ml4kp_bridge/lie_ode_observation.hpp>
 #include <interface/SensorDataStamped.h>
 
@@ -37,9 +38,11 @@
 #include <prx_models/mushr_stela_interface.hpp>
 #include <prx/simulation/dynamical_system.hpp>
 
+namespace prx
+{
 class mushrPolynomial_t;
 template <>
-struct prx::dynamical_system_traits<mushrPolynomial_t>
+struct dynamical_system_traits<mushrPolynomial_t>
 {
   // clang-format off
   enum {StateDimension = 6}; 
@@ -48,10 +51,10 @@ struct prx::dynamical_system_traits<mushrPolynomial_t>
   enum {ObservationDimension = 3};
   // clang-format on
 
-  using State = gtsam::ProductLieGroup<gtsam::Pose2, Eigen::Vector3d>;
+  using State = gtsam::ProductLieGroupV43<gtsam::Pose2, Eigen::Vector3d>;
   using Control = Eigen::Vector<double, ControlDimension>;
   using Parameters = Eigen::Vector<double, ParametersDimension>;
-  using Observation = Eigen::Vector<double, ObservationDimension>;
+  using Observation = gtsam::Pose2;
 };
 
 class mushrPolynomial_t : public prx::dynamical_system_t<mushrPolynomial_t>
@@ -60,85 +63,91 @@ public:
   using Base = prx::dynamical_system_t<mushrPolynomial_t>;
   using Derived = mushrPolynomial_t;
 
-  // using State = typename Base::State;
-  // using Control = typename Base::Control;
-  // using Parameters = typename Base::Parameters;
-  // using Observation = typename Base::Observation;
+  const std::string Name = "mushrPolynomial";
+  using State = typename Base::State;
+  using Control = typename Base::Control;
+  using Parameters = typename Base::Parameters;
+  using Observation = typename Base::Observation;
 
-  // using StateSpace = typename Base::StateSpace;
-  // using ControlSpace = typename Base::ControlSpace;
-  // using ParametersSpace = typename Base::ParametersSpace;
-  // using ObservationSpace = typename Base::ObservationSpace;
+  using StateSpace = typename Base::StateSpace;
+  using ControlSpace = typename Base::ControlSpace;
+  using ParametersSpace = typename Base::ParametersSpace;
+  using ObservationSpace = typename Base::ObservationSpace;
 
-  // using StateSpacePtr = std::shared_ptr<StateSpace>;
-  // using ControlSpacePtr = std::shared_ptr<ControlSpace>;
-  // using ParametersSpacePtr = std::shared_ptr<ParametersSpace>;
-  // using ObservationSpacePtr = std::shared_ptr<ObservationSpace>;
+  using StateSpacePtr = std::shared_ptr<StateSpace>;
+  using ControlSpacePtr = std::shared_ptr<ControlSpace>;
+  using ParametersSpacePtr = std::shared_ptr<ParametersSpace>;
+  using ObservationSpacePtr = std::shared_ptr<ObservationSpace>;
 
-  // mushrPolynomial_t() : Base("mushrPolynomial_t") {};
+  mushrPolynomial_t() : Base(default_params()) {};
   // mushrPolynomial_t(const std::string name) : Base(name) {};
-  // mushrPolynomial_t(prx::param_loader params) : Base(params)
-  // {
-  //   Parameters mushr_params{ params["parameter_space/value"].as<Parameters>() };
+  mushrPolynomial_t(prx::param_loader params) : Base(params)
+  {
+    namespace Ctrl = prx_models::mushr_types::Control;
+    Parameters mushr_params{ params["parameter_space/values"].as<Parameters>() };
 
-  //   _params_u[mushr_types::Control::vel_desired] = mushr_params[mushr_types::Control::vel_desired];
-  //   _params_u[mushr_types::Control::steering] = mushr_params[mushr_types::Control::steering];
-  //   _params_u[mushr_types::Control::friction] = mushr_params[mushr_types::Control::friction];
-  //   _params_u[mushr_types::Control::delta_offset] = mushr_params[mushr_types::Control::delta_offset];
-  //   _params_u[mushr_types::Control::delta_gain] = mushr_params[mushr_types::Control::delta_gain];
-  //   _delta_poly = mushr_params.tail(mushr_types::Control::PolyDeg + 1);
-  // }
+    _params_u[Ctrl::vel_desired] = mushr_params[Ctrl::vel_desired];
+    _params_u[Ctrl::steering] = mushr_params[Ctrl::steering];
+    _params_u[Ctrl::friction] = mushr_params[Ctrl::friction];
+    _params_u[Ctrl::delta_offset] = mushr_params[Ctrl::delta_offset];
+    _params_u[Ctrl::delta_gain] = mushr_params[Ctrl::delta_gain];
+    _delta_poly = mushr_params.tail(Ctrl::PolyDeg + 1);
+  }
 
-  // static prx::param_loader default_params()
-  // {
-  //   prx::param_loader params;
-  //   const std::string state_space_bounds_yaml =
-  //       "bounds:\n"
-  //       "  -\n"
-  //       "    min: [-10, -10, -3.14159]\n"
-  //       "    max: [+10, +10, +3.14159]\n"
-  //       "  -\n"
-  //       "    min: [-0.5, -0.5, -0.1]\n"
-  //       "    max: [+0.5, +0.5, +0.1]\n";
-  //   const std::string control_space_bounds_yaml =
-  //       "bounds:\n"
-  //       "    min: [-1, -1]\n"
-  //       "    max: [+1, +1]\n";
-  //   const std::string observation_space_bounds_yaml =
-  //       "bounds:\n"
-  //       "    min: [-10, -10, -3.14159]\n"
-  //       "    max: [+10, +10, +3.14159]\n";
-  //   // const std::string parameter_space_bounds_yaml =
-  //   //     "bounds:\n"
-  //   //     "    min: [-1, -1, -1]\n"
-  //   //     "    max: [+1, +1, +1]\n";
+  static prx::param_loader default_params()
+  {
+    prx::param_loader params;
+    const std::string state_space_bounds_yaml =
+        "bounds:\n"
+        "  -\n"
+        "    min: [-10, -10, -3.14159]\n"
+        "    max: [+10, +10, +3.14159]\n"
+        "  -\n"
+        "    min: [-0.5, -0.5, -0.1]\n"
+        "    max: [+0.5, +0.5, +0.1]\n";
+    const std::string control_space_bounds_yaml =
+        "bounds:\n"
+        "    min: [-1, -1]\n"
+        "    max: [+1, +1]\n";
+    const std::string observation_space_bounds_yaml =
+        "bounds:\n"
+        "    min: [-10, -10, -3.14159]\n"
+        "    max: [+10, +10, +3.14159]\n";
+    const std::string parameter_space_bounds_yaml =
+        "values: [0.2, 0.5, 0.15, 1.0, 1.0, -0.4397, 3.773e-5, 0.8677, 5.8e-6]\n";
 
-  //   params["state_space"].from_string(state_space_bounds_yaml);
-  //   params["control_space"].from_string(control_space_bounds_yaml);
-  //   params["observation_space"].from_string(observation_space_bounds_yaml);
+    params["state_space"].from_string(state_space_bounds_yaml);
+    params["control_space"].from_string(control_space_bounds_yaml);
+    params["observation_space"].from_string(observation_space_bounds_yaml);
+    params["parameter_space"].from_string(parameter_space_bounds_yaml);
 
-  //   return params;
-  // }
+    return params;
+  }
 
-  // void initialize_geometries()
-  // {
-  //   _geometries.push_back(std::make_shared<prx::geometry_t>(geometry_type_t::SPHERE));
-  //   _geometries.back()->initialize_geometry({ 0.5 });
-  //   _geometries.back()->generate_collision_geometry();
-  //   _geometries.back()->set_visualization_color("0x00ff00");
-  // }
+  void initialize_geometries()
+  {
+    // _geometries.push_back(std::make_shared<prx::geometry_t>(geometry_type_t::SPHERE));
+    // _geometries.back()->initialize_geometry({ 0.5 });
+    // _geometries.back()->generate_collision_geometry();
+    // _geometries.back()->set_visualization_color("0x00ff00");
 
-  // void initialize()
-  // {
-  //   prx::param_loader params{ default_params() };
+    _geometries.push_back(std::make_shared<prx::geometry_t>(prx::geometry_type_t::BOX));
+    _geometries.back()->initialize_geometry({ 0.42, 0.25, 0.25 });
+    _geometries.back()->generate_collision_geometry();
+    _geometries.back()->set_visualization_color("0x00ff00");
+  }
 
-  //   _state_space = StateSpace::create(params["state_space"]);
-  //   _control_space = ControlSpace::create(params["control_space"]);
-  //   _sensor_space = ObservationSpace::create(params["observation_space"]);
-  //   _parameter_space = ParametersSpace::create(params["parameter_space"]);
-  // }
+  void initialize()
+  {
+    prx::param_loader params{ default_params() };
 
-  // virtual ~mushrPolynomial_t() {};
+    _state_space = StateSpace::create(params["state_space"]);
+    _control_space = ControlSpace::create(params["control_space"]);
+    _sensor_space = ObservationSpace::create(params["observation_space"]);
+    _parameter_space = ParametersSpace::create(params["parameter_space"]);
+  }
+
+  virtual ~mushrPolynomial_t() {};
 
   // static double distance(const State& a, const State& b)
   // {
@@ -148,33 +157,39 @@ public:
   //   return error.norm();
   // }
 
-  // State propagate(const State& x0, const Control& u0, const double& dt)
-  // {
-  //   _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
-  //   _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
-  //   // Eigen::Vector<double, 6> xdot;
-  //   // xdot << x0.second, u0 * dt;
-  //   // const State x01{ State::Expmap(xdot) };
-  //   // const State x1{ gtsam::traits<State>::Compose(x0, x01) };
-  //   // return x1;
-  // }
+  Observation sense(const State& x)
+  {
+    return x.first;
+  }
 
-  // std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> configuration(const State& state)
-  // {
-  //   const Eigen::Matrix3d R{ prx::axis_to_rotation_matrix({ state.first.theta() }, 'Z') };
-  //   const Eigen::Vector3d t(state.first.x(), state.first.y(), 0.0);
-  //   return { { R, t } };
-  // }
+  State propagate(const State& x0, const Control& u0, const double& dt)
+  {
+    using LieIntegrator = prx::fg::lie_integrator_t<gtsam::Pose2, Eigen::Vector3d, double>;
 
-  // void environment(const prx::obstacle_loader_t& loader)
-  // {
-  //   auto bounds = _state_space->sampler.bounds();
-  //   auto env_min_bounds = loader.min_bounds();
-  //   auto env_max_bounds = loader.max_bounds();
-  //   bounds.first.first.head(2) = env_min_bounds.head(2);
-  //   bounds.first.second.head(2) = env_max_bounds.head(2);
-  //   _state_space->sampler.bounds(bounds.first.first, bounds.first.second, bounds.second.first, bounds.second.second);
-  // }
+    // _state = mushr_x_xdot_t::predict(_state, _state_dot, prx::simulation_step);
+    // _state_dot = mushr_CtrlAccel_t<>::predict(_state_dot, _ctrl, prx::simulation_step, _params_u, _delta_poly);
+
+    const gtsam::Pose2 x1{ LieIntegrator::integrate(x0.first, x0.second, dt) };
+    const Eigen::Vector3d x1dot{ prx_models::mushr_CtrlAccel_t<>::predict(x0.second, u0, dt, _params_u, _delta_poly) };
+    return std::move(State(x1, x1dot));
+  }
+
+  std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> configuration(const State& state)
+  {
+    const Eigen::Matrix3d R{ prx::axis_to_rotation_matrix({ state.first.theta() }, 'Z') };
+    const Eigen::Vector3d t(state.first.x(), state.first.y(), 0.0);
+    return { { R, t } };
+  }
+
+  void environment(const prx::obstacle_loader_t& loader)
+  {
+    auto bounds = _state_space->sampler.bounds();
+    auto env_min_bounds = loader.min_bounds();
+    auto env_max_bounds = loader.max_bounds();
+    bounds.first.first.head(2) = env_min_bounds.head(2);
+    bounds.first.second.head(2) = env_max_bounds.head(2);
+    _state_space->sampler.bounds(bounds.first.first, bounds.first.second, bounds.second.first, bounds.second.second);
+  }
   // virtual void sense(const State& x0, const Control& u0, const double& dt, const Parameters& params) = 0;
 
 protected:
@@ -186,6 +201,7 @@ protected:
   ParametersSpacePtr _parameter_space;
   ObservationSpacePtr _sensor_space;
 };
+}  // namespace prx
 
 namespace prx_models
 {

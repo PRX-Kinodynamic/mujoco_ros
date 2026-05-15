@@ -39,6 +39,15 @@ inline void copy(Type& type, const ml4kp_bridge::SpacePointStamped& msg)
   copy(type, msg.space_point);
 }
 
+template <int Dim>
+inline void copy(Eigen::Vector<double, Dim>& type, const ml4kp_bridge::SpacePoint& vector)
+{
+  for (int i = 0; i < type.size(); ++i)
+  {
+    type[i] = vector.point[i];
+  }
+}
+
 template <typename G, typename H>
 inline void copy(gtsam::ProductLieGroupV43<G, H>& type, const ml4kp_bridge::SpacePoint& vector)
 {
@@ -57,8 +66,14 @@ inline void copy(gtsam::Rot2& type, const ml4kp_bridge::SpacePoint& vector)
   type = gtsam::Rot2(vector.point[0]);
 }
 
+inline void copy(gtsam::Pose2& type, const ml4kp_bridge::SpacePoint& vector)
+{
+  type = gtsam::Pose2(vector.point[0], vector.point[1], vector.point[2]);
+}
+
 inline void copy(double& type, const ml4kp_bridge::SpacePoint& vector)
 {
   type = vector.point[0];
 }
+
 }  // namespace ml4kp_bridge

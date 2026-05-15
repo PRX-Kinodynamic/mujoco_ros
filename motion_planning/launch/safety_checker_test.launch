@@ -1,10 +1,11 @@
 <launch> 
-    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
     <arg name="randup_time" default="false"/>
     <arg name="environment" default="SO2_single_obstacle"/>
-    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/>
+    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/> -->
+    <arg name="algorithm" default="randup"/>
 
-    <param name="simulation_step" value="0.1"/>
+    <param name="simulation_step" value="0.01"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
 
@@ -12,11 +13,16 @@
 
     <arg name="state_topic" default="/mushr/state"/>
 
-          <!-- launch-prefix="$(arg dbg)" -->
     <node pkg="motion_planning" name="safety_checker" type="safety_checker" 
+          launch-prefix="$(arg dbg)"
           output="screen" respawn="false">     
       <param name="randup_time" value="$(arg randup_time)"/>
       <param name="state_topic" value="$(arg state_topic)"/>
+      <param name="algorithm" value="$(arg algorithm)"/>
+      <!-- <param name="total_threads" value="1"/> -->
+      <param name="cell_size" value="0.3"/>
+      <param name="short_circuit" value="false"/>
+      <param name="plant" value="mushrPolynomial"/>
       <param name="total_threads" value="8"/>
     </node>
 

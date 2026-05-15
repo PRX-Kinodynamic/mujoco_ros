@@ -1,5 +1,6 @@
 #pragma once
 #include <gtsam/geometry/Rot2.h>
+#include <gtsam/geometry/Pose2.h>
 #include <visualization_msgs/Marker.h>
 #include <ml4kp_bridge/SpacePointStamped.h>
 #include <prx/utilities/general/prx_assert.hpp>
@@ -76,25 +77,54 @@ inline void update_point(geometry_msgs::Point& pt,
   pt.z = 0.0;
 }
 
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_point(geometry_msgs::Point& pt,
+                         const gtsam::ProductLieGroupV43<gtsam::Pose2, Eigen::Vector3d>& state,  // no-lint
+                         const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  pt.x = state.first.x();
+  pt.y = state.first.y();
+  pt.z = 0.0;
+}
+
 template <typename State, typename XValue, typename YValue, typename ZValue>
 inline void update_marker(visualization_msgs::Marker& marker,
                           const std::vector<State>& traj,  // no-lint
-                          const XValue x_value, const YValue y_value, const ZValue z_value)
+                          const XValue x_value, const YValue y_value, const ZValue z_value,
+                          const int LineType = visualization_msgs::Marker::LINE_STRIP)
 {
   marker.id++;
-  prx_assert(marker.type == visualization_msgs::Marker::LINE_STRIP,
-             "[marker_utils::vector<SpacePointStamped>] Marker expected to be LINE_STRIP, got " +
+  prx_assert(marker.type == visualization_msgs::Marker::LINE_STRIP or
+                 marker.type == visualization_msgs::Marker::LINE_LIST,
+             "[marker_utils::vector<SpacePointStamped>] Marker expected to be LINE_STRIP or LINE_LIST, got " +
                  prx::utilities::convert_to<std::string>(marker.type));
-  marker.points.clear();
 
-  for (auto&& state : traj)
+  if (marker.type == visualization_msgs::Marker::LINE_STRIP)
   {
-    marker.points.emplace_back();
-    update_point(marker.points.back(), state, x_value, y_value, z_value);
-
-    // marker.points.back().x = value_or_index(x_value, state.space_point.point, x_value);
-    // marker.points.back().y = value_or_index(y_value, state.space_point.point, y_value);
-    // marker.points.back().z = value_or_index(z_value, state.space_point.point, z_value);
+    marker.points.clear();
+    for (auto&& state : traj)
+    {
+      marker.points.emplace_back();
+      update_point(marker.points.back(), state, x_value, y_value, z_value);
+    }
+  }
+  else  // visualization_msgs::Marker::LINE_LIST
+  {
+    bool first{ true };
+    for (auto&& state : traj)
+    {
+      marker.points.emplace_back();
+      update_point(marker.points.back(), state, x_value, y_value, z_value);
+      if (not first)
+      {
+        marker.points.push_back(marker.points.back());
+      }
+      first = false;
+    }
+    if (not first)
+    {
+      marker.points.push_back(marker.points.back());
+    }
   }
 }
 
