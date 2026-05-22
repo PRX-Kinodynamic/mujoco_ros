@@ -30,6 +30,7 @@
 // #include <gtsam/base/ProductLieGroup.h>
 #include <ml4kp_bridge/product_lie_group.hpp>
 #include <interface/node_status.hpp>
+#include <interface/gaussian_to_ellipse_marker.hpp>
 
 using Pose = gtsam::Pose2;
 using Velocity = Eigen::Vector3d;
@@ -91,8 +92,8 @@ public:
                                deriv ? &qb_H_qdt : nullptr,  // no-lint
                                deriv ? &qb_H_q1 : nullptr) };
     const Eigen::Vector<double, 3> q_error{ Pose::Logmap(qb, deriv ? &qErr_H_qb : nullptr) };
-    const Velocity& vel_error{ qdot1 - qdot0 };
-    const Eigen::Vector<double, 6> predict_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
+    const Velocity vel_error{ Velocity(qdot1 - qdot0) };
+    const Eigen::Vector<double, 6> implicit_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
 
     if (Hx0)
     {
@@ -123,7 +124,8 @@ public:
       Hx1->block<3, 3>(3, 3) = velErr_H_qdot1;
     }
 
-    return predict_error;
+    // DEBUG_VARS(dt, implicit_error)
+    return implicit_error;
   }
 
   static Eigen::Vector<double, 6> error_explicit_model(const MushrState& x0, const MushrState& x1, const double dt,
@@ -146,17 +148,8 @@ public:
                                deriv ? &qb_H_qdt : nullptr,  // no-lint
                                deriv ? &qb_H_q1 : nullptr) };
     const Eigen::Vector<double, 3> q_error{ Pose::Logmap(qb, deriv ? &qErr_H_qb : nullptr) };
-    const Velocity& vel_error{ qdot1 - qdot0 };
-    const Eigen::Vector<double, 6> predict_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
-
-    // LOG_MSG("------ PREDICT ------")
-    // auto error = predict_error.transpose();
-    // LOG_VARS(_dt)
-    // LOG_VARS(q)
-    // LOG_VARS(qdot.transpose())
-    // LOG_VARS(qdt)
-    // LOG_VARS(qb)
-    // LOG_VARS(error)
+    const Velocity vel_error{ Velocity(qdot1 - qdot0) };
+    const Eigen::Vector<double, 6> explicit_error{ (Eigen::Vector<double, 6>() << q_error, vel_error).finished() };
 
     if (Hx0)
     {
@@ -187,7 +180,8 @@ public:
       Hx1->block<3, 3>(3, 3) = velErr_H_qdot1;
     }
 
-    return predict_error;
+    // DEBUG_VARS(explicit_error)
+    return explicit_error;
   }
 
   virtual Eigen::VectorXd evaluateError(const MushrState& x0, const MushrState& x1, OptDeriv Hx0 = boost::none,
@@ -237,18 +231,25 @@ public:
 
   virtual Eigen::VectorXd evaluateError(const MushrState& x, OptDeriv Hx = boost::none) const override
   {
+    using Error = Eigen::Vector<double, 6>;
     Eigen::Matrix3d qBtw_H_q, qErr_H_qBtw;
     const Pose& q{ x.first };
+    const Velocity& qdot{ x.second };
 
     const Pose q_btw{ q.between(_zi, Hx ? &qBtw_H_q : nullptr) };
-    const Eigen::Vector<double, 3> update_error{ Pose::Logmap(q_btw, Hx ? &qErr_H_qBtw : nullptr) };
+    const Eigen::Vector<double, 3> pose_error{ Pose::Logmap(q_btw, Hx ? &qErr_H_qBtw : nullptr) };
+    const Eigen::Vector<double, 3> vel_error{ pose_error / _dt };
+    const Error update_error{ (Error() << pose_error, vel_error).finished() };
     if (Hx)
     {
-      *Hx = Eigen::Matrix<double, 3, 6>::Zero();
+      *Hx = Eigen::Matrix<double, 6, 6>::Zero();
+      const Eigen::Matrix3d vErr_H_qErr{ Eigen::Matrix3d::Identity() / _dt };
       // dqerr / dq0
       Hx->block<3, 3>(0, 0) = qErr_H_qBtw * qBtw_H_q;
+      Hx->block<3, 3>(3, 0) = vErr_H_qErr * qErr_H_qBtw * qBtw_H_q;
       // dqerr / dqdot0 = Zero;
     }
+    // DEBUG_VARS(update_error)
     return update_error;
   }
 
@@ -266,7 +267,7 @@ struct mushr_kalman_t
   using Parameters = prx_models::mushr_types::Control::params;
 
   ros::Subscriber _sensor_subscriber, _control_subscriber;
-  ros::Publisher _estimation_publisher;
+  ros::Publisher _estimation_publisher, _covariance_publisher;
   // gtsam::Pose2 _observation;
 
   std::shared_ptr<prx::world_model_t> _planning_model;
@@ -286,9 +287,16 @@ struct mushr_kalman_t
   std::shared_ptr<interface::node_status_t> _simulator_node_status;
 
   bool _predict_implicit;
+
+  Eigen::Matrix<double, 6, 6> _covariance;
+  ml4kp_bridge::Matrix _covariance_msg;
+
+  interface::gaussian_params_t _gaussian_params;
+  visualization_msgs::Marker _marker_cov;
+
   mushr_kalman_t(ros::NodeHandle& nh) : _x_idx(0), _ui(0., 0.), _predict_implicit(false)
   {
-    std::string sensor_topic_name, control_topic;
+    std::string sensor_topic_name, control_topic, covariance_topic;
     std::string plant_parameters, estimation_topic, simulator_node_id;
 
     bool& implicit{ _predict_implicit };
@@ -297,10 +305,11 @@ struct mushr_kalman_t
     PARAM_SETUP(nh, control_topic);
     PARAM_SETUP(nh, simulator_node_id);
     PARAM_SETUP(nh, estimation_topic);
+    PARAM_SETUP(nh, covariance_topic);
     PARAM_SETUP(nh, implicit);
     GLOBAL_PARAM_SETUP_DEFAULT(plant_parameters, plant_parameters);
 
-    _update_nm = gtsam::noiseModel::Isotropic::Sigma(3, 0.1);
+    _update_nm = gtsam::noiseModel::Isotropic::Sigma(6, 1);
     _predict_nm = gtsam::noiseModel::Isotropic::Sigma(6, 1);
 
     _simulator_node_status = interface::node_status_t::create(nh, simulator_node_id, true);
@@ -309,21 +318,27 @@ struct mushr_kalman_t
     _sensor_subscriber = nh.subscribe(sensor_topic_name, 1, &This::sensor_callback, this);
     _control_subscriber = nh.subscribe(control_topic, 1, &This::control_callback, this);
     _estimation_publisher = nh.advertise<ml4kp_bridge::SpacePointStamped>(estimation_topic, 1, true);
+    _covariance_publisher = nh.advertise<ml4kp_bridge::Matrix>(covariance_topic, 1, true);
 
-    prx::param_loader plant_params;
-    plant_params.from_string(plant_parameters);
+    // prx::param_loader plant_params;
+    // plant_params.from_string(plant_parameters);
     // DEBUG_VARS(plant_params)
-    const std::vector<double> values{ plant_params["parameter_space/values"].as<std::vector<double>>() };
-    // DEBUG_VARS(values)
-    for (int i = 0; i < _params.size(); ++i)
-    {
-      _params[i] = values[i];
-    }
-    for (int i = 0; i < _poly.size(); ++i)
-    {
-      _poly[i] = values[5 + i];
-    }
+    // const std::vector<double> values{ plant_params["parameter_space/values"].as<std::vector<double>>() };
+    // // DEBUG_VARS(values)
+    // for (int i = 0; i < _params.size(); ++i)
+    // {
+    //   _params[i] = values[i];
+    // }
+    // for (int i = 0; i < _poly.size(); ++i)
+    // {
+    //   _poly[i] = values[5 + i];
+    // }
 
+    _gaussian_params.idx = 1;
+    _gaussian_params.frame_id = "world";
+    _gaussian_params.ns = "ekf_cov";
+    _gaussian_params.color = { 0.5, 0.5, 0., 0.5 };
+    _gaussian_params.confidence = 7.815;
     PRINT_MSG("EKF initialized")
   }
 
@@ -354,7 +369,22 @@ struct mushr_kalman_t
     msg.space_point.point.push_back(_current_estimate.second[1]);
     msg.space_point.point.push_back(_current_estimate.second[2]);
 
+    ml4kp_bridge::copy(msg.covariance, _covariance);
     _estimation_publisher.publish(msg);
+
+    // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es_xdot(cov_xdot);
+
+    _gaussian_params.position[0] = _current_estimate.first.x();
+    _gaussian_params.position[1] = _current_estimate.first.y();
+    _gaussian_params.position[2] = 0.0;
+
+    const Eigen::Matrix2d marginal{ interface::gaussian_params_t::marginal<2>(_covariance, 0) };
+    _gaussian_params.cov_to_3Dellipse(marginal);
+    interface::gaussian_to_ellipse_marker(_marker_cov, _gaussian_params);
+    _covariance_publisher.publish(_marker_cov);
+
+    DEBUG_VARS(_covariance)
+    DEBUG_VARS(marginal)
   }
 
   void sensor_callback(const interface::SensorDataStampedConstPtr msg)
@@ -409,6 +439,8 @@ struct mushr_kalman_t
       _current_estimate = _ekf->predict(predict_factor);
       update_exception = true;
       _current_estimate = _ekf->update(update_factor);
+      _covariance = _ekf->Density()->information().inverse();
+      DEBUG_VARS(_current_estimate)
       _x_idx++;
     }
     catch (gtsam::IndeterminantLinearSystemException exception)
@@ -494,7 +526,7 @@ void test_update_factor()
 {
   const gtsam::Key key_x0{ 0 };
   Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
-  NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1) };
+  NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1) };
   const gtsam::Pose2 zi(0.1, 0.1, 0.1);
 
   mushr_kalman_update_t update_factor(key_x0, zi, 0.1, nm);
@@ -526,7 +558,7 @@ void test_predict_implicit_error()
   using Factor = mushr_kalman_predict_t;
   const gtsam::Key key_x0{ 0 };
   const gtsam::Key key_x1{ 1 };
-  Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
+  // Eigen::Vector2d u{ Eigen::Vector2d(0, 0) };
   const double dt{ 0.1 };
   NoiseModel nm{ gtsam::noiseModel::Isotropic::Sigma(6, 1) };
 

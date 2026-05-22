@@ -101,7 +101,8 @@ public:
 
     _markers_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/marker", 1);
     _collision_publisher = nh.advertise<std_msgs::Bool>("/mg/collision", 1);
-    _cubes_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes", 1);
+    _cubes_algebra_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/lie_algebra", 1);
+    _cubes_state_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/state_space", 1);
   }
 
   ~morse_graph_reachability_t()
@@ -181,7 +182,7 @@ public:
       const std::size_t h{ _grid.hash(state) };
       if (hashes.count(h) == 0)
       {
-        LOG_VARS(state, h);
+        // LOG_VARS(state, h);
         hashes.insert(h);
         _pool.detach_task([state, this] { this->collion_check(state); });
       }
@@ -303,23 +304,31 @@ public:
 
   void grid_to_markers()
   {
-    visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.3, 1, 0, 1 }) };
-    marker.type = visualization_msgs::Marker::CUBE_LIST;
+    visualization_msgs::Marker marker_lie{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.3, 1, 0, 1 }) };
+    visualization_msgs::Marker marker_state{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.1, 0.1, 0.5, 1 }) };
+    marker_lie.type = visualization_msgs::Marker::CUBE_LIST;
+    marker_state.type = visualization_msgs::Marker::CUBE_LIST;
 
     auto cell_size = _grid.cell_sizes();
-    marker.scale.x = cell_size[0] * 0.96;
-    marker.scale.y = cell_size[1] * 0.96;
-    marker.scale.z = 0.1;
+    marker_lie.scale.x = cell_size[0] * 0.96;
+    marker_lie.scale.y = cell_size[1] * 0.96;
+    marker_lie.scale.z = 0.1;
+    marker_state.scale.x = cell_size[0] * 0.96;
+    marker_state.scale.y = cell_size[1] * 0.96;
+    marker_state.scale.z = 0.1;
 
     auto plant_config = _plant->configuration(_grid.x0());
-    marker.pose.position.x = plant_config[0].second[0];
-    marker.pose.position.y = plant_config[0].second[1];
+    marker_lie.pose.position.x = plant_config[0].second[0];
+    marker_lie.pose.position.y = plant_config[0].second[1];
+
+    marker_state.pose.position.x = 0.;
+    marker_state.pose.position.y = 0.;
 
     const Eigen::Quaterniond q{ plant_config[0].first };
-    marker.pose.orientation.w = q.w();
-    marker.pose.orientation.x = q.x();
-    marker.pose.orientation.y = q.y();
-    marker.pose.orientation.z = q.z();
+    marker_lie.pose.orientation.w = q.w();
+    marker_lie.pose.orientation.x = q.x();
+    marker_lie.pose.orientation.y = q.y();
+    marker_lie.pose.orientation.z = q.z();
 
     DEBUG_VARS(cell_size.transpose(), _grid.size())
     // const bool x_sign{ plant_config[0].second[0] > 0 };
@@ -327,14 +336,21 @@ public:
     for (auto cell : _grid)
     {
       const State state{ cell.second->state };
-      const Tangent center{ _grid.center(state) };
+      const Tangent center_tg{ _grid.center(state) };
+      const State center{ _grid.state(center_tg) };
+      // LOG_VARS(center);
       // DEBUG_VARS(state, center)
-      marker.points.emplace_back();
-      marker.points.back().x = center[0];  //- (x_sign ? 0. : cell_size[0]);
-      marker.points.back().y = center[1];  //- (y_sign ? 0. : cell_size[1]);
-      marker.points.back().z = -0.101;
+      marker_lie.points.emplace_back();
+      marker_state.points.emplace_back();
+      // marker.points.back().x = center[0];  //- (x_sign ? 0. : cell_size[0]);
+      // marker.points.back().y = center[1];  //- (y_sign ? 0. : cell_size[1]);
+      // marker.points.back().z = -0.101;
+      ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.101);
+      ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.101);
     }
-    _cubes_publisher.publish(marker);
+    _cubes_algebra_publisher.publish(marker_lie);
+    _cubes_state_publisher.publish(marker_state);
+    // _cubes_publisher.publish(marker);
     _grid.clear();
     // DEBUG_PRINT
   }
@@ -383,7 +399,7 @@ private:
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
-  ros::Publisher _markers_publisher, _cubes_publisher, _collision_publisher;
+  ros::Publisher _markers_publisher, _cubes_algebra_publisher, _cubes_state_publisher, _collision_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::world_model_t> _planning_model;

@@ -6,6 +6,7 @@
 #include <prx/utilities/general/prx_assert.hpp>
 #include <prx/utilities/general/type_conversions.hpp>
 #include "ml4kp_bridge/product_lie_group.hpp"
+// #include "utils/dbg_utils.hpp"
 
 namespace ml4kp_bridge
 {
@@ -84,7 +85,31 @@ inline void update_point(geometry_msgs::Point& pt,
 {
   pt.x = state.first.x();
   pt.y = state.first.y();
-  pt.z = 0.0;
+  if constexpr (std::is_integral_v<ZValue>)
+  {
+    pt.z = 0.0;
+  }
+  else if constexpr (std::is_floating_point_v<ZValue>)
+  {
+    pt.z = z_value;
+  }
+}
+
+template <typename XValue, typename YValue, typename ZValue, int Dim>
+inline void update_point(geometry_msgs::Point& pt, const Eigen::Vector<double, Dim>& state,  // no-lint
+                         const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  pt.x = value_or_index(x_value, state, x_value);
+  pt.y = value_or_index(y_value, state, y_value);
+  pt.z = value_or_index(z_value, state, z_value);
+}
+
+inline double norm(geometry_msgs::Point& pt0, geometry_msgs::Point& pt1)
+{
+  const double& dx{ pt0.x - pt1.x };
+  const double& dy{ pt0.y - pt1.y };
+  const double& dz{ pt0.z - pt1.z };
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 template <typename State, typename XValue, typename YValue, typename ZValue>
@@ -111,13 +136,29 @@ inline void update_marker(visualization_msgs::Marker& marker,
   else  // visualization_msgs::Marker::LINE_LIST
   {
     bool first{ true };
+    int idx{ 0 };
     for (auto&& state : traj)
     {
       marker.points.emplace_back();
       update_point(marker.points.back(), state, x_value, y_value, z_value);
+      const std::size_t& tot{ marker.points.size() };
+      const double diff{ norm(marker.points[tot - 2], marker.points[tot - 1]) };
       if (not first)
       {
-        marker.points.push_back(marker.points.back());
+        // PRX_DBG_VARS(idx, diff, pt.x, pt.y, pt.z);
+        if (diff > 1.)
+        {
+          auto pt = marker.points.back();
+          // PRX_DBG_VARS(pt.x, pt.y, pt.z)
+          marker.points.pop_back();
+          marker.points.pop_back();
+          // marker.points.push_back(marker.points.back());
+          marker.points.push_back(pt);
+        }
+        else
+        {
+          marker.points.push_back(marker.points.back());
+        }
       }
       first = false;
     }
@@ -125,6 +166,7 @@ inline void update_marker(visualization_msgs::Marker& marker,
     {
       marker.points.push_back(marker.points.back());
     }
+    idx++;
   }
 }
 

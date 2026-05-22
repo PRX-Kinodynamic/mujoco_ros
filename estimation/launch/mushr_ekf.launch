@@ -4,10 +4,14 @@
   <arg name="control_topic" default="/mushr/control"/>
   <arg name="estimation_topic" default="/mushr/ekf"/>
 
-  <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" output="screen">
+  <arg name="dbg" value="lldb --"/>
+        <!-- launch-prefix="$(arg dbg)" -->
+  <node pkg="estimation" type="mushr_kalman" name="mushr_kalman" 
+        output="screen">
     <param name="sensor_topic_name" value="$(arg sensor_topic_name)"/>
     <param name="control_topic" value="$(arg control_topic)"/>
 		<param name="estimation_topic" value="$(arg estimation_topic)"/>
+    <param name="covariance_topic" value="$(arg estimation_topic)/covariance/marker"/>
     <param name="simulator_node_id" value="mujoco"/>
     <param name="implicit" value="true"/>
   </node>   

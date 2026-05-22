@@ -38,3 +38,4 @@
 
 #include <ml4kp_bridge/gtsam_bridge.hpp>
 #include <ml4kp_bridge/marker_utils.hpp>
+#include <ml4kp_bridge/matrix_bridge.hpp>

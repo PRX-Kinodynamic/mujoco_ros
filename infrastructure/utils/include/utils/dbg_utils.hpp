@@ -358,3 +358,5 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
     DEBUG_VARS(msg)                                                                                                    \
     return true;                                                                                                       \
   }();
+
+#define VARS_TO_STREAM(STREAM, ...) ::dbg::print_all_variables(STREAM, false, #__VA_ARGS__, __VA_ARGS__);

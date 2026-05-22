@@ -38,7 +38,7 @@ struct safety_helper_t
 
   ros::Timer timer;
   ros::Subscriber _total_time_subscriber;
-  ros::Subscriber _state_subscriber, _plan_subscriber, _cov_x0_subscriber, _total_trajs_subscriber;
+  ros::Subscriber _state_subscriber, _plan_subscriber, _cov_x0_subscriber, _cov_w_subscriber, _total_trajs_subscriber;
   std::shared_ptr<motion_planning::safety_checker_t> safety_checker;
 
   ml4kp_bridge::SpacePointStamped _state_estimate;
@@ -86,8 +86,8 @@ struct safety_helper_t
     _plan_subscriber = nh.subscribe("/safety/input/plan", 1, &safety_helper_t::plan_callback, this);
     _cov_x0_subscriber = nh.subscribe<ml4kp_bridge::SpacePoint>(
         "/safety/input/cov_x0", 1,
-        boost::bind(&safety_helper_t::covariance_callback, this, boost::placeholders::_1, _cov_x0));
-    _cov_x0_subscriber = nh.subscribe<ml4kp_bridge::SpacePoint>(
+        boost::bind(&safety_helper_t::covariance_callback, this, boost::placeholders::_1, boost::ref(_cov_x0)));
+    _cov_w_subscriber = nh.subscribe<ml4kp_bridge::SpacePoint>(
         "/safety/input/cov_w", 1,
         boost::bind(&safety_helper_t::covariance_callback, this, boost::placeholders::_1, boost::ref(_cov_w)));
 

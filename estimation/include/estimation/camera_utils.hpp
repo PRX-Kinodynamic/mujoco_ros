@@ -1,3 +1,4 @@
+#pragma once
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Rot3.h>
 #include <ros/node_handle.h>

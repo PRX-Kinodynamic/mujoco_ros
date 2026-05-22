@@ -25,6 +25,9 @@ find_package(catkin REQUIRED COMPONENTS
   control
 )
 
+find_package(CGAL REQUIRED)
+
+
 set(MJ_LINK  mujoco::mujoco)
 
 if(DEFINED ENV{Torch_DIR})
@@ -182,6 +185,8 @@ target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
 
+# add_executable(my_executable my_source_file.cpp)
+# target_link_libraries(my_executable CGAL::CGAL)
 foreach(f ${EXECUTABLE_FILES})
     # MESSAGE("file: ${f}")
     GET_FILENAME_COMPONENT(fname ${f} NAME_WE )
@@ -193,6 +198,7 @@ foreach(f ${EXECUTABLE_FILES})
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
                           ${MJ_LINK}
+                          CGAL::CGAL
                         )
 endforeach()
 

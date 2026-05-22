@@ -13,17 +13,19 @@
 
     <arg name="state_topic" default="/mushr/state"/>
 
+          <!-- launch-prefix="$(arg dbg)" -->
     <node pkg="motion_planning" name="safety_checker" type="safety_checker" 
-          launch-prefix="$(arg dbg)"
           output="screen" respawn="false">     
       <param name="randup_time" value="$(arg randup_time)"/>
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
-      <!-- <param name="total_threads" value="1"/> -->
+      <param name="total_threads" value="1"/>
       <param name="cell_size" value="0.3"/>
       <param name="short_circuit" value="false"/>
-      <param name="plant" value="mushrPolynomial"/>
-      <param name="total_threads" value="8"/>
+      <!-- <param name="plant" value="mushrPolynomial"/> -->
+      <param name="plant" value="SO2System"/>
+      <param name="convex_hulls_step" value="10"/>
+      <param name="output_directory" value="$(env ML4KP_ROS)/data/randup/SO2System/"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"
