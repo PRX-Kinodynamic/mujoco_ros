@@ -400,6 +400,8 @@ public:
     _marker_convex_hull.markers.clear();
     _marker_pts.markers.clear();
     _collision_found = false;
+
+    ros::Time start{ ros::Time::now() };
     for (int i = 0; i < total_trajectories; ++i)
     {
       _pool.detach_task([&] { this->propagate(); });
@@ -407,6 +409,10 @@ public:
     _pool.wait();
 
     compute_convex_hulls();
+
+    const ros::Time end{ ros::Time::now() };
+    const double randup_time{ (end - start).toSec() };
+    VARS_TO_STREAM(_ofs, randup_time);
 
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
