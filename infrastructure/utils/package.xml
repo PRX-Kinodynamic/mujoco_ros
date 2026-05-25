@@ -23,11 +23,14 @@
   <build_depend>roscpp</build_depend>
   <build_depend>std_msgs</build_depend>
   <build_depend>nodelet</build_depend>
+  <build_depend>ml4kp_bridge</build_depend>
+  <build_depend>grid_map_msgs</build_depend>
 
   <build_export_depend>geometry_msgs</build_export_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>nodelet</build_export_depend>
+  <build_export_depend>ml4kp_bridge</build_export_depend>
 
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

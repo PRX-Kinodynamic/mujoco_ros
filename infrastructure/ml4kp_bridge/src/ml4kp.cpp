@@ -1,3 +1,4 @@
+#include <string>
 #include <ros/ros.h>
 
 #include <ml4kp_bridge/defs.h>
@@ -9,5 +10,6 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   const std::string root{ ros::this_node::getName() };
   std::cout << "ML4KP loaded!" << std::endl;
+  std::cout << "PI: " << prx::constants::pi << std::endl;
   ros::spin();
 }

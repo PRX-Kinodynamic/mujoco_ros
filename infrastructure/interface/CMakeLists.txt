@@ -3,11 +3,14 @@ project(interface)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
+cmake_policy(SET CMP0177 OLD)
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
 find_package(rostest REQUIRED)
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -25,6 +28,14 @@ find_package(catkin REQUIRED COMPONENTS
   utils
   rosbag
 )
+
+include(CMakePrintHelpers)
+
+cmake_print_properties(
+  TARGETS ml4kp_bridge
+  PROPERTIES LOCATION INTERFACE_INCLUDE_DIRECTORIES 
+)
+
 find_package(OpenCV REQUIRED )
 
 if(DEFINED ENV{Torch_DIR})
@@ -152,7 +163,7 @@ file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include  ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ML4KP::ML4KP)
 
 ### Executable files
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
@@ -169,6 +180,7 @@ foreach(f ${EXECUTABLE_FILES})
   target_link_libraries(${fname}
                         ${catkin_LIBRARIES}
                         ${OpenCV_LIBS} 
+                        ML4KP::ML4KP
                       )
 endforeach()
 
@@ -184,39 +196,21 @@ catkin_install_python(PROGRAMS
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
 
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/mushr_open_loop_publisher.py
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
 
-## Mark executables for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-# install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(
+  DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+)
 
+# install(DIRECTORY include/${PROJECT_NAME}/
+#         DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
+# install(TARGETS ${PROJECT_NAME} 
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
-
-## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
 #############

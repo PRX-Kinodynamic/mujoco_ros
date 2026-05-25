@@ -2,12 +2,14 @@ cmake_minimum_required(VERSION 3.15)
 project(mujoco_ros)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+cmake_policy(SET CMP0177 OLD)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
 # Mujoco-relates packages
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
 find_package(glfw3 REQUIRED)
 find_package(OpenCV REQUIRED )
@@ -190,6 +192,7 @@ foreach(f ${EXECUTABLE_FILES})
                         ${MJ_LINK}
                         ${catkin_LIBRARIES}
                         ${OpenCV_LIBS} 
+                        ML4KP::ML4KP
                       )
 endforeach()
 

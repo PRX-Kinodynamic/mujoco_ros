@@ -5,7 +5,6 @@
 #include <ml4kp_bridge/defs.h>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
-#include <interface/SetDuration.h>
 #include <utils/signed_distance_field.hpp>
 int main(int argc, char** argv)
 {

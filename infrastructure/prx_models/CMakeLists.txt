@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 project(prx_models)
 set(CMAKE_CXX_STANDARD 17)
 
+cmake_policy(SET CMP0177 OLD)
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -141,7 +143,7 @@ MESSAGE(STATUS "MJ_INCLUDE_DIR: ${MJ_INCLUDE_DIR}")
 include_directories(
   include
   ${mujoco_LIBRARY}
-  # ${MJ_INCLUDE_DIR}
+  ${MJ_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 

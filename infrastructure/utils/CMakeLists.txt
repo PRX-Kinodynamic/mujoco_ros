@@ -2,11 +2,13 @@ cmake_minimum_required(VERSION 3.15)
 project(utils)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+cmake_policy(SET CMP0177 OLD)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(rostest REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -18,7 +20,15 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
   ml4kp_bridge
   grid_map_msgs
+  # interface
   # prx_models
+)
+
+MESSAGE(WARNING "catkin_INCLUDE_DIRS  ${catkin_INCLUDE_DIRS}")
+include(CMakePrintHelpers)
+cmake_print_properties(
+  TARGETS catkin
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
 )
 
 # Find Torch to ensure targets are visible in this scope (needed for ML4KP dependencies)
@@ -135,7 +145,7 @@ generate_messages(
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES mujoco
- CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime
+ CATKIN_DEPENDS geometry_msgs roscpp std_msgs message_runtime ml4kp_bridge
 #  DEPENDS system_lib
 )
 
@@ -159,7 +169,7 @@ if (${TOTAL_NODELET_FILES} GREATER "0")
   add_library(${NODELET_LIB} ${NODELET_FILES})
   target_include_directories(${NODELET_LIB} PUBLIC include  ${catkin_INCLUDE_DIRS})
   add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-  target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES})
+  target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ML4KP::ML4KP)
 endif()
 
 ### Executable files
@@ -177,6 +187,7 @@ foreach(f ${EXECUTABLE_FILES})
   target_link_libraries(${fname}
                         ${catkin_LIBRARIES}
                         ${OpenCV_LIBS} 
+                        ML4KP::ML4KP
                       )
 endforeach()
 

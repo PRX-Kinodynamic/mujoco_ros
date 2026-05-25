@@ -5,7 +5,7 @@
 #include <ml4kp_bridge/defs.h>
 #include <utils/rosparams_utils.hpp>
 #include <utils/dbg_utils.hpp>
-#include <interface/SetDuration.h>
+// #include <interface/SetDuration.h>
 #include <std_msgs/Int16.h>
 struct sim_clock_t
 {
@@ -14,7 +14,7 @@ struct sim_clock_t
   {
     const std::string duration_service_name{ "/sim_clock/set_duration" };
 
-    duration_service = nh.advertiseService(duration_service_name, &sim_clock_t::service_callback, this);
+    // duration_service = nh.advertiseService(duration_service_name, &sim_clock_t::service_callback, this);
     clock_subscriber = nh.subscribe("/clock/step", 1, &sim_clock_t::callback, this);
     clock_publisher = nh.advertise<rosgraph_msgs::Clock>("/clock", 1);
 
@@ -28,14 +28,14 @@ struct sim_clock_t
     step_and_publish();
   }
 
-  bool service_callback(interface::SetDuration::Request& req, interface::SetDuration::Response& res)
-  {
-    const ros::Duration dur{ req.data };
-    steps = std::floor(dur.toSec() / simulation_step);
-    res.success = true;
-    step_and_publish();
-    return true;
-  }
+  // bool service_callback(interface::SetDuration::Request& req, interface::SetDuration::Response& res)
+  // {
+  //   const ros::Duration dur{ req.data };
+  //   steps = std::floor(dur.toSec() / simulation_step);
+  //   res.success = true;
+  //   step_and_publish();
+  //   return true;
+  // }
 
   void keyboard_input()
   {
@@ -73,7 +73,7 @@ struct sim_clock_t
 
   std::atomic<bool> keep_going;
 
-  ros::ServiceServer duration_service;
+  // ros::ServiceServer duration_service;
   ros::Publisher clock_publisher;
   ros::Subscriber clock_subscriber;
 

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(perception)
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(catkin REQUIRED
   roscpp 
   roslib
@@ -60,7 +61,11 @@ target_include_directories(${NODELET_LIB} PUBLIC include
   ${catkin_INCLUDE_DIRS})
 
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(${NODELET_LIB} 
+                      ${catkin_LIBRARIES} 
+                      ${OpenCV_LIBS} 
+                      ML4KP::ML4KP
+                      )
 # if(catkin_EXPORTED_LIBRARIES)
 # endif()
 
@@ -86,6 +91,7 @@ foreach(f ${EXECUTABLE_FILES})
                         ${catkin_LIBRARIES}
                         ${OpenCV_LIBS}
                         ${TORCH_LIBRARIES}
+                        ML4KP::ML4KP
                       )
 endforeach()
 # add_executable(video_gatherer_cpp src/vid_gather_cpp.cpp)

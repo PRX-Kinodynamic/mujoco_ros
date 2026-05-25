@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.15)
 project(motion_planning)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+cmake_policy(SET CMP0177 OLD)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(mujoco REQUIRED HINTS $ENV{MJ_PATH}/install)
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
+find_package(CGAL REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -25,14 +28,21 @@ find_package(catkin REQUIRED COMPONENTS
   control
 )
 
-find_package(CGAL REQUIRED)
 
+# set_target_properties(CGAL PROPERTIES
+#         "INTERFACE_INCLUDE_DIRECTORIES" ""
+# )
 
 set(MJ_LINK  mujoco::mujoco)
 
 if(DEFINED ENV{Torch_DIR})
   MESSAGE(STATUS "Torch_DIR defined!")
   find_package(Torch REQUIRED)
+  MESSAGE(STATUS "TORCH_CXX_FLAGS: ${TORCH_CXX_FLAGS}")
+  MESSAGE(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+  MESSAGE(STATUS "TORCH_LIBRARIES: ${TORCH_LIBRARIES}")
+  # set_property(
+  # TARGET Torch PROPERTY INTERFACE_LINK_DIRECTORIES "")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 else()
   message("Please download libtorch C++, place in external folder and setup the enviornmental variable Torch_DIR accordingly.")
@@ -138,7 +148,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME}
+ # LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime prx_models ml4kp_bridge torch_bridge
 #  DEPENDS system_lib
 )
@@ -152,15 +162,18 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  # ${CGAL_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-add_library(${PROJECT_NAME} INTERFACE)
+# add_library(${PROJECT_NAME} INTERFACE)
+# target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
+# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+# target_include_directories(${PROJECT_NAME} INTERFACE ${CGAL_INCLUDE_DIRS})
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
@@ -179,8 +192,19 @@ file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ML4KP::ML4KP)
 
+
+include(CMakePrintHelpers)
+cmake_print_properties(
+  TARGETS CGAL::CGAL
+
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
+)
+cmake_print_properties(
+  TARGETS ML4KP::ML4KP
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
+)
 
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
@@ -195,11 +219,14 @@ foreach(f ${EXECUTABLE_FILES})
                      ${${PROJECT_NAME}_EXPORTED_TARGETS} 
                      ${catkin_EXPORTED_TARGETS}
                      )
-    target_link_libraries(${fname}
+    target_link_libraries(${fname} PUBLIC
                           ${catkin_LIBRARIES}
                           ${MJ_LINK}
-                          CGAL::CGAL
+                          ML4KP::ML4KP
                         )
+    target_link_libraries(${fname} PRIVATE
+                          CGAL::CGAL
+                          )
 endforeach()
 
 #############
@@ -231,11 +258,11 @@ endforeach()
 # )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+  # PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

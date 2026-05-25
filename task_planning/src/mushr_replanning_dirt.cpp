@@ -11,11 +11,11 @@
 #include "ml4kp_bridge/Trajectory.h"
 #include "prx_models/MushrPlanner.h"
 #include "prx_models/mj_mushr.hpp"
-#include "control/MushrControlPropagation.h"
+// #include "control/MushrControlPropagation.h"
 #include "motion_planning/replanner_service.hpp"
 #include "motion_planning/planner_client.hpp"
 #include "motion_planning/PlanningResult.h"
-#include "mujoco_ros/Collision.h"
+// #include "mujoco_ros/Collision.h"
 #include "std_msgs/Empty.h"
 #include "utils/dbg_utils.hpp"
 #include "utils/rosparams_utils.hpp"
@@ -614,9 +614,9 @@ struct replanner_t
     _dirt_query->clear_outputs();
 
     prx_assert(_dirt_query->start_state->size() == request.root_state.space_point.point.size(),
-               "[mushr_replanning_dirt] Size mismatch: Expected: "
-                   << _dirt_query->start_state->size() << " Got: " << request.root_state.space_point.point.size()
-                   << ".\n Requested state: [ " << request.root_state.space_point.point << " ]\n");
+               "[mushr_replanning_dirt] Size mismatch: Expected: " << _dirt_query->start_state->size() << " Got: "
+                                                                   << request.root_state.space_point.point.size()
+                                                                   << "\n");
 
     ml4kp_bridge::copy(_dirt_query->start_state, request.root_state.space_point);
 

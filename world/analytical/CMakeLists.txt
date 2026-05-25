@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(analytical)
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
@@ -95,7 +96,10 @@ foreach(f ${EXECUTABLE_FILES})
                    ${catkin_EXPORTED_TARGETS}
                    )
   ## Specify libraries to link a library or executable target against
-  target_link_libraries(${fname} ${catkin_LIBRARIES} )
+  target_link_libraries(${fname} 
+                        ${catkin_LIBRARIES}
+                        ML4KP::ML4KP
+                        )
 endforeach()
 
 #############

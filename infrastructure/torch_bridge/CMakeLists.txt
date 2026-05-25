@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(torch_bridge)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+cmake_policy(SET CMP0177 NEW)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -17,7 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   utils
   ml4kp_bridge
-  # prx_models
 )
 
 catkin_python_setup()
@@ -130,7 +130,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include ${TORCH_INCLUDE_DIRS}
- LIBRARIES ${PROJECT_NAME}
+ # LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
  # DEPENDS ${TORCH_LIBRARIES}
 )
@@ -155,7 +155,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 ## either from message generation or dynamic reconfigure
 add_dependencies(${PROJECT_NAME} 
 	${${PROJECT_NAME}_EXPORTED_TARGETS}
-       	${catkin_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
 	# ${TORCH_LIBRARIES}
 	)
 
@@ -236,13 +236,17 @@ install(PROGRAMS
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
 # )
+install(TARGETS ${PROJECT_NAME}
+        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+  # PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

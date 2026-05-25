@@ -17,7 +17,7 @@
 #include <prx/simulation/controllers/lqr.hpp>
 #include <ml4kp_bridge/defs.h>
 #include <prx_models/MushrPlanner.h>
-#include <prx_models/mj_mushr.hpp>
+// #include <prx_models/mj_mushr.hpp>
 
 #include <utils/dbg_utils.hpp>
 #include <utils/std_utils.hpp>

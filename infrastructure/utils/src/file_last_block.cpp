@@ -1,5 +1,4 @@
 #include <filesystem>
-#include <gtsam/geometry/Pose2.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/nonlinear/Values.h>
 #include <ros/subscriber.h>
@@ -36,8 +35,6 @@
 #include <gtsam/geometry/Point3.h>
 #include <gtsam/nonlinear/ExpressionFactor.h>
 #include <gtsam/nonlinear/AdaptAutoDiff.h>
-
-#include <interface/StampedMarkers.h>
 
 #include <utils/rosparams_utils.hpp>
 

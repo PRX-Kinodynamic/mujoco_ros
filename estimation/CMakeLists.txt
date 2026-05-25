@@ -6,6 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 # Mujoco-relates packages
 find_package(OpenCV REQUIRED )
 
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   interface
@@ -62,7 +63,7 @@ file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS}  ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${OpenCV_LIBS} ML4KP::ML4KP)
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 ## Executables
@@ -80,6 +81,7 @@ foreach(f ${EXECUTABLE_FILES})
                         ${MJ_LINK}
                         ${catkin_LIBRARIES}
                         ${OpenCV_LIBS} 
+                        ML4KP::ML4KP
                       )
 endforeach()
 
@@ -138,7 +140,7 @@ foreach(f_test ${TESTS_FILES})
   set(test_name "test_${fname}")
   MESSAGE(STATUS "Test: ${test_name}")
   catkin_add_gtest(${test_name} ${f_test})
-  target_link_libraries(${test_name} ${catkin_LIBRARIES}  )
+  target_link_libraries(${test_name} ${catkin_LIBRARIES} ML4KP::ML4KP  )
 endforeach()
 
 ## Add gtest based cpp test target and link libraries

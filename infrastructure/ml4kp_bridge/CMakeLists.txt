@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 
+cmake_policy(SET CMP0177 NEW)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -44,6 +45,7 @@ endif()
 
 MESSAGE(STATUS "Build Flags: ${BUILD_FLAGS}")
 add_definitions(${BUILD_FLAGS})
+
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -130,6 +132,7 @@ generate_messages(
 #   cfg/DynReconf2.cfg
 # )
 
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -139,11 +142,12 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+add_library(${PROJECT_NAME} INTERFACE)
 catkin_package(
  INCLUDE_DIRS include ${ML4KP_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR}
  LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS roscpp std_msgs message_runtime 
- # DEPENDS ML4KP
+ # DEPENDS gtsam ML4KP::External
 )
 
 ###########
@@ -152,20 +156,60 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
+get_target_property(ML4KP_External_DIRS ML4KP::External INTERFACE_INCLUDE_DIRECTORIES)
+
+message(STATUS "ML4KP_External_DIRS ${ML4KP_External_DIRS}")
 include_directories(
   include
   ${ML4KP_INCLUDE_DIR}
   ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
+  ${ML4KP_External_DIRS}
 )
+
+include(CMakePrintHelpers)
+# cmake_print_variables(ML4KP::ML4KP)
+
+MESSAGE(WARNING "GTSAM_INCLUDE_DIRECTORIES ${GTSAM_INCLUDE_DIRECTORIES}")
+MESSAGE(WARNING "ML4KP_INCLUDE_DIR ${ML4KP_INCLUDE_DIR}")
+MESSAGE(WARNING "INTERFACE_LINK_LIBRARIES ${INTERFACE_LINK_LIBRARIES}")
+MESSAGE(WARNING "${${PROJECT_NAME}_EXPORTED_TARGETS}")
+# set_target_properties(ML4KP::External PROPERTIES
+#   INTERFACE_INCLUDE_DIRECTORIES "/Users/Gary/pracsys/gtsam/install/include/gtsam/3rdparty/SuiteSparse_config;/Users/Gary/pracsys/gtsam/install/include/gtsam/3rdparty/CCOLAMD;/Users/Gary/pracsys/gtsam/install/include/;${_IMPORT_PREFIX}/include;${_IMPORT_PREFIX}/include"
+#   INTERFACE_LINK_LIBRARIES "yaml-cpp::yaml-cpp;gtsam;/Users/Gary/pracsys/ML4KP-devel/build/_deps/foxglove-src/lib/libfoxglove.a;torch;torch_library;/Users/Gary/3rd_party_sftw/libtorch/lib/libc10.dylib;/Users/Gary/3rd_party_sftw/libtorch/lib/libkineto.a;Boost::filesystem;Boost::system;Boost::serialization;Threads::Threads"
+# )
+
+
+cmake_print_properties(
+  TARGETS ML4KP::External
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
+)
+cmake_print_properties(
+  TARGETS ML4KP::ML4KP
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
+)
+
+
 find_package(GTest REQUIRED)
 
 ## Declare a C++ library
 # Consider all src to add to the library (no executables in this package)
 # file(GLOB_RECURSE ML4KP_BRIDGE_SRC  src/*.cpp)
-add_library(${PROJECT_NAME} INTERFACE)
-add_dependencies(${PROJECT_NAME} ML4KP::ML4KP)
-target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP)
+# file(GLOB_RECURSE SRC_PRX_LIB_PLANNING  ./*.cpp)
+add_dependencies(${PROJECT_NAME} ML4KP::ML4KP ML4KP::External)
+target_link_libraries(${PROJECT_NAME} INTERFACE ML4KP::ML4KP ML4KP::External)
+
+
+cmake_print_properties(
+  TARGETS ${PROJECT_NAME}
+  PROPERTIES INTERFACE_LINK_LIBRARIES INTERFACE_INCLUDE_DIRECTORIES 
+)
+
+
+# set_property(
+#   TARGET ${PROJECT_NAME} PROPERTY INTERFACE_LINK_DIRECTORIES "")
+
+# message(STATUS "EIGEN3_INCLUDE_DIR " ${EIGEN3_INCLUDE_DIR})
 
 ### Nodelets as a library
 set(NODELET_LIB ${PROJECT_NAME}_nodelets)
@@ -175,10 +219,26 @@ target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
 
+get_target_property(_INTERFACE_INCLUDE_DIRECTORIES ${PROJECT_NAME} INTERFACE_INCLUDE_DIRECTORIES)
 
+# message(STATUS "_INTERFACE_INCLUDE_DIRECTORIES: ${_INTERFACE_INCLUDE_DIRECTORIES}")
+# message(STATUS "ML4KP_INCLUDE_DIR: ${ML4KP_INCLUDE_DIR}")
+# message(STATUS "EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
+# message(STATUS "CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
 ### Executable files
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
+
+# message(STATUS "${PROJECT_NAME}_EXPORTED_TARGETS  ${${PROJECT_NAME}_EXPORTED_TARGETS} ")
+# message(STATUS "catkin_EXPORTED_TARGETS  ${catkin_EXPORTED_TARGETS} ")
+# message(STATUS "catkin_LIBRARIES  ${catkin_LIBRARIES} ")
+
+# include(CMakePrintHelpers)
+
+# cmake_print_properties(
+#   TARGETS ${PROJECT_NAME}
+#   PROPERTIES LOCATION  INTERFACE_INCLUDE_DIRECTORIES 
+# )
 
 foreach(f ${EXECUTABLE_FILES})
     MESSAGE("file: ${f}")
@@ -215,9 +275,23 @@ endforeach()
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
+install(
+  DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+)
+
+# install(DIRECTORY include/${PROJECT_NAME}/
+#         DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} 
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
+
+# install(TARGETS ML4KP::ML4KP
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}

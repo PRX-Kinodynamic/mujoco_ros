@@ -1,8 +1,4 @@
 #include <filesystem>
-#include <gtsam/geometry/Pose2.h>
-#include <gtsam/inference/Symbol.h>
-#include <gtsam/nonlinear/Values.h>
-#include <ros/subscriber.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -36,8 +32,6 @@
 #include <gtsam/geometry/Point3.h>
 #include <gtsam/nonlinear/ExpressionFactor.h>
 #include <gtsam/nonlinear/AdaptAutoDiff.h>
-
-#include <interface/StampedMarkers.h>
 
 #include <utils/rosparams_utils.hpp>
 
@@ -79,10 +73,10 @@ int main(int argc, char** argv)
 
   int lines_per_file;
 
-  PARAM_SETUP(nh, filename)
-  PARAM_SETUP(nh, output_prefix)
-  PARAM_SETUP(nh, output_directory)
-  PARAM_SETUP(nh, lines_per_file)
+  PARAM_SETUP(nh, filename);
+  PARAM_SETUP(nh, output_prefix);
+  PARAM_SETUP(nh, output_directory);
+  PARAM_SETUP(nh, lines_per_file);
 
   int file_idx{ 0 };
   CsvReader reader(filename);

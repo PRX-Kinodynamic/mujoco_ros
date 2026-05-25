@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(control)
 set(CMAKE_CXX_STANDARD 17)
+cmake_policy(SET CMP0177 OLD)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -8,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   ml4kp_bridge
@@ -16,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   prx_models
   nodelet
   message_generation
+  prx_models
 )
 
 ## System dependencies are found with CMake's conventions
@@ -144,7 +147,7 @@ file(GLOB NODELET_FILES ${PROJECT_SOURCE_DIR}/src/nodelets/*.cpp)
 add_library(${NODELET_LIB} ${NODELET_FILES})
 target_include_directories(${NODELET_LIB} PUBLIC include ${catkin_INCLUDE_DIRS})
 add_dependencies(${NODELET_LIB} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME})
+target_link_libraries(${NODELET_LIB} ${catkin_LIBRARIES} ${PROJECT_NAME} ML4KP::ML4KP)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -174,6 +177,7 @@ foreach(f ${EXECUTABLE_FILES})
                      )
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
+                          ML4KP::ML4KP
                         )
 endforeach()
 
@@ -215,11 +219,10 @@ endforeach()
 # )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

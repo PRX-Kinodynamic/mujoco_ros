@@ -12,6 +12,7 @@ endif()
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+find_package(ML4KP REQUIRED HINTS $ENV{DIRTMP_PATH}/install/lib/cmake/ML4KP)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -179,6 +180,7 @@ foreach(f ${EXECUTABLE_FILES})
                      )
     target_link_libraries(${fname}
                           ${catkin_LIBRARIES}
+                          ML4KP::ML4KP
                         )
 endforeach()
 
