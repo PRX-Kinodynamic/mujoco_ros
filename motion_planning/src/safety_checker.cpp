@@ -29,10 +29,13 @@
 #include <prx_models/mushr_mujoco.hpp>
 #include <prx_models/StelaKraft.h>
 #include <motion_planning/morse_graph_reachability.hpp>
+#include <motion_planning/reachability_gt.hpp>
+
 template <typename DynamicalSystem, typename Controller>
 struct safety_helper_t
 {
   using Randup = motion_planning::randup_t<DynamicalSystem, Controller>;
+  using ReachabilityGT = motion_planning::reachability_gt_t<DynamicalSystem, Controller>;
   using RandupCovariance = typename Randup::Covariance;
   using MGReachability = motion_planning::morse_graph_reachability_t<DynamicalSystem, Controller>;
 
@@ -56,6 +59,9 @@ struct safety_helper_t
   RandupCovariance _cov_x0, _cov_w;
   ros::Duration _check_duration;
 
+  // GT
+  ReachabilityGT _gt;
+
   bool valid_state, valid_plan;
   std::string algorithm;
   safety_helper_t(ros::NodeHandle& nh)
@@ -63,6 +69,7 @@ struct safety_helper_t
     , valid_plan(false)
     , _randup(nh)
     , _mg_reach(nh)
+    , _gt(nh)
     , _total_trajs(100)
     , _cov_x0(RandupCovariance::Identity() * 0.1)
     , _cov_w(RandupCovariance::Identity() * 0.1)
@@ -72,7 +79,7 @@ struct safety_helper_t
     PARAM_SETUP(nh, state_topic)
     PARAM_SETUP(nh, algorithm)
 
-    prx_assert(algorithm == "randup" or algorithm == "mg",
+    prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt",
                "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
     if (algorithm == "randup")
     {
@@ -166,12 +173,17 @@ struct safety_helper_t
     DEBUG_VARS(mg_real_dt)
   }
 
+  void gt_call()
+  {
+    _gt.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+  }
+
   void timer_callback(const ros::TimerEvent& event)
   {
     if (valid_state and valid_plan)
     {
       PRINT_MSG("Calling safety checker")
-      DEBUG_VARS(_state_estimate, _plan)
+      // DEBUG_VARS(_state_estimate, _plan)
       DEBUG_VARS(_cov_x0, _cov_w, _total_trajs)
       if (algorithm == "randup")
       {
@@ -180,6 +192,11 @@ struct safety_helper_t
       else if (algorithm == "mg")
       {
         mg_call();
+      }
+      else if (algorithm == "gt")
+      {
+        PRINT_MSG("Running GT...")
+        gt_call();
       }
 
       PRINT_MSG("Safety checker finished")

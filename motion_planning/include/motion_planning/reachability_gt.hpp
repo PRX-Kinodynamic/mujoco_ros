@@ -1,0 +1,445 @@
+#include <chrono>
+
+#include <ros/ros.h>
+#include <ros/time.h>
+
+#include <iterator>
+#include <memory>
+#include <prx/simulation/forward_propagation.hpp>
+#include <string>
+#include <std_msgs/Bool.h>
+#include <prx/utilities/general/prx_assert.hpp>
+#include <ml4kp_bridge/defs.h>
+#include <utils/std_utils.hpp>
+
+#include <interface/PlannerClock.h>
+#include <visualization_msgs/MarkerArray.h>
+
+#include <motion_planning/utils.hpp>
+#include <utils/dbg_utils.hpp>
+
+#include <prx/factor_graphs/utilities/dbg_utills.hpp>
+#include <prx/simulation/collision_checking/pqp_collision_checker.hpp>
+#include <utils/rosparams_utils.hpp>
+#include "prx/external/thread_pool/BS_thread_pool.hpp"
+
+#include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
+#include <prx/utilities/data_structures/implicit_grid.hpp>
+
+namespace motion_planning
+{
+
+template <typename State>
+struct gt_cell_t
+{
+  gt_cell_t() : step_idx(0), safe(false) {};
+
+  std::mutex mutex;
+  bool safe;
+  std::size_t step_idx;
+  State state;
+};
+
+template <typename DynamicalSystem, typename Controller>
+class reachability_gt_t
+{
+public:
+  using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
+  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  using State = typename DynamicalSystem::State;
+  using Control = typename DynamicalSystem::Control;
+  using Trajectory = std::vector<State>;
+
+  using FwdProp = prx::forward_propagation_t<DynamicalSystem, Trajectory, Controller>;
+
+  using StateSampler = prx::lie_group_gaussian_noise_t<State>;
+  using Covariance = typename StateSampler::Covariance;
+
+  using CollisionQuery = prx::collision_checking::pqp::query_t;
+
+  using CellPtr = std::shared_ptr<gt_cell_t<State>>;
+  using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
+  using Tangent = typename ImplicitGrid::TangentElement;
+
+  reachability_gt_t(ros::NodeHandle nh) : _max_step_idx(0)
+  {
+    // PRX FILES
+    std::string environment;
+    std::string plant_parameters;
+
+    // PRX PARAM LOADERS FOR PRX FILES
+    prx::param_loader env_params;
+
+    using prx::simulation_step;
+
+    int& total_threads{ _total_threads };
+    bool& visualize{ _visualize };
+    _short_circuit = false;
+
+    double& cell_size{ _cell_size };
+    int& mg_step{ _mg_step };
+    int& convex_hulls_step{ _convex_hulls_step };
+
+    PARAM_SETUP(nh, cell_size);
+
+    PARAM_SETUP_WITH_DEFAULT(nh, convex_hulls_step, 10);
+    PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
+    PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
+    PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
+    // PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
+
+    GLOBAL_PARAM_BLOCKER(environment);
+    GLOBAL_PARAM_BLOCKER(plant_parameters);
+    GLOBAL_PARAM_BLOCKER(simulation_step);
+
+    _pool.reset(_total_threads);
+    _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
+
+    DEBUG_VARS(_pool.get_thread_count())
+
+    env_params.from_string(environment);
+    // plant_params.from_string(plant_parameters);
+
+    // _plant = std::make_shared<DynamicalSystem>(plant_parameters);
+    _plant = DynamicalSystem::create(plant_parameters);
+
+    _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
+
+    _system_geoms = _plant->geometries();
+
+    _markers_publisher = nh.advertise<visualization_msgs::Marker>("/GT/trajectories/marker", 1);
+    _collision_publisher = nh.advertise<std_msgs::Bool>("/GT/collision", 1);
+    _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/GT/cells", 1);
+    _collision_markers_publisher = nh.advertise<visualization_msgs::Marker>("/GT/collisions/marker", 1);
+
+    std::string output_directory, file_prefix;
+    PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
+    PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "gt");
+
+    const std::string timestamp{ utils::timestamp() };
+    const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
+
+    DEBUG_VARS(OUTPUT_FILE)
+    _ofs.open(OUTPUT_FILE);
+  }
+
+  ~reachability_gt_t()
+  {
+  }
+
+  void collion_check()
+  {
+    // if (_short_circuit and _collision_found)  // short-circuit
+    //   return;
+
+    Trajectory traj;
+    {
+      std::scoped_lock lock(_trajectories_mutex);
+      traj = _trajectories.back();
+      _trajectories.pop_back();
+    }
+
+    std::shared_ptr<CollisionQuery> query;
+    {
+      std::scoped_lock lock(_queries_mutex);
+      if (_queries.size() == 0)
+      {
+        query = std::make_shared<CollisionQuery>();
+        query->pqp_models = prx::collision_checking::pqp::create_pqp_models(_system_geoms);
+        const bool new_q{ 1 };
+      }
+      else
+      {
+        query = _queries.back();
+        _queries.pop_back();
+        const bool new_q{ 0 };
+      }
+    }
+
+    bool collision{ false };
+    // Check only the states inside the convex hull
+    // The original Randup paper is unclear about this... But the RRT-randup paper seems to only check the convex hull
+    // A conservative approach is to check every state in the trajectory, but the point of the convex hull is to speed
+    // this up However, computing convex hull and then checking collisions is problematic because the convex hull
+    // computation is expensive and done at the end
+    // So... The compromise here is to check only those states that will be used to construct the convex hull.
+    // for (auto&& state : traj)
+    for (int state_idx = 0; state_idx < traj.size(); state_idx += _convex_hulls_step)
+    {
+      const State& state{ traj[state_idx] };
+
+      const Tangent center_tg{ _grid.center(state) };
+      const State center{ _grid.state(center_tg) };
+      CellPtr cellptr{ init_cell(state) };
+
+      query->plant_configurations = _plant->configuration(state);
+
+      collision = prx::collision_checking::pqp::collision(*query, _obstacles_bodies);
+      cellptr->safe = true;
+      cellptr->state = center;
+      cellptr->step_idx = state_idx;
+      _max_step_idx = std::max(_max_step_idx, state_idx);
+      if (collision)
+      {
+        cellptr->safe = false;
+        _colliding_states.push_back(state);
+        // break;
+      }
+    }
+
+    {
+      std::scoped_lock lock(_queries_mutex);
+      _queries.push_back(query);
+    }
+
+    _collision_found = _collision_found or collision;
+    std::scoped_lock lock(_checked_trajectories_mutex);
+    _checked_trajectories.push_back(traj);
+  }
+
+  CellPtr init_cell(const State& state)
+  {
+    if (_grid.cell(state) == nullptr)
+    {
+      _grid.cell(state) = std::make_shared<gt_cell_t<State>>();
+    }
+    return _grid.cell(state);
+  }
+
+  void propagate()
+  {
+    // if (_short_circuit and _collision_found)  // short-circuit
+    //   return;
+    const State x0_noise{ _x0_sampler(_state) };
+    Trajectory traj;
+    FwdProp::propagate(traj, x0_noise, _controller, _plant, _w_sampler);
+
+    {
+      std::scoped_lock lock(_trajectories_mutex);
+      _trajectories.push_back(traj);
+      _unchecked_trajectories++;
+    }
+
+    collion_check();
+    // _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
+  }
+
+  void init_query(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
+                  const Covariance& cov_w)
+  {
+    _colliding_states.clear();
+
+    // copy(_controller, plan_in);
+    // copy(_state, x_hat);
+    ml4kp_bridge::copy(_controller, plan_in);
+    ml4kp_bridge::copy(_state, x_hat);
+
+    _x0_sampler.set(cov_x0);
+    _w_sampler.set(cov_w);
+
+    _collision_found = false;
+
+    _marker_pts.markers.clear();
+
+    const Tangent cell_size{ Tangent::Ones() * _cell_size };
+    _grid.reset(_state, cell_size);
+  }
+
+  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
+               const Covariance& cov_w, const int total_trajectories)
+  {
+    init_query(x_hat, plan_in, cov_x0, cov_w);
+
+    ros::Time start{ ros::Time::now() };
+    for (int i = 0; i < total_trajectories; ++i)
+    {
+      propagate();
+    }
+    // _pool.wait();
+
+    const ros::Time end{ ros::Time::now() };
+    const double randup_time{ (end - start).toSec() };
+    const bool collision{ _collision_found };
+
+    // _convex_hull_volumes.back().push_back(convex_hull_volume);
+
+    // _ofs << total_trajectories << " ";
+    // _ofs << collision << " ";
+    // _ofs << randup_time << " ";
+    // for (auto&& vol : _convex_hull_volumes)
+    // {
+    //   _ofs << vol << " ";
+    // }
+    // _ofs << "\n";
+    // VARS_TO_STREAM(_ofs, randup_time, collision);
+
+    DEBUG_VARS(_grid.size())
+    _collision_msg.data = _collision_found;
+    _collision_publisher.publish(_collision_msg);
+    trajectories_to_marker();
+    compute_gt_info();
+
+    return _collision_found;
+  }
+
+  void compute_gt_info()
+  {
+    DEBUG_VARS(_max_step_idx)
+    std::vector<double> volumes(_max_step_idx + 1, 0);
+    std::vector<double> safe_volume(_max_step_idx + 1, 0);
+    const double cell_volume{ _cell_size * _cell_size };
+    for (auto cell : _grid)
+    {
+      volumes[cell.second->step_idx] += cell_volume;
+      if (cell.second->safe)
+      {
+        volumes[cell.second->step_idx] += cell_volume;
+      }
+    }
+    for (int i = 0; i < volumes.size(); ++i)
+    {
+      DEBUG_VARS(i, volumes[i])
+    }
+  }
+
+  void trajectories_to_marker()
+  {
+    if (_visualize)
+    {
+      visualization_msgs::MarkerArray cell_markers;
+      visualization_msgs::Marker marker_free{ ml4kp_bridge::create_marker(0.01, { 1, 0, 1, 0 }) };
+      visualization_msgs::Marker marker_coll{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
+
+      marker_free.ns = "Free";
+      marker_coll.ns = "Collision";
+
+      marker_free.type = visualization_msgs::Marker::CUBE_LIST;
+      marker_free.scale.x = _cell_size;
+      marker_free.scale.y = _cell_size;
+      marker_free.scale.z = 0.1;
+
+      marker_coll.type = visualization_msgs::Marker::CUBE_LIST;
+      marker_coll.scale.x = _cell_size;
+      marker_coll.scale.y = _cell_size;
+      marker_coll.scale.z = 0.1;
+
+      for (auto cell : _grid)
+      {
+        if (cell.second->safe)
+        {
+          marker_free.points.emplace_back();
+          ml4kp_bridge::update_point(marker_free.points.back(), cell.second->state, 0, 1, 0.0);
+        }
+        else
+        {
+          marker_coll.points.emplace_back();
+          ml4kp_bridge::update_point(marker_coll.points.back(), cell.second->state, 0, 1, 0.0);
+        }
+      }
+      cell_markers.markers.push_back(marker_free);
+      cell_markers.markers.push_back(marker_coll);
+      // marker.action = visualization_msgs::Marker::DELETEALL;
+      // // _trajectory_markers.markers.push_back(marker);
+      // _markers_publisher.publish(marker);
+
+      // // _trajectory_markers.markers.clear();
+      // marker.action = visualization_msgs::Marker::ADD;
+
+      // {  // _checked_trajectories_mutex lock
+      //   std::scoped_lock lock(_checked_trajectories_mutex);
+
+      //   DEBUG_VARS(_checked_trajectories.size())
+      //   while (_checked_trajectories.size() > 0)
+      //   {
+      //     ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, -0.1);
+      //     _checked_trajectories.pop_back();
+      //   }
+      // }
+
+      // visualization_msgs::Marker collision_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
+      // collision_marker.type = visualization_msgs::Marker::SPHERE_LIST;
+      // collision_marker.scale.x = 0.25;
+      // collision_marker.scale.y = 0.25;
+      // collision_marker.scale.z = 0.01;
+
+      // collision_marker.color.a = 0.5;
+      // collision_marker.color.r = 0.92;
+      // collision_marker.color.g = 0.91;
+      // collision_marker.color.b = 0.1;
+
+      // for (auto&& state : _colliding_states)
+      // {
+      //   collision_marker.points.emplace_back();
+      //   ml4kp_bridge::update_point(collision_marker.points.back(), state, 0, 1, 0.0);
+      // }
+
+      _end_points_publisher.publish(cell_markers);
+      // _collision_markers_publisher.publish(collision_marker);
+      // _trajectory_markers.markers.clear();
+    }
+
+    std::scoped_lock lock(_checked_trajectories_mutex);
+    _checked_trajectories.clear();
+  }
+
+private:
+  bool _visualize;
+  std::atomic<int> _trajectories_to_viz;
+
+  std::atomic<bool> _collision_found;
+  std::atomic<int> _total_checked_trajectories;
+  std::atomic<int> _unchecked_trajectories, _collisions_in_check;
+  std::mutex _trajectories_mutex, _checked_trajectories_mutex, _queries_mutex;
+  std::vector<Trajectory> _trajectories;
+  std::vector<Trajectory> _checked_trajectories;
+
+  visualization_msgs::MarkerArray _marker_convex_hull, _marker_pts;
+
+  Controller _controller;
+
+  std_msgs::Bool _collision_msg;
+  ros::Publisher _markers_publisher, _collision_publisher, _collision_markers_publisher;
+  ros::Publisher _end_points_publisher;
+
+  std::shared_ptr<prx::system_group_t> _system_group;
+  std::shared_ptr<prx::world_model_t> _planning_model;
+  std::shared_ptr<prx::collision_group_t> _collision_group;
+
+  // visualization_msgs::MarkerArray _trajectory_markers;
+  // visualization_msgs::MarkerArray _prev_trajectory_markers;
+  //
+  std::shared_ptr<DynamicalSystem> _plant;
+
+  State _state;
+
+  std::vector<std::shared_ptr<prx::geometry_t>> _system_geoms;
+  // Query:
+  //   PQP_CollideResult collision_result;
+  //   std::vector<std::shared_ptr<PQP_Model>> pqp_models;
+  //   std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> plant_configurations;
+  std::vector<std::shared_ptr<CollisionQuery>> _queries;
+  std::vector<std::shared_ptr<prx::collision_checking::pqp::rigid_body_t>> _obstacles_bodies;
+
+  int _total_threads, _half_threads;
+  BS::thread_pool<BS::tp::pause | BS::tp::priority> _pool;
+
+  StateSampler _x0_sampler;
+  StateSampler _w_sampler;
+
+  bool _short_circuit;
+
+  std::ofstream _ofs;
+
+  ImplicitGrid _grid;
+
+  std::vector<State> _colliding_states;
+  // std::vector<double> _convex_hull_volumes;
+
+  double _cell_size;
+  int _mg_step;
+
+  int _max_step_idx;
+
+  int _convex_hulls_step;
+};
+}  // namespace motion_planning
