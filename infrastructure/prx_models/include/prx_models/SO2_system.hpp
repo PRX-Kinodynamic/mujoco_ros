@@ -79,6 +79,10 @@ public:
   }
   SO2_system_t() : SO2_system_t(default_params()) {};
 
+  SO2_system_t(const std::string params) : SO2_system_t(prx::param_loader::create(params))
+  {
+  }
+
   static prx::param_loader default_params()
   {
     prx::param_loader params;

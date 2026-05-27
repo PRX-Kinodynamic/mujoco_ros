@@ -50,12 +50,21 @@ else()
 endif()
 
 MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
-if(CMAKE_BUILD_TYPE MATCHES DEBUG)
-  MESSAGE(STATUS "Building with debug flags")
+MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
+if (CMAKE_BUILD_TYPE MATCHES Release)
+  # -03 <- Turn on all optims
+  # -march=native <- Turn on eigen vectorization optimizations
+  set(BUILD_FLAGS "-O3")
+  # MESSAGE(STATUS "MARCH NATIVE: ${BUILD_WITH_SIMD}")
+  # if (${GTSAM_BUILD_WITH_MARCH_NATIVE})
+    list(APPEND BUILD_FLAGS "-march=native")
+    MESSAGE(WARNING "USING MARCH NATIVE")
+    # endif()
+  add_definitions(-DRELEASE_BUILD)
+elseif(CMAKE_BUILD_TYPE MATCHES DEBUG)
   set(BUILD_FLAGS "-O0 -fno-inline -g")
   # list(APPEND BUILD_FLAGS "-fsanitize=address")
   add_definitions(-DDEBUG_BUILD)
-  add_definitions(${BUILD_FLAGS})
 endif()
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -205,6 +214,10 @@ cmake_print_properties(
   TARGETS ML4KP::ML4KP
   PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
 )
+cmake_print_properties(
+  TARGETS ML4KP::External 
+  PROPERTIES INTERFACE_LINK_LIBRARIES  INTERFACE_INCLUDE_DIRECTORIES 
+)
 
 file(GLOB EXECUTABLE_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
     # ${PROJECT_SOURCE_DIR}/src/prx/experiments/*.cpp)
@@ -224,7 +237,7 @@ foreach(f ${EXECUTABLE_FILES})
                           ${MJ_LINK}
                           ML4KP::ML4KP
                         )
-    target_link_libraries(${fname} PRIVATE
+    target_link_libraries(${fname} PUBLIC
                           CGAL::CGAL
                           )
 endforeach()

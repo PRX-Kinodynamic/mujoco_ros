@@ -85,7 +85,7 @@ public:
     std::string plant_parameters;
 
     // PRX PARAM LOADERS FOR PRX FILES
-    prx::param_loader plant_params, env_params;
+    prx::param_loader env_params;
 
     using prx::simulation_step;
 
@@ -108,11 +108,13 @@ public:
     _pool.reset(_total_threads);
     _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
 
-    env_params.from_string(environment);
-    plant_params.from_string(plant_parameters);
+    DEBUG_VARS(_pool.get_thread_count())
 
-    // DEBUG_VARS(plant_params);
-    _plant = std::make_shared<DynamicalSystem>(plant_params);
+    env_params.from_string(environment);
+    // plant_params.from_string(plant_parameters);
+
+    // _plant = std::make_shared<DynamicalSystem>(plant_parameters);
+    _plant = DynamicalSystem::create(plant_parameters);
 
     _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
 
@@ -122,12 +124,17 @@ public:
     _collision_publisher = nh.advertise<std_msgs::Bool>("/randup/collision", 1);
     _convex_hull_publisher = nh.advertise<visualization_msgs::MarkerArray>("/randup/convex_hull", 1);
     _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/randup/end_points", 1);
+    _collision_markers_publisher = nh.advertise<visualization_msgs::Marker>("/randup/collisions/marker", 1);
 
-    std::string output_directory;
+    std::string output_directory, file_prefix;
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
+    PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "randup");
 
     const std::string timestamp{ utils::timestamp() };
-    _ofs.open(output_directory + "/volumes_" + timestamp);
+    const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
+
+    DEBUG_VARS(OUTPUT_FILE)
+    _ofs.open(OUTPUT_FILE);
   }
 
   ~randup_t()
@@ -153,13 +160,19 @@ public:
       {
         query = std::make_shared<CollisionQuery>();
         query->pqp_models = prx::collision_checking::pqp::create_pqp_models(_system_geoms);
+        const bool new_q{ 1 };
       }
       else
       {
         query = _queries.back();
         _queries.pop_back();
+        const bool new_q{ 0 };
       }
     }
+
+    // Assertion 'query.pqp_models.size() == query.plant_configurations.size()' failed in
+    //     file
+    //     '/common/home/eg585/perception/ML4KP-devel/install/include/prx/simulation/collision_checking/pqp_collision_checker.hpp'
 
     bool collision{ false };
     // Check only the states inside the convex hull
@@ -176,7 +189,10 @@ public:
 
       collision = prx::collision_checking::pqp::collision(*query, _obstacles_bodies);
       if (collision)
+      {
+        _colliding_states.push_back(state);
         break;
+      }
     }
 
     {
@@ -204,41 +220,6 @@ public:
     }
 
     _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
-  }
-
-  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& x0,
-               const Covariance& w, const std::chrono::time_point<std::chrono::steady_clock>& limit)
-  {
-    copy(_controller, plan_in);
-    copy(_state, x_hat);
-
-    _x0_sampler.set(x0);
-    _w_sampler.set(w);
-
-    _collision_found = false;
-
-    _marker_convex_hull.markers.clear();
-    _marker_pts.markers.clear();
-
-    const std::size_t total_threads{ _pool.get_thread_count() };
-
-    while (std::chrono::steady_clock::now() < limit)
-    {
-      if (_short_circuit and _collision_found)  // short-circuit
-      {
-        break;
-      }
-
-      if (_pool.get_tasks_total() < total_threads)
-      {
-        _pool.detach_task([&] { this->propagate(); });
-      }
-    }
-    compute_convex_hulls();
-    _collision_msg.data = _collision_found;
-    _collision_publisher.publish(_collision_msg);
-    _pool.detach_task([&] { this->trajectories_to_marker(); });
-    return _collision_found;
   }
 
   // Get the area of a convex hull (Area~=Volume) for 2D system.
@@ -341,7 +322,7 @@ public:
     const std::size_t total_trajectories{ _checked_trajectories.size() };
     while (are_new_states)
     {
-      DEBUG_VARS(i, state_idx)
+      // DEBUG_VARS(i, state_idx)
       const std::string idx{ prx::utilities::convert_to<std::string>(i) };
       are_new_states = false;
       std::vector<cgal_bridge::CgalEpicKernel::Point_3> cgal_points_0, cgal_points_1;
@@ -374,7 +355,8 @@ public:
           convex_hull_volume += convex_hull(cgal_points_1, idx + "'");
         }
         _marker_pts.markers.push_back(marker_pt);
-        VARS_TO_STREAM(_ofs, idx, convex_hull_volume, total_trajectories);
+        _convex_hull_volumes.push_back(convex_hull_volume);
+        // VARS_TO_STREAM(_ofs, idx, convex_hull_volume, total_trajectories);
       }
       i++;
       state_idx += _convex_hulls_step;
@@ -388,18 +370,64 @@ public:
     _end_points_publisher.publish(_marker_pts);
   }
 
-  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
-               const Covariance& cov_w, const int total_trajectories)
+  void init_query(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
+                  const Covariance& cov_w)
   {
+    _convex_hull_volumes.clear();
+    _colliding_states.clear();
+
+    // copy(_controller, plan_in);
+    // copy(_state, x_hat);
     ml4kp_bridge::copy(_controller, plan_in);
     ml4kp_bridge::copy(_state, x_hat);
 
     _x0_sampler.set(cov_x0);
     _w_sampler.set(cov_w);
 
+    _collision_found = false;
+
+    if (_visualize)
+    {
+      for (auto&& marker : _marker_convex_hull.markers)
+      {
+        marker.action = visualization_msgs::Marker::DELETEALL;
+      }
+      _convex_hull_publisher.publish(_marker_convex_hull);
+    }
+
     _marker_convex_hull.markers.clear();
     _marker_pts.markers.clear();
-    _collision_found = false;
+  }
+
+  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
+               const Covariance& cov_w, const std::chrono::time_point<std::chrono::steady_clock>& limit)
+  {
+    init_query(x_hat, plan_in, cov_x0, cov_w);
+    const std::size_t total_threads{ _pool.get_thread_count() };
+
+    while (std::chrono::steady_clock::now() < limit)
+    {
+      if (_short_circuit and _collision_found)  // short-circuit
+      {
+        break;
+      }
+
+      if (_pool.get_tasks_total() < total_threads)
+      {
+        _pool.detach_task([&] { this->propagate(); });
+      }
+    }
+    compute_convex_hulls();
+    _collision_msg.data = _collision_found;
+    _collision_publisher.publish(_collision_msg);
+    _pool.detach_task([&] { this->trajectories_to_marker(); });
+    return _collision_found;
+  }
+
+  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
+               const Covariance& cov_w, const int total_trajectories)
+  {
+    init_query(x_hat, plan_in, cov_x0, cov_w);
 
     ros::Time start{ ros::Time::now() };
     for (int i = 0; i < total_trajectories; ++i)
@@ -412,7 +440,19 @@ public:
 
     const ros::Time end{ ros::Time::now() };
     const double randup_time{ (end - start).toSec() };
-    VARS_TO_STREAM(_ofs, randup_time);
+    const bool collision{ _collision_found };
+
+    // _convex_hull_volumes.back().push_back(convex_hull_volume);
+
+    _ofs << total_trajectories << " ";
+    _ofs << collision << " ";
+    _ofs << randup_time << " ";
+    for (auto&& vol : _convex_hull_volumes)
+    {
+      _ofs << vol << " ";
+    }
+    _ofs << "\n";
+    // VARS_TO_STREAM(_ofs, randup_time, collision);
 
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
@@ -433,17 +473,37 @@ public:
 
       // _trajectory_markers.markers.clear();
       marker.action = visualization_msgs::Marker::ADD;
-      std::scoped_lock lock(_checked_trajectories_mutex);
 
-      DEBUG_VARS(_checked_trajectories.size())
-      while (_checked_trajectories.size() > 0)
+      {  // _checked_trajectories_mutex lock
+        std::scoped_lock lock(_checked_trajectories_mutex);
+
+        DEBUG_VARS(_checked_trajectories.size())
+        while (_checked_trajectories.size() > 0)
+        {
+          ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, -0.1);
+          _checked_trajectories.pop_back();
+        }
+      }
+
+      visualization_msgs::Marker collision_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
+      collision_marker.type = visualization_msgs::Marker::SPHERE_LIST;
+      collision_marker.scale.x = 0.25;
+      collision_marker.scale.y = 0.25;
+      collision_marker.scale.z = 0.01;
+
+      collision_marker.color.a = 0.5;
+      collision_marker.color.r = 0.92;
+      collision_marker.color.g = 0.91;
+      collision_marker.color.b = 0.1;
+
+      for (auto&& state : _colliding_states)
       {
-        ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, 0.0);
-        _checked_trajectories.pop_back();
-        // _trajectory_markers.markers.push_back(marker);
+        collision_marker.points.emplace_back();
+        ml4kp_bridge::update_point(collision_marker.points.back(), state, 0, 1, 0.0);
       }
 
       _markers_publisher.publish(marker);
+      _collision_markers_publisher.publish(collision_marker);
       // _trajectory_markers.markers.clear();
     }
 
@@ -467,7 +527,7 @@ private:
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
-  ros::Publisher _markers_publisher, _collision_publisher;
+  ros::Publisher _markers_publisher, _collision_publisher, _collision_markers_publisher;
   ros::Publisher _end_points_publisher, _convex_hull_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
@@ -499,5 +559,8 @@ private:
   int _convex_hulls_step;
 
   std::ofstream _ofs;
+
+  std::vector<State> _colliding_states;
+  std::vector<double> _convex_hull_volumes;
 };
 }  // namespace motion_planning
