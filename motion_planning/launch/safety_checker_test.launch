@@ -1,13 +1,18 @@
 <launch> 
-    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/>
+    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
     <arg name="randup_time" default="false"/>
     <arg name="environment" default="SO2_single_obstacle"/>
-    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/> -->
+    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/>
     <arg name="algorithm" default="randup"/>
+    
+    <arg name="output_directory" default="/tmp/"/>
+    <arg name="file_prefix" default="test"/>
+    <arg name="repetitions" default="1"/>
 
     <param name="simulation_step" value="0.01"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
+
 
     <arg name="dbg" value="lldb --"/>
 
@@ -20,12 +25,15 @@
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
       <param name="total_threads" value="1"/>
-      <param name="cell_size" value="0.3"/>
+      <param name="cell_size" value="0.1"/>
       <param name="short_circuit" value="false"/>
       <!-- <param name="plant" value="mushrPolynomial"/> -->
       <param name="plant" value="SO2System"/>
       <param name="convex_hulls_step" value="10"/>
-      <param name="output_directory" value="$(env ML4KP_ROS)/data/randup/SO2System/"/>
+      <param name="mg_step" value="10"/>
+      <param name="output_directory" value="$(arg output_directory)"/>
+      <param name="file_prefix" value="$(arg file_prefix)"/>
+      <param name="repetitions" value="$(arg repetitions)"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"

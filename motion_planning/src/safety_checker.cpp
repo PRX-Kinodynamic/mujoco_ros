@@ -64,6 +64,8 @@ struct safety_helper_t
 
   bool valid_state, valid_plan;
   std::string algorithm;
+  int repetitions;
+
   safety_helper_t(ros::NodeHandle& nh)
     : valid_state(false)
     , valid_plan(false)
@@ -78,6 +80,7 @@ struct safety_helper_t
 
     PARAM_SETUP(nh, state_topic)
     PARAM_SETUP(nh, algorithm)
+    PARAM_SETUP(nh, repetitions)
 
     prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt",
                "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
@@ -113,6 +116,7 @@ struct safety_helper_t
   void total_randup_trajs_callback(const std_msgs::Int32ConstPtr msg)
   {
     _total_trajs = msg->data;
+    DEBUG_VARS(_total_trajs)
   }
 
   void covariance_callback(const ml4kp_bridge::SpacePointConstPtr msg, RandupCovariance& cov)
@@ -187,7 +191,11 @@ struct safety_helper_t
       DEBUG_VARS(_cov_x0, _cov_w, _total_trajs)
       if (algorithm == "randup")
       {
-        randup_call();
+        for (int i = 0; i < repetitions; ++i)
+        {
+          randup_call();
+          ros::Duration(1.0).sleep();
+        }
       }
       else if (algorithm == "mg")
       {
