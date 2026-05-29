@@ -8,8 +8,10 @@
     <arg name="output_directory" default="/tmp/"/>
     <arg name="file_prefix" default="test"/>
     <arg name="repetitions" default="1"/>
+    <arg name="random_seed" default="112392"/>
 
     <param name="simulation_step" value="0.01"/>
+    <param name="random_seed" value="$(arg random_seed)"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
 
@@ -25,7 +27,7 @@
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
       <param name="total_threads" value="1"/>
-      <param name="cell_size" value="0.1"/>
+      <param name="cell_size" value="0.001"/>
       <param name="short_circuit" value="false"/>
       <!-- <param name="plant" value="mushrPolynomial"/> -->
       <param name="plant" value="SO2System"/>

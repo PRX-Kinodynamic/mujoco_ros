@@ -32,11 +32,20 @@ namespace motion_planning
 template <typename State>
 struct gt_cell_t
 {
-  gt_cell_t() : step_idx(0), safe(false) {};
+  inline static std::size_t next_idx = 0;
+  gt_cell_t() : step_idx(0), safe(false)
+  {
+    IDX = next_idx;
+    next_idx++;
+  }
+  void print()
+  {
+    DEBUG_VARS(state, IDX);
+  }
 
-  std::mutex mutex;
   bool safe;
   std::size_t step_idx;
+  std::size_t IDX;
   State state;
 };
 
@@ -61,7 +70,7 @@ public:
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
   using Tangent = typename ImplicitGrid::TangentElement;
 
-  reachability_gt_t(ros::NodeHandle nh) : _max_step_idx(0)
+  reachability_gt_t(ros::NodeHandle nh) : _max_step_idx(0), _x0_sampler(true, 3.841), _w_sampler(true, 3.841)
   {
     // PRX FILES
     std::string environment;
@@ -79,6 +88,7 @@ public:
     double& cell_size{ _cell_size };
     int& mg_step{ _mg_step };
     int& convex_hulls_step{ _convex_hulls_step };
+    int random_seed;
 
     PARAM_SETUP(nh, cell_size);
 
@@ -91,7 +101,9 @@ public:
     GLOBAL_PARAM_BLOCKER(environment);
     GLOBAL_PARAM_BLOCKER(plant_parameters);
     GLOBAL_PARAM_BLOCKER(simulation_step);
+    GLOBAL_PARAM_BLOCKER(random_seed);
 
+    prx::init_random(random_seed);
     _pool.reset(_total_threads);
     _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
 
@@ -116,11 +128,10 @@ public:
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
     PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "gt");
 
-    const std::string timestamp{ utils::timestamp() };
-    const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
-
-    DEBUG_VARS(OUTPUT_FILE)
-    _ofs.open(OUTPUT_FILE);
+    // const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
+    _output_file_prefix = output_directory + "/" + file_prefix + "_volumes_";
+    // DEBUG_VARS(OUTPUT_FILE)
+    // _ofs.open(OUTPUT_FILE);
   }
 
   ~reachability_gt_t()
@@ -131,7 +142,6 @@ public:
   {
     // if (_short_circuit and _collision_found)  // short-circuit
     //   return;
-
     Trajectory traj;
     {
       std::scoped_lock lock(_trajectories_mutex);
@@ -146,16 +156,13 @@ public:
       {
         query = std::make_shared<CollisionQuery>();
         query->pqp_models = prx::collision_checking::pqp::create_pqp_models(_system_geoms);
-        const bool new_q{ 1 };
       }
       else
       {
         query = _queries.back();
         _queries.pop_back();
-        const bool new_q{ 0 };
       }
     }
-
     bool collision{ false };
     // Check only the states inside the convex hull
     // The original Randup paper is unclear about this... But the RRT-randup paper seems to only check the convex hull
@@ -170,15 +177,18 @@ public:
 
       const Tangent center_tg{ _grid.center(state) };
       const State center{ _grid.state(center_tg) };
+
       CellPtr cellptr{ init_cell(state) };
 
       query->plant_configurations = _plant->configuration(state);
 
       collision = prx::collision_checking::pqp::collision(*query, _obstacles_bodies);
+
       cellptr->safe = true;
       cellptr->state = center;
       cellptr->step_idx = state_idx;
       _max_step_idx = std::max(_max_step_idx, state_idx);
+
       if (collision)
       {
         cellptr->safe = false;
@@ -199,11 +209,41 @@ public:
 
   CellPtr init_cell(const State& state)
   {
-    if (_grid.cell(state) == nullptr)
+    // PRINT_MSG("----------")
+    CellPtr new_ptr;  //{ _grid.cell(state) };
+
+    if (not _grid.exists(state))
     {
-      _grid.cell(state) = std::make_shared<gt_cell_t<State>>();
+      // DEBUG_VARS(new_ptr.use_count())
+      // DEBUG_VARS(_grid.size())
+      new_ptr = std::make_shared<gt_cell_t<State>>();
+      // DEBUG_VARS(new_ptr, new_ptr.use_count())
+      new_ptr->state = state;
+      // new_ptr->print();
+      // DEBUG_VARS(state, new_ptr)
+      // prx_assert(new_ptr != nullptr, "Grid ptr is null!");
+      // _grid.cell(state) = new_ptr;
+      // for (auto& cell : _grid)
+      // {
+      //   DEBUG_VARS(cell.first, cell.second->state)
+      // }
+
+      _grid.set_cell(state, new_ptr);
+      // DEBUG_VARS(new_ptr.use_count())
+      // DEBUG_VARS(new_ptr)
+      // DEBUG_VARS(new_ptr->step_idx)
+      // DEBUG_VARS(_grid.size())
+      // PRINT_MSG("Cell added")
+      // prx_assert(_grid.cell(state) != nullptr, "Grid ptr is null!");
     }
-    return _grid.cell(state);
+    else
+    {
+      new_ptr = _grid.cell(state);
+    }
+    // PRINT_MSG("Cell Exists")
+    // prx_assert(new_ptr != nullptr, "Grid ptr is null!");
+    // PRINT_MSG("+++++++++++")
+    return new_ptr;
   }
 
   void propagate()
@@ -219,7 +259,6 @@ public:
       _trajectories.push_back(traj);
       _unchecked_trajectories++;
     }
-
     collion_check();
     // _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
   }
@@ -273,7 +312,7 @@ public:
     // _ofs << "\n";
     // VARS_TO_STREAM(_ofs, randup_time, collision);
 
-    DEBUG_VARS(_grid.size())
+    // DEBUG_VARS(_grid.size())
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
     trajectories_to_marker();
@@ -284,21 +323,35 @@ public:
 
   void compute_gt_info()
   {
+    using prx::utilities::convert_to;
     DEBUG_VARS(_max_step_idx)
-    std::vector<double> volumes(_max_step_idx + 1, 0);
-    std::vector<double> safe_volume(_max_step_idx + 1, 0);
-    const double cell_volume{ _cell_size * _cell_size };
-    for (auto cell : _grid)
+
+    const std::string timestamp{ utils::timestamp() };
+
+    for (int state_idx = 0; state_idx <= _max_step_idx; state_idx += _convex_hulls_step)
     {
-      volumes[cell.second->step_idx] += cell_volume;
-      if (cell.second->safe)
+      const std::string s_idx{ convert_to<std::string>(state_idx) };
+      const std::string filename_i{ _output_file_prefix + "_" + timestamp + "_" + s_idx + ".txt" };
+      DEBUG_VARS(filename_i);
+      _ofs.open(filename_i.c_str());
+      _ofs << "# First line: 'id x0 cell_size' of grid (the id of this reachable set, x0 is the x0 of the grid  ";
+      _ofs << "and the size of each cell). Then empty line and then N lines with 'states safe' ";
+      _ofs << "corresponding to the reachable set (on the grid).\n";
+      prx::to_stream(_ofs, state_idx);
+      prx::to_stream(_ofs, _grid.x0());
+      prx::to_stream(_ofs, _grid.cell_sizes());
+      _ofs << "\n\n";
+
+      for (auto cell : _grid)
       {
-        volumes[cell.second->step_idx] += cell_volume;
+        if (cell.second->step_idx == state_idx)
+        {
+          prx::to_stream(_ofs, cell.second->state);
+          prx::to_stream(_ofs, cell.second->safe);
+          _ofs << "\n";
+        }
       }
-    }
-    for (int i = 0; i < volumes.size(); ++i)
-    {
-      DEBUG_VARS(i, volumes[i])
+      _ofs.close();
     }
   }
 
@@ -325,6 +378,8 @@ public:
 
       for (auto cell : _grid)
       {
+        // DEBUG_VARS(cell.first, cell.second)
+        // prx_assert(cell.second != nullptr, "Nullptr!");
         if (cell.second->safe)
         {
           marker_free.points.emplace_back();
@@ -441,5 +496,7 @@ private:
   int _max_step_idx;
 
   int _convex_hulls_step;
+
+  std::string _output_file_prefix;
 };
 }  // namespace motion_planning
