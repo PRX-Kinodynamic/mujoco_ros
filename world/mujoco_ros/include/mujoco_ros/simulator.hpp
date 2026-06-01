@@ -126,6 +126,8 @@ private:
   }
 
 public:
+  std::string _msg;
+
   std::mutex _mj_reset_mutex;
   mjModel* m;
   mjData* d;
@@ -146,6 +148,11 @@ public:
       mjv_freeScene(&scn);
       glfwTerminate();
     }
+  }
+
+  void set_display_text(const std::string msg)
+  {
+    _msg = msg;
   }
 
   inline interface::node_status_t::StatusType status() const
@@ -332,6 +339,7 @@ public:
 class simulator_visualizer_t
 {
   std::shared_ptr<interface::node_status_t> _node_status;
+  // std::string _msg;
 
 public:
   simulator_visualizer_t(SimulatorPtr& sim, std::shared_ptr<interface::node_status_t> node_status)
@@ -446,7 +454,7 @@ public:
       draw_trajectory();
 
       mjr_render(viewport, &scn, &con);
-      snprintf(time_string, 100, "Sim time: = %f", _sim->d->time);
+      snprintf(time_string, 100, "Sim time: = %f\t%s", _sim->d->time, _sim->_msg.c_str());
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_string, nullptr, &con);
       glfwSwapBuffers(window);
       glfwPollEvents();

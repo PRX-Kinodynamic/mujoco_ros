@@ -1,11 +1,11 @@
 state_space:
   bounds:
     -
-      min: [-3.14159]
-      max: [+3.14159]
+      min: -3.14159
+      max: +3.14159
     -
-      min: [-6.28318]
-      max: [+6.28318]
+      min: -6.28318
+      max: +6.28318
 control_space:
   bounds:
     min: -1.
@@ -17,5 +17,5 @@ sensor_space:
       min: [-3.14159]
       max: [+3.14159]
     -
-      min: [-6.28318]
-      max: [+6.28318]
+      min: -6.28318
+      max: +6.28318

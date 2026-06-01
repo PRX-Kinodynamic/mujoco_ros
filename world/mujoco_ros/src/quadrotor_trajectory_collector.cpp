@@ -36,29 +36,37 @@ struct collector_t
 
   mj_ros::SimulatorPtr sim;
 
-  ros::Publisher publisher;
+  ros::Publisher publisher, _sensor_pub;
 
   prx::sampler_t<int> steps_sampler;
   prx::sampler_t<std::vector<double>> controls_sampler, u0_sampler;
   double sensor_dt;
   bool real_time;
 
+  std::string collision_body1, collision_body2;
+
   collector_t(ros::NodeHandle nh) : collected_trajs(0)
   {
-    std::string data_topic;
+    std::string data_topic, sensor_topic;
 
-    PARAM_SETUP(nh, real_time)
-    PARAM_SETUP(nh, step_size)
-    PARAM_SETUP(nh, data_topic)
-    PARAM_SETUP(nh, model_path)
-    PARAM_SETUP(nh, steps_bounds)
-    PARAM_SETUP(nh, u0_bounds_min)
-    PARAM_SETUP(nh, u0_bounds_max)
-    PARAM_SETUP(nh, control_bounds_min)
-    PARAM_SETUP(nh, control_bounds_max)
-    PARAM_SETUP(nh, sensor_frequency)
-    PARAM_SETUP(nh, total_trajectories)
-    PARAM_SETUP(nh, min_trajectory_duration)
+    int random_seed;
+
+    PARAM_SETUP(nh, real_time);
+    PARAM_SETUP(nh, step_size);
+    PARAM_SETUP(nh, data_topic);
+    PARAM_SETUP(nh, model_path);
+    PARAM_SETUP(nh, steps_bounds);
+    PARAM_SETUP(nh, u0_bounds_min);
+    PARAM_SETUP(nh, u0_bounds_max);
+    PARAM_SETUP(nh, control_bounds_min);
+    PARAM_SETUP(nh, control_bounds_max);
+    PARAM_SETUP(nh, sensor_frequency);
+    PARAM_SETUP(nh, total_trajectories);
+    PARAM_SETUP(nh, min_trajectory_duration);
+    PARAM_SETUP_WITH_DEFAULT(nh, random_seed, 112392);
+    PARAM_SETUP_WITH_DEFAULT(nh, sensor_topic, "/mujoco/sensor");
+
+    prx::init_random(random_seed);
 
     steps_sampler.bounds(steps_bounds[0], steps_bounds[1]);
     controls_sampler.bounds(control_bounds_min, control_bounds_max);
@@ -67,6 +75,11 @@ struct collector_t
     sensor_dt = 1.0 / sensor_frequency;
 
     sim = mj_ros::simulator_t::initialize(model_path);
+
+    if (real_time)
+    {
+      _sensor_pub = nh.advertise<interface::SensorDataStamped>(sensor_topic, 1, true);
+    }
 
     publisher = nh.advertise<ml4kp_bridge::PlanTrajectory>(data_topic, 10000, true);
   }
@@ -104,6 +117,32 @@ struct collector_t
     return edge_length;
   }
 
+  bool collision_updater()
+  {
+    const int& ncon{ sim->d->ncon };
+    bool collision{ false };
+    std::string collision_msg{ "" };
+    if (ncon > 0)
+    {
+      for (int i = 0; i < ncon; i++)
+      {
+        collision_body1 = mj_id2name(sim->m, mjOBJ_BODY, sim->m->geom_bodyid[sim->d->contact[i].geom1]);
+        collision_body2 = mj_id2name(sim->m, mjOBJ_BODY, sim->m->geom_bodyid[sim->d->contact[i].geom2]);
+
+        if (collision_body1.find("world") != std::string::npos ^ collision_body2.find("world") != std::string::npos)
+        {
+          if (!(collision_body1.find("free") != std::string::npos ^ collision_body2.find("free") != std::string::npos))
+          {
+            collision_msg = "COLLISION";
+            collision = true;
+          }
+        }
+      }
+    }
+    sim->set_display_text(collision_msg);
+    return collision;
+  }
+
   ml4kp_bridge::PlanTrajectory collect_trajectory()
   {
     ml4kp_bridge::PlanTrajectory result;
@@ -119,8 +158,12 @@ struct collector_t
     trajectory.back().header.stamp = start + ros::Duration(t_accum);
     // trajectory.back().space_point;  //.push_back();
     sim->sense(trajectory.back().space_point.point);
+    interface::SensorDataStamped sensor_msg;
 
     bool first{ true };
+
+    bool past_collision{ true };
+    int total_collisions{ 0 };
     while (t_accum < min_trajectory_duration)
     {
       // const int random_steps{ steps_sampler() };
@@ -139,6 +182,16 @@ struct collector_t
         // DEBUG_VARS(ti)
         sim->step_simulation();
 
+        const bool curr_collision{ collision_updater() };
+        if (past_collision != curr_collision)
+        {
+          total_collisions++;
+          past_collision = curr_collision;
+          if (total_collisions >= 2)
+          {
+            return result;
+          }
+        }
         if (real_time)
         {
           ros::Duration(sim_step).sleep();
@@ -150,6 +203,14 @@ struct collector_t
           trajectory.back().header.stamp = start + ros::Duration(t_accum);
           // trajectory.back().space_point;  //.push_back();
           sim->sense(trajectory.back().space_point.point);
+
+          if (real_time)
+          {
+            sim->sense(sensor_msg.raw_sensor_data);
+            sensor_msg.header.seq++;
+            sensor_msg.header.stamp = ros::Time::now();
+            _sensor_pub.publish(sensor_msg);
+          }
           tz = 0.0;
         }
       }

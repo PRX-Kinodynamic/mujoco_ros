@@ -180,10 +180,6 @@ protected:
   const double _length;    //{ 0.5 };
   const double _mass;      //{ 0.15 };
   const double _inertia;   //{ mass * length * length };
-  StateSpacePtr _state_space;
-  ControlSpacePtr _control_space;
-  ParametersSpacePtr _parameter_space;
-  ObservationSpacePtr _sensor_space;
 };
 
 };  // namespace prx

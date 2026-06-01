@@ -27,12 +27,15 @@ struct cluster_in_out_t
 {
   std::vector<std::vector<Data>> original_elements;
   std::vector<Element> values;
+  std::vector<gtsam::JacobianFactor::shared_ptr> priors;
+
   std::vector<gtsam::SharedGaussian> noise_models;
   std::vector<std::size_t> total_clustered;
 
   friend void swap(cluster_in_out_t<Element, Data>& lhs, cluster_in_out_t<Element, Data>& rhs)
   {
     lhs.values.swap(rhs.values);
+    lhs.priors.swap(rhs.priors);
     lhs.noise_models.swap(rhs.noise_models);
     lhs.total_clustered.swap(rhs.total_clustered);
     lhs.original_elements.swap(rhs.original_elements);
@@ -42,6 +45,7 @@ struct cluster_in_out_t
   void push_back(const Element element, NoiseModel nm, const Data data)
   {
     values.push_back(element);
+    priors.push_back(nullptr);
     noise_models.push_back(nm);
     total_clustered.push_back(1);
     original_elements.push_back({ data });
@@ -50,6 +54,7 @@ struct cluster_in_out_t
   void clear()
   {
     values.clear();
+    priors.clear();
     noise_models.clear();
     total_clustered.clear();
     original_elements.clear();
@@ -62,12 +67,12 @@ void compute_cluster_covariance(Covariance& cov, const Element& mean, const std:
 {
   static constexpr Eigen::Index DimElement{ gtsam::traits<Element>::dimension };
   if (verbose)
-    DEBUG_VARS(cov)
+    DEBUG_VARS(cov);
 
   cov = cov * prev_clustered;
 
   if (verbose)
-    DEBUG_VARS(cov)
+    DEBUG_VARS(cov);
 
   for (auto xi : clustered_elements)
   {
@@ -80,17 +85,17 @@ void compute_cluster_covariance(Covariance& cov, const Element& mean, const std:
     if (verbose)
     {
       // DEBUG_VARS(btw)
-      DEBUG_VARS(diff.transpose())
+      DEBUG_VARS(diff.transpose());
     }
   }
   if (verbose)
   {
-    DEBUG_VARS(cov, clustered_elements.size(), prev_clustered)
+    DEBUG_VARS(cov, clustered_elements.size(), prev_clustered);
   }
 
   cov = cov / (clustered_elements.size() + prev_clustered);
   if (verbose)
-    DEBUG_VARS(cov)
+    DEBUG_VARS(cov);
 }
 
 template <typename Element, typename Data>
@@ -116,7 +121,8 @@ static void cluster(cluster_in_out_t<Element, Data>& output,       // no-lint
   values.insert(key, input.values[0]);
   std::size_t clustered{ 0 };
 
-  gtsam::JacobianFactor::shared_ptr prior = nullptr;
+  // DEBUG_VARS(input.priors.size());
+  gtsam::JacobianFactor::shared_ptr prior{ input.priors[0] };
   gtsam::Ordering key_ordering;
   key_ordering += key;
 
@@ -150,6 +156,7 @@ static void cluster(cluster_in_out_t<Element, Data>& output,       // no-lint
     if (error > confidence)
     {
       rejected.values.push_back(zi);
+      rejected.priors.push_back(input.priors[i]);
       rejected.noise_models.push_back(input.noise_models[i]);
       rejected.total_clustered.push_back(input.total_clustered[i]);
       rejected.original_elements.push_back(input.original_elements[i]);
@@ -179,26 +186,29 @@ static void cluster(cluster_in_out_t<Element, Data>& output,       // no-lint
   }
 
   const Element& res{ values.at<Element>(key) };
-  Covariance cov{ prev_noise->covariance() };
+  // Covariance cov{ prev_noise->covariance() };
   // const bool verbose{ output.values.size() == 0 };
-  compute_cluster_covariance(cov, res, clustered_elements, prev_clustered, false);
-  const bool valid_cov{ cov.inverse().allFinite() };
+  // compute_cluster_covariance(cov, res, clustered_elements, prev_clustered, false);
+  // const bool valid_cov{ cov.inverse().allFinite() };
 
-  gtsam::SharedGaussian res_nm;
-  if (valid_cov)
-  {
-    res_nm = GaussianNM::Covariance(cov);
-  }
-  else
-  {
-    res_nm = prev_noise;
-  }
+  // gtsam::SharedGaussian res_nm;
+  // if (valid_cov)
+  // {
+  //   res_nm = GaussianNM::Covariance(cov);
+  // }
+  // else
+  // {
+  //   res_nm = prev_noise;
+  // }
 
+  output.priors.push_back(prior);
   output.values.push_back(res);
-  output.noise_models.push_back(res_nm);
+  output.noise_models.push_back(prev_noise);
   output.total_clustered.push_back(clustered);
   output.original_elements.push_back(original_elements);
 
+  // DEBUG_VARS(output.values.size());
+  // DEBUG_VARS(output.priors.size());
   cluster(output, rejected, confidence);
 }
 

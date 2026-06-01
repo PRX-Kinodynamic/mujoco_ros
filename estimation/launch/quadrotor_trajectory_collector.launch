@@ -1,0 +1,49 @@
+<launch>
+  <arg name="estimations_file" />
+  <arg name="step_size" default="0.01" />
+  <arg name="real_time" default="false"/>
+  <!-- <arg name="model_path" default="$(find prx_models)/models/pendulum/pendulum.xml" /> -->
+  <arg name="model_path" default="$(find prx_models)/models/skydio_x2/scene.xml" />
+  <arg name="steps_bounds" default="[2, 8]" />
+  <arg name="u0_bounds_min" default="[3.0, 3.0, 3.0, 3.0]" />
+  <arg name="control_bounds_min" default="[0.0, 0.0, 0.0, 0.0]" />
+  <arg name="control_bounds_max" default="[13.0, 13.0, 13.0, 13.0]" />
+
+
+  <arg name="visualize_sim" default="true" />
+  <arg name="sensor_frequency" default="50" />
+  <arg name="total_trajectories" default="100" />
+  <arg name="min_trajectory_duration" default="20" />
+  <!-- <arg name="min_trajectory_duration" default="1" /> -->
+  <arg name="total_simulations" default="5"/>
+  
+  <arg name="data_topic"  value="/mj/plan_trajectory"/>
+
+  <include file="$(find mujoco_ros)/launch/quadrotor_trajectory_collector.launch">
+    <arg name="step_size" default="$(arg step_size)" />
+    <arg name="model_path" default="$(arg model_path)" />
+    <arg name="steps_bounds" default="$(arg steps_bounds)" />
+    <arg name="u0_bounds_min" default="$(arg u0_bounds_min)" />
+    <arg name="control_bounds_min" default="$(arg control_bounds_min)" />
+    <arg name="control_bounds_max" default="$(arg control_bounds_max)" />
+    <arg name="visualize_sim" default="$(arg visualize_sim)" />
+    <arg name="sensor_frequency" default="$(arg sensor_frequency)" />
+    <arg name="total_trajectories" default="$(arg total_trajectories)" />
+    <arg name="min_trajectory_duration" default="$(arg min_trajectory_duration)" />
+    <arg name="total_simulations" default="$(arg total_simulations)"/>
+    <arg name="data_topic" default="$(arg data_topic)"/>
+    <arg name="real_time" default="$(arg real_time)"/>
+  </include>
+        <!-- launch-prefix="lldb - -" -->
+    
+
+  <node pkg="estimation" type="quadrotor_traj_estimation"
+      name="quadrotor_traj_estimation" output="screen" >
+    <param name="trajectory_topic" value="$(arg data_topic)"/>
+    <param name="estimations_file" value="$(arg estimations_file)"/>
+    <param name="lm/iterations" value="100"/>
+    <!-- <param name="lm/verbosity_level" value="SUMMARY"/> -->
+    <param name="lm/verbosity_level" value="SILENT"/>
+  </node>
+
+</launch>

@@ -27,13 +27,36 @@ public:
   {
   }
 
-  sampler_t(prx::param_loader params)
-    : sampler_t(prx::param_loader(params.begin(), params.begin()++), prx::param_loader(params.begin()++, params.end()))
+  static prx::param_loader advance(prx::param_loader& param, int distance)
   {
+    auto iter = param.begin();
+    // for (auto iter = params.begin(); iter != params.end(); iter++)
+    for (int i = 0; i < distance; ++i)
+    {
+      iter++;
+    }
+    PRX_DBG_VARS(*iter)
+    return *iter;
+  }
+
+  sampler_t(prx::param_loader params) : sampler_t(advance(params, 0), advance(params, 1))
+  {
+    // std::advance(params.begin(), 1);
+    // prx::param_loader next(params.begin()++, params.end());
+    // PRX_DBG_VARS(params);
+    // // PRX_DBG_VARS(next);
+    // // PRX_DBG_VARS(next_0);
+    // for (auto iter = params.begin(); iter != params.end(); iter++)
+    // {
+    //   prx::param_loader next(*iter);  //, params.end());
+    //   PRX_DBG_VARS(next);
+    // }
   }
 
   sampler_t(prx::param_loader Gparams, prx::param_loader Hparams) : _G_sampler(Gparams), _H_sampler(Hparams)
   {
+    PRX_DBG_VARS(Gparams);
+    PRX_DBG_VARS(Hparams);
   }
 
   Element operator()()

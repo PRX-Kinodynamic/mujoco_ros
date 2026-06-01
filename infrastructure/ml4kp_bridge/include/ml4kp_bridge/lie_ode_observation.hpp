@@ -155,5 +155,6 @@ private:
   const Z _zte;
   const std::string _label;
 };
+
 }  // namespace fg
 }  // namespace prx

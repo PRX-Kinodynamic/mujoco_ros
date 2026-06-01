@@ -60,10 +60,12 @@
   </actuator>
 
   <sensor>
-    <gyro name="body_gyro" site="imu"/>
-    <accelerometer name="body_linacc" site="imu"/>
-    <framequat name="body_quat" objtype="site" objname="imu"/>
+    <gyro name="body_gyro" site="imu"/>  <!-- 0 1 2 -->
+    <accelerometer name="body_linacc" site="imu"/> <!-- 3 4 5 -->
+    <framequat name="body_quat" objtype="site" objname="imu"/> <!-- 6 7 8 9 -->
+    <framepos name="body_position" objtype="site" objname="imu" /> <!-- 10 11 12 -->
   </sensor>
+
 
   <keyframe>
     <key name="hover" qpos="0 0 .3 1 0 0 0" ctrl="3.2495625 3.2495625 3.2495625 3.2495625"/>

@@ -77,7 +77,12 @@ public:
     double& cell_size{ _cell_size };
     bool& short_circuit{ _short_circuit };
 
+    // MG step, how many states to step when iterating over each trajectory
+    // Needed for randup comparison
+    int& mg_step{ _mg_step };
+
     PARAM_SETUP(nh, cell_size);
+    PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
@@ -177,8 +182,10 @@ public:
     Trajectory traj;
     FwdProp::propagate(traj, state, _controller, _plant);
     std::set<std::size_t> hashes;
-    for (auto state : traj)
+    // for (auto&& state : traj)
+    for (int i = 0; i < traj.size(); i += _mg_step)
     {
+      const State& state{ traj[i] };
       const std::size_t h{ _grid.hash(state) };
       if (hashes.count(h) == 0)
       {
@@ -428,6 +435,7 @@ private:
 
   double _cell_size;
 
+  int _mg_step;
   std::size_t _iter_idx;
   std::vector<CellPtr> _cells_buffer, _used_cells;
   ImplicitGrid _grid;

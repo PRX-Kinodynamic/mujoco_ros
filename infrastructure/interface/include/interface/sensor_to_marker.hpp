@@ -18,11 +18,11 @@ class sensor_to_marker_t : public Base
   using Derived = sensor_to_marker_t<Base>;
 
 public:
-  sensor_to_marker_t() : _viz_sensor_name("/marker")
+  sensor_to_marker_t() : _viz_sensor_name("/marker"), _sensor_map({ 0, 1, 2, 3, 4, 5 })
   {
   }
 
-  ~sensor_to_marker_t(){};
+  ~sensor_to_marker_t() {};
   virtual void onInit()
   {
     ros::NodeHandle& private_nh{ Base::getPrivateNodeHandle() };
@@ -32,13 +32,18 @@ public:
     std::string& world_frame{ _world_frame };
     // std::string& sensor_frame{ _sensor_frame };
     std::vector<double> color{};
+    std::vector<double> scale{ { 0.42, 0.25, 0.25 } };
+    std::vector<int>& sensor_map{ _sensor_map };
     // _control_topic_name = ros::this_node::getNamespace() + _control_topic_name;
 
     PARAM_SETUP(private_nh, world_frame);
     // PARAM_SETUP(private_nh, sensor_frame);
     PARAM_SETUP(private_nh, sensor_topic_name);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, scale, scale);
+    PARAM_SETUP_WITH_DEFAULT(private_nh, sensor_map, sensor_map);
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, .78, 1.0 }));
 
+    prx_assert(scale.size() == 3, "[sensor_to_marker] scale must be size 3.");
     // const std::string control_stamped_topic_name{ control_topic_name + "_stamped" };
     // _viz_control_stamped_name = control_stamped_topic_name + _viz_sensor_name;
     _viz_sensor_name = sensor_topic_name + _viz_sensor_name;
@@ -63,9 +68,9 @@ public:
     _sensor_marker.pose.orientation.z = 0.0;
     _sensor_marker.pose.orientation.w = 1.0;
 
-    _sensor_marker.scale.x = 0.42;
-    _sensor_marker.scale.y = 0.25;
-    _sensor_marker.scale.z = 0.25;
+    _sensor_marker.scale.x = scale[0];
+    _sensor_marker.scale.y = scale[1];
+    _sensor_marker.scale.z = scale[2];
 
     _sensor_marker.color.a = color[0];  // Don't forget to set the alpha!
     _sensor_marker.color.r = color[1];
@@ -79,17 +84,15 @@ public:
 protected:
   void sensor_callback(const interface::SensorDataStampedConstPtr& msg)
   {
-    _sensor_marker.pose.position.x = msg->raw_sensor_data[0];
-    _sensor_marker.pose.position.y = msg->raw_sensor_data[1];
-    _sensor_marker.pose.position.z = msg->raw_sensor_data[2];
-    _sensor_marker.pose.orientation.w = msg->raw_sensor_data[3];
-    _sensor_marker.pose.orientation.x = msg->raw_sensor_data[4];
-    _sensor_marker.pose.orientation.y = msg->raw_sensor_data[5];
-    _sensor_marker.pose.orientation.z = msg->raw_sensor_data[6];
+    _sensor_marker.pose.position.x = msg->raw_sensor_data[_sensor_map[0]];
+    _sensor_marker.pose.position.y = msg->raw_sensor_data[_sensor_map[1]];
+    _sensor_marker.pose.position.z = msg->raw_sensor_data[_sensor_map[2]];
+    _sensor_marker.pose.orientation.w = msg->raw_sensor_data[_sensor_map[3]];
+    _sensor_marker.pose.orientation.x = msg->raw_sensor_data[_sensor_map[4]];
+    _sensor_marker.pose.orientation.y = msg->raw_sensor_data[_sensor_map[5]];
+    _sensor_marker.pose.orientation.z = msg->raw_sensor_data[_sensor_map[6]];
 
     _viz_sensor_publisher.publish(_sensor_marker);
-    // inline Rotation
-    //     prx::euler_to_rotation({msg->raw_sensor_data[]}, "Z");
   }
 
   // Topic names
@@ -103,6 +106,7 @@ protected:
   // Publishers
   ros::Publisher _viz_sensor_publisher;
 
+  std::vector<int> _sensor_map;
   // Viz
   visualization_msgs::Marker _sensor_marker;
 
