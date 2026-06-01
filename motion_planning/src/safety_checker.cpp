@@ -204,7 +204,10 @@ struct safety_helper_t
       else if (algorithm == "gt")
       {
         PRINT_MSG("Running GT...")
-        gt_call();
+        for (int i = 0; i < repetitions; ++i)
+        {
+          gt_call();
+        }
       }
 
       PRINT_MSG("Safety checker finished")

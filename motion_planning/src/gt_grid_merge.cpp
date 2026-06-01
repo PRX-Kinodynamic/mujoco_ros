@@ -38,12 +38,14 @@ using prx::utilities::convert_to;
 template <typename State>
 struct gt_cell_t
 {
-  gt_cell_t(const State& state_, bool safe_) : state(state_), safe(safe_)
+  gt_cell_t(const State& state_, bool safe_, int total_states_)
+    : state(state_), safe(safe_), total_states(total_states_)
   {
   }
 
   bool safe;
   State state;
+  int total_states;
 };
 
 template <typename DynamicalSystem, typename Controller>
@@ -101,18 +103,23 @@ struct gt_merger_t
       const double x0_0{ convert_to<double>(line[0]) };
       const double x0_1{ convert_to<double>(line[1]) };
       const int safe{ convert_to<int>(line[2]) };
+      const int total_states{ convert_to<int>(line[3]) };
 
       const State x0(gtsam::Rot2(x0_0), x0_1);
       if (not _grid.exists(x0))
       {
-        _grid.cell(x0) = std::make_shared<Cell>(x0, safe);
+        _grid.cell(x0) = std::make_shared<Cell>(x0, safe, total_states);
+      }
+      else
+      {
+        _grid.cell(x0)->total_states += total_states;
       }
     }
   }
 
-  void to_file(const std::string file)
+  void to_file(const std::string outputfile)
   {
-    std::ofstream ofs(file.c_str());
+    std::ofstream ofs(outputfile.c_str());
     ofs << "# First line: 'id x0 cell_size' of grid (the id of this reachable set, x0 is the x0 of the grid  ";
     ofs << "and the size of each cell). Then empty line and then N lines with 'states safe' ";
     ofs << "corresponding to the reachable set (on the grid).\n";
@@ -125,9 +132,11 @@ struct gt_merger_t
     {
       prx::to_stream(ofs, cell.second->state);
       prx::to_stream(ofs, cell.second->safe);
+      prx::to_stream(ofs, cell.second->total_states);
       ofs << "\n";
     }
     ofs.close();
+    DEBUG_VARS(outputfile);
   }
 };
 

@@ -25,27 +25,21 @@
 
 #include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
 #include <prx/utilities/data_structures/implicit_grid.hpp>
-
+#include <array>
 namespace motion_planning
 {
 
 template <typename State>
 struct gt_cell_t
 {
-  inline static std::size_t next_idx = 0;
-  gt_cell_t() : step_idx(0), safe(false)
+  gt_cell_t() : safe(false), total_states(0)
   {
-    IDX = next_idx;
-    next_idx++;
-  }
-  void print()
-  {
-    DEBUG_VARS(state, IDX);
+    step_idx.fill(false);
   }
 
   bool safe;
-  std::size_t step_idx;
-  std::size_t IDX;
+  std::array<bool, 200> step_idx;
+  std::size_t total_states;
   State state;
 };
 
@@ -186,7 +180,8 @@ public:
 
       cellptr->safe = true;
       cellptr->state = center;
-      cellptr->step_idx = state_idx;
+      cellptr->step_idx[state_idx] = true;
+      cellptr->total_states++;
       _max_step_idx = std::max(_max_step_idx, state_idx);
 
       if (collision)
@@ -335,7 +330,7 @@ public:
       DEBUG_VARS(filename_i);
       _ofs.open(filename_i.c_str());
       _ofs << "# First line: 'id x0 cell_size' of grid (the id of this reachable set, x0 is the x0 of the grid  ";
-      _ofs << "and the size of each cell). Then empty line and then N lines with 'states safe' ";
+      _ofs << "and the size of each cell). Then empty line and then N lines with 'states safe total_states' ";
       _ofs << "corresponding to the reachable set (on the grid).\n";
       prx::to_stream(_ofs, state_idx);
       prx::to_stream(_ofs, _grid.x0());
@@ -344,10 +339,11 @@ public:
 
       for (auto cell : _grid)
       {
-        if (cell.second->step_idx == state_idx)
+        if (cell.second->step_idx[state_idx])
         {
           prx::to_stream(_ofs, cell.second->state);
           prx::to_stream(_ofs, cell.second->safe);
+          prx::to_stream(_ofs, cell.second->total_states);
           _ofs << "\n";
         }
       }

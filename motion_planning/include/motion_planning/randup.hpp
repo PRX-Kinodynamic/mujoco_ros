@@ -132,9 +132,13 @@ public:
 
     const std::string timestamp{ utils::timestamp() };
     const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
+    const std::string CONVEX_HULL_OUTPUT_FILE{ output_directory + "/" + file_prefix + "_convex_hulls_" + timestamp +
+                                               ".txt" };
 
     DEBUG_VARS(OUTPUT_FILE)
+    DEBUG_VARS(CONVEX_HULL_OUTPUT_FILE)
     _ofs.open(OUTPUT_FILE);
+    _ofs_convex_hulls.open(CONVEX_HULL_OUTPUT_FILE);
   }
 
   ~randup_t()
@@ -262,6 +266,7 @@ public:
 
     bool first{ true };
     cgal_bridge::CgalEpicKernel::Point_3 pt_prev{ *(poly.points().begin()) };
+    _ofs_convex_hulls << idx << " ";
     for (auto&& v_pt : poly.points())
     {
       marker_ch.points.emplace_back();
@@ -269,6 +274,8 @@ public:
       marker_ch.points.back().x = v_pt.x();
       marker_ch.points.back().y = v_pt.y();
       marker_ch.points.back().z = v_pt.z();
+      _ofs_convex_hulls << v_pt.x() << " " << v_pt.y() << " " << v_pt.z() << " ";
+
       if (not first)
       {
         marker_ch.points.push_back(marker_ch.points.back());
@@ -276,6 +283,7 @@ public:
       first = false;
       pt_prev = v_pt;
     }
+    _ofs_convex_hulls << "\n";
     if (not first)
     {
       marker_ch.points.push_back(marker_ch.points.back());
@@ -301,8 +309,6 @@ public:
       {
         pts_aux.push_back(pt);
       }
-
-      // prev = pt;
     }
     std::swap(pts_aux, pts0);
   }
@@ -558,7 +564,7 @@ private:
   bool _short_circuit;
   int _convex_hulls_step;
 
-  std::ofstream _ofs;
+  std::ofstream _ofs, _ofs_convex_hulls;
 
   std::vector<State> _colliding_states;
   std::vector<double> _convex_hull_volumes;
