@@ -4,6 +4,7 @@
 #include <numeric>
 #include <tuple>
 #include <vector>
+#include <utils/dbg_utils.hpp>
 
 #include <gtsam/base/Testable.h>
 
@@ -45,10 +46,19 @@ struct cluster_in_out_t
   void push_back(const Element element, NoiseModel nm, const Data data)
   {
     values.push_back(element);
-    priors.push_back(nullptr);
     noise_models.push_back(nm);
     total_clustered.push_back(1);
     original_elements.push_back({ data });
+
+    const gtsam::Key key{ gtsam::Symbol('X', 0) };
+    const gtsam::PriorFactor<Element> curr_prior(key, element, nm);
+
+    gtsam::Values fg_values;
+    fg_values.insert(key, element);
+    auto ptr = boost::dynamic_pointer_cast<gtsam::JacobianFactor>(curr_prior.linearize(fg_values));
+    priors.push_back(ptr);
+    // ptr->print();
+    // priors.push_back(nullptr);
   }
 
   void clear()
@@ -142,9 +152,14 @@ static void cluster(cluster_in_out_t<Element, Data>& output,       // no-lint
     {
       linear_fg.push_back(prior);
     }
+    else
+    {
+      PRINT_MSG("Prior null?");
+    }
 
     const gtsam::PriorFactor<Element> curr_prior(key, zi, z_noise);
     linear_fg.push_back(curr_prior.linearize(values));
+    // linear_fg.push_back(input.priors[i]);
 
     const gtsam::GaussianConditional::shared_ptr marginal{
       linear_fg.marginalMultifrontalBayesNet(key_ordering)->front()
@@ -186,20 +201,23 @@ static void cluster(cluster_in_out_t<Element, Data>& output,       // no-lint
   }
 
   const Element& res{ values.at<Element>(key) };
-  // Covariance cov{ prev_noise->covariance() };
-  // const bool verbose{ output.values.size() == 0 };
-  // compute_cluster_covariance(cov, res, clustered_elements, prev_clustered, false);
-  // const bool valid_cov{ cov.inverse().allFinite() };
+  // gtsam::Marginals
+  // Matrix marginalCovariance(Key variable) const;
 
-  // gtsam::SharedGaussian res_nm;
-  // if (valid_cov)
-  // {
-  //   res_nm = GaussianNM::Covariance(cov);
-  // }
-  // else
-  // {
-  //   res_nm = prev_noise;
-  // }
+  Covariance cov{ prev_noise->covariance() };
+  // const bool verbose{ output.values.size() == 0 };
+  compute_cluster_covariance(cov, res, clustered_elements, prev_clustered, false);
+  const bool valid_cov{ cov.inverse().allFinite() };
+
+  gtsam::SharedGaussian res_nm;
+  if (valid_cov)
+  {
+    res_nm = GaussianNM::Covariance(cov);
+  }
+  else
+  {
+    res_nm = prev_noise;
+  }
 
   output.priors.push_back(prior);
   output.values.push_back(res);

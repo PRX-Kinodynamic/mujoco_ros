@@ -147,14 +147,32 @@ public:
     return x;
   }
 
-  State propagate(const State& x0, const Control& u0, const double& dt)
+  State propagate(const State& x0, const Control& u0, const double& dt,  // no-lint
+                  OptJacX Hx = nullptr, OptJacU Hu = nullptr, OptJacDT Hdt = nullptr)
   {
     using LieIntegrator = prx::fg::lie_integrator_t<State, Eigen::Vector2d>;
     const double& sth{ x0.first.s() };  // sin(theta)
     const double& thdot{ x0.second };
     const double thddot{ sth + u0 / _inertia - (_friction / _inertia) * thdot };
     const Eigen::Vector2d dot(thdot, thddot);
-    return LieIntegrator::integrate(x0, dot, dt);
+
+    // boost::optional<Eigen::MatrixXd&> x1_H_x0, x1_H_dot;  //{ Hx ? *Hx : boost: };
+
+    Eigen::Matrix<double, 2, 2> x1_H_x0{ Eigen::Matrix<double, 2, 2>::Identity() };
+    Eigen::Matrix<double, 2, 2> x1_H_dot{ Eigen::Matrix<double, 2, 2>::Identity() };
+    const State x1{ LieIntegrator::integrate(x0, dot, dt, x1_H_x0, x1_H_dot) };
+
+    if (Hx)
+    {
+      *Hx = x1_H_x0;
+    }
+    if (Hu)
+    {
+      // dthddot/du0 = 1. / inertia
+      *Hu = x1_H_dot * Eigen::Vector2d(0., 1. / _inertia);
+    }
+
+    return x1;
   }
 
   std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> configuration(const State& state)

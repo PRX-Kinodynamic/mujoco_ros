@@ -1,6 +1,7 @@
 #pragma once
 #include <visualization_msgs/MarkerArray.h>
 #include <ml4kp_bridge/defs.h>
+#include <utils/std_utils.hpp>
 
 namespace interface
 {
@@ -53,19 +54,33 @@ struct gaussian_params_t
   }
 
   template <int CovarianceDim>
-  void cov_to_3Dellipse(const Eigen::Matrix<double, CovarianceDim, CovarianceDim>& cov)
+  void cov_to_3Dellipse(const Eigen::Matrix<double, CovarianceDim, CovarianceDim>& cov, const bool verbose = false)
   {
     using Covariance = Eigen::Matrix<double, CovarianceDim, CovarianceDim>;
     using CovVector = Eigen::Vector<double, CovarianceDim>;
 
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
     const Eigen::Vector<double, CovarianceDim> D_marginal{ es.eigenvalues() };
-    const Covariance V_marginal{ es.eigenvectors() };
+    double sign{ 1. };
+    if (es.eigenvectors().determinant() < 0)
+    {
+      sign = -1.;
+    }
+    const Covariance V_marginal{ sign * es.eigenvectors() };
 
     Eigen::Matrix3d rot{ Eigen::Matrix3d::Identity() };
-
     // CovarianceDim could be less than 3
-    // u_mat.block<CovarianceDim, CovarianceDim>(0, 0) = V_marginal;
+    rot.block<CovarianceDim, CovarianceDim>(0, 0) = V_marginal;
+    orientation = Eigen::Quaterniond(rot);
+
+    if (verbose)
+    {
+      DEBUG_VARS(D_marginal);
+      DEBUG_VARS(V_marginal);
+      DEBUG_VARS(rot);
+      DEBUG_VARS(orientation);
+    }
+
     axis = Eigen::Vector3d::Zero();
     axis.head<CovarianceDim>() = D_marginal;
   }
