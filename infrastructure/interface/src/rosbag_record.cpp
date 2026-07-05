@@ -49,7 +49,8 @@
 #include "interface/ControlsPlot.h"
 #include "interface/ReplannerStatus.h"
 #include "interface/SensorDataStamped.h"
-#include "ml4kp_bridge/StelaTrajectory.h"
+#include <ml4kp_bridge/StelaTrajectory.h>
+#include <ml4kp_bridge/PlanStepStampedArray.h>
 #include "prx_models/MushrControl.h"
 #include "prx_models/MushrObservation.h"
 #include "prx_models/MushrPlan.h"
@@ -57,7 +58,6 @@
 #include <interface/NodeStatus.h>
 #include <interface/PlannerClock.h>
 #include <interface/StelaStatus.h>
-
 #include <prx_models/Tree.h>
 
 struct ros_qs_types_t
@@ -69,6 +69,7 @@ struct ros_qs_types_t
   interface::rosbag_queue_t<std_msgs::Float64> float64_queue;
   interface::rosbag_queue_t<std_msgs::Bool> bool_queue;
   interface::rosbag_queue_t<std_msgs::Empty> empty_queue;
+  interface::rosbag_queue_t<std_msgs::Duration> duration_queue;
 
   interface::rosbag_queue_t<geometry_msgs::TwistStamped> twist_stamped_queue;
   interface::rosbag_queue_t<geometry_msgs::Pose2D> pose2d_queue;
@@ -85,6 +86,7 @@ struct ros_qs_types_t
   interface::rosbag_queue_t<ml4kp_bridge::SpacePoint> spoint_queue;
   interface::rosbag_queue_t<ml4kp_bridge::SpacePointStamped> spoint_st_queue;
   interface::rosbag_queue_t<ml4kp_bridge::StelaTrajectory> stela_traj_queue;
+  interface::rosbag_queue_t<ml4kp_bridge::PlanStepStampedArray> plan_step_stamped_array_queue;
 
   interface::rosbag_queue_t<prx_models::Tree> prx_tree_queue;
   interface::rosbag_queue_t<prx_models::MushrPlan> prx_mushr_plan_queue;
@@ -114,6 +116,7 @@ struct ros_qs_types_t
     , int32_queue("std_msgs::int32")
     , string_queue("std_msgs::string")
     , empty_queue("std_msgs::Empty")
+    , duration_queue("std_msgs::Duration")
     // GEOMETRY MSGS
     , pose2d_queue("geometry_msgs::Pose2D")
     , pose_stamped_queue("geometry_msgs::PoseStamped")
@@ -130,6 +133,7 @@ struct ros_qs_types_t
     , spoint_queue("ml4kp_bridge::SpacePoint")
     , spoint_st_queue("ml4kp_bridge::SpacePointStamped")
     , stela_traj_queue("ml4kp_bridge::StelaTrajectory")
+    , plan_step_stamped_array_queue("ml4kp_bridge::PlanStepStampedArray")
     // PRX MODELS
     , prx_mushr_obs_queue("prx_models::MushrObservation")
     , prx_mushr_plan_queue("prx_models::MushrPlan")
@@ -155,11 +159,13 @@ struct ros_qs_types_t
   auto all_qs()
   {
     return std::forward_as_tuple(float64_queue, string_queue, int32_queue, bool_queue, empty_queue,  // std_msgs
+                                 duration_queue,                                                     // std_msgs
                                  ackermann_drive_stamped_queue,                                      // ackermann
                                  image_queue, imu_queue, cam_info_queue,                             // Sensor::msgs
                                  twist_stamped_queue, pose2d_queue, pose_stamped_queue,              // geometry_msgs
                                  plan_queue, plan_st_queue, traj_queue, traj_st_queue,               // ml4kp
                                  spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
+                                 plan_step_stamped_array_queue,                                      // ml4kp
                                  prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         // prx_models 1
                                  prx_mushr_obs_queue, planner_stats_queue,                           // prx_models 2
                                  tf_queue,                                                           // TF
