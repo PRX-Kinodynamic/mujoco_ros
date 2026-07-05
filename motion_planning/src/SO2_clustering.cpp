@@ -47,53 +47,19 @@ using Control = double;
 
 static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
 static constexpr Eigen::Index DimU{ gtsam::traits<Control>::dimension };
+static constexpr Eigen::Index DimZ{ DimX + DimU };
 
 using Element = gtsam::ProductLieGroupV43<State, Control>;
 using Data = std::tuple<State, Control, State>;
 
 // using Element = gtsam::Pose2;
 // using Data = std::pair<double, Element>;
+using Zmatrix = Eigen::Matrix<double, DimX, DimZ>;
 using Covariance = Eigen::Matrix<double, DimX + DimU, DimX + DimU>;
 using IsotropicNM = gtsam::noiseModel::Isotropic;
 using DiagonalNM = gtsam::noiseModel::Diagonal;
 using Line = std::vector<std::string>;
 using prx::utilities::convert_to;
-
-//  (1x1)   = (1x3)*(3x1) + (0x0)*(0x0)
-// Duration = A*x + B*u
-// using Xdot = Eigen::Vector<double, 3>;
-// using Amat = Eigen::Matrix<double, 2, 3>;
-// using Ele = Eigen::Matrix<double, 3, 1>;
-// using Durations = Eigen::Vector<double, 1>;
-// using Bmat = Eigen::Matrix<double, 3, 2>;
-
-template <typename DX, typename DXU, int DimX = gtsam::traits<DX>::dimension, int DimXU = gtsam::traits<DXU>::dimension>
-Eigen::Matrix<double, DimX, DimXU> compute_linear_system(const std::vector<DXU> all_zts,
-                                                         const std::vector<DX> all_xdots)
-{
-  // static constexpr Eigen::Index DimX{ gtsam::traits<DX>::dimension };
-  // static constexpr Eigen::Index DimU{};
-
-  Eigen::Matrix<double, Eigen::Dynamic, DimXU> theta(all_zts.size(), DimXU);  // (Nx5)
-  Eigen::MatrixXd xs1(all_xdots.size(), DimX);                                // (Nx3)
-
-  for (int i = 0; i < all_zts.size(); ++i)
-  {
-    theta.row(i) = all_zts[i];
-    // theta.row(i).tail(DimU) = Eigen::Vector<double, DimU>(all_zts[i].second);
-    xs1.row(i) = all_xdots[i];
-  }
-
-  //                                                   (5xN)              (Nx5)
-  const Eigen::Matrix<double, DimXU, DimXU> th2_inv{ (theta.transpose() * theta).inverse() };
-  //                                                        (5x5)        (5xN)             (Nx3)
-  const Eigen::Matrix<double, DimXU, DimX> theta_estimate{ th2_inv * theta.transpose() * xs1 };
-
-  // DEBUG_VARS(theta_estimate.transpose())
-  const Eigen::Matrix<double, DimX, DimXU> A{ theta_estimate.transpose() };
-  // const Eigen::Matrix<double, 3, 2> B{ theta_estimate.transpose().block<3, 2>(0, 3) };
-  return A;
-}
 
 int main(int argc, char** argv)
 {
@@ -128,21 +94,26 @@ int main(int argc, char** argv)
       "/clustering/x1/lmm/euclidean/markers", 1, true) };
 
   std::string data_file, output_dir;
+  int batch_size, test_size;
 
   PARAM_SETUP(nh, data_file)
   PARAM_SETUP(nh, output_dir)
+  PARAM_SETUP_WITH_DEFAULT(nh, batch_size, 1e3);
+  PARAM_SETUP_WITH_DEFAULT(nh, test_size, batch_size * 0.1);
 
+  DEBUG_VARS(batch_size, test_size)
   prx::utilities::csv_reader_t reader(data_file);
-
-  motion_planning::nonlinear_cluster_values_t<Element, Data> input, output;
 
   Line line;
   // Data data;
   // Element element;
   Eigen::VectorXd sigmas(3);
+  // sigmas << 0.1, 0.1, 0.1;
   sigmas << 1, 1, 0.1;
-  // sigmas << 1, 1, 1;
   auto nm = DiagonalNM::Sigmas(sigmas);
+
+  std::vector<Data> input_data, test_set;
+  // std::vector<Element> input_elements;
 
   // Files with lines: dt X0 X1 U0
   while (reader.next_valid_line(line))
@@ -158,19 +129,129 @@ int main(int argc, char** argv)
     const State x0{ State(theta0, thdot0) };
     const State x1{ State(theta1, thdot1) };
 
-    const Element element(x0, u0);
+    // const Element element(x0, u0);
     const Data data{ std::make_tuple(x0, u0, x1) };
 
-    input.push_back(element, data, nm);
+    // input.push_back(element, data, nm);
+    input_data.emplace_back(x0, u0, x1);
+    // input_elements.emplace_back(x0, u0);
   }
-  DEBUG_VARS(input.data.size());
+  std::shuffle(input_data.begin(), input_data.end(), prx::global_generator);
+  for (int i = 0; i < test_size; ++i)
+  {
+    test_set.push_back(input_data.back());
+    input_data.pop_back();
+  }
 
-  int max_steps{ -1 };
-  cluster_multiple_iterations(output, input, max_steps);
+  motion_planning::nonlinear_cluster_values_t<Element, Data> input, output;
+  using Cluster = motion_planning::cluster_t<Element, Data>;
+  using Covariance = Eigen::Matrix3d;
+  std::map<std::size_t, std::tuple<Cluster, Covariance, Zmatrix>> cluster_map;
 
-  DEBUG_VARS(max_steps, output.values.size());
-  DEBUG_VARS(output.total_clustered.size(), output.data.size());
-  DEBUG_VARS(output.factor_graphs.size(), output.keys.size());
+  bool converged{ false };
+  std::size_t iter{ 0 };
+  std::size_t max_iterations{ 10 };
+  std::size_t prev_output{ 0 };
+  while (not converged and iter < max_iterations)
+  {
+    iter++;
+    output.clear();
+    if (input_data.size() > 0)
+    {
+      iter--;
+      const std::size_t tot_elements_to_cluster{ std::min(static_cast<std::size_t>(batch_size), input_data.size()) };
+      // for (int i = initial_size; i < tot_elements_to_cluster; ++i)
+      while (input.clusters.size() < tot_elements_to_cluster)
+      {
+        const Data& data{ input_data.back() };
+        auto& [x0, u0, x1] = data;
+        const Element element(x0, u0);
+
+        // const Element& element{ input_elements.back() };
+
+        input_data.pop_back();
+        // input_elements.pop_back();
+
+        input.push_back(element, data, nm);
+      }
+    }
+    std::shuffle(input.clusters.begin(), input.clusters.end(), prx::global_generator);
+
+    int max_steps{ -1 };
+    cluster_multiple_iterations(output, input, max_steps);
+
+    converged = prev_output == output.clusters.size();
+    prev_output = output.clusters.size();
+    DEBUG_VARS(max_steps, converged, input.clusters.size(), output.clusters.size());
+
+    input.clear();
+
+    using LGM = prx_models::linear_gaussian_model_t<State, Control>;
+    // Eigen::Matrix<double, DimX, DimX + DimU> A{ LGM::LSE_AB(all_zts, all_xdots) };
+    for (int i = 0; i < output.clusters.size(); ++i)
+    {
+      const motion_planning::cluster_t<Element, Data> cluster{ output.clusters[i] };
+      const std::size_t total_clustered{ cluster.total_clustered };
+      if (cluster.locked)
+      {
+        input.clusters.emplace_back(cluster);
+        continue;
+      }
+      if (total_clustered < 2 * (DimX + DimU))
+      {
+        const std::string rejected_key{ gtsam::DefaultKeyFormatter(cluster.key) };
+        DEBUG_VARS(i, rejected_key, total_clustered)
+        continue;
+      }
+
+      const Element& element{ cluster.element };
+      const std::vector<Element>& clustered_elements{ cluster.clustered_elements };
+      const Eigen::Matrix3d cov{ motion_planning::compute_cluster_covariance(element, clustered_elements) };
+
+      const Eigen::Matrix<double, DimX, DimZ> Zmat{ LGM::LSE_AB(cluster.data) };
+      LGM lgm(Zmat, cov, element);
+      const auto [ebA, ebB] = lgm.compute_error_bounds(0.05, 20, 0.001);
+
+      double mean_error{ 0 };
+      for (auto [x0, u0, x1] : cluster.data)
+      {
+        const State x1p{ lgm.evaluate(x0, u0) };
+        const Eigen::Vector<double, DimX> v_err{ prx::TangentBetween(x1, x1p) };
+        mean_error += v_err.norm();
+      }
+      mean_error = mean_error / total_clustered;
+      if (mean_error > std::max(ebA, ebB))
+      {
+        const std::size_t& rejected{ cluster.idx };
+        DEBUG_VARS(rejected, mean_error, ebA, ebB);
+
+        for (auto [x0, u0, x1] : cluster.data)
+        {
+          const Element ei(x0, u0);
+          input.push_back(ei, { x0, u0, x1 }, nm);
+        }
+      }
+      else
+      {
+        // lmm.emplace(A, cov, element, i);
+        const std::size_t& accepted{ cluster.idx };
+        DEBUG_VARS(accepted, mean_error, ebA, ebB);
+        input.clusters.emplace_back(cluster);
+        input.clusters.back().locked = true;
+        cluster_map.emplace(cluster.idx, std::make_tuple(input.clusters.back(), cov, Zmat));
+      }
+    }
+
+    // converged = true;
+  }
+
+  DEBUG_VARS(cluster_map.size());
+
+  // int max_steps{ -1 };
+  // cluster_multiple_iterations(output, input, max_steps);
+
+  // DEBUG_VARS(output.total_clustered.size(), output.data.size());
+  // DEBUG_VARS(output.factor_graphs.size(), output.keys.size());
 
   // int kidx{ 0 };
   // for (auto& fg : output.factor_graphs)
@@ -201,27 +282,26 @@ int main(int argc, char** argv)
   int element_to_debug{ 0 };
 
   int rejected{ 0 };
-  for (int i = 0; i < output.factor_graphs.size(); ++i)
+  // for (int i = 0; i < output.clusters.size(); ++i)
+  for (auto& [key, cluster_covariance_Zmat] : cluster_map)
   {
-    // DEBUG_VARS(i)
-    if (output.total_clustered[i] < 10)
-    {
-      const std::size_t total_clustered{ output.total_clustered[i] };
-      const std::string rejected_key{ gtsam::DefaultKeyFormatter(output.keys[i]) };
-      DEBUG_VARS(i, rejected_key, total_clustered)
-      continue;
-    }
+    const Cluster cluster{ std::get<Cluster>(cluster_covariance_Zmat) };
+    const Covariance cov{ std::get<Covariance>(cluster_covariance_Zmat) };
+    const Zmatrix Zmat{ std::get<Zmatrix>(cluster_covariance_Zmat) };
 
-    const Element& element{ output.values[i] };
-    const std::vector<Element>& clustered_elements{ output.clustered_elements[i] };
-    // auto prior_model = output.priors[i];
-    // prior_model->print();
+    const std::size_t i{ cluster.idx };
+    const std::size_t total_clustered{ cluster.total_clustered };
+    // if (total_clustered < 2 * DimZ)
+    // {
+    //   const std::string rejected_key{ gtsam::DefaultKeyFormatter(cluster.key) };
+    //   DEBUG_VARS(i, rejected_key, total_clustered)
+    //   continue;
+    // }
 
-    // const Eigen::Matrix<double, 3, 3> R{
-    //   dynamic_cast<gtsam::noiseModel::Gaussian*>(output.noise_models[i].get())->R()
-    // };
-    // const Eigen::Matrix<double, 3, 3> cov{ (R.transpose() * R).inverse() };
-    const Eigen::Matrix3d cov{ motion_planning::compute_cluster_covariance(element, clustered_elements) };
+    const Element& element{ cluster.element };
+    const std::vector<Element>& clustered_elements{ cluster.clustered_elements };
+
+    // const Eigen::Matrix3d cov{ motion_planning::compute_cluster_covariance(element, clustered_elements) };
 
     if (i == element_to_debug)
     {
@@ -283,11 +363,11 @@ int main(int argc, char** argv)
     marker_x1_euclidean_pts.pose.position.y = 0.0;
     marker_x1_euclidean_pts.pose.position.z = 0.0;
 
-    std::vector<Eigen::Vector2d> all_xdots;
-    std::vector<Eigen::Vector3d> all_zts;
+    // std::vector<Eigen::Vector2d> all_xdots;
+    // std::vector<Eigen::Vector3d> all_zts;
 
     // const State& xmean{ element.first };
-    for (auto [x0, u0, x1] : output.data[i])
+    for (auto [x0, u0, x1] : cluster.data)
     {
       const double th0{ x0.first.theta() };
       const double thdot0{ x0.second };
@@ -296,9 +376,9 @@ int main(int argc, char** argv)
       const double thdot1{ x1.second };
 
       // const Eigen::Vector3d tg0{ prx::TangentBetween(element, Element(x0, u0)) };
-      const Element z0{ Element(x0, u0) };
-      const Eigen::Vector3d tg0{ gtsam::traits<Element>::Logmap(z0) };
-      const Eigen::Vector2d tg1{ gtsam::traits<State>::Logmap(x1) };
+      // const Element z0{ Element(x0, u0) };
+      // const Eigen::Vector3d tg0{ gtsam::traits<Element>::Logmap(z0) };
+      // const Eigen::Vector2d tg1{ gtsam::traits<State>::Logmap(x1) };
 
       marker_pts.points.emplace_back();
       marker_euclidean_pts.points.emplace_back();
@@ -316,50 +396,63 @@ int main(int argc, char** argv)
       marker_x1_euclidean_pts.points.back().y = thdot1;
       marker_x1_euclidean_pts.points.back().z = 0.0;
 
-      all_zts.push_back(tg0);
-      all_xdots.push_back(tg1);
+      // all_zts.push_back(tg0);
+      // all_xdots.push_back(tg1);
 
-      if (i == element_to_debug)
-      {
-        LOG_VARS(tg0, tg1);
-      }
+      // if (i == element_to_debug)
+      // {
+      //   LOG_VARS(tg0, tg1);
+      // }
     }
 
-    Eigen::Matrix<double, DimX, DimX + DimU> A{ compute_linear_system(all_zts, all_xdots) };
+    // using LGM = prx_models::linear_gaussian_model_t<State, Control>;
+    // Eigen::Matrix<double, DimX, DimX + DimU> A{ LGM::LSE_AB(all_zts, all_xdots) };
+    // const Eigen::Matrix<double, DimX, DimZ> A{ LGM::LSE_AB(cluster.data) };
 
-    prx_models::linear_gaussian_model_t<State, Control> lgm(A, cov, element);
-    lmm.emplace(A, cov, element, i);
+    // LGM lgm(A, cov, element);
 
-    lgm.compute_error_bounds(0.05, 20, 0.001);
+    // lgm.verbose(i == element_to_debug);
+    // const auto [ebA, ebB] = lgm.compute_error_bounds(0.05, 20, 0.001);
 
-    if (i == element_to_debug)
-    {
-      LOG_VARS(A);
-    }
-    double mean_error{ 0 };
-    // for (auto& [x0, u] : all_zts)
-    for (auto [x0, u0, x1] : output.data[i])
-    {
-      const State x1p{ lgm.evaluate(x0, u0) };
+    // if (i == element_to_debug)
+    // {
+    //   LOG_VARS(A);
+    // }
+    // double mean_error{ 0 };
+    // // for (auto& [x0, u] : all_zts)
+    // for (auto [x0, u0, x1] : cluster.data)
+    // {
+    //   const State x1p{ lgm.evaluate(x0, u0) };
 
-      marker_x1_predict_euclidean_pts.points.emplace_back();
-      marker_x1_predict_euclidean_pts.points.back().x = x1p.first.theta();
-      marker_x1_predict_euclidean_pts.points.back().y = x1p.second;
-      marker_x1_predict_euclidean_pts.points.back().z = 0.0;
-      if (i == element_to_debug)
-      {
-        LOG_VARS(x1, x1p);
-      }
-      const Eigen::Vector<double, DimX> v_err{ prx::TangentBetween(x1, x1p) };
-      mean_error += v_err.norm();
-    }
-    double total_clustered = output.data[i].size();
-    mean_error = mean_error / total_clustered;
+    //   marker_x1_predict_euclidean_pts.points.emplace_back();
+    //   marker_x1_predict_euclidean_pts.points.back().x = x1p.first.theta();
+    //   marker_x1_predict_euclidean_pts.points.back().y = x1p.second;
+    //   marker_x1_predict_euclidean_pts.points.back().z = 0.0;
+    //   if (i == element_to_debug)
+    //   {
+    //     LOG_VARS(x1, x1p);
+    //   }
+    //   const Eigen::Vector<double, DimX> v_err{ prx::TangentBetween(x1, x1p) };
+    //   mean_error += v_err.norm();
+    // }
+    // double total_clustered = cluster.data.size();
+    // mean_error = mean_error / total_clustered;
+    // if (mean_error > std::max(ebA, ebB))
+    // {
+    //   const std::size_t& i_rejected{ i };
+    //   DEBUG_VARS(i_rejected, mean_error, ebA, ebB);
+    // }
+    // else
+    // {
+    lmm.emplace(Zmat, cov, element, i);
+    //   const std::size_t& i_accepted{ i };
+    //   DEBUG_VARS(i_accepted, mean_error, ebA, ebB);
+    // }
 
-    gtsam::Values values;
-    values.insert(output.keys[i], output.values[i]);
-    const double fg_error{ output.factor_graphs[i].error(values) };
-    DEBUG_VARS(i, element, total_clustered, fg_error, mean_error)
+    // gtsam::Values values;
+    // values.insert(cluster.key, cluster.element);
+    // const double fg_error{ cluster.factor_graph.error(values) };
+    // DEBUG_VARS(i, element, total_clustered, fg_error, mean_error)
 
     const visualization_msgs::Marker euclidean_ellipse{ interface::gaussian_to_ellipse_marker(gauss_euclidean_params) };
     const visualization_msgs::Marker lie_ellipse{ interface::gaussian_to_ellipse_marker(gauss_lie_params) };
@@ -383,40 +476,52 @@ int main(int argc, char** argv)
 
   ros::spinOnce();
 
-  for (int i = 0; i < output.factor_graphs.size(); ++i)
+  double total_mean_error{ 0. };
+  double total_test{ 0. };
+
+  // for (int i = 0; i < output.clusters.size(); ++i)
+  // for (auto& [key, cluster_covariance] : cluster_map)
+  visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.3, { 0.95, 0.2, 0.2, 0.8 }) };
+  marker.id = 0;
+  marker.type = visualization_msgs::Marker::POINTS;
+  marker.action = visualization_msgs::Marker::ADD;
+  // marker.ns = "cluster_" + convert_to<std::string>(cluster.idx);
+  marker.ns = "llm";
+  marker.header.frame_id = "world";
+  for (auto& [x0, u0, x1] : test_set)
   {
-    visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.3, { 0.95, 0.2, 0.2, 0.8 }) };
+    // const Cluster cluster{ std::get<Cluster>(cluster_covariance) };
 
-    marker.id = i;
-    marker.type = visualization_msgs::Marker::POINTS;
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.ns = "cluster_" + convert_to<std::string>(i);
-    marker.header.frame_id = "world";
+    // lmm.verbose(i == element_to_debug);
 
-    lmm.verbose(i == element_to_debug);
+    // if (cluster.idx == element_to_debug)
+    // {
+    //   const Element z_mean{ cluster.element };
+    //   LOG_VARS(z_mean);
+    // }
 
-    if (i == element_to_debug)
-    {
-      const Element z_mean{ output.values[i] };
-      LOG_VARS(z_mean);
-    }
+    // for (auto [x0, u0, x1] : cluster.data)
+    // {
+    const State x1p{ lmm.predict(x0, u0) };
+    marker.points.emplace_back();
+    marker.points.back().x = x1p.first.theta();
+    marker.points.back().y = x1p.second;
+    marker.points.back().z = 0.0;
 
-    for (auto [x0, u0, x1] : output.data[i])
-    {
-      const State x1p{ lmm.predict(x0, u0) };
-      marker.points.emplace_back();
-      marker.points.back().x = x1p.first.theta();
-      marker.points.back().y = x1p.second;
-      marker.points.back().z = 0.0;
-
-      if (i == element_to_debug)
-      {
-        LOG_VARS(x1, x1p);
-      }
-    }
+    // if (i == element_to_debug)
+    // {
+    //   LOG_VARS(x1, x1p);
+    // }
+    const Eigen::Vector<double, DimX> v_err{ prx::TangentBetween(x1, x1p) };
+    total_mean_error += v_err.norm();
+    total_test++;
+    // }
 
     x1_lmm_euclidean_marker_array.markers.push_back(marker);
   }
+  total_mean_error = total_mean_error / total_test;
+  DEBUG_VARS(total_mean_error)
+
   markers_x1_lmm_euclidean_publisher.publish(x1_lmm_euclidean_marker_array);
 
   ros::spin();

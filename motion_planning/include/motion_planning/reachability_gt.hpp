@@ -21,7 +21,7 @@
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 #include <prx/simulation/collision_checking/pqp_collision_checker.hpp>
 #include <utils/rosparams_utils.hpp>
-#include "prx/external/thread_pool/BS_thread_pool.hpp"
+// #include "prx/external/thread_pool/BS_thread_pool.hpp"
 
 #include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
 #include <prx/utilities/data_structures/implicit_grid.hpp>
@@ -30,15 +30,38 @@ namespace motion_planning
 {
 
 template <typename State>
-struct gt_cell_t
+class gt_cell_t : public std::enable_shared_from_this<gt_cell_t<State>>
 {
-  gt_cell_t() : safe(false), total_states(0)
+  using Cell = gt_cell_t<State>;
+  struct Private
   {
-    step_idx.fill(false);
+    explicit Private() = default;
+  };
+
+  inline static std::size_t idx = 0;
+
+public:
+  gt_cell_t(const Private) : safe(false), total_states(0), step_idx(200, false)
+  {
+    // DEBUG_PRINT
+    // step_idx.fill(false);
+    // DEBUG_VARS(idx)
+    idx++;
+  }
+
+  static std::shared_ptr<Cell> create()
+  {
+    // PRINT_MSG("Create")
+    const Private p{};
+    std::shared_ptr<Cell> ptr;
+    ptr.reset(new Cell(p));
+    return ptr;
+    // return std::make_shared<Cell>(p);
   }
 
   bool safe;
-  std::array<bool, 200> step_idx;
+  // std::array<bool, 200> step_idx;
+  std::vector<bool> step_idx;
   std::size_t total_states;
   State state;
 };
@@ -50,13 +73,17 @@ public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
   using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
   using State = typename DynamicalSystem::State;
+  using StateDot = typename DynamicalSystem::StateDot;
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;
 
   using FwdProp = prx::forward_propagation_t<DynamicalSystem, Trajectory, Controller>;
 
+  static constexpr int DimX{ prx::dynamical_system_traits<DynamicalSystem>::StateDimension };
+
   using StateSampler = prx::lie_group_gaussian_noise_t<State>;
-  using Covariance = typename StateSampler::Covariance;
+  using StateDotSampler = prx::multivariate_gaussian_t<DimX>;
+  using Covariance = typename StateDotSampler::Covariance;
 
   using CollisionQuery = prx::collision_checking::pqp::query_t;
 
@@ -64,7 +91,8 @@ public:
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
   using Tangent = typename ImplicitGrid::TangentElement;
 
-  reachability_gt_t(ros::NodeHandle nh) : _max_step_idx(0), _x0_sampler(true, 3.841), _w_sampler(true, 3.841)
+  reachability_gt_t(ros::NodeHandle nh)
+    : _max_step_idx(0), _x0_sampler(true, 3.841), _w_sampler(true, 3.841), _trajs_markers(0)
   {
     // PRX FILES
     std::string environment;
@@ -75,7 +103,7 @@ public:
 
     using prx::simulation_step;
 
-    int& total_threads{ _total_threads };
+    // int& total_threads{ _total_threads };
     bool& visualize{ _visualize };
     _short_circuit = false;
 
@@ -88,7 +116,7 @@ public:
 
     PARAM_SETUP_WITH_DEFAULT(nh, convex_hulls_step, 10);
     PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
-    PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
+    // PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
     // PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
 
@@ -98,10 +126,10 @@ public:
     GLOBAL_PARAM_BLOCKER(random_seed);
 
     prx::init_random(random_seed);
-    _pool.reset(_total_threads);
-    _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
+    // _pool.reset(_total_threads);
+    // _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
 
-    DEBUG_VARS(_pool.get_thread_count())
+    // DEBUG_VARS(_pool.get_thread_count())
 
     env_params.from_string(environment);
     // plant_params.from_string(plant_parameters);
@@ -117,6 +145,7 @@ public:
     _collision_publisher = nh.advertise<std_msgs::Bool>("/GT/collision", 1);
     _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/GT/cells", 1);
     _collision_markers_publisher = nh.advertise<visualization_msgs::Marker>("/GT/collisions/marker", 1);
+    _trajectories_publisher = nh.advertise<visualization_msgs::Marker>("/GT/trajectories/marker", 1);
 
     std::string output_directory, file_prefix;
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
@@ -125,7 +154,9 @@ public:
     // const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
     _output_file_prefix = output_directory + "/" + file_prefix + "_volumes_";
     // DEBUG_VARS(OUTPUT_FILE)
-    // _ofs.open(OUTPUT_FILE);
+    _traj_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
+    _traj_marker.type = visualization_msgs::Marker::LINE_LIST;
+    _traj_marker.action = visualization_msgs::Marker::ADD;
   }
 
   ~reachability_gt_t()
@@ -138,14 +169,22 @@ public:
     //   return;
     Trajectory traj;
     {
-      std::scoped_lock lock(_trajectories_mutex);
+      // std::scoped_lock lock(_trajectories_mutex);
       traj = _trajectories.back();
       _trajectories.pop_back();
+      if (_visualize)
+      {
+        if (_trajs_markers > 1000)
+        {
+          ml4kp_bridge::update_marker(_traj_marker, traj, 0, 1, -0.01);
+          _trajs_markers++;
+        }
+      }
     }
 
     std::shared_ptr<CollisionQuery> query;
     {
-      std::scoped_lock lock(_queries_mutex);
+      // std::scoped_lock lock(_queries_mutex);
       if (_queries.size() == 0)
       {
         query = std::make_shared<CollisionQuery>();
@@ -180,6 +219,11 @@ public:
 
       cellptr->safe = true;
       cellptr->state = center;
+      if (cellptr->step_idx.size() <= state_idx)
+      {
+        cellptr->step_idx.insert(cellptr->step_idx.end(), 200, false);
+      }
+      // DEBUG_VARS(cellptr->step_idx.size())
       cellptr->step_idx[state_idx] = true;
       cellptr->total_states++;
       _max_step_idx = std::max(_max_step_idx, state_idx);
@@ -192,53 +236,34 @@ public:
       }
     }
 
-    {
-      std::scoped_lock lock(_queries_mutex);
-      _queries.push_back(query);
-    }
+    // {
+    // std::scoped_lock lock(_queries_mutex);
+    _queries.push_back(query);
+    // }
 
     _collision_found = _collision_found or collision;
-    std::scoped_lock lock(_checked_trajectories_mutex);
+    // std::scoped_lock lock(_checked_trajectories_mutex);
     _checked_trajectories.push_back(traj);
   }
 
   CellPtr init_cell(const State& state)
   {
     // PRINT_MSG("----------")
-    CellPtr new_ptr;  //{ _grid.cell(state) };
+    // CellPtr new_ptr;  //{ _grid.cell(state) };
 
-    if (not _grid.exists(state))
+    // if (not _grid.exists(state))
+    if (_grid.cell(state) == nullptr)
     {
-      // DEBUG_VARS(new_ptr.use_count())
-      // DEBUG_VARS(_grid.size())
-      new_ptr = std::make_shared<gt_cell_t<State>>();
-      // DEBUG_VARS(new_ptr, new_ptr.use_count())
+      // CellPtr new_ptr{ std::make_shared<gt_cell_t<State>>() };
+      CellPtr new_ptr{ gt_cell_t<State>::create() };
       new_ptr->state = state;
-      // new_ptr->print();
-      // DEBUG_VARS(state, new_ptr)
-      // prx_assert(new_ptr != nullptr, "Grid ptr is null!");
-      // _grid.cell(state) = new_ptr;
-      // for (auto& cell : _grid)
-      // {
-      //   DEBUG_VARS(cell.first, cell.second->state)
-      // }
 
-      _grid.set_cell(state, new_ptr);
-      // DEBUG_VARS(new_ptr.use_count())
-      // DEBUG_VARS(new_ptr)
-      // DEBUG_VARS(new_ptr->step_idx)
-      // DEBUG_VARS(_grid.size())
-      // PRINT_MSG("Cell added")
+      _grid.cell(state) = new_ptr;
+
       // prx_assert(_grid.cell(state) != nullptr, "Grid ptr is null!");
     }
-    else
-    {
-      new_ptr = _grid.cell(state);
-    }
-    // PRINT_MSG("Cell Exists")
-    // prx_assert(new_ptr != nullptr, "Grid ptr is null!");
-    // PRINT_MSG("+++++++++++")
-    return new_ptr;
+    return _grid.cell(state);
+    // return new_ptr;
   }
 
   void propagate()
@@ -249,11 +274,11 @@ public:
     Trajectory traj;
     FwdProp::propagate(traj, x0_noise, _controller, _plant, _w_sampler);
 
-    {
-      std::scoped_lock lock(_trajectories_mutex);
-      _trajectories.push_back(traj);
-      _unchecked_trajectories++;
-    }
+    // {
+    // std::scoped_lock lock(_trajectories_mutex);
+    _trajectories.push_back(traj);
+    _unchecked_trajectories++;
+    // }
     collion_check();
     // _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
   }
@@ -263,10 +288,15 @@ public:
   {
     _colliding_states.clear();
 
+    _trajectories.clear();
+    _traj_marker.points.clear();
     // copy(_controller, plan_in);
     // copy(_state, x_hat);
     ml4kp_bridge::copy(_controller, plan_in);
     ml4kp_bridge::copy(_state, x_hat);
+
+    DEBUG_VARS(_controller.size())
+    // DEBUG_VARS(_controller[0])
 
     _x0_sampler.set(cov_x0);
     _w_sampler.set(cov_w);
@@ -284,10 +314,15 @@ public:
   {
     init_query(x_hat, plan_in, cov_x0, cov_w);
 
+    DEBUG_VARS(total_trajectories)
     ros::Time start{ ros::Time::now() };
-    for (int i = 0; i < total_trajectories; ++i)
+    for (int traj_idx = 0; traj_idx < total_trajectories; ++traj_idx)
     {
       propagate();
+      if (traj_idx % 1000 == 0)
+      {
+        DEBUG_VARS(traj_idx)
+      }
     }
     // _pool.wait();
 
@@ -355,6 +390,7 @@ public:
   {
     if (_visualize)
     {
+      _trajectories_publisher.publish(_traj_marker);
       visualization_msgs::MarkerArray cell_markers;
       visualization_msgs::Marker marker_free{ ml4kp_bridge::create_marker(0.01, { 1, 0, 1, 0 }) };
       visualization_msgs::Marker marker_coll{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
@@ -429,7 +465,7 @@ public:
       // _trajectory_markers.markers.clear();
     }
 
-    std::scoped_lock lock(_checked_trajectories_mutex);
+    // std::scoped_lock lock(_checked_trajectories_mutex);
     _checked_trajectories.clear();
   }
 
@@ -440,16 +476,17 @@ private:
   std::atomic<bool> _collision_found;
   std::atomic<int> _total_checked_trajectories;
   std::atomic<int> _unchecked_trajectories, _collisions_in_check;
-  std::mutex _trajectories_mutex, _checked_trajectories_mutex, _queries_mutex;
+  // std::mutex _trajectories_mutex, _checked_trajectories_mutex, _queries_mutex;
   std::vector<Trajectory> _trajectories;
   std::vector<Trajectory> _checked_trajectories;
 
+  visualization_msgs::Marker _traj_marker;
   visualization_msgs::MarkerArray _marker_convex_hull, _marker_pts;
 
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
-  ros::Publisher _markers_publisher, _collision_publisher, _collision_markers_publisher;
+  ros::Publisher _markers_publisher, _collision_publisher, _collision_markers_publisher, _trajectories_publisher;
   ros::Publisher _end_points_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
@@ -471,11 +508,11 @@ private:
   std::vector<std::shared_ptr<CollisionQuery>> _queries;
   std::vector<std::shared_ptr<prx::collision_checking::pqp::rigid_body_t>> _obstacles_bodies;
 
-  int _total_threads, _half_threads;
-  BS::thread_pool<BS::tp::pause | BS::tp::priority> _pool;
+  // int _total_threads, _half_threads;
+  // BS::thread_pool<BS::tp::pause | BS::tp::priority> _pool;
 
   StateSampler _x0_sampler;
-  StateSampler _w_sampler;
+  StateDotSampler _w_sampler;
 
   bool _short_circuit;
 
@@ -492,6 +529,7 @@ private:
   int _max_step_idx;
 
   int _convex_hulls_step;
+  int _trajs_markers;
 
   std::string _output_file_prefix;
 };

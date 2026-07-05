@@ -1,0 +1,73 @@
+environment:
+    name: "dubins_environment"
+    type: obstacle
+    bounds:
+      min: [ -1, -1., -0.5]
+      max: [ +1, +1.,  0.5]
+    root_configuration:
+      position: [0,0,0]
+      orientation: [0,0,0,1]
+    geometries:
+      -
+        name: obstacle_center
+        collision_geometry:
+          type: box
+          dims: [ .3, .4, 0.2]
+          material: 0x704214
+        config:
+          position: [0.2, 1.2, 0]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_left
+        collision_geometry:
+          type: box
+          dims: [ .4, .4, 0.2]
+          material: 0x704214
+        config:
+          position: [-0.85, 1.2, 0]
+          orientation: [0,0,0,1]
+      -
+        name: obstacle_right
+        collision_geometry:
+          type: box
+          dims: [ .3, .4, 0.2]
+          material: 0x704214
+        config:
+          position: [1.7, 1.2, 0]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_down
+        collision_geometry:
+          type: box
+          dims: [3., .1, .2]
+          material: 0xa09f9f
+        config:
+          position: [0.5, -1, .1]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_left
+        collision_geometry:
+          type: box
+          dims: [.1, 4, .2]
+          material: 0xa09f9f
+        config:
+          position: [-1.05, 1, .1]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_right
+        collision_geometry:
+          type: box
+          dims: [.1, 4, .2]
+          material: 0xa09f9f
+        config:
+          position: [2.05, 1, .1]
+          orientation: [0,0,0,1]
+      - 
+        name: wall_up
+        collision_geometry:
+          type: box
+          dims: [3., .1, .2]
+          material: 0xa09f9f
+        config:
+          position: [0.5, 3, .1]
+          orientation: [0,0,0,1]

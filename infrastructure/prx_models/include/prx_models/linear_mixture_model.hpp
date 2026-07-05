@@ -27,6 +27,8 @@
 #include <prx/factor_graphs/factors/quadratic_cost_factor.hpp>
 #include <prx/factor_graphs/lie_groups/lie_integrator.hpp>
 #include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
+#include "prx/utilities/math/lie_utils.hpp"
+#include <motion_planning/nonlinear_clustering.hpp>
 
 // Gtsam
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -106,9 +108,30 @@ public:
     return AB;
   }
 
-  DeltaX delta(const DeltaX& dx, const DeltaU& du,         // no-lint
-               OptionalJacobian<DimX, DimX> Hx = nullptr,  // no-lint
-               OptionalJacobian<DimX, DimU> Hu = nullptr) const
+  // template <typename Data>
+  static Eigen::Matrix<double, DimX, DimZ> LSE_AB(const std::vector<std::tuple<State, Control, State>>& data)
+  {
+    using LGM = prx_models::linear_gaussian_model_t<State, Control>;
+    std::vector<DeltaZ> all_zts;
+    std::vector<DeltaX> all_x1s;
+
+    // const State& xmean{ element.first };
+    for (auto [x0, u0, x1] : data)
+    {
+      const Z z0{ Z(x0, u0) };
+      const DeltaZ tg0{ gtsam::traits<Z>::Logmap(z0) };
+      const DeltaX tg1{ gtsam::traits<State>::Logmap(x1) };
+
+      all_zts.push_back(tg0);
+      all_x1s.push_back(tg1);
+    }
+
+    return LGM::LSE_AB(all_zts, all_x1s);
+  }
+
+  DeltaX predict(const DeltaX& dx, const DeltaU& du,         // no-lint
+                 OptionalJacobian<DimX, DimX> Hx = nullptr,  // no-lint
+                 OptionalJacobian<DimX, DimU> Hu = nullptr) const
   {
     if (Hx)
     {
@@ -123,10 +146,11 @@ public:
 
   DeltaX delta(const Z& z, OptionalJacobian<DimX, DimZ> Hz = nullptr) const
   {
+    // const DeltaZ tg{ prx::TangentBetween(_mean, z) };
     const DeltaZ tg{ gtsam::traits<Z>::Logmap(z) };
     const DeltaX& dx{ tg.template head<DimX>() };
     const DeltaU& du{ tg.template tail<DimU>() };
-    return delta(dx, du);
+    return predict(dx, du);
   }
 
   DeltaX delta(const State& x, const Control& u,  // no-lint
@@ -150,14 +174,16 @@ public:
     Jacobian<DimX, DimX> xexp_H_dx;
     Jacobian<DimX, DimZ> dx_H_z;
 
+    const DeltaX dz{ gtsam::traits<State>::Logmap(_mean.first) };
     const DeltaX dx{ delta(z, Hz ? &dx_H_z : nullptr) };
-    const State& xexp{ gtsam::traits<State>::Expmap(dx, Hz ? &xexp_H_dx : nullptr) };
+    const State xexp{ gtsam::traits<State>::Expmap(dx, Hz ? &xexp_H_dx : nullptr) };
 
     if (Hz)
     {
       *Hz = xexp_H_dx * dx_H_z;
     }
     return xexp;
+    // return x1;
   }
 
   State evaluate(const State& x, const Control& u,           // no-lint
@@ -225,8 +251,13 @@ public:
     return _id;
   }
 
+  void verbose(const bool verbose_)
+  {
+    _verbose = verbose_;
+  }
+
   // Algorithm 2 of [1]
-  void compute_error_bounds(const double confidence_delta, const int M, const double sigma_w)
+  std::pair<double, double> compute_error_bounds(const double confidence_delta, const int M, const double sigma_w)
   {
     using NormalW = prx::multivariate_gaussian_t<DimX>;
     // static Eigen::Matrix<double, DimX, DimZ> LSE_AB(const std::vector<DeltaZ> all_zts,
@@ -254,7 +285,7 @@ public:
         const DeltaU du{ dz.template tail<DimU>() };
         const DeltaX w{ w_sampler() };
 
-        const DeltaX dx1{ delta(dx, du) + w };  // dx1 = A * dx + B * du + w
+        const DeltaX dx1{ predict(dx, du) + w };  // dx1 = A * dx + B * du + w
         all_zts.push_back(dz);
         all_x1s.push_back(dx1);
       }
@@ -271,15 +302,17 @@ public:
     std::sort(error_bound_A.begin(), error_bound_A.end());
     std::sort(error_bound_B.begin(), error_bound_B.end());
 
-    const double delta_percent{ M * confidence_delta };
-    const std::size_t total_worst{ std::max(std::size_t(1), static_cast<std::size_t>(delta_percent)) };
+    // const double delta_percent{ M * confidence_delta };
+    // const std::size_t total_worst{ std::max(std::size_t(1), static_cast<std::size_t>(delta_percent)) };
 
-    error_bound_A.erase(error_bound_A.begin(), error_bound_A.end() - total_worst);
-    error_bound_B.erase(error_bound_B.begin(), error_bound_B.end() - total_worst);
-    DEBUG_VARS(error_bound_A, error_bound_B)
+    // error_bound_A.erase(error_bound_A.begin(), error_bound_A.end() - total_worst);
+    // error_bound_B.erase(error_bound_B.begin(), error_bound_B.end() - total_worst);
+    // DEBUG_VARS(error_bound_A, error_bound_B)
+    return { error_bound_A.back(), error_bound_B.back() };
   }
 
 private:
+  bool _verbose;
   const std::size_t _id;
   const double _cte_pdf;
   const Amatrix _A;
@@ -414,6 +447,10 @@ public:
       }
     }
     typename LinearGaussianModel::DeltaX w_delta{ LinearGaussianModel::DeltaX::Zero() };
+    if (deltas.size() == 0)
+    {
+      prx_warn("No cluster found")
+    }
     for (auto& [di, pr_i] : deltas)
     {
       const double p_normed{ pr_i / sum_probs };
@@ -425,6 +462,54 @@ public:
     if (_verbose)
       LOG_VARS(w_delta, xbar)
     return xbar;
+  }
+
+  std::pair<bool, State> predict_safe(const State x0, const Control u) const
+  {
+    using DeltaX = typename LinearGaussianModel::DeltaX;
+    using DeltaXProb = std::pair<DeltaX, double>;
+    double sum_probs{ 0. };
+    std::vector<DeltaXProb> deltas;
+    if (_verbose)
+      LOG_VARS(x0, u)
+    for (auto&& mi : _models)
+    {
+      const double pr_i{ mi.pdf(x0, u) };
+      if (pr_i > _tolerance)
+      {
+        const DeltaX dx{ mi.delta(x0, u) };
+        deltas.push_back({ dx, pr_i });
+        sum_probs += pr_i;
+        if (_verbose)
+        {
+          const std::size_t idx{ mi.id() };
+          LOG_VARS(idx, pr_i, dx)
+        }
+      }
+      else
+      {
+        const std::size_t rejected_idx{ mi.id() };
+        if (_verbose)
+          LOG_VARS(rejected_idx, pr_i)
+      }
+    }
+    if (deltas.size() == 0)
+    {
+      return { false, State() };
+    }
+
+    typename LinearGaussianModel::DeltaX w_delta{ LinearGaussianModel::DeltaX::Zero() };
+    for (auto& [di, pr_i] : deltas)
+    {
+      const double p_normed{ pr_i / sum_probs };
+      w_delta += p_normed * di;
+      if (_verbose)
+        LOG_VARS(pr_i, p_normed, di, w_delta)
+    }
+    const State xbar{ gtsam::traits<State>::Expmap(w_delta) };
+    if (_verbose)
+      LOG_VARS(w_delta, xbar)
+    return { true, xbar };
   }
 
 private:

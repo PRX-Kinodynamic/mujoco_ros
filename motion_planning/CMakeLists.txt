@@ -51,6 +51,7 @@ endif()
 
 MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
 MESSAGE(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}.")
+
 if (CMAKE_BUILD_TYPE MATCHES Release)
   # -03 <- Turn on all optims
   # -march=native <- Turn on eigen vectorization optimizations
@@ -66,6 +67,9 @@ elseif(CMAKE_BUILD_TYPE MATCHES DEBUG)
   # list(APPEND BUILD_FLAGS "-fsanitize=address")
   add_definitions(-DDEBUG_BUILD)
 endif()
+list(APPEND BUILD_FLAGS "-fsanitize=address")
+list(APPEND BUILD_FLAGS "-fexperimental-relative-c++-abi-vtables")
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

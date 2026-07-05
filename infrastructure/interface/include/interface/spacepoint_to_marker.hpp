@@ -75,7 +75,8 @@ protected:
   void sensor_callback(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
   {
     const double theta{ msg->space_point.point[2] };
-    const Eigen::Quaterniond quat{ Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ()) };
+    // const Eigen::Quaterniond quat{ Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ()) };
+    const Eigen::Quaterniond quat{ prx::axis_to_rotation_matrix({ theta }, 'Z') };
 
     // Conversion for Mushr, need to add specializations for other systems
     _sensor_marker.pose.position.x = msg->space_point.point[0];

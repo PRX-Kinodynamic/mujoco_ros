@@ -48,6 +48,8 @@ struct dynamical_system_traits<SO2_system_t>
   using Control = double;
   using Parameters = Eigen::Vector<double, ParametersDimension>;
   using Observation = State;
+
+  using StateDot = Eigen::Vector<double, StateDimension>;
 };
 
 class SO2_system_t : public prx::dynamical_system_t<SO2_system_t>
@@ -73,7 +75,13 @@ public:
   using ObservationSpacePtr = std::shared_ptr<ObservationSpace>;
 
   SO2_system_t(prx::param_loader params)
-    : Base(params), _friction(0.1), _length(0.5), _mass(0.15), _inertia(_mass * _length * _length)
+    : Base(params)
+    , _gravity(9.8)
+    , _friction(0.1)
+    , _length(0.5)
+    , _mass(0.15)
+    , _inertia(_mass * _length * _length)
+    , _u_max(0.6371781908344007)
   {
     DEBUG_VARS(_friction, _length, _mass, _inertia);
   }
@@ -147,32 +155,72 @@ public:
     return x;
   }
 
+  StateDot ode(const State& x0, const Control& u0, OptJacX Hx = nullptr, OptJacU Hu = nullptr)
+  {
+    const Control u_eff{ std::min(std::max(-_u_max, u0), _u_max) };
+    const double& sth{ x0.first.s() };  // sin(theta)
+    const double& thdot{ x0.second };
+    const double thddot{ _gravity / _length * sth + u_eff / _inertia - (_friction / _inertia) * thdot };
+    const StateDot dot(thdot, thddot);
+
+    return dot;
+  }
+
+  State integrate(const State& x0, const StateDot& xd0, const double& dt, OptJacX Hx = nullptr, OptJacX Hxd = nullptr,
+                  OptJacDT Hdt = nullptr)
+  {
+    using LieIntegrator = prx::fg::lie_integrator_t<State, Eigen::Vector2d>;
+    const State x1{ LieIntegrator::integrate(x0, xd0, dt, Hx, Hxd, Hdt) };
+    return x1;
+  }
+
   State propagate(const State& x0, const Control& u0, const double& dt,  // no-lint
                   OptJacX Hx = nullptr, OptJacU Hu = nullptr, OptJacDT Hdt = nullptr)
   {
-    using LieIntegrator = prx::fg::lie_integrator_t<State, Eigen::Vector2d>;
-    const double& sth{ x0.first.s() };  // sin(theta)
-    const double& thdot{ x0.second };
-    const double thddot{ sth + u0 / _inertia - (_friction / _inertia) * thdot };
-    const Eigen::Vector2d dot(thdot, thddot);
+    const bool jacs{ Hx or Hu or Hdt };
+    JacX x1_H_x0, x1_H_xd, xd_H_x0;
+    JacU x1_H_dt, xd_Hu_u0;
 
-    // boost::optional<Eigen::MatrixXd&> x1_H_x0, x1_H_dot;  //{ Hx ? *Hx : boost: };
-
-    Eigen::Matrix<double, 2, 2> x1_H_x0{ Eigen::Matrix<double, 2, 2>::Identity() };
-    Eigen::Matrix<double, 2, 2> x1_H_dot{ Eigen::Matrix<double, 2, 2>::Identity() };
-    const State x1{ LieIntegrator::integrate(x0, dot, dt, x1_H_x0, x1_H_dot) };
-
+    const StateDot xdot{ ode(x0, u0, jacs ? &xd_H_x0 : nullptr, jacs ? &xd_Hu_u0 : nullptr) };
+    const State x1{ integrate(x0, xdot, dt, jacs ? &x1_H_x0 : nullptr, jacs ? &x1_H_xd : nullptr,
+                              jacs ? &x1_H_dt : nullptr) };
     if (Hx)
     {
-      *Hx = x1_H_x0;
+      *Hx = x1_H_x0 + x1_H_xd * xd_H_x0;
     }
     if (Hu)
     {
-      // dthddot/du0 = 1. / inertia
-      *Hu = x1_H_dot * Eigen::Vector2d(0., 1. / _inertia);
+      *Hu = x1_H_xd * xd_Hu_u0;
     }
-
+    if (Hdt)
+    {
+      *Hdt = x1_H_dt;
+    }
     return x1;
+    // using LieIntegrator = prx::fg::lie_integrator_t<State, Eigen::Vector2d>;
+
+    // const Control u_eff{ std::min(std::max(-_u_max, u0), _u_max) };
+    // const double& sth{ x0.first.s() };  // sin(theta)
+    // const double& thdot{ x0.second };
+    // const double thddot{ _gravity / _length * sth + u_eff / _inertia - (_friction / _inertia) * thdot };
+    // const Eigen::Vector2d dot(thdot, thddot);
+
+    // Eigen::Matrix<double, 2, 2> x1_H_x0{ Eigen::Matrix<double, 2, 2>::Identity() };
+    // Eigen::Matrix<double, 2, 2> x1_H_dot{ Eigen::Matrix<double, 2, 2>::Identity() };
+    // const State x1{ LieIntegrator::integrate(x0, dot, dt, x1_H_x0, x1_H_dot) };
+
+    // if (Hx)
+    // {
+    //   *Hx = x1_H_x0;
+    // }
+    // if (Hu)
+    // {
+    //   PRX_WARNING("Wrong derivatives");
+    //   // dthddot/du0 = 1. / inertia
+    //   *Hu = x1_H_dot * Eigen::Vector2d(0., 1. / _inertia);
+    // }
+
+    // return x1;
   }
 
   std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> configuration(const State& state)
@@ -198,6 +246,8 @@ protected:
   const double _length;    //{ 0.5 };
   const double _mass;      //{ 0.15 };
   const double _inertia;   //{ mass * length * length };
+  const double _gravity;
+  const double _u_max;
 };
 
 };  // namespace prx

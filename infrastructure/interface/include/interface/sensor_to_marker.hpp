@@ -35,13 +35,14 @@ public:
     std::vector<double> scale{ { 0.42, 0.25, 0.25 } };
     std::vector<int>& sensor_map{ _sensor_map };
     // _control_topic_name = ros::this_node::getNamespace() + _control_topic_name;
+    std::string marker_shape;
 
     PARAM_SETUP(private_nh, world_frame);
-    // PARAM_SETUP(private_nh, sensor_frame);
     PARAM_SETUP(private_nh, sensor_topic_name);
     PARAM_SETUP_WITH_DEFAULT(private_nh, scale, scale);
     PARAM_SETUP_WITH_DEFAULT(private_nh, sensor_map, sensor_map);
     PARAM_SETUP_WITH_DEFAULT(private_nh, color, std::vector<double>({ 1.0, 0.0, .78, 1.0 }));
+    PARAM_SETUP_WITH_DEFAULT(private_nh, marker_shape, "CUBE");
 
     prx_assert(scale.size() == 3, "[sensor_to_marker] scale must be size 3.");
     // const std::string control_stamped_topic_name{ control_topic_name + "_stamped" };
@@ -58,7 +59,14 @@ public:
     _sensor_marker.header.stamp = ros::Time();
     _sensor_marker.ns = "sensor";
     _sensor_marker.id = 0;
-    _sensor_marker.type = visualization_msgs::Marker::CUBE;
+
+    if (marker_shape == "CUBE")
+      _sensor_marker.type = visualization_msgs::Marker::CUBE;
+    else if (marker_shape == "SPHERE")
+      _sensor_marker.type = visualization_msgs::Marker::SPHERE;
+    else
+      prx_warn("[sensor_to_marker] Shape '" << marker_shape << "' not supported.");
+
     _sensor_marker.action = visualization_msgs::Marker::ADD;
     _sensor_marker.pose.position.x = 0;
     _sensor_marker.pose.position.y = 0;

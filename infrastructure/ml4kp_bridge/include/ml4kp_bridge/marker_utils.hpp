@@ -4,6 +4,7 @@
 #include <visualization_msgs/Marker.h>
 #include <ml4kp_bridge/SpacePointStamped.h>
 #include <prx/utilities/general/prx_assert.hpp>
+#include <prx/utilities/general/transforms.hpp>
 #include <prx/utilities/general/type_conversions.hpp>
 #include "ml4kp_bridge/product_lie_group.hpp"
 // #include "utils/dbg_utils.hpp"
@@ -11,14 +12,15 @@
 namespace ml4kp_bridge
 {
 inline visualization_msgs::Marker create_marker(const double scale = 0.01,
-                                                const std::vector<double> color = { 1, 1, 0, 1 })
+                                                const std::vector<double> color = { 1, 1, 0, 1 }, const int id = 0,
+                                                const std::string ns = "marker", const std::string frame_id = "world")
 {
   visualization_msgs::Marker marker;
 
-  marker.header.frame_id = "world";
+  marker.header.frame_id = frame_id;
   marker.header.stamp = ros::Time();
-  marker.ns = "marker";
-  marker.id = 0;
+  marker.ns = ns;
+  marker.id = id;
   marker.type = visualization_msgs::Marker::POINTS;
   marker.action = visualization_msgs::Marker::ADD;
 
@@ -95,6 +97,23 @@ inline void update_point(geometry_msgs::Point& pt,
   }
 }
 
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_point(geometry_msgs::Point& pt,
+                         const gtsam::Pose2& state,  // no-lint
+                         const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  pt.x = state.x();
+  pt.y = state.y();
+  if constexpr (std::is_integral_v<ZValue>)
+  {
+    pt.z = 0.0;
+  }
+  else if constexpr (std::is_floating_point_v<ZValue>)
+  {
+    pt.z = z_value;
+  }
+}
+
 template <typename XValue, typename YValue, typename ZValue, int Dim>
 inline void update_point(geometry_msgs::Point& pt, const Eigen::Vector<double, Dim>& state,  // no-lint
                          const XValue x_value, const YValue y_value, const ZValue z_value)
@@ -102,6 +121,46 @@ inline void update_point(geometry_msgs::Point& pt, const Eigen::Vector<double, D
   pt.x = value_or_index(x_value, state, x_value);
   pt.y = value_or_index(y_value, state, y_value);
   pt.z = value_or_index(z_value, state, z_value);
+}
+
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_pose(geometry_msgs::Pose& pose,
+                        const gtsam::ProductLieGroupV43<gtsam::Rot2, double>& state,  // no-lint
+                        const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  update_point(pose.position, state, x_value, y_value, z_value);
+  pose.orientation.w = 1.0;
+  pose.orientation.x = 0.0;
+  pose.orientation.y = 0.0;
+  pose.orientation.z = 0.0;
+}
+
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_pose(geometry_msgs::Pose& pose,
+                        const gtsam::ProductLieGroupV43<gtsam::Pose2, Eigen::Vector3d>& state,  // no-lint
+                        const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  update_point(pose.position, state, x_value, y_value, 0.);
+  const Eigen::Quaterniond q{ prx::euler_to_rotation<Eigen::Quaterniond>(std::vector<double>({ state.first.theta() }),
+                                                                         "z") };
+
+  pose.orientation.w = q.w();
+  pose.orientation.x = q.x();
+  pose.orientation.y = q.y();
+  pose.orientation.z = q.z();
+}
+
+template <typename XValue, typename YValue, typename ZValue>
+inline void update_pose(geometry_msgs::Pose& pose,
+                        const gtsam::Pose2& state,  // no-lint
+                        const XValue x_value, const YValue y_value, const ZValue z_value)
+{
+  update_point(pose.position, state, x_value, y_value, z_value);
+  const Eigen::Quaterniond q{ prx::euler_to_rotation<Eigen::Quaterniond>(std::vector<double>({ state.theta() }), "z") };
+  pose.orientation.w = q.w();
+  pose.orientation.x = q.x();
+  pose.orientation.y = q.y();
+  pose.orientation.z = q.z();
 }
 
 inline double norm(geometry_msgs::Point& pt0, geometry_msgs::Point& pt1)

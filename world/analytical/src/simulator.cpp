@@ -28,6 +28,20 @@ int main(int argc, char** argv)
     analytical::simulator_t<prx::SO2_system_t> sim(nh);
     ros::spin();
   }
+  else if (plant_name == "dubins_evader_pursuit")
+  {
+    analytical::simulator_t<prx::dubins_evader_pursuit_t> sim(nh);
+    ros::spin();
+  }
+  else if (plant_name == "unicycle")
+  {
+    analytical::simulator_t<prx::unicycle_model_t> sim(nh);
+    ros::spin();
+  }
+  else
+  {
+    prx_throw("[simulator] Unknown system");
+  }
 
   return 0;
 }

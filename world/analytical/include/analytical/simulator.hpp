@@ -31,6 +31,9 @@
 #include "ml4kp_bridge/SpacePoint.h"
 #include "ml4kp_bridge/SpacePointStamped.h"
 #include <interface/node_status.hpp>
+#include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
+#include <prx/simulation/plants/dubins_evader_pursuit.hpp>
+#include <prx_models/unicycle_model.hpp>
 
 namespace analytical
 {
@@ -154,6 +157,7 @@ struct plant_stepper_t<prx::SO2_system_t>
   using Control = typename DynamicalSystem::Control;
   using Parameters = typename DynamicalSystem::Parameters;
   using Observation = typename DynamicalSystem::Observation;
+  using StateSampler = prx::lie_group_gaussian_noise_t<State>;
 
   using CollisionChecker = typename prx::collision_checking::pqp::system_checker_t<DynamicalSystem>;
   prx::param_loader _environment_params;
@@ -165,18 +169,28 @@ struct plant_stepper_t<prx::SO2_system_t>
   Control _u;
   Observation _z;
 
+  StateSampler _w_noise;  // Noise for a system: x_{t+1} = f(x_t, u_t) + w_t
+  std::vector<double> _noise_diagonal;
+
   std::string _environment_file, _problem_parameters;
   std::shared_ptr<CollisionChecker> _collision_checker;
   std::vector<std::shared_ptr<prx::collision_checking::pqp::rigid_body_t>> _obstacles_bodies;
 
-  plant_stepper_t(ros::NodeHandle& nh)
+  plant_stepper_t(ros::NodeHandle& nh) : _noise_diagonal({ 0., 0. })
   {
     // ml4kp_bridge::copy(_plant_params, nh);
+    std::vector<double>& noise_diagonal{ _noise_diagonal };
+    PARAM_SETUP_WITH_DEFAULT(nh, noise_diagonal, noise_diagonal);
+
+    StateSampler::Covariance cov;
+    cov.diagonal() = Eigen::Map<Eigen::Vector2d>(_noise_diagonal.data());
+    _w_noise.set(cov);
   }
 
   void init(interface::SensorDataStamped& sensor_msg)
   {
     std::string plant_parameters;
+
     GLOBAL_PARAM_SETUP(plant_parameters);
     _plant_params.from_string(plant_parameters);
 
@@ -198,7 +212,7 @@ struct plant_stepper_t<prx::SO2_system_t>
     }
 
     _x = _plant->propagate(_x, _u, prx::simulation_step);
-
+    _x = _w_noise(_x);
     // DEBUG_VARS(_x)
     sensor_msg.raw_sensor_data[0] = _x.first.theta();
     sensor_msg.raw_sensor_data[1] = _x.second;
@@ -220,22 +234,280 @@ struct plant_stepper_t<prx::SO2_system_t>
 
     GLOBAL_PARAM_SETUP(environment);
     GLOBAL_PARAM_SETUP(problem_parameters);
-    // if (ros::param::has("/environment") and ros::param::get("/environment", environment))
-    // DEBUG_VARS(environment)
-    // if (environment != _environment_file)
-    // {
-    // }
+
     if (_environment_file.size() > 0)
     {
       _environment_params.from_string(environment);
       // _environment_file = environment;
       init(sensor_msg);
-      DEBUG_VARS(_environment_params)
+      // DEBUG_VARS(_environment_params)
       _collision_checker = std::make_shared<CollisionChecker>(_plant, _environment_params);
       _problem_params.from_string(problem_parameters);
       _x = _problem_params["x0"].as<State>();
       _u = _problem_params["u0"].as<Control>();
       // DEBUG_VARS(_x, _u)
+      // _system_group->get_state_space()->copy_from(_x0);
+      // _system_group->get_control_space()->copy_from(_u0);
+      return true;
+    }
+    return false;
+  }
+
+  void state(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
+  {
+    ml4kp_bridge::copy(_x, msg);
+    // _system_group->get_state_space()->copy_from(msg->space_point.point);
+  }
+
+  void control(const ml4kp_bridge::SpacePoint& msg)
+  {
+    ml4kp_bridge::copy(_u, msg);
+    // DEBUG_VARS(_u)
+    // _system_group->get_control_space()->copy_from(msg.point);
+  }
+};
+
+template <>
+struct plant_stepper_t<prx::dubins_evader_pursuit_t>
+{
+  using DynamicalSystem = typename prx::dubins_evader_pursuit_t;
+  using DynamicalSystemPtr = typename std::shared_ptr<DynamicalSystem>;
+  using DynamicalSystemTraits = prx::dynamical_system_traits<DynamicalSystem>;
+
+  using State = typename DynamicalSystem::State;
+  using Control = typename DynamicalSystem::Control;
+  using Parameters = typename DynamicalSystem::Parameters;
+  using Observation = typename DynamicalSystem::Observation;
+  using StateSampler = prx::lie_group_gaussian_noise_t<State>;
+
+  using CollisionChecker = typename prx::collision_checking::pqp::system_checker_t<DynamicalSystem>;
+  prx::param_loader _environment_params;
+  prx::param_loader _plant_params;
+  prx::param_loader _problem_params;
+
+  DynamicalSystemPtr _plant;
+  State _x;
+  Control _u;
+  Observation _z;
+
+  StateSampler _w_noise;  // Noise for a system: x_{t+1} = f(x_t, u_t) + w_t
+  std::vector<double> _noise_diagonal;
+
+  std::string _environment_file, _problem_parameters;
+  std::shared_ptr<CollisionChecker> _collision_checker;
+  std::vector<std::shared_ptr<prx::collision_checking::pqp::rigid_body_t>> _obstacles_bodies;
+
+  plant_stepper_t(ros::NodeHandle& nh) : _noise_diagonal({ 0., 0. })
+  {
+    // ml4kp_bridge::copy(_plant_params, nh);
+    std::vector<double>& noise_diagonal{ _noise_diagonal };
+    PARAM_SETUP_WITH_DEFAULT(nh, noise_diagonal, noise_diagonal);
+
+    // StateSampler::Covariance cov;
+    // cov.diagonal() = Eigen::Map<Eigen::Vector2d>(_noise_diagonal.data());
+    // _w_noise.set(cov);
+  }
+
+  void init(interface::SensorDataStamped& sensor_msg)
+  {
+    // std::string plant_parameters;
+
+    // GLOBAL_PARAM_SETUP(plant_parameters);
+    // _plant_params.from_string(plant_parameters);
+
+    _plant = std::make_shared<DynamicalSystem>();
+    prx_assert(_plant != nullptr, "Failed to create plant");
+
+    // _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(_environment_params);
+
+    sensor_msg.raw_sensor_data.resize(7);
+  }
+
+  void step_simulation(std_msgs::Bool& collision_msg, interface::SensorDataStamped& sensor_msg)
+  {
+    collision_msg.data = false;
+
+    if (_collision_checker->collision(_x))
+    {
+      collision_msg.data = true;
+    }
+
+    _x = _plant->propagate(_x, _u, prx::simulation_step);
+    // _x = _w_noise(_x);
+    // DEBUG_VARS(_x)
+    auto configuration = _plant->configuration(_x);
+    const Eigen::Quaterniond q{ configuration[0].first };
+    const Eigen::Vector3d t{ configuration[0].second };
+    sensor_msg.raw_sensor_data[0] = t[0];
+    sensor_msg.raw_sensor_data[1] = t[1];
+    sensor_msg.raw_sensor_data[2] = t[2];
+
+    sensor_msg.raw_sensor_data[3] = q.w();
+    sensor_msg.raw_sensor_data[4] = q.x();
+    sensor_msg.raw_sensor_data[5] = q.y();
+    sensor_msg.raw_sensor_data[6] = q.z();
+
+    // DEBUG_VARS(sensor_msg.raw_sensor_data)
+    // ml4kp_bridge::copy(sensor_msg, _z);
+    // _system_group->get_sensor_space()->copy_to(sensor_msg.raw_sensor_data);
+
+    sensor_msg.header.stamp = ros::Time::now();
+  }
+
+  bool reset_simulation(interface::SensorDataStamped& sensor_msg)
+  {
+    PRINT_MSG("Reseting..")
+    // ros::Duration(1.0).sleep();
+
+    // std::string environment, problem_parameters;
+    std::string& environment{ _environment_file };
+    std::string& problem_parameters{ _problem_parameters };
+
+    GLOBAL_PARAM_SETUP(environment);
+    GLOBAL_PARAM_SETUP(problem_parameters);
+
+    if (_environment_file.size() > 0)
+    {
+      _environment_params.from_string(environment);
+      // _environment_file = environment;
+      init(sensor_msg);
+      // DEBUG_VARS(_environment_params)
+      _collision_checker = std::make_shared<CollisionChecker>(_plant, _environment_params);
+      _problem_params.from_string(problem_parameters);
+      _x = _problem_params["x0"].as<State>();
+      _u = _problem_params["u0"].as<Control>();
+      DEBUG_VARS(_x, _u)
+      // _system_group->get_state_space()->copy_from(_x0);
+      // _system_group->get_control_space()->copy_from(_u0);
+      return true;
+    }
+    return false;
+  }
+
+  void state(const ml4kp_bridge::SpacePointStampedConstPtr& msg)
+  {
+    ml4kp_bridge::copy(_x, msg);
+    // _system_group->get_state_space()->copy_from(msg->space_point.point);
+  }
+
+  void control(const ml4kp_bridge::SpacePoint& msg)
+  {
+    ml4kp_bridge::copy(_u, msg);
+    // DEBUG_VARS(_u)
+    // _system_group->get_control_space()->copy_from(msg.point);
+  }
+};
+
+template <>
+struct plant_stepper_t<prx::unicycle_model_t>
+{
+  using DynamicalSystem = typename prx::unicycle_model_t;
+  using DynamicalSystemPtr = typename std::shared_ptr<DynamicalSystem>;
+  using DynamicalSystemTraits = prx::dynamical_system_traits<DynamicalSystem>;
+
+  using State = typename DynamicalSystem::State;
+  using Control = typename DynamicalSystem::Control;
+  using Parameters = typename DynamicalSystem::Parameters;
+  using Observation = typename DynamicalSystem::Observation;
+  using StateSampler = prx::lie_group_gaussian_noise_t<State>;
+
+  using CollisionChecker = typename prx::collision_checking::pqp::system_checker_t<DynamicalSystem>;
+  prx::param_loader _environment_params;
+  prx::param_loader _plant_params;
+  prx::param_loader _problem_params;
+
+  DynamicalSystemPtr _plant;
+  State _x;
+  Control _u;
+  Observation _z;
+
+  StateSampler _w_noise;  // Noise for a system: x_{t+1} = f(x_t, u_t) + w_t
+  std::vector<double> _noise_diagonal;
+
+  std::string _environment_file, _problem_parameters;
+  std::shared_ptr<CollisionChecker> _collision_checker;
+  std::vector<std::shared_ptr<prx::collision_checking::pqp::rigid_body_t>> _obstacles_bodies;
+
+  plant_stepper_t(ros::NodeHandle& nh) : _noise_diagonal({ 0., 0. })
+  {
+    // ml4kp_bridge::copy(_plant_params, nh);
+    std::vector<double>& noise_diagonal{ _noise_diagonal };
+    PARAM_SETUP_WITH_DEFAULT(nh, noise_diagonal, noise_diagonal);
+
+    // StateSampler::Covariance cov;
+    // cov.diagonal() = Eigen::Map<Eigen::Vector2d>(_noise_diagonal.data());
+    // _w_noise.set(cov);
+  }
+
+  void init(interface::SensorDataStamped& sensor_msg)
+  {
+    // std::string plant_parameters;
+
+    // GLOBAL_PARAM_SETUP(plant_parameters);
+    // _plant_params.from_string(plant_parameters);
+
+    _plant = std::make_shared<DynamicalSystem>();
+    prx_assert(_plant != nullptr, "Failed to create plant");
+
+    // _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(_environment_params);
+
+    sensor_msg.raw_sensor_data.resize(7);
+  }
+
+  void step_simulation(std_msgs::Bool& collision_msg, interface::SensorDataStamped& sensor_msg)
+  {
+    collision_msg.data = false;
+
+    if (_collision_checker->collision(_x))
+    {
+      collision_msg.data = true;
+    }
+
+    _x = _plant->propagate(_x, _u, prx::simulation_step);
+    // _x = _w_noise(_x);
+    // DEBUG_VARS(_x)
+    auto configuration = _plant->configuration(_x);
+    const Eigen::Quaterniond q{ configuration[0].first };
+    const Eigen::Vector3d t{ configuration[0].second };
+    sensor_msg.raw_sensor_data[0] = t[0];
+    sensor_msg.raw_sensor_data[1] = t[1];
+    sensor_msg.raw_sensor_data[2] = t[2];
+
+    sensor_msg.raw_sensor_data[3] = q.w();
+    sensor_msg.raw_sensor_data[4] = q.x();
+    sensor_msg.raw_sensor_data[5] = q.y();
+    sensor_msg.raw_sensor_data[6] = q.z();
+
+    // DEBUG_VARS(sensor_msg.raw_sensor_data)
+    // ml4kp_bridge::copy(sensor_msg, _z);
+    // _system_group->get_sensor_space()->copy_to(sensor_msg.raw_sensor_data);
+
+    sensor_msg.header.stamp = ros::Time::now();
+  }
+
+  bool reset_simulation(interface::SensorDataStamped& sensor_msg)
+  {
+    PRINT_MSG("Reseting..")
+    // ros::Duration(1.0).sleep();
+
+    // std::string environment, problem_parameters;
+    std::string& environment{ _environment_file };
+    std::string& problem_parameters{ _problem_parameters };
+
+    GLOBAL_PARAM_SETUP(environment);
+    GLOBAL_PARAM_SETUP(problem_parameters);
+
+    if (_environment_file.size() > 0)
+    {
+      _environment_params.from_string(environment);
+      // _environment_file = environment;
+      init(sensor_msg);
+      // DEBUG_VARS(_environment_params)
+      _collision_checker = std::make_shared<CollisionChecker>(_plant, _environment_params);
+      _problem_params.from_string(problem_parameters);
+      _x = _problem_params["x0"].as<State>();
+      _u = _problem_params["u0"].as<Control>();
+      DEBUG_VARS(_x, _u)
       // _system_group->get_state_space()->copy_from(_x0);
       // _system_group->get_control_space()->copy_from(_u0);
       return true;

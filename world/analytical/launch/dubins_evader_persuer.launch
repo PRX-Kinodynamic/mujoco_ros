@@ -1,32 +1,31 @@
 <launch>
     <!-- <arg name="environment"/> -->
     <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
-    <arg name="environment" default="SO2_single_obstacle"/>
-    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/>
-    <arg name="problem_parameters" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_problem_0.yaml"/>
-    <arg name="noise_diagonal" default="[0.0,0.001]" />
-
+    <!-- <arg name="environment" default="SO2_single_obstacle"/> -->
+    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/> -->
+    <arg name="problem_parameters" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/dubins_problem_0.yaml"/>
+    <arg name="noise_diagonal" default="[0.0,0.000, 0.0]" />
     <!-- <arg name="environment" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/single_obstacle.yaml"/> -->
 
     <!-- <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" /> -->
     <!-- <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" /> -->
     <!-- <rosparam command="load" file="$(find prx_models)/models/environments/$(arg environment).yaml" /> -->
 
-    <param name="simulation_step" value="0.1"/>
-    <param name="plant_parameters" textfile="$(arg plant_file)"/>
+    <param name="simulation_step" value="0.01"/>
+    <!-- <param name="plant_parameters" textfile="$(arg plant_file)"/> -->
     <param name="problem_parameters" textfile="$(arg problem_parameters)"/>
-    <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
+    <param name="environment" textfile="$(find prx_models)/models/environments/dubins_environment.yaml" />
 
         <!-- launch-prefix="lldb - -" -->
     <node pkg="analytical" type="simulator" name="simulator" 
         output="screen" >
         <param name="node_id" value="analytical_simulator" />
-        <param name="plant_name" value="SO2_system" />
-        <param name="collision_topic" value="/mushr/collision" />
+        <param name="plant_name" value="dubins_evader_pursuit" />
+        <param name="collision_topic" value="/simulator/collision" />
         <param name="simulation_step" value="0.1" />
-        <param name="ctrl_topic"      value="/stela/sbmp/control" />
-        <param name="sensor_topic"    value="/mushr/sensordata" />
-        <param name="set_state_topic"    value="/mushr/set_state" />
+        <param name="ctrl_topic"      value="/simulator/control" />
+        <param name="sensor_topic"    value="/simulator/sensordata" />
+        <param name="set_state_topic"    value="/simulator/set_state" />
         <param name="noise_diagonal" type="yaml" value="$(arg noise_diagonal)" />
 
         <!-- <rosparam command="load" file="$(arg plant_file)" /> -->
@@ -38,9 +37,9 @@
         args="load interface/SensorToMarkerPublisher analytical_sim_aux_nodelet" 
         output="screen">
         <param name="world_frame" value="world" />
-        <param name="marker_shape" value="SPHERE" />
-        <param name="scale" type="yaml" value="[0.2, 0.2, 0.2]" />
-        <param name="sensor_topic_name" value="/mushr/sensordata" />
+        <param name="marker_shape" value="CUBE" />
+        <param name="scale" type="yaml" value="[0.1, 0.05, 0.05]" />
+        <param name="sensor_topic_name" value="/simulator/sensordata" />
     </node>
 
      <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 

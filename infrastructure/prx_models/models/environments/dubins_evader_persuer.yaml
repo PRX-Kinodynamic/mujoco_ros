@@ -1,0 +1,30 @@
+environment:
+    name: "dubins_environment"
+    type: obstacle
+    bounds:
+      min: [ -1, -1., -0.5]
+      max: [ +1, +1.,  0.5]
+    root_configuration:
+      position: [0,0,0]
+      orientation: [0,0,0,1]
+    geometries:
+      -
+        name: evader
+        collision_geometry:
+          type: box
+          dims: [ .1, 0.05, 0.05]
+          material: 0xff0015ff
+        config:
+          position: [0, 0, 0]
+          orientation: [0,0,0,1]
+      -
+        name: unsafe_region
+        collision_geometry:
+          type: cylinder
+          radius: 0.25
+          height: 0.01
+          material: 0x0fff0000
+        config:
+          position: [0, 0, 0]
+          orientation: [0,0,0,1]
+     

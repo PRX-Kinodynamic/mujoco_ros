@@ -45,9 +45,9 @@ inline void close_log()
 }
 
 // template <typename Value,                                   // no-lint
-//           std::enable_if_t<                                 // no-lint
+// std::enable_if_t<                                 // no-lint
 // prx::utilities::is_streamable<Value>::value,  // no-lint
-//               bool> = true>
+// bool> = true>
 template <typename Value>  // no-lint
 inline void print_value(std::ostream& stream, const Value& value)
 {

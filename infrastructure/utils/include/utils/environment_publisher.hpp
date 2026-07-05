@@ -183,6 +183,7 @@ protected:
           prx_assert(Rt != nullptr, "Transform is null!");
           const std::string str_color{ gi->get_visualization_color() };
           const Color color{ get_color(str_color) };
+          // DEBUG_VARS(str_color, color);
 
           const Eigen::Vector3d t{ Rt->translation() };
           const Eigen::Matrix3d rot{ Rt->rotation() };
@@ -248,11 +249,19 @@ protected:
 
     // Color is 0xAARRGGBB
     constexpr double max_val{ 255.0 };
-    const double alpha{ convert_to<double>(str_color[2] + str_color[3]) / max_val };
-    const double red{ convert_to<double>(str_color[4] + str_color[5]) / max_val };
-    const double blue{ convert_to<double>(str_color[6] + str_color[7]) / max_val };
-    const double green{ convert_to<double>(str_color[8] + str_color[9]) / max_val };
+    const double alpha{ hex_to_val(str_color[2], str_color[3]) / max_val };
+    const double red{ hex_to_val(str_color[4], str_color[5]) / max_val };
+    const double blue{ hex_to_val(str_color[6], str_color[7]) / max_val };
+    const double green{ hex_to_val(str_color[8], str_color[9]) / max_val };
     return Color{ alpha, red, blue, green };
+  }
+  const double hex_to_val(const char h0, const char h1) const
+  {
+    using namespace prx::utilities;
+    const double vh0{ 16. * convert_to<double>(h0) };
+    const double vh1{ convert_to<double>(h1) };
+    // DEBUG_VARS(vh0, vh1, h0, h1);
+    return vh0 + vh1;
   }
 
   visualization_msgs::Marker _bounds_marker;

@@ -1,13 +1,21 @@
 <launch> 
     <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
     <arg name="randup_time" default="false"/>
-    <arg name="environment" default="SO2_single_obstacle"/>
+    <!-- <arg name="environment" default="SO2_single_obstacle"/> -->
+    <!-- <arg name="environment" default="unicycle_environment_0"/> -->
+    <!-- <arg name="environment" default="unicycle_environment_0"/> -->
+    <arg name="environment" default="empty"/>
     <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/>
+    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/unicycle_system.yaml"/> -->
     <arg name="algorithm" default="randup"/>
+    <!-- <arg name="plant" value="unicycle"/> -->
+    <arg name="plant" value="SO2System"/>
     
-    <arg name="output_directory" default="/tmp/"/>
-    <arg name="file_prefix" default="test"/>
-    <arg name="repetitions" default="1"/>
+    <!-- <arg name="output_directory" default="/tmp/"/> -->
+    <arg name="output_directory" default="/Users/Gary/pracsys/catkin_ws/data/reachability/pendulum/gt/center/"/>
+
+    <arg name="file_prefix" default="low"/>
+    <arg name="repetitions" default="5"/>
     <arg name="random_seed" default="112392"/>
 
     <param name="simulation_step" value="0.01"/>
@@ -27,15 +35,18 @@
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
       <param name="total_threads" value="1"/>
-      <param name="cell_size" value="0.001"/>
+      <param name="cell_size" value="0.1"/>
       <param name="short_circuit" value="false"/>
       <!-- <param name="plant" value="mushrPolynomial"/> -->
-      <param name="plant" value="SO2System"/>
+      <param name="plant" value="$(arg plant)"/>
       <param name="convex_hulls_step" value="10"/>
-      <param name="mg_step" value="10"/>
+      <param name="mg_step" value="1"/>
+      <!-- <param name="split_time" value="0.05"/> -->
+      <param name="split_time" value="0.2"/>
       <param name="output_directory" value="$(arg output_directory)"/>
       <param name="file_prefix" value="$(arg file_prefix)"/>
       <param name="repetitions" value="$(arg repetitions)"/>
+      <param name="Chi2_confidence" value="5.991"/> <!-- 0.95 @ 2 dof -->
     </node>
 
     <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"

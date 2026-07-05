@@ -55,6 +55,8 @@ struct dynamical_system_traits<mushrPolynomial_t>
   using Control = Eigen::Vector<double, ControlDimension>;
   using Parameters = Eigen::Vector<double, ParametersDimension>;
   using Observation = gtsam::Pose2;
+
+  using StateDot = Eigen::Vector<double, StateDimension>;
 };
 
 class mushrPolynomial_t : public prx::dynamical_system_t<mushrPolynomial_t>

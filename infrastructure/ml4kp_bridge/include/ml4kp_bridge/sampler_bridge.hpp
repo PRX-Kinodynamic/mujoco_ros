@@ -35,7 +35,7 @@ public:
     {
       iter++;
     }
-    PRX_DBG_VARS(*iter)
+    // PRX_DBG_VARS(*iter)
     return *iter;
   }
 
@@ -55,8 +55,8 @@ public:
 
   sampler_t(prx::param_loader Gparams, prx::param_loader Hparams) : _G_sampler(Gparams), _H_sampler(Hparams)
   {
-    PRX_DBG_VARS(Gparams);
-    PRX_DBG_VARS(Hparams);
+    // PRX_DBG_VARS(Gparams);
+    // PRX_DBG_VARS(Hparams);
   }
 
   Element operator()()

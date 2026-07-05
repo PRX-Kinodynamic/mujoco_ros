@@ -7,6 +7,7 @@
 #include <memory>
 #include <prx/simulation/forward_propagation.hpp>
 #include <prx/utilities/math/chi_squared.hpp>
+#include <prx/utilities/math/lie_utils.hpp>
 #include <string>
 #include <std_msgs/Bool.h>
 #include <prx/utilities/general/prx_assert.hpp>
@@ -31,45 +32,12 @@
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Polygon_2.h>
-namespace cgal_bridge
-{
-using CgalEpicKernel = CGAL::Exact_predicates_inexact_constructions_kernel;
-inline CgalEpicKernel::Point_3 cgal_create(const gtsam::ProductLieGroupV43<gtsam::Rot2, double>& state)
-{
-  // const Eigen::Vector2d tg{ gtsam::traits<gtsam::ProductLieGroupV43<gtsam::Rot2, double>>::Logmap(state) };
-  const double x{ state.first.theta() };
-  const double y{ state.second };
-
-  // CgalEpicKernel::Point_3 pt(tg[0], tg[1], 0.);
-  CgalEpicKernel::Point_3 pt(x, y, 0.);
-
-  return pt;
-}
-
-inline CgalEpicKernel::Point_3 cgal_create(const gtsam::ProductLieGroupV43<gtsam::Pose2, Eigen::Vector3d>& state)
-{
-  const double x{ state.first.x() };
-  const double y{ state.first.y() };
-  const double z{ 0. };
-  CgalEpicKernel::Point_3 pt(x, y, 0.);
-  return pt;
-}
-inline CgalEpicKernel::Point_3 cgal_create(const gtsam::Pose2& state)
-{
-  const double x{ state.x() };
-  const double y{ state.y() };
-  const double z{ state.theta() };
-  CgalEpicKernel::Point_3 pt(x, y, z);
-  return pt;
-}
-
-}  // namespace cgal_bridge
 
 namespace motion_planning
 {
 
 template <typename DynamicalSystem, typename Controller>
-class randup_t
+class gotube_t
 {
 public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
@@ -78,7 +46,8 @@ public:
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;
 
-  static constexpr int DimX{ prx::dynamical_system_traits<DynamicalSystem>::StateDimension };
+  static constexpr int DimX{ gtsam::traits<State>::dimension };
+  using Tangent = Eigen::Vector<double, DimX>;
 
   using FwdProp = prx::forward_propagation_t<DynamicalSystem, Trajectory, Controller>;
 
@@ -88,9 +57,9 @@ public:
 
   using CollisionQuery = prx::collision_checking::pqp::query_t;
 
-  using Polyhedron = CGAL::Polyhedron_3<cgal_bridge::CgalEpicKernel>;
+  // using Polyhedron = CGAL::Polyhedron_3<cgal_bridge::CgalEpicKernel>;
 
-  randup_t(ros::NodeHandle nh)
+  gotube_t(ros::NodeHandle nh)
   {
     // PRX FILES
     std::string environment;
@@ -104,13 +73,14 @@ public:
     int& total_threads{ _total_threads };
     bool& visualize{ _visualize };
     bool& short_circuit{ _short_circuit };
+    int& ball_step{ _ball_step };
+    // int& convex_hulls_step{ _convex_hulls_step };
 
-    int& convex_hulls_step{ _convex_hulls_step };
+    // double chi_tolerance{ 0.05 };  // 1 - 0.95
+    // PARAM_SETUP(nh, convex_hulls_step);
 
-    double chi_tolerance{ 0.05 };  // 1 - 0.95
-    PARAM_SETUP(nh, convex_hulls_step);
-
-    PARAM_SETUP_WITH_DEFAULT(nh, chi_tolerance, chi_tolerance)
+    // PARAM_SETUP_WITH_DEFAULT(nh, chi_tolerance, chi_tolerance)
+    PARAM_SETUP_WITH_DEFAULT(nh, ball_step, 10)
     PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
     PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
@@ -119,7 +89,7 @@ public:
     GLOBAL_PARAM_BLOCKER(plant_parameters);
     GLOBAL_PARAM_BLOCKER(simulation_step);
 
-    _chi2 = std::make_shared<prx::chi_squared>(chi_tolerance);
+    // _chi2 = std::make_shared<prx::chi_squared>(chi_tolerance);
     _pool.reset(_total_threads);
     _half_threads = std::max(static_cast<int>(_total_threads / 2.0), 1);
 
@@ -135,15 +105,15 @@ public:
 
     _system_geoms = _plant->geometries();
 
-    _markers_publisher = nh.advertise<visualization_msgs::Marker>("/randup/trajectories/marker", 1);
-    _collision_publisher = nh.advertise<std_msgs::Bool>("/randup/collision", 1);
-    _convex_hull_publisher = nh.advertise<visualization_msgs::MarkerArray>("/randup/convex_hull", 1);
-    _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/randup/end_points", 1);
-    _collision_markers_publisher = nh.advertise<visualization_msgs::Marker>("/randup/collisions/marker", 1);
+    _center_traj_publisher = nh.advertise<visualization_msgs::Marker>("/gotube/trajectories/center/marker", 1);
+    // _collision_publisher = nh.advertise<std_msgs::Bool>("/gotube/collision", 1);
+    _balls_publisher = nh.advertise<visualization_msgs::MarkerArray>("/gotube/balls", 1);
+    // _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/gotube/end_points", 1);
+    // _collision_markers_publisher = nh.advertise<visualization_msgs::Marker>("/gotube/collisions/marker", 1);
 
     std::string output_directory, file_prefix;
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
-    PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "randup");
+    PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "gotube");
 
     const std::string timestamp{ utils::timestamp() };
     const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
@@ -156,7 +126,7 @@ public:
     _ofs_convex_hulls.open(CONVEX_HULL_OUTPUT_FILE);
   }
 
-  ~randup_t()
+  ~gotube_t()
   {
   }
 
@@ -197,13 +167,9 @@ public:
       }
     }
 
-    // Assertion 'query.pqp_models.size() == query.plant_configurations.size()' failed in
-    //     file
-    //     '/common/home/eg585/perception/ML4KP-devel/install/include/prx/simulation/collision_checking/pqp_collision_checker.hpp'
-
     bool collision{ false };
     // Check only the states inside the convex hull
-    // The original Randup paper is unclear about this... But the RRT-randup paper seems to only check the convex hull
+    // The original gotube paper is unclear about this... But the RRT-gotube paper seems to only check the convex hull
     // A conservative approach is to check every state in the trajectory, but the point of the convex hull is to speed
     // this up However, computing convex hull and then checking collisions is problematic because the convex hull
     // computation is expensive and done at the end
@@ -220,6 +186,17 @@ public:
         _colliding_states.push_back(state);
         break;
       }
+    }
+
+    for (int bi = 0; bi < traj.size(); bi += _ball_step)
+    {
+      const State& ci{ _center_traj[bi] };
+      const State& xi{ traj[bi] };
+      const Tangent tgi{ prx::TangentBetween(ci, xi) };
+      const double error{ tgi.norm() };
+
+      std::scoped_lock lock(_rads_mutex[bi]);
+      _max_rads[bi] = std::max(_max_rads[bi], error);
     }
 
     {
@@ -249,156 +226,6 @@ public:
     _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
   }
 
-  // Get the area of a convex hull (Area~=Volume) for 2D system.
-  // If the system is 3D, use CGAL::Polygon_mesh_processing::volume(poly) ?
-  double convex_hull_volume(const Polyhedron& poly)
-  {
-    // for (auto&& v_pt : poly.points().begin() + 3)
-    typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
-    typedef CGAL::Point_2<cgal_bridge::CgalEpicKernel> Point2;
-    typedef CGAL::Polygon_2<K> Polygon_2;
-
-    Polygon_2 poly2;
-    for (auto&& v : poly.points())
-    {
-      poly2.push_back({ v.x(), v.y() });
-    }
-    return poly2.area();
-    // auto A = *(poly.points().begin());
-    // auto B = *(poly.points().begin() + 1);
-
-    // for (auto iter = poly.points().begin() + 2; iter != poly.points().end(); iter++)
-    // {
-
-    //   CGAL::area(const CGAL::Point_2<Kernel>& p, const CGAL::Point_2<Kernel>& q, const CGAL::Point_2<Kernel>& r);
-    // }
-  }
-
-  double convex_hull(std::vector<cgal_bridge::CgalEpicKernel::Point_3>& points, const std::string idx)
-  {
-    Polyhedron poly;
-    CGAL::convex_hull_3(points.begin(), points.end(), poly);
-    const double volume{ convex_hull_volume(poly) };
-    // CGAL::Polygon_mesh_processing::volume(poly);
-    // DEBUG_VARS(idx, volume)
-
-    _marker_convex_hull.markers.push_back(ml4kp_bridge::create_marker(0.01, { 1, 0, 1, 0 }));
-    visualization_msgs::Marker& marker_ch{ _marker_convex_hull.markers.back() };
-    marker_ch.type = visualization_msgs::Marker::LINE_LIST;
-    marker_ch.ns = "convex_hull_" + idx;
-
-    bool first{ true };
-    cgal_bridge::CgalEpicKernel::Point_3 pt_prev{ *(poly.points().begin()) };
-    _ofs_convex_hulls << idx << " ";
-    for (auto&& v_pt : poly.points())
-    {
-      marker_ch.points.emplace_back();
-
-      marker_ch.points.back().x = v_pt.x();
-      marker_ch.points.back().y = v_pt.y();
-      marker_ch.points.back().z = v_pt.z();
-      _ofs_convex_hulls << v_pt.x() << " " << v_pt.y() << " " << v_pt.z() << " ";
-
-      if (not first)
-      {
-        marker_ch.points.push_back(marker_ch.points.back());
-      }
-      first = false;
-      pt_prev = v_pt;
-    }
-    _ofs_convex_hulls << "\n";
-    if (not first)
-    {
-      marker_ch.points.push_back(marker_ch.points.back());
-      marker_ch.points.push_back(marker_ch.points.back());
-      marker_ch.points.push_back(marker_ch.points.front());
-    }
-    return volume;
-  }
-
-  void divide_convex_hulls(std::vector<cgal_bridge::CgalEpicKernel::Point_3>& pts0,
-                           std::vector<cgal_bridge::CgalEpicKernel::Point_3>& pts1)
-  {
-    auto prev = *(pts0.begin());
-    std::vector<cgal_bridge::CgalEpicKernel::Point_3> pts_aux;
-    for (auto pt : pts0)
-    {
-      const double diff{ std::fabs(pt.x() - prev.x()) };
-      if (diff > 3.)
-      {
-        pts1.push_back(pt);
-      }
-      else
-      {
-        pts_aux.push_back(pt);
-      }
-    }
-    std::swap(pts_aux, pts0);
-  }
-
-  void compute_convex_hulls()
-  {
-    PRINT_MSG("Computing convex hull")
-    // typedef K::Point_3                                Point_3;
-
-    using Polyhedron_3 = CGAL::Polyhedron_3<cgal_bridge::CgalEpicKernel>;
-
-    bool are_new_states{ true };
-    int i{ 0 };
-    int state_idx{ 0 };
-    std::vector<Trajectory> _checked_trajectories_aux;
-
-    const std::size_t total_trajectories{ _checked_trajectories.size() };
-    while (are_new_states)
-    {
-      // DEBUG_VARS(i, state_idx)
-      const std::string idx{ prx::utilities::convert_to<std::string>(i) };
-      are_new_states = false;
-      std::vector<cgal_bridge::CgalEpicKernel::Point_3> cgal_points_0, cgal_points_1;
-
-      visualization_msgs::Marker marker_pt{ ml4kp_bridge::create_marker(0.1, { 1, 0, 1, 0 }) };
-      marker_pt.type = visualization_msgs::Marker::POINTS;
-      marker_pt.ns = "pts_" + idx;
-      for (int traj_idx = 0; traj_idx < total_trajectories; ++traj_idx)
-      {
-        if (_checked_trajectories[traj_idx].size() > state_idx)
-        {
-          const State& state{ _checked_trajectories[traj_idx][state_idx] };
-          cgal_points_0.push_back(cgal_bridge::cgal_create(state));
-
-          marker_pt.points.emplace_back();
-          marker_pt.points.back().x = cgal_points_0.back().x();
-          marker_pt.points.back().y = cgal_points_0.back().y();
-          marker_pt.points.back().z = cgal_points_0.back().z();
-
-          are_new_states = true;
-        }
-      }
-      if (cgal_points_0.size() > 0)
-      {
-        double convex_hull_volume{ 0. };
-        divide_convex_hulls(cgal_points_0, cgal_points_1);
-        convex_hull_volume += convex_hull(cgal_points_0, idx);
-        if (cgal_points_1.size() > 0)
-        {
-          convex_hull_volume += convex_hull(cgal_points_1, idx + "'");
-        }
-        _marker_pts.markers.push_back(marker_pt);
-        _convex_hull_volumes.push_back(convex_hull_volume);
-        // VARS_TO_STREAM(_ofs, idx, convex_hull_volume, total_trajectories);
-      }
-      i++;
-      state_idx += _convex_hulls_step;
-    }
-    // DEBUG_VARS(points)
-
-    // CGAL::convex_hull_3(points.begin(), points.end(), poly);
-    // DEBUG_VARS(poly.points().size())
-
-    _convex_hull_publisher.publish(_marker_convex_hull);
-    _end_points_publisher.publish(_marker_pts);
-  }
-
   void init_query(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
                   const Covariance& cov_w)
   {
@@ -417,15 +244,28 @@ public:
 
     if (_visualize)
     {
-      for (auto&& marker : _marker_convex_hull.markers)
+      for (auto&& marker : _marker_balls.markers)
       {
         marker.action = visualization_msgs::Marker::DELETEALL;
       }
-      _convex_hull_publisher.publish(_marker_convex_hull);
+      _balls_publisher.publish(_marker_balls);
     }
 
-    _marker_convex_hull.markers.clear();
+    _marker_balls.markers.clear();
     _marker_pts.markers.clear();
+
+    _center_traj.clear();
+    _max_rads.clear();
+    _rads_mutex.clear();
+    FwdProp::propagate(_center_traj, _state, _controller, _plant);
+
+    _rads_mutex = std::vector<std::mutex>(_center_traj.size());
+    _max_rads.resize(_center_traj.size(), 0.);
+    // for (int i = 0; i < _center_traj.size(); ++i)
+    // {
+    //   _rads_mutex.emplace_back();
+    //   _max_rads.push_back(0.);
+    // }
   }
 
   bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
@@ -446,9 +286,9 @@ public:
         _pool.detach_task([&] { this->propagate(); });
       }
     }
-    compute_convex_hulls();
+    // compute_convex_hulls();
     _collision_msg.data = _collision_found;
-    _collision_publisher.publish(_collision_msg);
+    // _collision_publisher.publish(_collision_msg);
     _pool.detach_task([&] { this->trajectories_to_marker(); });
     return _collision_found;
   }
@@ -465,26 +305,26 @@ public:
     }
     _pool.wait();
 
-    compute_convex_hulls();
+    // compute_convex_hulls();
 
     const ros::Time end{ ros::Time::now() };
-    const double randup_time{ (end - start).toSec() };
+    const double gotube_time{ (end - start).toSec() };
     const bool collision{ _collision_found };
 
     // _convex_hull_volumes.back().push_back(convex_hull_volume);
 
     _ofs << total_trajectories << " ";
     _ofs << collision << " ";
-    _ofs << randup_time << " ";
+    _ofs << gotube_time << " ";
     for (auto&& vol : _convex_hull_volumes)
     {
       _ofs << vol << " ";
     }
     _ofs << "\n";
-    // VARS_TO_STREAM(_ofs, randup_time, collision);
+    // VARS_TO_STREAM(_ofs, gotube_time, collision);
 
     _collision_msg.data = _collision_found;
-    _collision_publisher.publish(_collision_msg);
+    // _collision_publisher.publish(_collision_msg);
     _pool.detach_task([&] { this->trajectories_to_marker(); });
 
     return _collision_found;
@@ -494,50 +334,56 @@ public:
   {
     if (_visualize)
     {
-      visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
-      marker.type = visualization_msgs::Marker::LINE_LIST;
-      marker.action = visualization_msgs::Marker::DELETEALL;
+      visualization_msgs::Marker center_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
+      center_marker.type = visualization_msgs::Marker::LINE_LIST;
+      center_marker.action = visualization_msgs::Marker::DELETEALL;
       // _trajectory_markers.markers.push_back(marker);
-      _markers_publisher.publish(marker);
+      _center_traj_publisher.publish(center_marker);
 
       // _trajectory_markers.markers.clear();
-      marker.action = visualization_msgs::Marker::ADD;
+      center_marker.action = visualization_msgs::Marker::ADD;
 
-      {  // _checked_trajectories_mutex lock
-        std::scoped_lock lock(_checked_trajectories_mutex);
+      ml4kp_bridge::update_marker(center_marker, _center_traj, 0, 1, -0.1);
+      _center_traj_publisher.publish(center_marker);
 
-        DEBUG_VARS(_checked_trajectories.size())
-        while (_checked_trajectories.size() > 0)
-        {
-          ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, -0.1);
-          _checked_trajectories.pop_back();
-        }
-      }
-
-      visualization_msgs::Marker collision_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
-      collision_marker.type = visualization_msgs::Marker::SPHERE_LIST;
-      collision_marker.scale.x = 0.25;
-      collision_marker.scale.y = 0.25;
-      collision_marker.scale.z = 0.01;
-
-      collision_marker.color.a = 0.5;
-      collision_marker.color.r = 0.92;
-      collision_marker.color.g = 0.91;
-      collision_marker.color.b = 0.1;
-
-      for (auto&& state : _colliding_states)
+      // for (auto& r : _max_rads)
+      // DEBUG_VARS(_max_rads)
+      for (int i = 0; i < _max_rads.size(); ++i)
       {
-        collision_marker.points.emplace_back();
-        ml4kp_bridge::update_point(collision_marker.points.back(), state, 0, 1, 0.0);
+        const double& r{ _max_rads[i] };
+        visualization_msgs::Marker ball_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
+        ball_marker.type = visualization_msgs::Marker::SPHERE;
+        ball_marker.id = i;
+        ball_marker.scale.x = r;
+        ball_marker.scale.y = r;
+        ball_marker.scale.z = r;
+
+        ball_marker.color.a = 0.5;
+        ball_marker.color.r = 0.92;
+        ball_marker.color.g = 0.91;
+        ball_marker.color.b = 0.1;
+
+        const State& xc{ _center_traj[i] };
+        ball_marker.points.emplace_back();
+        ml4kp_bridge::update_pose(ball_marker.pose, xc, 0, 1, 0.0);
+
+        DEBUG_VARS(i, r, xc)
+
+        _marker_balls.markers.push_back(ball_marker);
       }
 
-      _markers_publisher.publish(marker);
-      _collision_markers_publisher.publish(collision_marker);
+      // for (auto&& state : _colliding_states)
+      // {
+      //   collision_marker.points.emplace_back();
+      //   ml4kp_bridge::update_point(collision_marker.points.back(), state, 0, 1, 0.0);
+      // }
+      _balls_publisher.publish(_marker_balls);
+      // _collision_markers_publisher.publish(_marker_balls);
       // _trajectory_markers.markers.clear();
     }
 
-    std::scoped_lock lock(_checked_trajectories_mutex);
-    _checked_trajectories.clear();
+    // std::scoped_lock lock(_checked_trajectories_mutex);
+    // _checked_trajectories.clear();
   }
 
 private:
@@ -551,13 +397,14 @@ private:
   std::vector<Trajectory> _trajectories;
   std::vector<Trajectory> _checked_trajectories;
 
-  visualization_msgs::MarkerArray _marker_convex_hull, _marker_pts;
+  visualization_msgs::MarkerArray _marker_balls, _marker_pts;
 
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
-  ros::Publisher _markers_publisher, _collision_publisher, _collision_markers_publisher;
-  ros::Publisher _end_points_publisher, _convex_hull_publisher;
+  // ros::Publisher _center_traj_publisher, _collision_publisher, _collision_markers_publisher;
+  // ros::Publisher _end_points_publisher, _balls_publisher;
+  ros::Publisher _center_traj_publisher, _balls_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::world_model_t> _planning_model;
@@ -592,7 +439,11 @@ private:
   std::vector<State> _colliding_states;
   std::vector<double> _convex_hull_volumes;
 
+  std::vector<std::mutex> _rads_mutex;
+  std::vector<double> _max_rads;
+  int _ball_step;
+  Trajectory _center_traj;
   // double _Chi2_confidence;
-  std::shared_ptr<prx::chi_squared> _chi2;
+  // std::shared_ptr<prx::chi_squared> _chi2;
 };
 }  // namespace motion_planning

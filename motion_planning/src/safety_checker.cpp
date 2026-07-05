@@ -30,15 +30,23 @@
 #include <prx_models/StelaKraft.h>
 #include <motion_planning/morse_graph_reachability.hpp>
 #include <motion_planning/reachability_gt.hpp>
+#include <prx_models/unicycle_model.hpp>
+#include <motion_planning/gotube.hpp>
+// #include <motion_planning/scene_optimization.hpp>
 
 template <typename DynamicalSystem, typename Controller>
 struct safety_helper_t
 {
+  static constexpr int DimX{ prx::dynamical_system_traits<DynamicalSystem>::StateDimension };
+  static constexpr int DimU{ prx::dynamical_system_traits<DynamicalSystem>::ControlDimension };
+
   using Randup = motion_planning::randup_t<DynamicalSystem, Controller>;
+  using GoTube = motion_planning::gotube_t<DynamicalSystem, Controller>;
   using ReachabilityGT = motion_planning::reachability_gt_t<DynamicalSystem, Controller>;
   using RandupCovariance = typename Randup::Covariance;
   using MGReachability = motion_planning::morse_graph_reachability_t<DynamicalSystem, Controller>;
 
+  using Gain = Eigen::Matrix<double, DimU, DimX>;
   ros::Timer timer;
   ros::Subscriber _total_time_subscriber;
   ros::Subscriber _state_subscriber, _plan_subscriber, _cov_x0_subscriber, _cov_w_subscriber, _total_trajs_subscriber;
@@ -46,6 +54,8 @@ struct safety_helper_t
 
   ml4kp_bridge::SpacePointStamped _state_estimate;
   ml4kp_bridge::PlanStepStampedArray _plan;
+
+  std::vector<Gain> _gains;
 
   // randup
   bool _randup_time;
@@ -62,6 +72,10 @@ struct safety_helper_t
   // GT
   ReachabilityGT _gt;
 
+  // Gotube
+  GoTube _gotube;
+  // SceneOpt _sceneopt;
+
   bool valid_state, valid_plan;
   std::string algorithm;
   int repetitions;
@@ -71,6 +85,7 @@ struct safety_helper_t
     , valid_plan(false)
     , _randup(nh)
     , _mg_reach(nh)
+    , _gotube(nh)
     , _gt(nh)
     , _total_trajs(100)
     , _cov_x0(RandupCovariance::Identity() * 0.1)
@@ -82,7 +97,7 @@ struct safety_helper_t
     PARAM_SETUP(nh, algorithm)
     PARAM_SETUP(nh, repetitions)
 
-    prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt",
+    prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt" or algorithm == "gotube",
                "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
     if (algorithm == "randup")
     {
@@ -142,6 +157,22 @@ struct safety_helper_t
     _plan = *msg;
     valid_plan = true;
     DEBUG_VARS(valid_plan)
+  }
+
+  // void lqr_callback(const ml4kp_bridge::PlanStepStampedConstPtr msg)
+  // {
+  //   const double secs{ msg->plan_step.duration.data.toSec() };
+  //   const int total_gains{ static_cast<int>(std::ceil(secs / prx::simulation_step)) };
+  //   // Eigen::Vector<double,
+  //   // _gain
+  //   const Gain k{ Eigen::Map<double, DimX * DimU>(msg->plan_step.control.point.data()).reshaped(DimU, DimX) };
+  //   _gains = std::vector<Gain>(total_gains, k);
+  //   DEBUG_VARS(total_gains, k)
+  // }
+
+  void gotube_call()
+  {
+    _gotube.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
   }
 
   void randup_call()
@@ -207,7 +238,12 @@ struct safety_helper_t
         for (int i = 0; i < repetitions; ++i)
         {
           gt_call();
+          PRINT_MSG("Repetition done...")
         }
+      }
+      else if (algorithm == "gotube")
+      {
+        gotube_call();
       }
 
       PRINT_MSG("Safety checker finished")
@@ -223,17 +259,23 @@ int main(int argc, char** argv)
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
-  using SO2PieceWiseStep = prx::piecewise_step_t<prx::SO2_system_t::Control, double>;
-  using SO2Controller = std::vector<SO2PieceWiseStep>;
+  // using SO2PieceWiseStep = prx::piecewise_step_t<prx::SO2_system_t::Control, double>;
+  // using SO2Controller = std::vector<SO2PieceWiseStep>;
+  using SO2Controller = std::vector<std::pair<Eigen::Matrix<double, 1, 2>, double>>;
 
   using MushrPieceWiseStep = prx::piecewise_step_t<prx::mushrPolynomial_t::Control, double>;
   using MushrController = std::vector<MushrPieceWiseStep>;
 
+  using UnicyclePieceWiseStep = prx::piecewise_step_t<prx::unicycle_model_t::Control, double>;
+  using UnicycleController = std::vector<UnicyclePieceWiseStep>;
+
   using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller>;
   using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController>;
+  using UnicycleHelperPiecewise = safety_helper_t<prx::unicycle_model_t, UnicycleController>;
 
   std::shared_ptr<SO2HelperPiecewise> SO2_helper;
   std::shared_ptr<MushrHelperPiecewise> mushr_helper;
+  std::shared_ptr<UnicycleHelperPiecewise> unicycle_helper;
 
   std::string plant;
   PARAM_SETUP(nh, plant)
@@ -245,6 +287,10 @@ int main(int argc, char** argv)
   else if (plant == "mushrPolynomial")
   {
     mushr_helper = std::make_shared<MushrHelperPiecewise>(nh);
+  }
+  else if (plant == "unicycle")
+  {
+    unicycle_helper = std::make_shared<UnicycleHelperPiecewise>(nh);
   }
   else
   {

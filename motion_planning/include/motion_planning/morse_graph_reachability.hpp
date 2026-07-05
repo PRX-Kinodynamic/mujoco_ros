@@ -31,11 +31,12 @@ namespace motion_planning
 template <typename State>
 struct mg_cell_t
 {
-  mg_cell_t() : added_idx(0), safe(false) {};
+  mg_cell_t() : added_idx(0), propagated_idx(0), safe(false) {};
 
   std::mutex mutex;
   bool safe;
   std::size_t added_idx;
+  std::size_t propagated_idx;
   State state;
 };
 
@@ -60,7 +61,7 @@ public:
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
   using Tangent = typename ImplicitGrid::TangentElement;
 
-  morse_graph_reachability_t(ros::NodeHandle nh) : _iter_idx(0), _short_circuit(true)
+  morse_graph_reachability_t(ros::NodeHandle nh) : _iter_idx(0), _short_circuit(true), _propagated_idx(0)
   {
     // PRX FILES
     std::string environment;
@@ -80,12 +81,15 @@ public:
     // MG step, how many states to step when iterating over each trajectory
     // Needed for randup comparison
     int& mg_step{ _mg_step };
-
+    double& Chi2_confidence{ _Chi2_confidence };
+    double& split_time{ _split_time };
     PARAM_SETUP(nh, cell_size);
+    PARAM_SETUP(nh, Chi2_confidence)
     PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
+    PARAM_SETUP_WITH_DEFAULT(nh, split_time, 0.5);
 
     GLOBAL_PARAM_BLOCKER(environment);
     GLOBAL_PARAM_BLOCKER(plant_parameters);
@@ -105,22 +109,32 @@ public:
     _system_geoms = _plant->geometries();
 
     _markers_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/marker", 1);
+    _traj_nominal_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/nominal/marker", 1);
     _collision_publisher = nh.advertise<std_msgs::Bool>("/mg/collision", 1);
     _cubes_algebra_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/lie_algebra", 1);
     _cubes_state_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/state_space", 1);
+    _radii_markers_publisher = nh.advertise<visualization_msgs::MarkerArray>("/mg/cubes/balls", 1);
+
+    std::string output_directory, file_prefix;
+    PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
+    PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "mg");
+
+    const std::string timestamp{ utils::timestamp() };
+    const std::string MG_OUTPUT_FILE{ output_directory + "/" + file_prefix + "_balls_" + timestamp + ".txt" };
+    DEBUG_VARS(MG_OUTPUT_FILE)
+    _ofs_balls.open(MG_OUTPUT_FILE);
   }
 
   ~morse_graph_reachability_t()
   {
   }
 
-  void collion_check(const State state)
+  void collision_check(const State state, const double safe_distance, const int step_idx)
   {
     if (_short_circuit and _collision_found)  // short-circuit
       return;
 
     CellPtr cellptr{ init_cell(state) };
-    // _grid.cell(state) };
 
     {
       std::scoped_lock lock(cellptr->mutex);
@@ -143,16 +157,43 @@ public:
     }
     const Tangent center_tg{ _grid.center(state) };
     const State center{ _grid.state(center_tg) };
+
     query->plant_configurations = _plant->configuration(center);
 
-    const bool collision{ prx::collision_checking::pqp::collision(*query, _obstacles_bodies) };
+    const double min_distance{ prx::collision_checking::pqp::minimum_distance(*query, _obstacles_bodies) };
+    // query->plant_configurations[0].
+    // const bool collision{ prx::collision_checking::pqp::collision(*query, _obstacles_bodies) };
+    // _map_vector(_memory.data(), dim, 1)
+    // const auto P1 = Eigen::Map<const Eigen::Vector3d>(query->P1);
+    // const auto P2 = Eigen::Map<const Eigen::Vector3d>(query->P2);
+    // auto P2 = query->distance_result.P2();
+    // DEBUG_VARS(min_distance)
+    // DEBUG_VARS(query->P1, query->P2)
     std::scoped_lock lock(cellptr->mutex);
-    if (collision)
+    if (min_distance < safe_distance)
     {
       cellptr->safe = false;
       _collision_found = true;
+
+      // DEBUG_VARS(state, min_distance, safe_distance)
+      PRINT_MSG("Collision!")
       // DEBUG_VARS(collision)
     }
+    else
+    {
+      // DEBUG_VARS(state, min_distance, query->P1, safe_distance)
+
+      // auto config = query->plant_configurations;
+      query->plant_configurations[0].second += query->P1.normalized() * safe_distance;
+      const bool collision{ prx::collision_checking::pqp::collision(*query, _obstacles_bodies) };
+      // DEBUG_VARS(query->plant_configurations[0].second, collision)
+      if (collision)
+      {
+        cellptr->safe = false;
+        _collision_found = true;
+      }
+    }
+    _safe_radii.push_back({ step_idx, state, safe_distance });
     cellptr->state = state;
     cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
   }
@@ -162,7 +203,6 @@ public:
     std::scoped_lock lock(_new_cell_mutex);
     if (_grid.cell(state) == nullptr)
     {
-      // Need a second one in case the cell was init before acquiring the lock
       if (_cells_buffer.empty())
       {
         for (int i = 0; i < 100; ++i)
@@ -177,53 +217,153 @@ public:
     return _grid.cell(state);
   }
 
-  void propagate(const State state)
+  double compute_safe_distance(const double K_tau, const State& x0p, const State& xp_tau, const double tau,
+                               const Trajectory& traj_nominal)
+  {
+    const double d2{ _cell_size / 2. };
+    // const double K_tau{ 0. };
+
+    const double tau_steps{ tau / prx::simulation_step };
+    const State& x0{ traj_nominal.front() };
+    const State& x_tau{ traj_nominal[tau_steps] };
+
+    const double Lf{ lipschitz(x0, x0p, x_tau, xp_tau) };
+
+    const double P{ 4. * tau * _C2_w + 4. * tau * Lf * _C2_x0 };
+
+    const double& d{ _cell_size };
+    const double L_tau{ (2. / d) * std::sqrt(d / 2. + P + K_tau) };
+    DEBUG_VARS(Lf, tau, tau_steps, P, K_tau, L_tau, _C2_w, _C2_x0)
+    return L_tau * d / 2.;
+  }
+
+  void propagate(Trajectory& traj, const State state, const Controller controller) const
+  {
+    // DEBUG_VARS(controller)
+    FwdProp::propagate(traj, state, controller, _plant);
+    // DEBUG_VARS(controller.size())
+    // DEBUG_VARS(traj)
+  }
+
+  double compute_state_square_diff(const State& xbar, const State& x, const double dt)
+  {
+    const State xbtw{ gtsam::traits<State>::Between(xbar, x) };
+    const Tangent tg{ gtsam::traits<State>::Logmap(xbtw) };
+    const double dKdt{ tg.squaredNorm() };
+    // DEBUG_VARS(xbar, x)
+    // DEBUG_VARS(xbtw, tg)
+    // DEBUG_VARS(dKdt)
+    return dKdt * dt;
+  }
+
+  void propagate_and_check(const State state, const Controller ctrl_head, const Controller controller,
+                           const Trajectory traj_nominal)
   {
     Trajectory traj;
-    FwdProp::propagate(traj, state, _controller, _plant);
+
+    // DEBUG_VARS(controller.size())
+    // const Controller current_ctrllr{ ml4kp_bridge::split(controller, _split_time) };
+
+    propagate(traj, state, ctrl_head);
+
     std::set<std::size_t> hashes;
-    // for (auto&& state : traj)
+
+    const State x0V{ traj.front() };
+
+    double K_tau{ 0. };
+    double tau{ 0. };
+    double tau_prev{ 0. };
     for (int i = 0; i < traj.size(); i += _mg_step)
     {
-      const State& state{ traj[i] };
-      const std::size_t h{ _grid.hash(state) };
+      tau = i * prx::simulation_step;
+      const State& xbar{ traj[i] };
+      const State& x{ traj_nominal[i] };
+
+      DEBUG_VARS(i, tau, tau_prev)
+
+      K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
+      tau_prev = tau;
+      const std::size_t h{ _grid.hash(xbar) };
       if (hashes.count(h) == 0)
       {
-        // LOG_VARS(state, h);
+        // LOG_VARS(xbar, h);
         hashes.insert(h);
-        _pool.detach_task([state, this] { this->collion_check(state); });
+        const double safe_distance{ compute_safe_distance(K_tau, x0V, xbar, tau, traj_nominal) };
+        // DEBUG_VARS(safe_distance)
+        _pool.detach_task([xbar, safe_distance, i, this] { this->collision_check(xbar, safe_distance, i); });
       }
     }
 
     std::scoped_lock lock(_trajectories_mutex);
     _trajectories.push_back(traj);
+
+    if (controller.size() > 0)
+    {
+      // DEBUG_VARS(traj.back())
+      const State xT{ traj.back() };
+      // DEBUG_VARS(x0V, xT, traj.size())
+      // DEBUG_VARS(current_ctrllr.size())
+      // DEBUG_VARS(controller.size())
+      _pool.detach_task([xT, controller, this] { this->propagate_cube(xT, controller); });
+    }
     // _unchecked_trajectories++;
   }
 
-  void propagate_cube(const State& state)
+  Trajectory get_nominal_trajectory(const State state, const Controller controller)
   {
-    // if (_collision_found)  // short-circuit
-    //   return;
-    // const State x0_noise{ _x0_sampler(_state) };
+    Trajectory traj;
 
-    auto vertices = _grid.vertices(state);
-    for (auto v : vertices)
+    const Tangent center_tg{ _grid.center(state) };
+    const State xc{ _grid.state(center_tg) };
+
+    // const Controller current_ctrllr{ ml4kp_bridge::split(controller, _split_time) };
+    propagate(traj, xc, controller);
+
+    if (_visualize)
     {
-      const State xv{ _grid.state(v) };
-      // const State xv{ gtsam::traits<State>::Expmap(v) };
-      // DEBUG_VARS(v, xv)
-      _pool.detach_task([xv, this] { this->propagate(xv); });
+      _nominal_trajs.push_back(traj);
     }
-    // {
-    //   std::scoped_lock lock(_trajectories_mutex);
-    //   _trajectories.push_back(traj);
-    //   _unchecked_trajectories++;
-    // }
-
-    // _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
+    return traj;
   }
 
-  const Tangent lipschitz(const State& x0, const State& x0p, const State& xF, const State& xFp)
+  void propagate_cube(const State state, Controller controller)
+  {
+    // DEBUG_VARS(state)
+    // if (_collision_found)  // short-circuit
+    //   return;
+    CellPtr cellptr{ init_cell(state) };
+    if (cellptr->propagated_idx == _propagated_idx)
+    {
+      // DEBUG_VARS(_propagated_idx, cellptr->)
+      return;
+    }
+
+    cellptr->propagated_idx = _propagated_idx;
+    auto vertices = _grid.vertices(state);
+
+    const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
+    const Trajectory traj_nominal{ get_nominal_trajectory(state, controller_head) };
+
+    for (auto v : vertices)
+    {
+      const State xv{ _grid.state_from_vertex(v) };
+      // CellPtr cellptr{ init_cell(xv) };
+
+      _pool.detach_task([xv, controller_head, controller, traj_nominal, this] {
+        this->propagate_and_check(xv, controller_head, controller, traj_nominal);
+      });
+    }
+  }
+
+  const double distribution_bound(const Covariance& cov)
+  {
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
+    const Tangent D_marginal{ es.eigenvalues().cwiseSqrt() * _Chi2_confidence };
+    const double C_bound{ D_marginal.maxCoeff() };
+    return std::pow(C_bound, 2);
+  }
+
+  const double lipschitz(const State& x0, const State& x0p, const State& xF, const State& xFp)
   {
     const State xBtw_0{ gtsam::traits<State>::Between(x0, x0p) };
     const State xBtw_F{ gtsam::traits<State>::Between(xF, xFp) };
@@ -231,7 +371,13 @@ public:
     const Tangent tg_0{ gtsam::traits<State>::Logmap(xBtw_0) };
     const Tangent tg_F{ gtsam::traits<State>::Logmap(xBtw_F) };
 
-    const Tangent L{ tg_F.cwiseQuotient(tg_0).cwiseAbs() };
+    const double tg_0_norm{ tg_0.norm() };
+    const double tg_F_norm{ tg_F.norm() };
+
+    const double L{ tg_F_norm / tg_0_norm };
+
+    // const double L{ std };
+    // const Tangent L{ tg_F.cwiseQuotient(tg_0).cwiseAbs() };
     // DEBUG_VARS(x0, xF)
     // DEBUG_VARS(x0p, xFp)
     // DEBUG_VARS(xBtw_0, xBtw_F)
@@ -239,66 +385,51 @@ public:
     return L;
   }
 
-  Tangent grid_cell_size(const State& x0, const Controller u)
-  {
-    Trajectory traj0, traj1;
-
-    const State x0p{ _x0_sampler(x0) };
-    // DEBUG_VARS(x0, x0p)
-
-    // Assuming cov of x0_noise != 0. Need to enforce small eps if it is zero
-    FwdProp::propagate(traj0, x0, _controller, _plant);
-    FwdProp::propagate(traj1, x0p, _controller, _plant);
-
-    Tangent lip_greater{ Tangent::Zero() };
-    for (int i = 0; i < traj0.size() - 1; ++i)
-    {
-      const State& x0{ traj0[i] };
-      const State& xF{ traj0[i + 1] };
-      const State& x0p{ traj1[i] };
-      const State& xFp{ traj1[i + 1] };
-      const Tangent li{ lipschitz(x0, x0p, xF, xFp) };
-
-      if (li.norm() > lip_greater.norm())
-      {
-        // DEBUG_VARS(li, lip_greater)
-        lip_greater = li;
-      }
-    }
-    // DEBUG_VARS(lip_greater)
-    // Tangent cell_size{ Tangent::Ones() * _cell_size };
-    return Tangent::Ones() * _cell_size;
-  }
-
+  // template<typename>
   bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& x0_noise,
-               const Covariance& w, const std::chrono::time_point<std::chrono::steady_clock>& limit)
+               const Covariance& w_noise, const std::chrono::time_point<std::chrono::steady_clock>& limit)
   {
-    copy(_controller, plan_in);
-    copy(_state, x_hat);
+    ml4kp_bridge::copy(_controller, plan_in);
+    ml4kp_bridge::copy(_state, x_hat);
 
-    _x0_sampler.set(x0_noise);
-    _w_sampler.set(w);
+    // Assuming the "controller" is really a container of controller, aka a set {u_0(\cdot), u_1(\cdot), \dots}
+    // Where u_0 could be valid from [0,t_0], t_0 > simulation_step.
+    // The Split function divides u_0 into as many u_0^j such that each u_0^j is in [t_i, t_j],
+    // where t_j - t_i = simulation_step
+    // ml4kp_bridge::split(_controller, _split_time);
+
+    _w_sampler.set(w_noise);
 
     std::swap(_cells_buffer, _used_cells);
 
-    const Tangent cell_size{ grid_cell_size(_state, _controller) };
-    _grid.reset(_state, cell_size);
+    const Tangent cell_size{ Tangent::Ones() * _cell_size };
+
+    const State x_d2{ gtsam::traits<State>::Expmap(-cell_size / 2.0) };
+    const State x0_center{ gtsam::traits<State>::Compose(_state, x_d2) };
+
+    DEBUG_VARS(_state, x0_center, cell_size)
+    _grid.reset(x0_center, cell_size);
+
+    _safe_radii.clear();
 
     _collision_found = false;
     _iter_idx++;
 
+    // Get a nominal trajectory from x0
+    // _traj_nominal.clear();
+    // propagate(_traj_nominal, _state, _controller);
+
+    _C2_x0 = distribution_bound(x0_noise);
+    _C2_w = distribution_bound(w_noise);
+
+    DEBUG_VARS(_cell_size, _C2_x0, _C2_w)
+
     const std::size_t total_threads{ _pool.get_thread_count() };
 
-    // while (std::chrono::steady_clock::now() < limit)
-    // {
-    //   if (_collision_found)
-    //   {
-    //     break;
-    //   }
+    _propagated_idx++;
+    // Propagate \bar{x0} \in V(\xi)
+    _pool.detach_task([&] { this->propagate_cube(_state, _controller); });
 
-    _pool.detach_task([&] { this->propagate_cube(_state); });
-
-    // }
     _pool.wait();
 
     _collision_msg.data = _collision_found;
@@ -323,6 +454,7 @@ public:
     marker_state.scale.x = cell_size[0] * 0.96;
     marker_state.scale.y = cell_size[1] * 0.96;
     marker_state.scale.z = 0.1;
+    DEBUG_VARS(cell_size)
 
     auto plant_config = _plant->configuration(_grid.x0());
     marker_lie.pose.position.x = plant_config[0].second[0];
@@ -362,31 +494,69 @@ public:
     // DEBUG_PRINT
   }
 
+  void radii_to_markers()
+  {
+    visualization_msgs::MarkerArray all_markers;
+    int id{ 0 };
+    for (auto&& [idx, state, radius] : _safe_radii)
+    {
+      visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.5, 1, 0, 0 }) };
+      marker.type = visualization_msgs::Marker::SPHERE;
+      marker.action = visualization_msgs::Marker::ADD;
+      ml4kp_bridge::update_pose(marker.pose, state, 0, 1, 0.0);
+      marker.scale.x = marker.scale.y = marker.scale.z = 2 * radius;
+      marker.id = id;
+      id++;
+
+      prx::to_stream(_ofs_balls, idx);
+      prx::to_stream(_ofs_balls, state);
+      prx::to_stream(_ofs_balls, radius);
+      _ofs_balls << "\n";
+
+      all_markers.markers.push_back(marker);
+    }
+
+    _radii_markers_publisher.publish(all_markers);
+  }
+
   void trajectories_to_marker()
   {
     if (_visualize)
     {
+      radii_to_markers();
       visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 1, 1, 0, 0 }) };
-      marker.type = visualization_msgs::Marker::LINE_LIST;
-      marker.action = visualization_msgs::Marker::DELETEALL;
+      visualization_msgs::Marker nominal_trajs_marker{ ml4kp_bridge::create_marker(0.01, { 1, 0.2, 0.6, 0 }) };
+      marker.type = nominal_trajs_marker.type = visualization_msgs::Marker::LINE_LIST;
+      marker.action = nominal_trajs_marker.action = visualization_msgs::Marker::DELETEALL;
       // _trajectory_markers.markers.push_back(marker);
       _markers_publisher.publish(marker);
+      _traj_nominal_publisher.publish(nominal_trajs_marker);
 
-      marker.action = visualization_msgs::Marker::ADD;
-      // DEBUG_VARS(_trajectories.size())
+      marker.action = nominal_trajs_marker.action = visualization_msgs::Marker::ADD;
+      DEBUG_VARS(_trajectories.size())
       std::scoped_lock lock(_trajectories_mutex);
       while (_trajectories.size() > 0)
       {
+        // DEBUG_VARS(_trajectories.back());
         ml4kp_bridge::update_marker(marker, _trajectories.back(), 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
         _trajectories.pop_back();
       }
+      while (_nominal_trajs.size() > 0)
+      {
+        ml4kp_bridge::update_marker(nominal_trajs_marker, _nominal_trajs.back(), 0, 1, 0.0,
+                                    visualization_msgs::Marker::LINE_LIST);
+        _nominal_trajs.pop_back();
+      }
 
+      // DEBUG_VARS(marker)
+      _traj_nominal_publisher.publish(nominal_trajs_marker);
       _markers_publisher.publish(marker);
       // _trajectory_markers.markers.clear();
     }
 
     std::scoped_lock lock(_trajectories_mutex);
     _trajectories.clear();
+    _nominal_trajs.clear();
   }
 
 private:
@@ -400,13 +570,14 @@ private:
   std::mutex _new_cell_mutex;
   std::mutex _trajectories_mutex, _queries_mutex;
 
-  std::vector<Trajectory> _trajectories;
+  std::vector<Trajectory> _trajectories, _nominal_trajs;
   // std::vector<Trajectory> _checked_trajectories;
 
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
   ros::Publisher _markers_publisher, _cubes_algebra_publisher, _cubes_state_publisher, _collision_publisher;
+  ros::Publisher _radii_markers_publisher, _traj_nominal_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::world_model_t> _planning_model;
@@ -430,7 +601,7 @@ private:
   int _total_threads, _half_threads;
   BS::thread_pool<BS::tp::pause | BS::tp::priority> _pool;
 
-  StateSampler _x0_sampler;
+  // StateSampler _x0_sampler;
   StateSampler _w_sampler;
 
   double _cell_size;
@@ -441,5 +612,16 @@ private:
   ImplicitGrid _grid;
 
   bool _short_circuit;
+
+  std::ofstream _ofs_balls;
+  std::vector<std::tuple<int, State, double>> _safe_radii;
+
+  // Trajectory _traj_nominal, _nominal_trajs;
+
+  double _Chi2_confidence;
+  double _C2_x0, _C2_w;
+
+  double _split_time;
+  std::size_t _propagated_idx;
 };
 }  // namespace motion_planning
