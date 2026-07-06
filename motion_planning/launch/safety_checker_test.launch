@@ -5,14 +5,14 @@
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <arg name="environment" default="empty"/>
-    <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/SO2_system.yaml"/>
+    <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/>
     <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/unicycle_system.yaml"/> -->
     <arg name="algorithm" default="randup"/>
     <!-- <arg name="plant" value="unicycle"/> -->
     <arg name="plant" value="SO2System"/>
     
     <!-- <arg name="output_directory" default="/tmp/"/> -->
-    <arg name="output_directory" default="/Users/Gary/pracsys/catkin_ws/data/reachability/pendulum/gt/center/"/>
+<arg name="output_directory" default="$(env ML4KP_ROS)/data/reachability/pendulum/gt/center/"/>
 
     <arg name="file_prefix" default="low"/>
     <arg name="repetitions" default="5"/>
@@ -30,6 +30,7 @@
 
           <!-- launch-prefix="$(arg dbg)" -->
     <node pkg="motion_planning" name="safety_checker" type="safety_checker" 
+launch-prefix="gdb -ex run --args"
           output="screen" respawn="false">     
       <param name="randup_time" value="$(arg randup_time)"/>
       <param name="state_topic" value="$(arg state_topic)"/>

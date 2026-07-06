@@ -57,23 +57,23 @@ struct safety_helper_t
 
   std::vector<Gain> _gains;
 
-  // randup
-  bool _randup_time;
-  Randup _randup;
-  int _total_trajs;
-
-  // MG
-  MGReachability _mg_reach;
-
   // Both
   RandupCovariance _cov_x0, _cov_w;
   ros::Duration _check_duration;
 
+  // randup
+  bool _randup_time;
+  int _total_trajs;
+  std::shared_ptr<Randup> _randup;
+
+  // MG
+  std::shared_ptr<MGReachability> _mg_reach;
+
   // GT
-  ReachabilityGT _gt;
+  std::shared_ptr<ReachabilityGT> _gt;
 
   // Gotube
-  GoTube _gotube;
+  std::shared_ptr<GoTube> _gotube;
   // SceneOpt _sceneopt;
 
   bool valid_state, valid_plan;
@@ -83,10 +83,10 @@ struct safety_helper_t
   safety_helper_t(ros::NodeHandle& nh)
     : valid_state(false)
     , valid_plan(false)
-    , _randup(nh)
-    , _mg_reach(nh)
-    , _gotube(nh)
-    , _gt(nh)
+    // , _randup(nh)
+    // , _mg_reach(nh)
+    // , _gotube(nh)
+    // , _gt(nh)
     , _total_trajs(100)
     , _cov_x0(RandupCovariance::Identity() * 0.1)
     , _cov_w(RandupCovariance::Identity() * 0.1)
@@ -97,13 +97,31 @@ struct safety_helper_t
     PARAM_SETUP(nh, algorithm)
     PARAM_SETUP(nh, repetitions)
 
-    prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt" or algorithm == "gotube",
-               "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
+    // prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt" or algorithm == "gotube",
+    //            "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
     if (algorithm == "randup")
     {
       bool& randup_time{ _randup_time };
       PARAM_SETUP(nh, randup_time)
+      _randup = std::make_shared<Randup>(nh);
     }
+    else if (algorithm == "mg")
+    {
+      _mg_reach = std::make_shared<MGReachability>(nh);
+    }
+    else if (algorithm == "gt")
+    {
+      _gt = std::make_shared<ReachabilityGT>(nh);
+    }
+    else if (algorithm == "gotube")
+    {
+      _gotube = std::make_shared<GoTube>(nh);
+    }
+    else
+    {
+      prx_throw("[safety_checker_t] Parameter 'algorithm' invalid ");
+    }
+
     // safety_checker = std::make_shared<motion_planning::safety_checker_t>(ros::NodeHandle(nh, "safety"));
     timer = nh.createTimer(ros::Duration(1.0), &safety_helper_t::timer_callback, this);
 
@@ -172,7 +190,7 @@ struct safety_helper_t
 
   void gotube_call()
   {
-    _gotube.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+    _gotube->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
   }
 
   void randup_call()
@@ -184,14 +202,14 @@ struct safety_helper_t
                                                   std::chrono::seconds(_check_duration.sec) +
                                                   std::chrono::nanoseconds(_check_duration.nsec) };
 
-      _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, randup_limit);
+      _randup->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, randup_limit);
       auto end = ros::Time::now();
       auto randup_real_dt = (end - start).toSec();
       DEBUG_VARS(randup_real_dt)
     }
     else
     {
-      _randup.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+      _randup->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
     }
   }
 
@@ -202,7 +220,7 @@ struct safety_helper_t
                                             std::chrono::seconds(_check_duration.sec) +
                                             std::chrono::nanoseconds(_check_duration.nsec) };
 
-    _mg_reach.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, mg_limit);
+    _mg_reach->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, mg_limit);
     auto end = ros::Time::now();
     auto mg_real_dt = (end - start).toSec();
     DEBUG_VARS(mg_real_dt)
@@ -210,7 +228,7 @@ struct safety_helper_t
 
   void gt_call()
   {
-    _gt.is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
+    _gt->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _total_trajs);
   }
 
   void timer_callback(const ros::TimerEvent& event)

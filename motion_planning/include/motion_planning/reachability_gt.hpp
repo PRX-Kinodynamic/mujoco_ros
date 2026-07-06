@@ -131,12 +131,15 @@ public:
 
     // DEBUG_VARS(_pool.get_thread_count())
 
+    PRINT_MSG("Setting env");
     env_params.from_string(environment);
     // plant_params.from_string(plant_parameters);
 
     // _plant = std::make_shared<DynamicalSystem>(plant_parameters);
+    PRINT_MSG("Setting plant");
     _plant = DynamicalSystem::create(plant_parameters);
 
+    PRINT_MSG("Setting obstacles");
     _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
 
     _system_geoms = _plant->geometries();
