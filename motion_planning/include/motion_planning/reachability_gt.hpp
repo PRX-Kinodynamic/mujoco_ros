@@ -156,6 +156,11 @@ public:
 
     // const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
     _output_file_prefix = output_directory + "/" + file_prefix + "_volumes_";
+
+    _timestamp = utils::timestamp();
+
+    const std::string trajs_filename{ output_directory + "/" + file_prefix + "_" + _timestamp + "_trajs.txt" };
+    _ofs_trajs.open(trajs_filename.c_str());
     // DEBUG_VARS(OUTPUT_FILE)
     _traj_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
     _traj_marker.type = visualization_msgs::Marker::LINE_LIST;
@@ -177,8 +182,15 @@ public:
       _trajectories.pop_back();
       if (_visualize)
       {
-        if (_trajs_markers > 1000)
+        if (_trajs_markers <= 1000)
         {
+          // _ofs_trajs
+          for (auto state : traj)
+          {
+            prx::to_stream(_ofs_trajs, state);
+            _ofs_trajs << "\n";
+          }
+          _ofs_trajs << "\n";
           ml4kp_bridge::update_marker(_traj_marker, traj, 0, 1, -0.01);
           _trajs_markers++;
         }
@@ -322,7 +334,7 @@ public:
     for (int traj_idx = 0; traj_idx < total_trajectories; ++traj_idx)
     {
       propagate();
-      if (traj_idx % 1000 == 0)
+      if (traj_idx % 100'000 == 0)
       {
         DEBUG_VARS(traj_idx)
       }
@@ -351,6 +363,7 @@ public:
     trajectories_to_marker();
     compute_gt_info();
 
+    _ofs_trajs.close();
     return _collision_found;
   }
 
@@ -359,12 +372,10 @@ public:
     using prx::utilities::convert_to;
     DEBUG_VARS(_max_step_idx)
 
-    const std::string timestamp{ utils::timestamp() };
-
     for (int state_idx = 0; state_idx <= _max_step_idx; state_idx += _convex_hulls_step)
     {
       const std::string s_idx{ convert_to<std::string>(state_idx) };
-      const std::string filename_i{ _output_file_prefix + "_" + timestamp + "_" + s_idx + ".txt" };
+      const std::string filename_i{ _output_file_prefix + "_" + _timestamp + "_" + s_idx + ".txt" };
       DEBUG_VARS(filename_i);
       _ofs.open(filename_i.c_str());
       _ofs << "# First line: 'id x0 cell_size' of grid (the id of this reachable set, x0 is the x0 of the grid  ";
@@ -519,7 +530,7 @@ private:
 
   bool _short_circuit;
 
-  std::ofstream _ofs;
+  std::ofstream _ofs, _ofs_trajs;
 
   ImplicitGrid _grid;
 
@@ -535,5 +546,7 @@ private:
   int _trajs_markers;
 
   std::string _output_file_prefix;
+
+  std::string _timestamp;
 };
 }  // namespace motion_planning

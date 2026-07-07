@@ -104,12 +104,12 @@ public:
         "    max: [+6.28318]\n";
     const std::string control_space_bounds_yaml =
         "bounds:\n"
-        "    min: [-1, -1]\n"
-        "    max: [+1, +1]\n";
-    const std::string observation_space_bounds_yaml =
-        "bounds:\n"
-        "    min: [-3.14159,-6.28318]\n"
-        "    max: [+3.14159,+6.28318]\n";
+        "    min: [-0.6371781908344007]\n"
+        "    max: [+0.6371781908344007]\n";
+    // const std::string observation_space_bounds_yaml =
+    //     "bounds:\n"
+    //     "    min: [-3.14159,-6.28318]\n"
+    //     "    max: [+3.14159,+6.28318]\n";
     // const std::string parameter_space_bounds_yaml =
     //     "bounds:\n"
     //     "    min: [-1, -1, -1]\n"
@@ -117,7 +117,7 @@ public:
 
     params["state_space"].from_string(state_space_bounds_yaml);
     params["control_space"].from_string(control_space_bounds_yaml);
-    params["observation_space"].from_string(observation_space_bounds_yaml);
+    params["observation_space"].from_string(state_space_bounds_yaml);
 
     return params;
   }
