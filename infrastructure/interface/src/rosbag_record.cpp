@@ -113,7 +113,7 @@ struct ros_qs_types_t
     // STD MSGS
     , bool_queue("std_msgs::Bool")
     , float64_queue("std_msgs::Float64")
-    , int32_queue("std_msgs::int32")
+    , int32_queue("std_msgs::Int32")
     , string_queue("std_msgs::string")
     , empty_queue("std_msgs::Empty")
     , duration_queue("std_msgs::Duration")
@@ -235,6 +235,8 @@ struct bag_writer_t
 
   double _msgs_in_queue;
 
+  bool automatic_start;
+
   ros_qs_types_t _qs;
   ros::NodeHandle _nh;
 
@@ -250,7 +252,8 @@ struct bag_writer_t
     bool& verbose{ _verbose };
     PARAM_SETUP(nh, topics);
     // PARAM_SETUP(nh, rosbag_directory);
-    // PARAM_SETUP_WITH_DEFAULT(nh, rosbag_prefix, rosbag_prefix);
+
+    PARAM_SETUP_WITH_DEFAULT(nh, automatic_start, false);
     PARAM_SETUP_WITH_DEFAULT(nh, verbose, verbose);
 
     _qs.register_topics(nh, topics);
@@ -270,23 +273,34 @@ struct bag_writer_t
     ros::Duration(1.0).sleep();
   }
 
+  void finish()
+  {
+    if (bag.isOpen())
+    {
+      bag.close();
+    }
+  }
+
   bool init_bag()
   {
-    const bool dir_set{ ros::param::get("/rosbag/directory", rosbag_directory) };
-    const bool prefix_set{ ros::param::get("/rosbag/prefix", rosbag_prefix) };
+    // const bool dir_set{ ros::param::get("/rosbag/directory", rosbag_directory) };
+    // const bool prefix_set{ ros::param::get("/rosbag/prefix", rosbag_prefix) };
 
+    PARAM_SETUP(_nh, rosbag_directory)
+    PARAM_SETUP(_nh, rosbag_prefix)
+
+    DEBUG_VARS(rosbag_directory)
+    DEBUG_VARS(rosbag_prefix)
     // DEBUG_VARS(dir_set, prefix_set)
-    if (dir_set and prefix_set)
-    {
-      const std::string bn{ prx::utilities::convert_to<std::string>(_bag_num) };
-      interface::init_bag(&bag, rosbag_directory, rosbag_prefix + "_" + bn);
-      _bag_num++;
+    // prx_assert(dir_set, "[rosbag_record] Directory not set: " << rosbag_directory);
+    // prx_assert(prefix_set, "[rosbag_record] Prefix not set: " << rosbag_prefix);
+    const std::string bn{ prx::utilities::convert_to<std::string>(_bag_num) };
+    interface::init_bag(&bag, rosbag_directory, rosbag_prefix + "_" + bn);
+    _bag_num++;
 
-      // ros::param::del("/rosbag/directory");
-      // ros::param::del("/rosbag/prefix");
-      return true;
-    }
-    return false;
+    // ros::param::del("/rosbag/directory");
+    // ros::param::del("/rosbag/prefix");
+    return true;
   }
 
   template <typename Queue>
@@ -372,7 +386,11 @@ struct bag_writer_t
 
   void process_req_status()
   {
-    if (_node_status->new_request())
+    if (automatic_start)
+    {
+      _node_status->status(interface::NodeStatus::RUNNING);
+    }
+    else if (_node_status->new_request())
     {
       const interface::node_status_t::StatusType current_status{ _node_status->status() };
       const interface::node_status_t::StatusType req_status{ _node_status->requested_status() };
@@ -472,6 +490,7 @@ struct bag_writer_t
         DEBUG_VARS(invalid_status);
       }
     }
+    finish();
   }
 
   std::size_t write()
@@ -500,7 +519,8 @@ int main(int argc, char** argv)
   ros::AsyncSpinner spinner(4);
   spinner.start();
 
-  while (experiments_node_status->status() != interface::NodeStatus::FINISH)
+  // std::shared_ptr<bag_writer_t> bag_writter(nh, node_status);
+  while (ros::ok() and experiments_node_status->status() != interface::NodeStatus::FINISH)
   {
     node_status->status(interface::NodeStatus::INITIALIZING, experiments_node_status->sequence_id());
     bag_writer_t bag_writter(nh, node_status);

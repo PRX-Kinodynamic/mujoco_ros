@@ -80,6 +80,8 @@ struct safety_helper_t
   std::string algorithm;
   int repetitions;
 
+  bool exit_after_query;
+
   safety_helper_t(ros::NodeHandle& nh)
     : valid_state(false)
     , valid_plan(false)
@@ -96,6 +98,7 @@ struct safety_helper_t
     PARAM_SETUP(nh, state_topic)
     PARAM_SETUP(nh, algorithm)
     PARAM_SETUP(nh, repetitions)
+    PARAM_SETUP_WITH_DEFAULT(nh, exit_after_query, false)
 
     // prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt" or algorithm == "gotube",
     //            "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
@@ -267,6 +270,11 @@ struct safety_helper_t
       PRINT_MSG("Safety checker finished")
       valid_state = false;
       valid_plan = false;
+
+      if (exit_after_query)
+      {
+        ros::shutdown();
+      }
     }
   }
 };

@@ -41,7 +41,7 @@ class gt_cell_t : public std::enable_shared_from_this<gt_cell_t<State>>
   inline static std::size_t idx = 0;
 
 public:
-  gt_cell_t(const Private) : safe(false), total_states(0), step_idx(200, false)
+  gt_cell_t(const Private) : safe(false), total_states(0), step_idx(400, false)
   {
     // DEBUG_PRINT
     // step_idx.fill(false);
@@ -60,7 +60,7 @@ public:
   }
 
   bool safe;
-  // std::array<bool, 200> step_idx;
+  // std::array<bool, 400> step_idx;
   std::vector<bool> step_idx;
   std::size_t total_states;
   State state;
@@ -236,7 +236,7 @@ public:
       cellptr->state = center;
       if (cellptr->step_idx.size() <= state_idx)
       {
-        cellptr->step_idx.insert(cellptr->step_idx.end(), 200, false);
+        cellptr->step_idx.insert(cellptr->step_idx.end(), 400, false);
       }
       // DEBUG_VARS(cellptr->step_idx.size())
       cellptr->step_idx[state_idx] = true;
@@ -258,7 +258,7 @@ public:
 
     _collision_found = _collision_found or collision;
     // std::scoped_lock lock(_checked_trajectories_mutex);
-    _checked_trajectories.push_back(traj);
+    // _checked_trajectories.push_back(traj);
   }
 
   CellPtr init_cell(const State& state)
@@ -481,7 +481,7 @@ public:
     }
 
     // std::scoped_lock lock(_checked_trajectories_mutex);
-    _checked_trajectories.clear();
+    // _checked_trajectories.clear();
   }
 
 private:
@@ -493,7 +493,7 @@ private:
   std::atomic<int> _unchecked_trajectories, _collisions_in_check;
   // std::mutex _trajectories_mutex, _checked_trajectories_mutex, _queries_mutex;
   std::vector<Trajectory> _trajectories;
-  std::vector<Trajectory> _checked_trajectories;
+  // std::vector<Trajectory> _checked_trajectories;
 
   visualization_msgs::Marker _traj_marker;
   visualization_msgs::MarkerArray _marker_convex_hull, _marker_pts;
