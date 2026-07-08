@@ -91,8 +91,7 @@ public:
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
   using Tangent = typename ImplicitGrid::TangentElement;
 
-  reachability_gt_t(ros::NodeHandle nh)
-    : _max_step_idx(0), _x0_sampler(true, 3.841), _w_sampler(true, 3.841), _trajs_markers(0)
+  reachability_gt_t(ros::NodeHandle nh) : _max_step_idx(0), _trajs_markers(0)
   {
     // PRX FILES
     std::string environment;
@@ -192,6 +191,7 @@ public:
           }
           _ofs_trajs << "\n";
           ml4kp_bridge::update_marker(_traj_marker, traj, 0, 1, -0.01);
+          DEBUG_VARS(_traj_marker.points.size())
           _trajs_markers++;
         }
       }
@@ -301,6 +301,7 @@ public:
   void init_query(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
                   const Covariance& cov_w)
   {
+    _trajs_markers = 0;
     _colliding_states.clear();
 
     _trajectories.clear();

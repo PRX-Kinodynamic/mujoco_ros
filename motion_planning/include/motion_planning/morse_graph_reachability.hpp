@@ -233,7 +233,7 @@ public:
 
     const double& d{ _cell_size };
     const double L_tau{ (2. / d) * std::sqrt(d / 2. + P + K_tau) };
-    DEBUG_VARS(Lf, tau, tau_steps, P, K_tau, L_tau, _C2_w, _C2_x0)
+    // DEBUG_VARS(Lf, tau, tau_steps, P, K_tau, L_tau, _C2_w, _C2_x0)
     return L_tau * d / 2.;
   }
 
@@ -257,7 +257,7 @@ public:
   }
 
   void propagate_and_check(const State state, const Controller ctrl_head, const Controller controller,
-                           const Trajectory traj_nominal)
+                           const Trajectory traj_nominal, const int split_idx)
   {
     Trajectory traj;
 
@@ -279,7 +279,7 @@ public:
       const State& xbar{ traj[i] };
       const State& x{ traj_nominal[i] };
 
-      DEBUG_VARS(i, tau, tau_prev)
+      // DEBUG_VARS(i, tau, tau_prev)
 
       K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
       tau_prev = tau;
@@ -290,7 +290,8 @@ public:
         hashes.insert(h);
         const double safe_distance{ compute_safe_distance(K_tau, x0V, xbar, tau, traj_nominal) };
         // DEBUG_VARS(safe_distance)
-        _pool.detach_task([xbar, safe_distance, i, this] { this->collision_check(xbar, safe_distance, i); });
+        _pool.detach_task(
+            [xbar, safe_distance, split_idx, this] { this->collision_check(xbar, safe_distance, split_idx); });
       }
     }
 
@@ -303,8 +304,8 @@ public:
       const State xT{ traj.back() };
       // DEBUG_VARS(x0V, xT, traj.size())
       // DEBUG_VARS(current_ctrllr.size())
-      // DEBUG_VARS(controller.size())
-      _pool.detach_task([xT, controller, this] { this->propagate_cube(xT, controller); });
+      DEBUG_VARS(xT, split_idx)
+      _pool.detach_task([xT, controller, split_idx, this] { this->propagate_cube(xT, controller, split_idx); });
     }
     // _unchecked_trajectories++;
   }
@@ -326,7 +327,7 @@ public:
     return traj;
   }
 
-  void propagate_cube(const State state, Controller controller)
+  void propagate_cube(const State state, Controller controller, const int split_idx)
   {
     // DEBUG_VARS(state)
     // if (_collision_found)  // short-circuit
@@ -344,13 +345,14 @@ public:
     const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
     const Trajectory traj_nominal{ get_nominal_trajectory(state, controller_head) };
 
+    DEBUG_VARS(controller_head, controller, split_idx)
     for (auto v : vertices)
     {
       const State xv{ _grid.state_from_vertex(v) };
       // CellPtr cellptr{ init_cell(xv) };
 
-      _pool.detach_task([xv, controller_head, controller, traj_nominal, this] {
-        this->propagate_and_check(xv, controller_head, controller, traj_nominal);
+      _pool.detach_task([xv, controller_head, controller, traj_nominal, split_idx, this] {
+        this->propagate_and_check(xv, controller_head, controller, traj_nominal, split_idx + 1);
       });
     }
   }
@@ -428,7 +430,7 @@ public:
 
     _propagated_idx++;
     // Propagate \bar{x0} \in V(\xi)
-    _pool.detach_task([&] { this->propagate_cube(_state, _controller); });
+    _pool.detach_task([&] { this->propagate_cube(_state, _controller, 0); });
 
     _pool.wait();
 
@@ -508,6 +510,7 @@ public:
       marker.id = id;
       id++;
 
+      // DEBUG_VARS(idx, state, radius)
       prx::to_stream(_ofs_balls, idx);
       prx::to_stream(_ofs_balls, state);
       prx::to_stream(_ofs_balls, radius);
@@ -515,6 +518,7 @@ public:
 
       all_markers.markers.push_back(marker);
     }
+    _ofs_balls.close();
 
     _radii_markers_publisher.publish(all_markers);
   }

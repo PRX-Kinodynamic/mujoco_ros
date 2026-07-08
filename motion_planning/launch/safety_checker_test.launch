@@ -15,7 +15,7 @@
 <arg name="output_directory" default="$(env ML4KP_ROS)/data/reachability/pendulum/gt/center/"/>
 
     <arg name="file_prefix" default="low"/>
-    <arg name="repetitions" default="5"/>
+    <arg name="repetitions" default="1"/>
     <arg name="random_seed" default="112392"/>
 
     <param name="simulation_step" value="0.01"/>
