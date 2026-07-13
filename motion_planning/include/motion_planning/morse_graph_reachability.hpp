@@ -229,7 +229,7 @@ public:
 
     const double Lf{ lipschitz(x0, x0p, x_tau, xp_tau) };
 
-    const double P{ 4. * tau * _C2_w + 4. * tau * Lf * _C2_x0 };
+    const double P{ 4. * tau * _C2_w };  //+ 4. * tau * Lf * _C2_x0 };
 
     const double& d{ _cell_size };
     const double L_tau{ (2. / d) * std::sqrt(d / 2. + P + K_tau) };
@@ -514,6 +514,7 @@ public:
       prx::to_stream(_ofs_balls, idx);
       prx::to_stream(_ofs_balls, state);
       prx::to_stream(_ofs_balls, radius);
+      prx::to_stream(_ofs_balls, _trajectories.size());
       _ofs_balls << "\n";
 
       all_markers.markers.push_back(marker);
@@ -537,7 +538,7 @@ public:
       _traj_nominal_publisher.publish(nominal_trajs_marker);
 
       marker.action = nominal_trajs_marker.action = visualization_msgs::Marker::ADD;
-      DEBUG_VARS(_trajectories.size())
+      // DEBUG_VARS(_trajectories.size())
       std::scoped_lock lock(_trajectories_mutex);
       while (_trajectories.size() > 0)
       {
