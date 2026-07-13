@@ -34,6 +34,8 @@
 
     <arg name="state_topic" default="/mushr/state"/>
 
+    <arg name="split_time" default="0.2"/>
+
           <!-- launch-prefix="$(arg dbg)" -->
 <!-- launch-prefix="gdb -ex run - -args" -->
     <node pkg="motion_planning" name="safety_checker" type="safety_checker" 
@@ -41,15 +43,15 @@
       <param name="randup_time" value="$(arg randup_time)"/>
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
-      <param name="total_threads" value="5"/>
-      <param name="cell_size" value="0.001"/>
+      <param name="total_threads" value="1"/>
+      <param name="cell_size" value="0.1"/>
       <param name="short_circuit" value="false"/>
       <!-- <param name="plant" value="mushrPolynomial"/> -->
       <param name="plant" value="$(arg plant)"/>
       <param name="convex_hulls_step" value="1"/>
       <param name="mg_step" value="1"/>
       <!-- <param name="split_time" value="0.05"/> -->
-      <param name="split_time" value="0.2"/>
+      <param name="split_time" value="$(arg split_time)"/>
       <param name="output_directory" value="$(arg output_directory)"/>
       <param name="file_prefix" value="$(arg file_prefix)"/>
       <param name="repetitions" value="$(arg repetitions)"/>

@@ -91,6 +91,8 @@ public:
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
     PARAM_SETUP_WITH_DEFAULT(nh, split_time, 0.5);
 
+    DEBUG_VARS(mg_step, cell_size, split_time)
+
     GLOBAL_PARAM_BLOCKER(environment);
     GLOBAL_PARAM_BLOCKER(plant_parameters);
     GLOBAL_PARAM_BLOCKER(simulation_step);
