@@ -122,9 +122,16 @@ public:
     PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "mg");
 
     const std::string timestamp{ utils::timestamp() };
-    const std::string MG_OUTPUT_FILE{ output_directory + "/" + file_prefix + "_balls_" + timestamp + ".txt" };
+    const std::string prefix{ output_directory + "/" + file_prefix };
+    const std::string MG_OUTPUT_FILE{ prefix + "_balls_" + timestamp + ".txt" };
+    const std::string MG_TRAJS_FILE{ prefix + "_trajs_" + timestamp + ".txt" };
+    const std::string MG_NOMINAL_TRAJS_FILE{ prefix + "_nominal_trajs_" + timestamp + ".txt" };
     DEBUG_VARS(MG_OUTPUT_FILE)
+    DEBUG_VARS(MG_TRAJS_FILE)
+    DEBUG_VARS(MG_NOMINAL_TRAJS_FILE)
     _ofs_balls.open(MG_OUTPUT_FILE);
+    _ofs_trajs.open(MG_TRAJS_FILE);
+    _ofs_nominal_trajs.open(MG_NOMINAL_TRAJS_FILE);
   }
 
   ~morse_graph_reachability_t()
@@ -195,6 +202,7 @@ public:
         _collision_found = true;
       }
     }
+    DEBUG_VARS(step_idx, state, safe_distance)
     _safe_radii.push_back({ step_idx, state, safe_distance });
     cellptr->state = state;
     cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
@@ -502,6 +510,7 @@ public:
   {
     visualization_msgs::MarkerArray all_markers;
     int id{ 0 };
+    DEBUG_VARS(_safe_radii.size())
     for (auto&& [idx, state, radius] : _safe_radii)
     {
       visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.5, 1, 0, 0 }) };
@@ -544,12 +553,16 @@ public:
       std::scoped_lock lock(_trajectories_mutex);
       while (_trajectories.size() > 0)
       {
+        prx::to_stream(_ofs_trajs, _trajectories.back());
+        _ofs_trajs << "\n";
         // DEBUG_VARS(_trajectories.back());
         ml4kp_bridge::update_marker(marker, _trajectories.back(), 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
         _trajectories.pop_back();
       }
       while (_nominal_trajs.size() > 0)
       {
+        prx::to_stream(_ofs_nominal_trajs, _nominal_trajs.back());
+        _ofs_nominal_trajs << "\n";
         ml4kp_bridge::update_marker(nominal_trajs_marker, _nominal_trajs.back(), 0, 1, 0.0,
                                     visualization_msgs::Marker::LINE_LIST);
         _nominal_trajs.pop_back();
@@ -620,7 +633,7 @@ private:
 
   bool _short_circuit;
 
-  std::ofstream _ofs_balls;
+  std::ofstream _ofs_balls, _ofs_trajs, _ofs_nominal_trajs;
   std::vector<std::tuple<int, State, double>> _safe_radii;
 
   // Trajectory _traj_nominal, _nominal_trajs;
