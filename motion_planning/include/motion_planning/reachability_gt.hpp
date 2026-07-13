@@ -191,7 +191,6 @@ public:
           }
           _ofs_trajs << "\n";
           ml4kp_bridge::update_marker(_traj_marker, traj, 0, 1, -0.01);
-          DEBUG_VARS(_traj_marker.points.size())
           _trajs_markers++;
         }
       }
