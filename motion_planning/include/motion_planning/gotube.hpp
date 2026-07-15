@@ -118,13 +118,12 @@ public:
 
     const std::string timestamp{ utils::timestamp() };
     const std::string OUTPUT_FILE{ output_directory + "/" + file_prefix + "_volumes_" + timestamp + ".txt" };
-    const std::string CONVEX_HULL_OUTPUT_FILE{ output_directory + "/" + file_prefix + "_convex_hulls_" + timestamp +
-                                               ".txt" };
+    const std::string BALLS_OUTPUT_FILE{ output_directory + "/" + file_prefix + "_balls_" + timestamp + ".txt" };
 
     DEBUG_VARS(OUTPUT_FILE)
-    DEBUG_VARS(CONVEX_HULL_OUTPUT_FILE)
+    DEBUG_VARS(BALLS_OUTPUT_FILE)
     _ofs.open(OUTPUT_FILE);
-    _ofs_convex_hulls.open(CONVEX_HULL_OUTPUT_FILE);
+    _ofs_balls.open(BALLS_OUTPUT_FILE);
 
     _trajs_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
     _trajs_marker.type = visualization_msgs::Marker::LINE_LIST;
@@ -240,7 +239,7 @@ public:
                   const Covariance& cov_w)
   {
     _unchecked_trajectories = 0;
-    _convex_hull_volumes.clear();
+    // _convex_hull_volumes.clear();
     _colliding_states.clear();
 
     // copy(_controller, plan_in);
@@ -328,10 +327,10 @@ public:
     _ofs << total_trajectories << " ";
     _ofs << collision << " ";
     _ofs << gotube_time << " ";
-    for (auto&& vol : _convex_hull_volumes)
-    {
-      _ofs << vol << " ";
-    }
+    // for (auto&& vol : _convex_hull_volumes)
+    // {
+    //   _ofs << vol << " ";
+    // }
     _ofs << "\n";
     // VARS_TO_STREAM(_ofs, gotube_time, collision);
 
@@ -381,10 +380,15 @@ public:
         ball_marker.points.emplace_back();
         ml4kp_bridge::update_pose(ball_marker.pose, xc, 0, 1, 0.0);
 
-        DEBUG_VARS(i, r, xc)
+        prx::to_stream(_ofs_balls, i);
+        prx::to_stream(_ofs_balls, xc);
+        prx::to_stream(_ofs_balls, r);
+        _ofs_balls << "\n";
+        // DEBUG_VARS(i, r, xc)
 
         _marker_balls.markers.push_back(ball_marker);
       }
+      _ofs_balls.close();
 
       // for (auto&& state : _colliding_states)
       // {
@@ -449,10 +453,10 @@ private:
   bool _short_circuit;
   int _convex_hulls_step;
 
-  std::ofstream _ofs, _ofs_convex_hulls;
+  std::ofstream _ofs, _ofs_balls;
 
   std::vector<State> _colliding_states;
-  std::vector<double> _convex_hull_volumes;
+  // std::vector<double> _convex_hull_volumes;
 
   std::vector<std::mutex> _rads_mutex;
   std::vector<double> _max_rads;
