@@ -106,6 +106,7 @@ public:
     _system_geoms = _plant->geometries();
 
     _center_traj_publisher = nh.advertise<visualization_msgs::Marker>("/gotube/trajectories/center/marker", 1);
+    _trajs_publisher = nh.advertise<visualization_msgs::Marker>("/gotube/trajectories/marker", 1);
     // _collision_publisher = nh.advertise<std_msgs::Bool>("/gotube/collision", 1);
     _balls_publisher = nh.advertise<visualization_msgs::MarkerArray>("/gotube/balls", 1);
     // _end_points_publisher = nh.advertise<visualization_msgs::MarkerArray>("/gotube/end_points", 1);
@@ -124,6 +125,10 @@ public:
     DEBUG_VARS(CONVEX_HULL_OUTPUT_FILE)
     _ofs.open(OUTPUT_FILE);
     _ofs_convex_hulls.open(CONVEX_HULL_OUTPUT_FILE);
+
+    _trajs_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
+    _trajs_marker.type = visualization_msgs::Marker::LINE_LIST;
+    _trajs_marker.action = visualization_msgs::Marker::ADD;
   }
 
   ~gotube_t()
@@ -195,6 +200,7 @@ public:
       const Tangent tgi{ prx::TangentBetween(ci, xi) };
       const double error{ tgi.norm() };
 
+      // DEBUG_VARS(bi, ci, xi, tgi, error, _max_rads[bi])
       std::scoped_lock lock(_rads_mutex[bi]);
       _max_rads[bi] = std::max(_max_rads[bi], error);
     }
@@ -221,6 +227,10 @@ public:
       std::scoped_lock lock(_trajectories_mutex);
       _trajectories.push_back(traj);
       _unchecked_trajectories++;
+      if (_unchecked_trajectories < 100)
+      {
+        ml4kp_bridge::update_marker(_trajs_marker, traj, 0, 1, -0.01);
+      }
     }
 
     _pool.detach_task([&] { this->collion_check(); }, BS::pr::highest);
@@ -229,6 +239,7 @@ public:
   void init_query(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& cov_x0,
                   const Covariance& cov_w)
   {
+    _unchecked_trajectories = 0;
     _convex_hull_volumes.clear();
     _colliding_states.clear();
 
@@ -251,6 +262,7 @@ public:
       _balls_publisher.publish(_marker_balls);
     }
 
+    _trajs_marker.points.clear();
     _marker_balls.markers.clear();
     _marker_pts.markers.clear();
 
@@ -334,6 +346,8 @@ public:
   {
     if (_visualize)
     {
+      DEBUG_VARS(_trajs_marker.points.size())
+      _trajs_publisher.publish(_trajs_marker);
       visualization_msgs::Marker center_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
       center_marker.type = visualization_msgs::Marker::LINE_LIST;
       center_marker.action = visualization_msgs::Marker::DELETEALL;
@@ -354,9 +368,9 @@ public:
         visualization_msgs::Marker ball_marker{ ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 }) };
         ball_marker.type = visualization_msgs::Marker::SPHERE;
         ball_marker.id = i;
-        ball_marker.scale.x = r;
-        ball_marker.scale.y = r;
-        ball_marker.scale.z = r;
+        ball_marker.scale.x = 2. * r;  // ros marker expects diameter
+        ball_marker.scale.y = 2. * r;  // ros marker expects diameter
+        ball_marker.scale.z = 2. * r;  // ros marker expects diameter
 
         ball_marker.color.a = 0.5;
         ball_marker.color.r = 0.92;
@@ -398,13 +412,14 @@ private:
   std::vector<Trajectory> _checked_trajectories;
 
   visualization_msgs::MarkerArray _marker_balls, _marker_pts;
+  visualization_msgs::Marker _trajs_marker;
 
   Controller _controller;
 
   std_msgs::Bool _collision_msg;
   // ros::Publisher _center_traj_publisher, _collision_publisher, _collision_markers_publisher;
   // ros::Publisher _end_points_publisher, _balls_publisher;
-  ros::Publisher _center_traj_publisher, _balls_publisher;
+  ros::Publisher _center_traj_publisher, _balls_publisher, _trajs_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::world_model_t> _planning_model;
@@ -442,6 +457,7 @@ private:
   std::vector<std::mutex> _rads_mutex;
   std::vector<double> _max_rads;
   int _ball_step;
+
   Trajectory _center_traj;
   // double _Chi2_confidence;
   // std::shared_ptr<prx::chi_squared> _chi2;
