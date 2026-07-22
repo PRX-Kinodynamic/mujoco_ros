@@ -6,6 +6,8 @@
 #include <iterator>
 #include <memory>
 #include <prx/simulation/forward_propagation.hpp>
+#include <prx/utilities/math/chi_squared.hpp>
+#include <prx/utilities/math/lie_utils.hpp>
 #include <string>
 #include <std_msgs/Bool.h>
 #include <prx/utilities/general/prx_assert.hpp>
@@ -25,18 +27,22 @@
 #include <prx/utilities/data_structures/implicit_grid.hpp>
 
 #include <prx/utilities/math/multivariate_gaussian_distribution.hpp>
+#include <ml4kp_bridge/controller_bridge.hpp>
+#include "interface/gaussian_to_ellipse_marker.hpp"
 
 namespace motion_planning
 {
 template <typename State>
 struct mg_cell_t
 {
-  mg_cell_t() : added_idx(0), propagated_idx(0), safe(false) {};
+  mg_cell_t() : added_idx(0), propagated_idx(0), visited_idx(0), safe(false) {};
 
   std::mutex mutex;
   bool safe;
   std::size_t added_idx;
   std::size_t propagated_idx;
+  std::size_t visited_idx;
+  // std::size_t _idx;
   State state;
 };
 
@@ -50,6 +56,8 @@ public:
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;
 
+  static constexpr int DimX{ gtsam::traits<State>::dimension };
+
   using FwdProp = prx::forward_propagation_t<DynamicalSystem, Trajectory, Controller>;
 
   using StateSampler = prx::lie_group_gaussian_noise_t<State>;
@@ -61,7 +69,8 @@ public:
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
   using Tangent = typename ImplicitGrid::TangentElement;
 
-  morse_graph_reachability_t(ros::NodeHandle nh) : _iter_idx(0), _short_circuit(true), _propagated_idx(0)
+  morse_graph_reachability_t(ros::NodeHandle nh)
+    : _iter_idx(0), _short_circuit(true), _propagated_idx(0), _visited_idx(0), _identity(Covariance::Identity())
   {
     // PRX FILES
     std::string environment;
@@ -81,17 +90,17 @@ public:
     // MG step, how many states to step when iterating over each trajectory
     // Needed for randup comparison
     int& mg_step{ _mg_step };
-    double& Chi2_confidence{ _Chi2_confidence };
+    double& Chi2_alpha{ _Chi2_alpha };
     double& split_time{ _split_time };
     PARAM_SETUP(nh, cell_size);
-    PARAM_SETUP(nh, Chi2_confidence)
+    PARAM_SETUP_WITH_DEFAULT(nh, Chi2_alpha, 0.05)
     PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, short_circuit, true);
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
     PARAM_SETUP_WITH_DEFAULT(nh, split_time, 0.5);
 
-    DEBUG_VARS(mg_step, cell_size, split_time)
+    // DEBUG_VARS(mg_step, cell_size, split_time)
 
     GLOBAL_PARAM_BLOCKER(environment);
     GLOBAL_PARAM_BLOCKER(plant_parameters);
@@ -103,7 +112,7 @@ public:
     env_params.from_string(environment);
     plant_params.from_string(plant_parameters);
 
-    // DEBUG_VARS(plant_params);
+    _chi2 = std::make_shared<prx::chi_squared>();
     _plant = std::make_shared<DynamicalSystem>(plant_params);
 
     _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
@@ -111,11 +120,13 @@ public:
     _system_geoms = _plant->geometries();
 
     _markers_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/marker", 1);
+    _markers_x0s_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/start_states/marker", 1);
     _traj_nominal_publisher = nh.advertise<visualization_msgs::Marker>("/mg/trajectories/nominal/marker", 1);
     _collision_publisher = nh.advertise<std_msgs::Bool>("/mg/collision", 1);
     _cubes_algebra_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/lie_algebra", 1);
     _cubes_state_publisher = nh.advertise<visualization_msgs::Marker>("/mg/cubes/state_space", 1);
     _radii_markers_publisher = nh.advertise<visualization_msgs::MarkerArray>("/mg/cubes/balls", 1);
+    _x0_noise_publisher = nh.advertise<visualization_msgs::Marker>("/mg/x0/noise", 1);
 
     std::string output_directory, file_prefix;
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
@@ -202,7 +213,7 @@ public:
         _collision_found = true;
       }
     }
-    DEBUG_VARS(step_idx, state, safe_distance)
+    // DEBUG_VARS(step_idx, state, safe_distance)
     _safe_radii.push_back({ step_idx, state, safe_distance });
     cellptr->state = state;
     cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
@@ -228,23 +239,55 @@ public:
   }
 
   double compute_safe_distance(const double K_tau, const State& x0p, const State& xp_tau, const double tau,
-                               const Trajectory& traj_nominal)
+                               const Control& u0, const Control& ubar, const Trajectory& traj_nominal)
   {
-    const double d2{ _cell_size / 2. };
-    // const double K_tau{ 0. };
+    const double& d{ _cell_size };
+    if (tau < prx::simulation_step)
+    {
+      // return 0.;
+      return d / 2.;
+    }
+    // const double d2{ _cell_size * _cell_size / 4. };
+    // // const double K_tau{ 0. };
 
     const double tau_steps{ tau / prx::simulation_step };
+
     const State& x0{ traj_nominal.front() };
     const State& x_tau{ traj_nominal[tau_steps] };
 
-    const double Lf{ lipschitz(x0, x0p, x_tau, xp_tau) };
+    // // DEBUG_VARS(x0, x0p, x_tau, xp_tau, u0, ubar)
+    // const double Lf{ lipschitz(x0, x0p, x_tau, xp_tau) };
+    // const double Lf2{ Lf * Lf };
 
-    const double P{ 4. * tau * _C2_w };  //+ 4. * tau * Lf * _C2_x0 };
+    // const double Lu{ lipschitz(x0, x0p, u0, ubar) };
+    // const double Lu2{ Lu * Lu };
 
-    const double& d{ _cell_size };
-    const double L_tau{ (2. / d) * std::sqrt(d / 2. + P + K_tau) };
-    // DEBUG_VARS(Lf, tau, tau_steps, P, K_tau, L_tau, _C2_w, _C2_x0)
-    return L_tau * d / 2.;
+    // const double Lerr{ prx::TangentBetween(x_tau, xp_tau).norm() };
+
+    // const double P{ 4. * tau * _C2_w };  //+ 4. * tau * Lf * _C2_x0 };
+
+    // const double d2_P_Ktau{ d / 2. + P + K_tau };
+    // const double sqrt_d2_P_Ktau{ std::sqrt(d2_P_Ktau) };
+    // const double L_tau{ (2. / d) * std::sqrt(d / 2. + P + K_tau) };
+    // DEBUG_VARS(P, K_tau, d2_P_Ktau, sqrt_d2_P_Ktau)
+    // DEBUG_VARS(tau, tau_steps, P, K_tau, L_tau, _C2_w)
+
+    // DEBUG_VARS(_C2_w, _C2_u)
+    // const double noise{ _C2_w + 4 * tau * Lf2 * Lu2 * _C2_u };
+
+    // const double tau_K_tau{ 4 * tau * Lf2 * (1. + Lu2) * K_tau };
+    // const double tau_noise{ 4 * tau * noise };
+    // const double K{ d2 + tau_noise + 4 * tau * Lf2 * (1. + Lu2) * K_tau };
+    // const double L{ std::sqrt(1. + Lerr / d2) };
+
+    // const double L{ 2 * std::sqrt(Lerr) / d };
+    const double L{ lipschitz(x0, x0p, x_tau, xp_tau) };
+    const double wK{ _C2_w * tau };
+    // DEBUG_VARS(tau, L, wK, _C2_w)
+
+    // DEBUG_VARS(d2, tau, tau_K_tau, tau_noise, K_tau, Lf, Lu, noise, K, L)
+    // DEBUG_VARS(d2, tau, K_tau, Lf, Lu, noise, K, L)
+    return (L + wK) * d / 2.;
   }
 
   void propagate(Trajectory& traj, const State state, const Controller controller) const
@@ -267,7 +310,7 @@ public:
   }
 
   void propagate_and_check(const State state, const Controller ctrl_head, const Controller controller,
-                           const Trajectory traj_nominal, const int split_idx)
+                           const Control& u0_nominal, const Trajectory traj_nominal, const int split_idx)
   {
     Trajectory traj;
 
@@ -276,6 +319,7 @@ public:
 
     propagate(traj, state, ctrl_head);
 
+    const Control ubar{ prx::controller_view_t<DynamicalSystem, Controller>::front(ctrl_head, state, _plant) };
     std::set<std::size_t> hashes;
 
     const State x0V{ traj.front() };
@@ -283,40 +327,47 @@ public:
     double K_tau{ 0. };
     double tau{ 0. };
     double tau_prev{ 0. };
+    double safe_distance{ 0. };
     for (int i = 0; i < traj.size(); i += _mg_step)
     {
       tau = i * prx::simulation_step;
       const State& xbar{ traj[i] };
       const State& x{ traj_nominal[i] };
 
-      // DEBUG_VARS(i, tau, tau_prev)
-
-      K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
+      // K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
       tau_prev = tau;
       const std::size_t h{ _grid.hash(xbar) };
+      // DEBUG_VARS(i, x, xbar, h)
+      // DEBUG_VARS(hashes.size(), hashes.count(h))
       if (hashes.count(h) == 0)
       {
-        // LOG_VARS(xbar, h);
+        // DEBUG_VARS(xbar, h);
         hashes.insert(h);
-        const double safe_distance{ compute_safe_distance(K_tau, x0V, xbar, tau, traj_nominal) };
+        safe_distance = compute_safe_distance(K_tau, x0V, xbar, tau, u0_nominal, ubar, traj_nominal);
         // DEBUG_VARS(safe_distance)
         _pool.detach_task(
             [xbar, safe_distance, split_idx, this] { this->collision_check(xbar, safe_distance, split_idx); });
+
+        if (safe_distance > _cell_size / 2.)
+        {
+          const double r2{ safe_distance * safe_distance };
+          _pool.detach_task([xbar, r2, this] { add_cells_inside_ellipse(xbar, xbar, _identity, r2); });
+        }
       }
     }
 
     std::scoped_lock lock(_trajectories_mutex);
     _trajectories.push_back(traj);
 
-    if (controller.size() > 0)
-    {
-      // DEBUG_VARS(traj.back())
-      const State xT{ traj.back() };
-      // DEBUG_VARS(x0V, xT, traj.size())
-      // DEBUG_VARS(current_ctrllr.size())
-      DEBUG_VARS(xT, split_idx)
-      _pool.detach_task([xT, controller, split_idx, this] { this->propagate_cube(xT, controller, split_idx); });
-    }
+    // if (controller.size() > 0)
+    // {
+    // DEBUG_VARS(traj.back())
+    const State xT{ traj.back() };
+
+    // _pool.detach_task([xT, controller, split_idx, this] { this->propagate_cube(xT, controller, split_idx); });
+
+    propagate_neighbors(xT, xT, _identity, safe_distance * safe_distance, controller, split_idx);
+    // }
     // _unchecked_trajectories++;
   }
 
@@ -332,6 +383,7 @@ public:
 
     if (_visualize)
     {
+      std::scoped_lock lock{ _nominal_trajectories_mutex };
       _nominal_trajs.push_back(traj);
     }
     return traj;
@@ -339,6 +391,8 @@ public:
 
   void propagate_cube(const State state, Controller controller, const int split_idx)
   {
+    if (controller.size() == 0)
+      return;
     // DEBUG_VARS(state)
     // if (_collision_found)  // short-circuit
     //   return;
@@ -355,51 +409,239 @@ public:
     const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
     const Trajectory traj_nominal{ get_nominal_trajectory(state, controller_head) };
 
-    DEBUG_VARS(controller_head, controller, split_idx)
+    const Control u_nominal{ prx::controller_view_t<DynamicalSystem, Controller>::front(controller_head, state,
+                                                                                        _plant) };
+
+    // DEBUG_VARS(state)
+    // DEBUG_VARS(controller_head, controller, split_idx)
     for (auto v : vertices)
     {
       const State xv{ _grid.state_from_vertex(v) };
-      // CellPtr cellptr{ init_cell(xv) };
+      // DEBUG_VARS(v)
 
-      _pool.detach_task([xv, controller_head, controller, traj_nominal, split_idx, this] {
-        this->propagate_and_check(xv, controller_head, controller, traj_nominal, split_idx + 1);
+      _pool.detach_task([xv, controller_head, controller, traj_nominal, split_idx, u_nominal, this] {
+        this->propagate_and_check(xv, controller_head, controller, u_nominal, traj_nominal, split_idx + 1);
       });
     }
   }
 
   const double distribution_bound(const Covariance& cov)
   {
+    const double chi2_critical_value{ _chi2->critical_value(DimX, _Chi2_alpha) };
+
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
-    const Tangent D_marginal{ es.eigenvalues().cwiseSqrt() * _Chi2_confidence };
+    const Tangent D_marginal{ es.eigenvalues().cwiseSqrt() * chi2_critical_value };
     const double C_bound{ D_marginal.maxCoeff() };
     return std::pow(C_bound, 2);
   }
 
-  const double lipschitz(const State& x0, const State& x0p, const State& xF, const State& xFp)
+  template <typename LieTypeStart, typename LieTypeEnd>
+  double lipschitz(const LieTypeStart& x0, const LieTypeStart& x0p, const LieTypeEnd& xF, const LieTypeEnd& xFp) const
   {
-    const State xBtw_0{ gtsam::traits<State>::Between(x0, x0p) };
-    const State xBtw_F{ gtsam::traits<State>::Between(xF, xFp) };
+    const LieTypeStart xBtw_0{ gtsam::traits<LieTypeStart>::Between(x0, x0p) };
+    const LieTypeEnd xBtw_F{ gtsam::traits<LieTypeEnd>::Between(xF, xFp) };
 
-    const Tangent tg_0{ gtsam::traits<State>::Logmap(xBtw_0) };
-    const Tangent tg_F{ gtsam::traits<State>::Logmap(xBtw_F) };
+    const auto tg_0 = gtsam::traits<LieTypeStart>::Logmap(xBtw_0);
+    const auto tg_F = gtsam::traits<LieTypeEnd>::Logmap(xBtw_F);
 
     const double tg_0_norm{ tg_0.norm() };
     const double tg_F_norm{ tg_F.norm() };
 
     const double L{ tg_F_norm / tg_0_norm };
 
-    // const double L{ std };
-    // const Tangent L{ tg_F.cwiseQuotient(tg_0).cwiseAbs() };
-    // DEBUG_VARS(x0, xF)
-    // DEBUG_VARS(x0p, xFp)
-    // DEBUG_VARS(xBtw_0, xBtw_F)
-    // DEBUG_VARS(tg_0, tg_F)
     return L;
   }
 
+  // Given the ellipse (defined by epsilon_inv) centered at x0, check if vertex is inside given chi_confidence.
+  // If the ellipse is a circle/ball (epsilon_inv=I) then, chi_confidence can be seen as the squared radius (r^2), where
+  // this function will return true if the distance of vertex to x0 is less than chi_confidence. NOTE: this function
+  // assumes the chi_confidence is squared, if it is used a radius, the input must be the radius squared.
+  bool cell_intersects_with_ellipse(const State& x0, const Tangent& vertex, const Covariance& epsilon_inv,
+                                    const double chi_confidence) const
+  {
+    const State xv{ _grid.state_from_vertex(vertex) };
+    auto vertices = _grid.vertices(xv);
+    bool inside{ false };
+    for (auto v : vertices)
+    {
+      const State xv_i{ _grid.state_from_vertex(v) };
+      const Tangent tg_v{ prx::TangentBetween(x0, xv_i) };
+      const double err{ tg_v.transpose() * epsilon_inv * tg_v };
+      if (err < chi_confidence)
+      {
+        // DEBUG_VARS(xv_i, err, chi_confidence)
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool is_cell_unvisited(const State xv)
+  {
+    // const bool inside{ cell_intersects_with_ellipse(x0, vertex, epsilon_inv, chi_confidence) };
+    // if (inside)
+    // {
+    // const State xv{ _grid.state_from_vertex(vertex) };
+    CellPtr cellptr{ init_cell(xv) };
+
+    if (cellptr->visited_idx < _visited_idx)
+    {
+      cellptr->state = xv;
+      cellptr->visited_idx = _visited_idx;
+      return true;
+    }
+    return false;
+
+    // }
+    // auto vertices = _grid.vertices(xv);
+    // DEBUG_VARS(epsilon, epsilon.inverse())
+    // DEBUG_VARS(vertex, xv, tg_v, err, chi_confidence)
+    // CellPtr cellptr{ init_cell(xv) };
+
+    // if (cellptr->visited_idx < _visited_idx)
+    // {
+    //   cellptr->visited_idx = _visited_idx;
+    //   _pool.detach_task([xv, controller, split_idx, this] { this->propagate_cube(xv, controller, split_idx); });
+
+    //   propagate_neighbors(x0, xv, epsilon, chi_confidence, controller, split_idx);
+    // propagate_neighbors(x0, xv, epsilon, chi_confidence, controller, split_idx);
+    // }
+    // return false;
+  }
+
+  void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
+                           const Controller controller, const std::size_t split_idx)
+  {
+    std::vector<State> states_q;
+
+    states_q.push_back(state);
+    // DEBUG_VARS(x0, state, epsilon_inv, chi_confidence)
+    while (not states_q.empty())
+    {
+      const State curr_state{ states_q.back() };
+      auto vertex = _grid.vertex(curr_state);
+      states_q.pop_back();
+
+      // const State xv{ _grid.state_from_vertex(vertex) };
+
+      // Go over every vertex neighbor: +1 and -1 per dimension
+      for (int i = 0; i < DimX; ++i)
+      {
+        Tangent v_next{ vertex };
+        v_next[i] += 1;
+        const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+        if (inside_p)
+        {
+          const State xv_p{ _grid.state_from_vertex(v_next) };
+          const bool prop_p{ is_cell_unvisited(xv_p) };
+          if (prop_p)
+          {
+            states_q.push_back(xv_p);
+            _pool.detach_task(
+                [xv_p, controller, split_idx, this] { this->propagate_cube(xv_p, controller, split_idx); });
+          }
+          // DEBUG_VARS(x0, state, curr_state, xv_p)
+          // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+        }
+
+        // As v_next[i] has already a +1, we need to remove it and do -1
+        v_next[i] -= 2;
+        const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+        if (inside_m)
+        {
+          const State xv_m{ _grid.state_from_vertex(v_next) };
+          const bool prop_m{ is_cell_unvisited(xv_m) };
+          if (prop_m)
+          {
+            states_q.push_back(xv_m);
+            _pool.detach_task(
+                [xv_m, controller, split_idx, this] { this->propagate_cube(xv_m, controller, split_idx); });
+          }
+          // is_cell_unvisited(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+          // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+        }
+      }
+
+      // DEBUG_VARS(states_q.size())
+    }
+
+    // return true;
+  }
+
+  void add_cells_inside_ellipse(const State x0, const State state, const Covariance epsilon_inv,
+                                const double chi_confidence)
+  {
+    std::vector<State> states_q;
+
+    std::set<std::size_t> local_hashes;
+    states_q.push_back(state);
+    // DEBUG_VARS(x0, state, chi_confidence)
+    while (not states_q.empty())
+    {
+      const State curr_state{ states_q.back() };
+      auto vertex = _grid.vertex(curr_state);
+      states_q.pop_back();
+
+      for (int i = 0; i < DimX; ++i)
+      {
+        Tangent v_next{ vertex };
+        v_next[i] += 1;
+
+        const State xv_p{ _grid.state_from_vertex(v_next) };
+        const std::size_t hp{ _grid.hash(xv_p) };
+        const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+        if (_cells_hashes.count(hp) == 0)
+        {
+          _cells_hashes.insert(hp);
+          if (inside_p)
+          {
+            const Tangent center_tg{ _grid.center(xv_p) };
+            const State center{ _grid.state(center_tg) };
+            CellPtr cellptr{ init_cell(center) };
+            cellptr->state = center;
+            states_q.push_back(center);
+          }
+        }
+        if (local_hashes.count(hp) == 0 and inside_p)
+        {
+          local_hashes.insert(hp);
+          states_q.push_back(xv_p);
+        }
+
+        // As v_next[i] has already a +1, we need to remove it and do -1
+        v_next[i] -= 2;
+        const State xv_m{ _grid.state_from_vertex(v_next) };
+        const std::size_t hm{ _grid.hash(xv_m) };
+        const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+        if (_cells_hashes.count(hp) == 0)
+        {
+          _cells_hashes.insert(hm);
+          if (inside_m)
+          {
+            const Tangent center_tg{ _grid.center(xv_m) };
+            const State center{ _grid.state(center_tg) };
+            CellPtr cellptr{ init_cell(center) };
+            cellptr->state = center;
+            states_q.push_back(center);
+          }
+        }
+        if (local_hashes.count(hm) == 0 and inside_m)
+        {
+          local_hashes.insert(hm);
+          states_q.push_back(xv_m);
+        }
+      }
+
+      // DEBUG_VARS(states_q.size())
+    }
+
+    // return true;
+  }
+
   // template<typename>
-  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in, const Covariance& x0_noise,
-               const Covariance& w_noise, const std::chrono::time_point<std::chrono::steady_clock>& limit)
+  bool is_safe(const ml4kp_bridge::SpacePointStamped& x_hat, const PlanMsg& plan_in,  // no-lint
+               const Covariance& x0_noise, const Covariance& w_noise, const Covariance& u_noise,
+               const std::chrono::time_point<std::chrono::steady_clock>& limit)
   {
     ml4kp_bridge::copy(_controller, plan_in);
     ml4kp_bridge::copy(_state, x_hat);
@@ -419,9 +661,10 @@ public:
     const State x_d2{ gtsam::traits<State>::Expmap(-cell_size / 2.0) };
     const State x0_center{ gtsam::traits<State>::Compose(_state, x_d2) };
 
-    DEBUG_VARS(_state, x0_center, cell_size)
-    _grid.reset(x0_center, cell_size);
+    // DEBUG_VARS(_state, x0_center, cell_size)
+    _grid.reset(x0_center, _cell_size / 2.);
 
+    DEBUG_VARS(_grid.cell_sizes())
     _safe_radii.clear();
 
     _collision_found = false;
@@ -432,17 +675,41 @@ public:
     // propagate(_traj_nominal, _state, _controller);
 
     _C2_x0 = distribution_bound(x0_noise);
-    _C2_w = distribution_bound(w_noise);
+    _C2_w = distribution_bound(2. * w_noise);
+    _C2_u = distribution_bound(u_noise);
 
-    DEBUG_VARS(_cell_size, _C2_x0, _C2_w)
+    // DEBUG_VARS(_cell_size, _C2_x0, _C2_w)
 
     const std::size_t total_threads{ _pool.get_thread_count() };
 
     _propagated_idx++;
     // Propagate \bar{x0} \in V(\xi)
-    _pool.detach_task([&] { this->propagate_cube(_state, _controller, 0); });
+    // _pool.detach_task([&] { this->propagate_cube(_state, _controller, 0); });
+    _visited_idx++;
+    const double chi2_critical_value{ _chi2->critical_value(DimX, _Chi2_alpha) };
+    // DEBUG_VARS(chi2_critical_value, DimX, _Chi2_alpha)
+    propagate_neighbors(_state, _state, x0_noise.inverse(), chi2_critical_value, _controller, 0);
 
     _pool.wait();
+
+    if (_visualize)
+    {
+      visualization_msgs::Marker x0_noise_marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.3, 1, 0, 1 }) };
+      x0_noise_marker.type = visualization_msgs::Marker::SPHERE;
+
+      interface::gaussian_params_t gparams;
+      gparams.cov_to_3Dellipse(x0_noise, true);
+      gparams.confidence = chi2_critical_value;
+      // DEBUG_VARS(chi2_critical_value, gparams.axis)
+
+      interface::gaussian_to_ellipse_marker(x0_noise_marker, gparams);
+      ml4kp_bridge::update_pose(x0_noise_marker.pose, _state, 0, 1, 0.01);
+      _x0_noise_publisher.publish(x0_noise_marker);
+      if (DimX == 2)
+      {
+        x0_noise_marker.scale.z = 0.01;
+      }
+    }
 
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
@@ -466,7 +733,7 @@ public:
     marker_state.scale.x = cell_size[0] * 0.96;
     marker_state.scale.y = cell_size[1] * 0.96;
     marker_state.scale.z = 0.1;
-    DEBUG_VARS(cell_size)
+    // DEBUG_VARS(cell_size)
 
     auto plant_config = _plant->configuration(_grid.x0());
     marker_lie.pose.position.x = plant_config[0].second[0];
@@ -481,7 +748,7 @@ public:
     marker_lie.pose.orientation.y = q.y();
     marker_lie.pose.orientation.z = q.z();
 
-    DEBUG_VARS(cell_size.transpose(), _grid.size())
+    // DEBUG_VARS(cell_size.transpose(), _grid.size())
     // const bool x_sign{ plant_config[0].second[0] > 0 };
     // const bool y_sign{ plant_config[0].second[1] > 0 };
     for (auto cell : _grid)
@@ -498,7 +765,27 @@ public:
       // marker.points.back().z = -0.101;
       ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.101);
       ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.101);
+
+      // DEBUG_VARS(cell.second->added_idx, cell.second->propagated_idx, cell.second->visited_idx)
     }
+    // const Covariance identity{ Covariance::Identity() };
+    // for (auto&& [idx, state, radius] : _safe_radii)
+    // {
+    //   auto vertex = _grid.vertex(state);
+    //   // Go over every vertex neighbor: +1 and -1 per dimension
+    //   for (int i = 0; i < DimX; ++i)
+    //   {
+    //     Tangent v_next{ vertex };
+    //     v_next[i] += 1;
+    //     const bool inside_p{ cell_intersects_with_ellipse(state, v_next, identity, radius) };
+    //     ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.101);
+
+    //     // As v_next[i] has already a +1, we need to remove it and do -1
+    //     v_next[i] -= 2;
+    //     cell_intersects_with_ellipse(state, v_next, identity, radius);
+    //   }
+    // }
+
     _cubes_algebra_publisher.publish(marker_lie);
     _cubes_state_publisher.publish(marker_state);
     // _cubes_publisher.publish(marker);
@@ -510,7 +797,7 @@ public:
   {
     visualization_msgs::MarkerArray all_markers;
     int id{ 0 };
-    DEBUG_VARS(_safe_radii.size())
+    // DEBUG_VARS(_safe_radii.size())
     for (auto&& [idx, state, radius] : _safe_radii)
     {
       visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.5, 1, 0, 0 }) };
@@ -540,16 +827,20 @@ public:
     if (_visualize)
     {
       radii_to_markers();
-      visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 1, 1, 0, 0 }) };
-      visualization_msgs::Marker nominal_trajs_marker{ ml4kp_bridge::create_marker(0.01, { 1, 0.2, 0.6, 0 }) };
+      visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.001, /*color*/ { 1, 1, 0, 0 }) };
+      visualization_msgs::Marker nominal_trajs_marker{ ml4kp_bridge::create_marker(0.005, { 1, 0.2, 0.6, 0 }) };
+      visualization_msgs::Marker markers_x0s{ ml4kp_bridge::create_marker(0.01, { 1, 0.5, 0.0, 0.5 }) };
+
+      markers_x0s.type = visualization_msgs::Marker::POINTS;
       marker.type = nominal_trajs_marker.type = visualization_msgs::Marker::LINE_LIST;
-      marker.action = nominal_trajs_marker.action = visualization_msgs::Marker::DELETEALL;
+      marker.action = nominal_trajs_marker.action = markers_x0s.action = visualization_msgs::Marker::DELETEALL;
       // _trajectory_markers.markers.push_back(marker);
       _markers_publisher.publish(marker);
+      _markers_x0s_publisher.publish(markers_x0s);
       _traj_nominal_publisher.publish(nominal_trajs_marker);
 
-      marker.action = nominal_trajs_marker.action = visualization_msgs::Marker::ADD;
-      // DEBUG_VARS(_trajectories.size())
+      marker.action = nominal_trajs_marker.action = markers_x0s.action = visualization_msgs::Marker::ADD;
+      DEBUG_VARS(_trajectories.size())
       std::scoped_lock lock(_trajectories_mutex);
       while (_trajectories.size() > 0)
       {
@@ -557,6 +848,10 @@ public:
         _ofs_trajs << "\n";
         // DEBUG_VARS(_trajectories.back());
         ml4kp_bridge::update_marker(marker, _trajectories.back(), 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+
+        markers_x0s.points.emplace_back();
+        ml4kp_bridge::update_point(markers_x0s.points.back(), _trajectories.back().front(), 0, 1, 0.0);
+
         _trajectories.pop_back();
       }
       while (_nominal_trajs.size() > 0)
@@ -565,12 +860,14 @@ public:
         _ofs_nominal_trajs << "\n";
         ml4kp_bridge::update_marker(nominal_trajs_marker, _nominal_trajs.back(), 0, 1, 0.0,
                                     visualization_msgs::Marker::LINE_LIST);
+
         _nominal_trajs.pop_back();
       }
 
       // DEBUG_VARS(marker)
       _traj_nominal_publisher.publish(nominal_trajs_marker);
       _markers_publisher.publish(marker);
+      _markers_x0s_publisher.publish(markers_x0s);
       // _trajectory_markers.markers.clear();
     }
 
@@ -588,7 +885,7 @@ private:
   std::atomic<int> _unchecked_trajectories, _collisions_in_check;
 
   std::mutex _new_cell_mutex;
-  std::mutex _trajectories_mutex, _queries_mutex;
+  std::mutex _trajectories_mutex, _queries_mutex, _nominal_trajectories_mutex;
 
   std::vector<Trajectory> _trajectories, _nominal_trajs;
   // std::vector<Trajectory> _checked_trajectories;
@@ -597,7 +894,7 @@ private:
 
   std_msgs::Bool _collision_msg;
   ros::Publisher _markers_publisher, _cubes_algebra_publisher, _cubes_state_publisher, _collision_publisher;
-  ros::Publisher _radii_markers_publisher, _traj_nominal_publisher;
+  ros::Publisher _radii_markers_publisher, _traj_nominal_publisher, _markers_x0s_publisher, _x0_noise_publisher;
 
   std::shared_ptr<prx::system_group_t> _system_group;
   std::shared_ptr<prx::world_model_t> _planning_model;
@@ -638,10 +935,16 @@ private:
 
   // Trajectory _traj_nominal, _nominal_trajs;
 
-  double _Chi2_confidence;
-  double _C2_x0, _C2_w;
+  double _Chi2_alpha;
+  double _C2_x0, _C2_w, _C2_u;
 
   double _split_time;
-  std::size_t _propagated_idx;
+  std::size_t _propagated_idx, _visited_idx;
+
+  std::shared_ptr<prx::chi_squared> _chi2;
+
+  const Covariance _identity;
+
+  std::set<std::size_t> _cells_hashes;
 };
 }  // namespace motion_planning

@@ -65,6 +65,10 @@ struct gaussian_params_t
     if (es.eigenvectors().determinant() < 0)
     {
       sign = -1.;
+      if (verbose)
+      {
+        DEBUG_VARS(es.eigenvectors(), es.eigenvectors().determinant());
+      }
     }
     const Covariance V_marginal{ sign * es.eigenvectors() };
 
@@ -75,6 +79,7 @@ struct gaussian_params_t
 
     if (verbose)
     {
+      DEBUG_VARS(cov);
       DEBUG_VARS(D_marginal);
       DEBUG_VARS(V_marginal);
       DEBUG_VARS(rot);
@@ -105,9 +110,12 @@ static void gaussian_to_ellipse_marker(visualization_msgs::Marker& marker, const
   marker.color.g = input.color[2];
   marker.color.b = input.color[3];
   marker.type = visualization_msgs::Marker::SPHERE;
-  marker.scale.x = input.confidence * std::sqrt(input.axis[0]);  // 7.815 * std::sqrt(D[0]);
-  marker.scale.y = input.confidence * std::sqrt(input.axis[1]);  // 7.815 * std::sqrt(D[1]);
-  marker.scale.z = input.confidence * std::sqrt(input.axis[2]);  // 7.815 * std::sqrt(D[2]);
+  // input.confidence = sqrt(Xi^2_{N,alpha})
+  // In other sources, scale.x = std::sqrt(confidence * input.axis[0])
+  // (or even 2*sqrt(...), if the input expects the total length of the axis)
+  marker.scale.x = 2 * std::sqrt(input.confidence * input.axis[0]);
+  marker.scale.y = 2 * std::sqrt(input.confidence * input.axis[1]);
+  marker.scale.z = 2 * std::sqrt(input.confidence * input.axis[2]);
 }
 
 static visualization_msgs::Marker gaussian_to_ellipse_marker(const gaussian_params_t& input)

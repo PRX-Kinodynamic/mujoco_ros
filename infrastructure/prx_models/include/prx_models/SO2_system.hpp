@@ -155,9 +155,16 @@ public:
     return x;
   }
 
-  StateDot ode(const State& x0, const Control& u0, OptJacX Hx = nullptr, OptJacU Hu = nullptr)
+  Control bound(const Control& u0)
   {
     const Control u_eff{ std::min(std::max(-_u_max, u0), _u_max) };
+    return u_eff;
+  }
+
+  StateDot ode(const State& x0, const Control& u0, OptJacX Hx = nullptr, OptJacU Hu = nullptr)
+  {
+    // const Control u_eff{ std::min(std::max(-_u_max, u0), _u_max) };
+    const Control u_eff{ bound(u0) };
     const double& sth{ x0.first.s() };  // sin(theta)
     const double& thdot{ x0.second };
     const double thddot{ _gravity / _length * sth + u_eff / _inertia - (_friction / _inertia) * thdot };

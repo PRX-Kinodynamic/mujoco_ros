@@ -58,7 +58,7 @@ struct safety_helper_t
   std::vector<Gain> _gains;
 
   // Both
-  RandupCovariance _cov_x0, _cov_w;
+  RandupCovariance _cov_x0, _cov_w, _cov_u;
   ros::Duration _check_duration;
 
   // randup
@@ -92,6 +92,7 @@ struct safety_helper_t
     , _total_trajs(100)
     , _cov_x0(RandupCovariance::Identity() * 0.1)
     , _cov_w(RandupCovariance::Identity() * 0.1)
+    , _cov_u(RandupCovariance::Zero())
   {
     std::string state_topic;
 
@@ -223,7 +224,7 @@ struct safety_helper_t
                                             std::chrono::seconds(_check_duration.sec) +
                                             std::chrono::nanoseconds(_check_duration.nsec) };
 
-    _mg_reach->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, mg_limit);
+    _mg_reach->is_safe(_state_estimate, _plan, _cov_x0, _cov_w, _cov_u, mg_limit);
     auto end = ros::Time::now();
     auto mg_real_dt = (end - start).toSec();
     DEBUG_VARS(mg_real_dt)
