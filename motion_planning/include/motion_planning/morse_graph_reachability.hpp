@@ -330,10 +330,11 @@ public:
     double safe_distance{ 0. };
     for (int i = 0; i < traj.size(); i += _mg_step)
     {
-      tau = i * prx::simulation_step;
+      tau = static_cast<double>(i) * prx::simulation_step;
       const State& xbar{ traj[i] };
       const State& x{ traj_nominal[i] };
 
+      // <<<<<<< HEAD
       // K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
       tau_prev = tau;
       const std::size_t h{ _grid.hash(xbar) };
@@ -342,6 +343,16 @@ public:
       if (hashes.count(h) == 0)
       {
         // DEBUG_VARS(xbar, h);
+        // =======
+        //       K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
+        //       tau_prev = tau;
+        //       const std::size_t h{ _grid.hash(xbar) };
+        //       DEBUG_VARS(i, x, xbar, h)
+        //       LOG_VARS(hashes.size(), hashes.count(h))
+        //       if (hashes.count(h) == 0)
+        //       {
+        //         LOG_VARS(xbar, h);
+        // >>>>>>> f86921b (minor update to mg)
         hashes.insert(h);
         safe_distance = compute_safe_distance(K_tau, x0V, xbar, tau, u0_nominal, ubar, traj_nominal);
         // DEBUG_VARS(safe_distance)
