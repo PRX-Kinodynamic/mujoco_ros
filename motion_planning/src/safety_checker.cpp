@@ -274,6 +274,7 @@ struct safety_helper_t
 
       if (exit_after_query)
       {
+        ros::Duration(5.0).sleep();
         ros::shutdown();
       }
     }

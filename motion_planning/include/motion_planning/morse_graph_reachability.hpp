@@ -32,10 +32,10 @@
 
 namespace motion_planning
 {
-template <typename State>
+template <typename State, typename Tangent>
 struct mg_cell_t
 {
-  mg_cell_t() : added_idx(0), propagated_idx(0), visited_idx(0), safe(false) {};
+  mg_cell_t() : added_idx(0), propagated_idx(0), visited_idx(0), safe(true) {};
 
   std::mutex mutex;
   bool safe;
@@ -44,6 +44,7 @@ struct mg_cell_t
   std::size_t visited_idx;
   // std::size_t _idx;
   State state;
+  Tangent tangent;
 };
 
 template <typename DynamicalSystem, typename Controller>
@@ -65,9 +66,11 @@ public:
 
   using CollisionQuery = prx::collision_checking::pqp::query_t;
 
-  using CellPtr = std::shared_ptr<mg_cell_t<State>>;
+  // using Tangent = typename ImplicitGrid::TangentElement;
+  using Tangent = Eigen::Vector<double, DimX>;
+  using Cell = mg_cell_t<State, Tangent>;
+  using CellPtr = std::shared_ptr<Cell>;
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
-  using Tangent = typename ImplicitGrid::TangentElement;
 
   morse_graph_reachability_t(ros::NodeHandle nh)
     : _iter_idx(0), _short_circuit(true), _propagated_idx(0), _visited_idx(0), _identity(Covariance::Identity())
@@ -135,12 +138,14 @@ public:
     const std::string timestamp{ utils::timestamp() };
     const std::string prefix{ output_directory + "/" + file_prefix };
     const std::string MG_OUTPUT_FILE{ prefix + "_balls_" + timestamp + ".txt" };
+    const std::string MG_GRID_FILE{ prefix + "_grid_" + timestamp + ".txt" };
     const std::string MG_TRAJS_FILE{ prefix + "_trajs_" + timestamp + ".txt" };
     const std::string MG_NOMINAL_TRAJS_FILE{ prefix + "_nominal_trajs_" + timestamp + ".txt" };
     DEBUG_VARS(MG_OUTPUT_FILE)
     DEBUG_VARS(MG_TRAJS_FILE)
     DEBUG_VARS(MG_NOMINAL_TRAJS_FILE)
     _ofs_balls.open(MG_OUTPUT_FILE);
+    _ofs_grid.open(MG_GRID_FILE);
     _ofs_trajs.open(MG_TRAJS_FILE);
     _ofs_nominal_trajs.open(MG_NOMINAL_TRAJS_FILE);
   }
@@ -181,14 +186,7 @@ public:
     query->plant_configurations = _plant->configuration(center);
 
     const double min_distance{ prx::collision_checking::pqp::minimum_distance(*query, _obstacles_bodies) };
-    // query->plant_configurations[0].
-    // const bool collision{ prx::collision_checking::pqp::collision(*query, _obstacles_bodies) };
-    // _map_vector(_memory.data(), dim, 1)
-    // const auto P1 = Eigen::Map<const Eigen::Vector3d>(query->P1);
-    // const auto P2 = Eigen::Map<const Eigen::Vector3d>(query->P2);
-    // auto P2 = query->distance_result.P2();
-    // DEBUG_VARS(min_distance)
-    // DEBUG_VARS(query->P1, query->P2)
+
     std::scoped_lock lock(cellptr->mutex);
     if (min_distance < safe_distance)
     {
@@ -216,26 +214,28 @@ public:
     // DEBUG_VARS(step_idx, state, safe_distance)
     _safe_radii.push_back({ step_idx, state, safe_distance });
     cellptr->state = state;
+    cellptr->tangent = _grid.vertex(state);
     cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
   }
 
-  CellPtr init_cell(const State& state)
+  template <typename StateOrTangent>
+  CellPtr init_cell(const StateOrTangent& x_in)
   {
     std::scoped_lock lock(_new_cell_mutex);
-    if (_grid.cell(state) == nullptr)
+    if (_grid.cell(x_in) == nullptr)
     {
       if (_cells_buffer.empty())
       {
         for (int i = 0; i < 100; ++i)
         {
-          _cells_buffer.push_back(std::make_shared<mg_cell_t<State>>());
+          _cells_buffer.push_back(std::make_shared<Cell>());
         }
       }
-      _grid.cell(state) = _cells_buffer.back();
+      _grid.cell(x_in) = _cells_buffer.back();
       _used_cells.push_back(_cells_buffer.back());
       _cells_buffer.pop_back();
     }
-    return _grid.cell(state);
+    return _grid.cell(x_in);
   }
 
   double compute_safe_distance(const double K_tau, const State& x0p, const State& xp_tau, const double tau,
@@ -342,17 +342,6 @@ public:
       // DEBUG_VARS(hashes.size(), hashes.count(h))
       if (hashes.count(h) == 0)
       {
-        // DEBUG_VARS(xbar, h);
-        // =======
-        //       K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
-        //       tau_prev = tau;
-        //       const std::size_t h{ _grid.hash(xbar) };
-        //       DEBUG_VARS(i, x, xbar, h)
-        //       LOG_VARS(hashes.size(), hashes.count(h))
-        //       if (hashes.count(h) == 0)
-        //       {
-        //         LOG_VARS(xbar, h);
-        // >>>>>>> f86921b (minor update to mg)
         hashes.insert(h);
         safe_distance = compute_safe_distance(K_tau, x0V, xbar, tau, u0_nominal, ubar, traj_nominal);
         // DEBUG_VARS(safe_distance)
@@ -487,17 +476,17 @@ public:
     return false;
   }
 
-  bool is_cell_unvisited(const State xv)
+  bool is_cell_unvisited(const Tangent tgv)
   {
     // const bool inside{ cell_intersects_with_ellipse(x0, vertex, epsilon_inv, chi_confidence) };
     // if (inside)
     // {
     // const State xv{ _grid.state_from_vertex(vertex) };
-    CellPtr cellptr{ init_cell(xv) };
+    CellPtr cellptr{ init_cell(tgv) };
 
     if (cellptr->visited_idx < _visited_idx)
     {
-      cellptr->state = xv;
+      cellptr->tangent = tgv;
       cellptr->visited_idx = _visited_idx;
       return true;
     }
@@ -523,31 +512,30 @@ public:
   void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
                            const Controller controller, const std::size_t split_idx)
   {
-    std::vector<State> states_q;
+    std::vector<Tangent> vertices_q;
 
-    states_q.push_back(state);
+    const Tangent v0{ _grid.vertex(state) };
+    vertices_q.push_back(v0);
     // DEBUG_VARS(x0, state, epsilon_inv, chi_confidence)
-    while (not states_q.empty())
+    while (not vertices_q.empty())
     {
-      const State curr_state{ states_q.back() };
-      auto vertex = _grid.vertex(curr_state);
-      states_q.pop_back();
+      Tangent v_next{ vertices_q.back() };
+      vertices_q.pop_back();
 
       // const State xv{ _grid.state_from_vertex(vertex) };
 
       // Go over every vertex neighbor: +1 and -1 per dimension
       for (int i = 0; i < DimX; ++i)
       {
-        Tangent v_next{ vertex };
         v_next[i] += 1;
         const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
         if (inside_p)
         {
-          const State xv_p{ _grid.state_from_vertex(v_next) };
-          const bool prop_p{ is_cell_unvisited(xv_p) };
+          const bool prop_p{ is_cell_unvisited(v_next) };
           if (prop_p)
           {
-            states_q.push_back(xv_p);
+            const State xv_p{ _grid.state_from_vertex(v_next) };
+            vertices_q.push_back(v_next);
             _pool.detach_task(
                 [xv_p, controller, split_idx, this] { this->propagate_cube(xv_p, controller, split_idx); });
           }
@@ -560,17 +548,19 @@ public:
         const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
         if (inside_m)
         {
-          const State xv_m{ _grid.state_from_vertex(v_next) };
-          const bool prop_m{ is_cell_unvisited(xv_m) };
+          const bool prop_m{ is_cell_unvisited(v_next) };
           if (prop_m)
           {
-            states_q.push_back(xv_m);
+            const State xv_m{ _grid.state_from_vertex(v_next) };
+            vertices_q.push_back(v_next);
             _pool.detach_task(
                 [xv_m, controller, split_idx, this] { this->propagate_cube(xv_m, controller, split_idx); });
           }
           // is_cell_unvisited(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
           // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
         }
+        // Reset it...
+        v_next[i] += 1;
       }
 
       // DEBUG_VARS(states_q.size())
@@ -582,65 +572,69 @@ public:
   void add_cells_inside_ellipse(const State x0, const State state, const Covariance epsilon_inv,
                                 const double chi_confidence)
   {
-    std::vector<State> states_q;
+    std::vector<Tangent> vertices_q;
+    const Tangent v0{ _grid.vertex(state) };
 
     std::set<std::size_t> local_hashes;
-    states_q.push_back(state);
+    vertices_q.push_back(v0);
     // DEBUG_VARS(x0, state, chi_confidence)
-    while (not states_q.empty())
+    while (not vertices_q.empty())
     {
-      const State curr_state{ states_q.back() };
-      auto vertex = _grid.vertex(curr_state);
-      states_q.pop_back();
+      Tangent v_next{ vertices_q.back() };
+      // auto vertex = _grid.vertex(curr_state);
+      vertices_q.pop_back();
 
       for (int i = 0; i < DimX; ++i)
       {
-        Tangent v_next{ vertex };
+        // Tangent v_next{ vertex };
         v_next[i] += 1;
 
         const State xv_p{ _grid.state_from_vertex(v_next) };
-        const std::size_t hp{ _grid.hash(xv_p) };
+        // const Tangent center_tg_p{ _grid.center(xv_p) };
+        // const State center_p{ _grid.state(center_tg_p) };
+        const std::size_t hp{ _grid.hash(v_next) };
         const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
         if (_cells_hashes.count(hp) == 0)
         {
           _cells_hashes.insert(hp);
           if (inside_p)
           {
-            const Tangent center_tg{ _grid.center(xv_p) };
-            const State center{ _grid.state(center_tg) };
-            CellPtr cellptr{ init_cell(center) };
-            cellptr->state = center;
-            states_q.push_back(center);
+            CellPtr cellptr{ init_cell(v_next) };
+            cellptr->state = xv_p;
+            cellptr->tangent = v_next;
+            // vertices_q.push_back(xv_p);
           }
         }
         if (local_hashes.count(hp) == 0 and inside_p)
         {
           local_hashes.insert(hp);
-          states_q.push_back(xv_p);
+          vertices_q.push_back(v_next);
         }
 
         // As v_next[i] has already a +1, we need to remove it and do -1
         v_next[i] -= 2;
         const State xv_m{ _grid.state_from_vertex(v_next) };
-        const std::size_t hm{ _grid.hash(xv_m) };
+        // const Tangent center_tg{ _grid.center(xv_m) };
+        // const State center{ _grid.state(center_tg) };
+        const std::size_t hm{ _grid.hash(v_next) };
         const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-        if (_cells_hashes.count(hp) == 0)
+        if (_cells_hashes.count(hm) == 0)
         {
           _cells_hashes.insert(hm);
           if (inside_m)
           {
-            const Tangent center_tg{ _grid.center(xv_m) };
-            const State center{ _grid.state(center_tg) };
-            CellPtr cellptr{ init_cell(center) };
-            cellptr->state = center;
-            states_q.push_back(center);
+            CellPtr cellptr{ init_cell(v_next) };
+            cellptr->state = xv_m;
+            cellptr->tangent = v_next;
+            // vertices_q.push_back(center);
           }
         }
         if (local_hashes.count(hm) == 0 and inside_m)
         {
           local_hashes.insert(hm);
-          states_q.push_back(xv_m);
+          vertices_q.push_back(v_next);
         }
+        v_next[i] += 1;
       }
 
       // DEBUG_VARS(states_q.size())
@@ -764,9 +758,11 @@ public:
     // const bool y_sign{ plant_config[0].second[1] > 0 };
     for (auto cell : _grid)
     {
-      const State state{ cell.second->state };
-      const Tangent center_tg{ _grid.center(state) };
+      // const State state{ cell.second->state };
+      const State xv{ _grid.state_from_vertex(cell.second->tangent) };
+      const Tangent center_tg{ _grid.center(xv) };
       const State center{ _grid.state(center_tg) };
+      // const State center{ _grid.state(center_tg) };
       // LOG_VARS(center);
       // DEBUG_VARS(state, center)
       marker_lie.points.emplace_back();
@@ -774,11 +770,17 @@ public:
       // marker.points.back().x = center[0];  //- (x_sign ? 0. : cell_size[0]);
       // marker.points.back().y = center[1];  //- (y_sign ? 0. : cell_size[1]);
       // marker.points.back().z = -0.101;
-      ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.101);
-      ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.101);
+      ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.051);
+      ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.051);
 
+      prx::to_stream(_ofs_grid, cell.second->state);
+      prx::to_stream(_ofs_grid, center);
+      prx::to_stream(_ofs_grid, cell.second->tangent);
+      prx::to_stream(_ofs_grid, cell.second->safe);
+      _ofs_grid << "\n";
       // DEBUG_VARS(cell.second->added_idx, cell.second->propagated_idx, cell.second->visited_idx)
     }
+    // DEBUG_VARS(_grid.size(), marker_lie.points.back(), mar)
     // const Covariance identity{ Covariance::Identity() };
     // for (auto&& [idx, state, radius] : _safe_radii)
     // {
@@ -941,7 +943,7 @@ private:
 
   bool _short_circuit;
 
-  std::ofstream _ofs_balls, _ofs_trajs, _ofs_nominal_trajs;
+  std::ofstream _ofs_balls, _ofs_trajs, _ofs_nominal_trajs, _ofs_grid;
   std::vector<std::tuple<int, State, double>> _safe_radii;
 
   // Trajectory _traj_nominal, _nominal_trajs;
