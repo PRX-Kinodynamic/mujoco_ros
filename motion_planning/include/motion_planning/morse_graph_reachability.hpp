@@ -32,7 +32,7 @@
 
 namespace motion_planning
 {
-template <typename State, typename Tangent>
+template <typename State, typename Vertex>
 struct mg_cell_t
 {
   mg_cell_t() : added_idx(0), propagated_idx(0), visited_idx(0), safe(true) {};
@@ -44,7 +44,7 @@ struct mg_cell_t
   std::size_t visited_idx;
   // std::size_t _idx;
   State state;
-  Tangent tangent;
+  Vertex vertex;
 };
 
 template <typename DynamicalSystem, typename Controller>
@@ -67,8 +67,9 @@ public:
   using CollisionQuery = prx::collision_checking::pqp::query_t;
 
   // using Tangent = typename ImplicitGrid::TangentElement;
+  using Vertex = Eigen::Vector<int, DimX>;
   using Tangent = Eigen::Vector<double, DimX>;
-  using Cell = mg_cell_t<State, Tangent>;
+  using Cell = mg_cell_t<State, Vertex>;
   using CellPtr = std::shared_ptr<Cell>;
   using ImplicitGrid = prx::implicit_grid_t<State, CellPtr>;
 
@@ -214,12 +215,12 @@ public:
     // DEBUG_VARS(step_idx, state, safe_distance)
     _safe_radii.push_back({ step_idx, state, safe_distance });
     cellptr->state = state;
-    cellptr->tangent = _grid.vertex(state);
+    cellptr->vertex = _grid.vertex(state);
     cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
   }
 
-  template <typename StateOrTangent>
-  CellPtr init_cell(const StateOrTangent& x_in)
+  template <typename StateOrVertex>
+  CellPtr init_cell(const StateOrVertex& x_in)
   {
     std::scoped_lock lock(_new_cell_mutex);
     if (_grid.cell(x_in) == nullptr)
@@ -456,11 +457,11 @@ public:
   // If the ellipse is a circle/ball (epsilon_inv=I) then, chi_confidence can be seen as the squared radius (r^2), where
   // this function will return true if the distance of vertex to x0 is less than chi_confidence. NOTE: this function
   // assumes the chi_confidence is squared, if it is used a radius, the input must be the radius squared.
-  bool cell_intersects_with_ellipse(const State& x0, const Tangent& vertex, const Covariance& epsilon_inv,
+  bool cell_intersects_with_ellipse(const State& x0, const Vertex& vertex, const Covariance& epsilon_inv,
                                     const double chi_confidence) const
   {
     const State xv{ _grid.state_from_vertex(vertex) };
-    auto vertices = _grid.vertices(xv);
+    std::vector<Vertex> vertices{ _grid.vertices(xv) };
     bool inside{ false };
     for (auto v : vertices)
     {
@@ -476,17 +477,17 @@ public:
     return false;
   }
 
-  bool is_cell_unvisited(const Tangent tgv)
+  bool is_cell_unvisited(const Vertex vx)
   {
     // const bool inside{ cell_intersects_with_ellipse(x0, vertex, epsilon_inv, chi_confidence) };
     // if (inside)
     // {
     // const State xv{ _grid.state_from_vertex(vertex) };
-    CellPtr cellptr{ init_cell(tgv) };
+    CellPtr cellptr{ init_cell(vx) };
 
     if (cellptr->visited_idx < _visited_idx)
     {
-      cellptr->tangent = tgv;
+      cellptr->vertex = vx;
       cellptr->visited_idx = _visited_idx;
       return true;
     }
@@ -512,14 +513,14 @@ public:
   void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
                            const Controller controller, const std::size_t split_idx)
   {
-    std::vector<Tangent> vertices_q;
+    std::vector<Vertex> vertices_q;
 
-    const Tangent v0{ _grid.vertex(state) };
+    const Vertex v0{ _grid.vertex(state) };
     vertices_q.push_back(v0);
     // DEBUG_VARS(x0, state, epsilon_inv, chi_confidence)
     while (not vertices_q.empty())
     {
-      Tangent v_next{ vertices_q.back() };
+      Vertex v_next{ vertices_q.back() };
       vertices_q.pop_back();
 
       // const State xv{ _grid.state_from_vertex(vertex) };
@@ -572,15 +573,15 @@ public:
   void add_cells_inside_ellipse(const State x0, const State state, const Covariance epsilon_inv,
                                 const double chi_confidence)
   {
-    std::vector<Tangent> vertices_q;
-    const Tangent v0{ _grid.vertex(state) };
+    std::vector<Vertex> vertices_q;
+    const Vertex v0{ _grid.vertex(state) };
 
     std::set<std::size_t> local_hashes;
     vertices_q.push_back(v0);
     // DEBUG_VARS(x0, state, chi_confidence)
     while (not vertices_q.empty())
     {
-      Tangent v_next{ vertices_q.back() };
+      Vertex v_next{ vertices_q.back() };
       // auto vertex = _grid.vertex(curr_state);
       vertices_q.pop_back();
 
@@ -601,7 +602,7 @@ public:
           {
             CellPtr cellptr{ init_cell(v_next) };
             cellptr->state = xv_p;
-            cellptr->tangent = v_next;
+            cellptr->vertex = v_next;
             // vertices_q.push_back(xv_p);
           }
         }
@@ -625,7 +626,7 @@ public:
           {
             CellPtr cellptr{ init_cell(v_next) };
             cellptr->state = xv_m;
-            cellptr->tangent = v_next;
+            cellptr->vertex = v_next;
             // vertices_q.push_back(center);
           }
         }
@@ -759,7 +760,7 @@ public:
     for (auto cell : _grid)
     {
       // const State state{ cell.second->state };
-      const State xv{ _grid.state_from_vertex(cell.second->tangent) };
+      const State xv{ _grid.state_from_vertex(cell.second->vertex) };
       const Tangent center_tg{ _grid.center(xv) };
       const State center{ _grid.state(center_tg) };
       // const State center{ _grid.state(center_tg) };
@@ -775,7 +776,7 @@ public:
 
       prx::to_stream(_ofs_grid, cell.second->state);
       prx::to_stream(_ofs_grid, center);
-      prx::to_stream(_ofs_grid, cell.second->tangent);
+      prx::to_stream(_ofs_grid, cell.second->vertex);
       prx::to_stream(_ofs_grid, cell.second->safe);
       _ofs_grid << "\n";
       // DEBUG_VARS(cell.second->added_idx, cell.second->propagated_idx, cell.second->visited_idx)
