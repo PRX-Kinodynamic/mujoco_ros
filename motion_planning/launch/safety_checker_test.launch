@@ -5,12 +5,12 @@
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <arg name="environment" default="empty"/>
-    <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/>
-    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/unicycle_system.yaml"/> -->
+    <!-- <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/> -->
+    <arg name="plant_file" default="$(find motion_planning)/config/unicycle_system.yaml"/>
     <arg name="algorithm" default="randup"/>
     <!-- <arg name="plant" value="unicycle"/> -->
 
-    <arg name="plant" default="SO2System"/>
+    <arg name="plant" default="unicycle"/>
     <arg name="record_rosbag" default="false"/>
 
     <!-- <arg name="output_directory" default="/tmp/"/> -->
@@ -24,7 +24,7 @@
     <arg name="exit_after_query" default="false"/>
 
 
-    <param name="simulation_step" value="0.01"/>
+    <param name="simulation_step" value="0.1"/>
     <param name="random_seed" value="$(arg random_seed)"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />

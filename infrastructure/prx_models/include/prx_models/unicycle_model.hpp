@@ -135,39 +135,54 @@ public:
     return x;
   }
 
-  State propagate(const State& x0, const Control& u0, const double& dt, OptJacX Hx = nullptr, OptJacU Hu = nullptr,
-                  OptJacDT Hdt = nullptr)
+  StateDot ode(const State& x0, const Control& u0, OptJacX Hx = nullptr, OptJacU Hu = nullptr)
   {
     using Mx = Eigen::Matrix<double, 3, 2>;
-    using LieIntegrator = prx::fg::lie_integrator_t<gtsam::Pose2, Eigen::Vector3d, double>;
-
-    const bool jacs{ Hx or Hu or Hdt };
-
     const double& th{ x0.theta() };
     const double cth{ std::cos(th) };
     const double sth{ std::sin(th) };
     // const Mx M{ (Mx() << cth, 0., sth, 0., 0., 1.).finished() };
     const Mx M{ (Mx() << 1, 0., 0, 0., 0., 1.).finished() };
     const Eigen::Vector3d xdot{ M * u0 };
+    return xdot;
+  }
+
+  State integrate(const State& x0, const StateDot& xd0, const double& dt, OptJacX Hx = nullptr, OptJacX Hxd = nullptr,
+                  OptJacDT Hdt = nullptr)
+  {
+    using LieIntegrator = prx::fg::lie_integrator_t<gtsam::Pose2, Eigen::Vector3d, double>;
+    const bool jacs{ Hx or Hxd or Hdt };
 
     Eigen::Matrix<double, 3, 3> x1_H_x0, x1_H_xdot;
     Eigen::Matrix<double, 3, 1> x1_H_dt;
 
-    const gtsam::Pose2 x1{ LieIntegrator::integrate(x0, xdot, dt,                 // no-lint
+    const gtsam::Pose2 x1{ LieIntegrator::integrate(x0, xd0, dt,                  // no-lint
                                                     jacs ? &x1_H_x0 : nullptr,    // no-lint
                                                     jacs ? &x1_H_xdot : nullptr,  // no-lint
                                                     jacs ? &x1_H_dt : nullptr) };
+    return x1;
+  }
 
-    const Eigen::Vector3d xdot_H_x0{ (Eigen::Vector3d() << -u0[0] * sth, u0[0] * cth, 0.).finished() };
+  State propagate(const State& x0, const Control& u0, const double& dt, OptJacX Hx = nullptr, OptJacU Hu = nullptr,
+                  OptJacDT Hdt = nullptr)
+  {
+    const bool jacs{ Hx or Hu or Hdt };
+    JacX x1_H_x0, x1_H_xd, xd_H_x0;
+    JacU xd_Hu_u0;
+    JacDT x1_H_dt;
+
+    const StateDot xdot{ ode(x0, u0, jacs ? &xd_H_x0 : nullptr, jacs ? &xd_Hu_u0 : nullptr) };
+    const State x1{ integrate(x0, xdot, dt, jacs ? &x1_H_x0 : nullptr, jacs ? &x1_H_xd : nullptr,
+                              jacs ? &x1_H_dt : nullptr) };
+
+    // const Eigen::Vector3d xdot_H_x0{ (Eigen::Vector3d() << -u0[0] * sth, u0[0] * cth, 0.).finished() };
     if (Hx)
     {
-      *Hx = x1_H_x0;
-      Hx->col(2) = xdot_H_x0;
+      *Hx = x1_H_x0 + x1_H_xd * xd_H_x0;
     }
     if (Hu)
     {
-      const Eigen::Matrix<double, 3, 2>& xdot_H_u0{ M };
-      *Hu = x1_H_xdot * xdot_H_u0;
+      *Hu = x1_H_xd * xd_Hu_u0;
     }
     if (Hdt)
     {
