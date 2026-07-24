@@ -349,7 +349,7 @@ public:
         _pool.detach_task(
             [xbar, safe_distance, split_idx, this] { this->collision_check(xbar, safe_distance, split_idx); });
 
-        if (safe_distance > _cell_size / 2.)
+        if (safe_distance > _cell_size / 4.)
         {
           const double r2{ safe_distance * safe_distance };
           _pool.detach_task([xbar, r2, this] { add_cells_inside_ellipse(xbar, xbar, _identity, r2); });
@@ -390,14 +390,14 @@ public:
     return traj;
   }
 
-  void propagate_cube(const State state, Controller controller, const int split_idx)
+  void propagate_cube(const Vertex vx, Controller controller, const int split_idx)
   {
     if (controller.size() == 0)
       return;
     // DEBUG_VARS(state)
     // if (_collision_found)  // short-circuit
     //   return;
-    CellPtr cellptr{ init_cell(state) };
+    CellPtr cellptr{ init_cell(vx) };
     if (cellptr->propagated_idx == _propagated_idx)
     {
       // DEBUG_VARS(_propagated_idx, cellptr->)
@@ -405,12 +405,12 @@ public:
     }
 
     cellptr->propagated_idx = _propagated_idx;
-    auto vertices = _grid.vertices(state);
-
+    auto vertices = _grid.vertices(vx);
+    const State x_center{ _grid.center_state(vx) };
     const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
-    const Trajectory traj_nominal{ get_nominal_trajectory(state, controller_head) };
+    const Trajectory traj_nominal{ get_nominal_trajectory(x_center, controller_head) };
 
-    const Control u_nominal{ prx::controller_view_t<DynamicalSystem, Controller>::front(controller_head, state,
+    const Control u_nominal{ prx::controller_view_t<DynamicalSystem, Controller>::front(controller_head, x_center,
                                                                                         _plant) };
 
     // DEBUG_VARS(state)
@@ -479,10 +479,6 @@ public:
 
   bool is_cell_unvisited(const Vertex vx)
   {
-    // const bool inside{ cell_intersects_with_ellipse(x0, vertex, epsilon_inv, chi_confidence) };
-    // if (inside)
-    // {
-    // const State xv{ _grid.state_from_vertex(vertex) };
     CellPtr cellptr{ init_cell(vx) };
 
     if (cellptr->visited_idx < _visited_idx)
@@ -492,81 +488,112 @@ public:
       return true;
     }
     return false;
-
-    // }
-    // auto vertices = _grid.vertices(xv);
-    // DEBUG_VARS(epsilon, epsilon.inverse())
-    // DEBUG_VARS(vertex, xv, tg_v, err, chi_confidence)
-    // CellPtr cellptr{ init_cell(xv) };
-
-    // if (cellptr->visited_idx < _visited_idx)
-    // {
-    //   cellptr->visited_idx = _visited_idx;
-    //   _pool.detach_task([xv, controller, split_idx, this] { this->propagate_cube(xv, controller, split_idx); });
-
-    //   propagate_neighbors(x0, xv, epsilon, chi_confidence, controller, split_idx);
-    // propagate_neighbors(x0, xv, epsilon, chi_confidence, controller, split_idx);
-    // }
-    // return false;
   }
 
   void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
                            const Controller controller, const std::size_t split_idx)
   {
+    // std::scoped_lock lock{ _log_mutex };
     std::vector<Vertex> vertices_q;
+    std::set<Vertex, typename ImplicitGrid::state_compare_t> local_hashes;
 
     const Vertex v0{ _grid.vertex(state) };
     vertices_q.push_back(v0);
-    // DEBUG_VARS(x0, state, epsilon_inv, chi_confidence)
+    // LOG_VARS(x0, v0, state, chi_confidence)
+    int total_vertices{ 0 };
     while (not vertices_q.empty())
     {
       Vertex v_next{ vertices_q.back() };
       vertices_q.pop_back();
+      // LOG_VARS(v_next, vertices_q.size());
+      total_vertices++;
 
+      const bool vx_inside{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+      if (vx_inside)
+      {
+        const State xv_i{ _grid.state_from_vertex(v_next) };
+        _pool.detach_task(
+            [v_next, controller, split_idx, this] { this->propagate_cube(v_next, controller, split_idx); });
+        // LOG_VARS(total_vertices, v_next, vx_inside, xv_i)
+        for (int i = 0; i < DimX; ++i)
+        {
+          v_next[i] += 1;
+
+          // const std::size_t hp{ _grid.hash(v_next) };
+          const bool hp_new{ local_hashes.count(v_next) == 0 };
+          // LOG_VARS(total_vertices, i, v_next, hp_new)
+          if (hp_new)
+          {
+            local_hashes.insert(v_next);
+            vertices_q.push_back(v_next);
+          }
+
+          v_next[i] -= 2;
+          // const std::size_t hm{ _grid.hash(v_next) };
+          const bool hm_new{ local_hashes.count(v_next) == 0 };
+          // LOG_VARS(total_vertices, i, v_next, hm_new)
+          if (hm_new)
+          {
+            local_hashes.insert(v_next);
+            vertices_q.push_back(v_next);
+          }
+          // LOG_VARS(i, v_next, hp)
+          // if (local_hashes.count(hp) == 0)
+          // {
+          //   local_hashes.insert(hp);
+          //   const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+          //   const State xv_p{ _grid.state_from_vertex(v_next) };
+          //   LOG_VARS(i, xv_p, v_next, inside_p);
+          //   if (inside_p)
+          //   {
+          //     // if (prop_p)
+          //     // {
+          //     vertices_q.push_back(v_next);
+          //     _pool.detach_task(
+          //         [xv_p, controller, split_idx, this] { this->propagate_cube(xv_p, controller, split_idx); });
+          //     // }
+          //     // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+          //   }
+          // }
+          // // As v_next[i] has already a +1, we need to remove it and do -1
+          // v_next[i] -= 2;
+          // const std::size_t hm{ _grid.hash(v_next) };
+          // LOG_VARS(i, v_next, hm)
+          // if (local_hashes.count(hm) == 0)
+          // {
+          //   local_hashes.insert(hm);
+          //   const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+          //   // const bool prop_m{ is_cell_unvisited(v_next) };
+          //   const State xv_m{ _grid.state_from_vertex(v_next) };
+          //   LOG_VARS(i, xv_m, v_next, inside_m);
+          //   if (inside_m)
+          //   {
+          //     // if (prop_m)
+          //     // {
+          //     vertices_q.push_back(v_next);
+          //     _pool.detach_task(
+          //         [xv_m, controller, split_idx, this] { this->propagate_cube(xv_m, controller, split_idx); });
+          //     // }
+          //     // is_cell_unvisited(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+          //     // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
+          //   }
+          // }
+          // Reset it...
+          v_next[i] += 1;
+          // LOG_VARS(v_next);
+        }
+      }
+      else
+      {
+        // LOG_VARS(total_vertices, v_next, vx_inside)
+      }
       // const State xv{ _grid.state_from_vertex(vertex) };
 
       // Go over every vertex neighbor: +1 and -1 per dimension
-      for (int i = 0; i < DimX; ++i)
-      {
-        v_next[i] += 1;
-        const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-        if (inside_p)
-        {
-          const bool prop_p{ is_cell_unvisited(v_next) };
-          if (prop_p)
-          {
-            const State xv_p{ _grid.state_from_vertex(v_next) };
-            vertices_q.push_back(v_next);
-            _pool.detach_task(
-                [xv_p, controller, split_idx, this] { this->propagate_cube(xv_p, controller, split_idx); });
-          }
-          // DEBUG_VARS(x0, state, curr_state, xv_p)
-          // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-        }
-
-        // As v_next[i] has already a +1, we need to remove it and do -1
-        v_next[i] -= 2;
-        const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-        if (inside_m)
-        {
-          const bool prop_m{ is_cell_unvisited(v_next) };
-          if (prop_m)
-          {
-            const State xv_m{ _grid.state_from_vertex(v_next) };
-            vertices_q.push_back(v_next);
-            _pool.detach_task(
-                [xv_m, controller, split_idx, this] { this->propagate_cube(xv_m, controller, split_idx); });
-          }
-          // is_cell_unvisited(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-          // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-        }
-        // Reset it...
-        v_next[i] += 1;
-      }
 
       // DEBUG_VARS(states_q.size())
     }
-
+    // LOG_VARS(total_vertices, local_hashes)
     // return true;
   }
 
@@ -574,69 +601,96 @@ public:
                                 const double chi_confidence)
   {
     std::vector<Vertex> vertices_q;
+    std::set<Vertex, typename ImplicitGrid::state_compare_t> visited;
     const Vertex v0{ _grid.vertex(state) };
 
-    std::set<std::size_t> local_hashes;
+    // std::set<std::size_t> local_hashes;
     vertices_q.push_back(v0);
     // DEBUG_VARS(x0, state, chi_confidence)
     while (not vertices_q.empty())
     {
       Vertex v_next{ vertices_q.back() };
-      // auto vertex = _grid.vertex(curr_state);
       vertices_q.pop_back();
 
-      for (int i = 0; i < DimX; ++i)
+      const bool vx_inside{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+      if (vx_inside)
       {
-        // Tangent v_next{ vertex };
-        v_next[i] += 1;
-
-        const State xv_p{ _grid.state_from_vertex(v_next) };
-        // const Tangent center_tg_p{ _grid.center(xv_p) };
-        // const State center_p{ _grid.state(center_tg_p) };
-        const std::size_t hp{ _grid.hash(v_next) };
-        const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-        if (_cells_hashes.count(hp) == 0)
+        CellPtr cellptr{ init_cell(v_next) };
+        cellptr->state = _grid.center_state(v_next);
+        cellptr->vertex = v_next;
+        for (int i = 0; i < DimX; ++i)
         {
-          _cells_hashes.insert(hp);
-          if (inside_p)
+          v_next[i] += 1;
+          const bool hp_new{ visited.count(v_next) == 0 };
+          if (hp_new)
           {
-            CellPtr cellptr{ init_cell(v_next) };
-            cellptr->state = xv_p;
-            cellptr->vertex = v_next;
-            // vertices_q.push_back(xv_p);
+            visited.insert(v_next);
+            vertices_q.push_back(v_next);
           }
-        }
-        if (local_hashes.count(hp) == 0 and inside_p)
-        {
-          local_hashes.insert(hp);
-          vertices_q.push_back(v_next);
-        }
 
-        // As v_next[i] has already a +1, we need to remove it and do -1
-        v_next[i] -= 2;
-        const State xv_m{ _grid.state_from_vertex(v_next) };
-        // const Tangent center_tg{ _grid.center(xv_m) };
-        // const State center{ _grid.state(center_tg) };
-        const std::size_t hm{ _grid.hash(v_next) };
-        const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-        if (_cells_hashes.count(hm) == 0)
-        {
-          _cells_hashes.insert(hm);
-          if (inside_m)
+          v_next[i] -= 2;
+          const bool hm_new{ visited.count(v_next) == 0 };
+          if (hm_new)
           {
-            CellPtr cellptr{ init_cell(v_next) };
-            cellptr->state = xv_m;
-            cellptr->vertex = v_next;
-            // vertices_q.push_back(center);
+            visited.insert(v_next);
+            vertices_q.push_back(v_next);
           }
+          v_next[i] += 1;
         }
-        if (local_hashes.count(hm) == 0 and inside_m)
-        {
-          local_hashes.insert(hm);
-          vertices_q.push_back(v_next);
-        }
-        v_next[i] += 1;
       }
+
+      // for (int i = 0; i < DimX; ++i)
+      // {
+      //   // Tangent v_next{ vertex };
+      //   v_next[i] += 1;
+
+      //   const State xv_p{ _grid.state_from_vertex(v_next) };
+      //   // const Tangent center_tg_p{ _grid.center(xv_p) };
+      //   // const State center_p{ _grid.state(center_tg_p) };
+      //   const std::size_t hp{ _grid.hash(v_next) };
+      //   const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+      //   if (_cells_hashes.count(hp) == 0)
+      //   {
+      //     _cells_hashes.insert(hp);
+      //     if (inside_p)
+      //     {
+      //       CellPtr cellptr{ init_cell(v_next) };
+      //       cellptr->state = xv_p;
+      //       cellptr->vertex = v_next;
+      //       // vertices_q.push_back(xv_p);
+      //     }
+      //   }
+      //   if (local_hashes.count(hp) == 0 and inside_p)
+      //   {
+      //     local_hashes.insert(hp);
+      //     vertices_q.push_back(v_next);
+      //   }
+
+      //   // As v_next[i] has already a +1, we need to remove it and do -1
+      //   v_next[i] -= 2;
+      //   const State xv_m{ _grid.state_from_vertex(v_next) };
+      //   // const Tangent center_tg{ _grid.center(xv_m) };
+      //   // const State center{ _grid.state(center_tg) };
+      //   const std::size_t hm{ _grid.hash(v_next) };
+      //   const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+      //   if (_cells_hashes.count(hm) == 0)
+      //   {
+      //     _cells_hashes.insert(hm);
+      //     if (inside_m)
+      //     {
+      //       CellPtr cellptr{ init_cell(v_next) };
+      //       cellptr->state = xv_m;
+      //       cellptr->vertex = v_next;
+      //       // vertices_q.push_back(center);
+      //     }
+      //   }
+      //   if (local_hashes.count(hm) == 0 and inside_m)
+      //   {
+      //     local_hashes.insert(hm);
+      //     vertices_q.push_back(v_next);
+      //   }
+      //   v_next[i] += 1;
+      // }
 
       // DEBUG_VARS(states_q.size())
     }
@@ -668,7 +722,7 @@ public:
     const State x0_center{ gtsam::traits<State>::Compose(_state, x_d2) };
 
     // DEBUG_VARS(_state, x0_center, cell_size)
-    _grid.reset(x0_center, _cell_size / 2.);
+    _grid.reset(_state, _cell_size / 2.);
 
     DEBUG_VARS(_grid.cell_sizes())
     _safe_radii.clear();
@@ -754,6 +808,17 @@ public:
     marker_lie.pose.orientation.y = q.y();
     marker_lie.pose.orientation.z = q.z();
 
+    _ofs_grid << "# First line: 'x0 cell_size' of grid (x0 is the x0 of the grid and the size of each cell).";
+    _ofs_grid << "Then empty line and then N lines with 'center_state center_tangent vertex safe' ";
+    _ofs_grid << "corresponding to the reachable set on the grid.\n";
+    prx::to_stream(_ofs_grid, _grid.x0());
+    prx::to_stream(_ofs_grid, _grid.cell_sizes());
+    _ofs_grid << "\n\n";
+
+    // prx::to_stream(_ofs, cell.second->state);
+    // prx::to_stream(_ofs, cell.second->safe);
+    // prx::to_stream(_ofs, cell.second->total_states);
+
     // DEBUG_VARS(cell_size.transpose(), _grid.size())
     // const bool x_sign{ plant_config[0].second[0] > 0 };
     // const bool y_sign{ plant_config[0].second[1] > 0 };
@@ -774,8 +839,9 @@ public:
       ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.051);
       ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.051);
 
-      prx::to_stream(_ofs_grid, cell.second->state);
+      // prx::to_stream(_ofs_grid, cell.second->state);
       prx::to_stream(_ofs_grid, center);
+      prx::to_stream(_ofs_grid, center_tg);
       prx::to_stream(_ofs_grid, cell.second->vertex);
       prx::to_stream(_ofs_grid, cell.second->safe);
       _ofs_grid << "\n";
@@ -804,6 +870,7 @@ public:
     _cubes_state_publisher.publish(marker_state);
     // _cubes_publisher.publish(marker);
     _grid.clear();
+    _ofs_grid.close();
     // DEBUG_PRINT
   }
 
@@ -898,6 +965,7 @@ private:
   std::atomic<int> _total_checked_trajectories;
   std::atomic<int> _unchecked_trajectories, _collisions_in_check;
 
+  std::mutex _log_mutex;
   std::mutex _new_cell_mutex;
   std::mutex _trajectories_mutex, _queries_mutex, _nominal_trajectories_mutex;
 
