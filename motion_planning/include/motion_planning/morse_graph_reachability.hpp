@@ -136,19 +136,20 @@ public:
     PARAM_SETUP_WITH_DEFAULT(nh, output_directory, "/tmp/");
     PARAM_SETUP_WITH_DEFAULT(nh, file_prefix, "mg");
 
-    const std::string timestamp{ utils::timestamp() };
-    const std::string prefix{ output_directory + "/" + file_prefix };
-    const std::string MG_OUTPUT_FILE{ prefix + "_balls_" + timestamp + ".txt" };
-    const std::string MG_GRID_FILE{ prefix + "_grid_" + timestamp + ".txt" };
-    const std::string MG_TRAJS_FILE{ prefix + "_trajs_" + timestamp + ".txt" };
-    const std::string MG_NOMINAL_TRAJS_FILE{ prefix + "_nominal_trajs_" + timestamp + ".txt" };
+    _timestamp = utils::timestamp();
+    _prefix = output_directory + "/" + file_prefix;
+    const std::string MG_OUTPUT_FILE{ _prefix + "_balls_" + _timestamp + ".txt" };
+    const std::string MG_GRID_FILE{ _prefix + "_grid_" + _timestamp + ".txt" };
+    const std::string MG_TRAJS_FILE{ _prefix + "_trajs_" + _timestamp + ".txt" };
+    const std::string MG_NOMINAL_TRAJS_FILE{ _prefix + "_nominal_trajs_" + _timestamp + ".txt" };
+    const std::string MG_STATS_FILE{ _prefix + "_stats_" + _timestamp + ".txt" };
     DEBUG_VARS(MG_OUTPUT_FILE)
     DEBUG_VARS(MG_TRAJS_FILE)
     DEBUG_VARS(MG_NOMINAL_TRAJS_FILE)
     _ofs_balls.open(MG_OUTPUT_FILE);
     _ofs_grid.open(MG_GRID_FILE);
-    _ofs_trajs.open(MG_TRAJS_FILE);
-    _ofs_nominal_trajs.open(MG_NOMINAL_TRAJS_FILE);
+    _ofs_stats.open(MG_STATS_FILE);
+    // _ofs_nominal_trajs.open(MG_NOMINAL_TRAJS_FILE);
   }
 
   ~morse_graph_reachability_t()
@@ -357,8 +358,10 @@ public:
       }
     }
 
-    std::scoped_lock lock(_trajectories_mutex);
-    _trajectories.push_back(traj);
+    {
+      std::scoped_lock lock(_trajectories_mutex);
+      _trajectories[split_idx].push_back(traj);
+    }
 
     // if (controller.size() > 0)
     // {
@@ -372,7 +375,7 @@ public:
     // _unchecked_trajectories++;
   }
 
-  Trajectory get_nominal_trajectory(const State state, const Controller controller)
+  Trajectory get_nominal_trajectory(const State state, const Controller controller, const int split_idx)
   {
     Trajectory traj;
 
@@ -385,7 +388,7 @@ public:
     if (_visualize)
     {
       std::scoped_lock lock{ _nominal_trajectories_mutex };
-      _nominal_trajs.push_back(traj);
+      _nominal_trajs[split_idx].push_back(traj);
     }
     return traj;
   }
@@ -408,7 +411,7 @@ public:
     auto vertices = _grid.vertices(vx);
     const State x_center{ _grid.center_state(vx) };
     const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
-    const Trajectory traj_nominal{ get_nominal_trajectory(x_center, controller_head) };
+    const Trajectory traj_nominal{ get_nominal_trajectory(x_center, controller_head, split_idx) };
 
     const Control u_nominal{ prx::controller_view_t<DynamicalSystem, Controller>::front(controller_head, x_center,
                                                                                         _plant) };
@@ -773,7 +776,7 @@ public:
 
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
-    _pool.detach_task([&] { this->grid_to_markers(); });
+    // _pool.detach_task([&] { this->grid_to_markers(); });
     _pool.detach_task([&] { this->trajectories_to_marker(); });
 
     return _collision_found;
@@ -893,7 +896,7 @@ public:
       prx::to_stream(_ofs_balls, idx);
       prx::to_stream(_ofs_balls, state);
       prx::to_stream(_ofs_balls, radius);
-      prx::to_stream(_ofs_balls, _trajectories.size());
+      // prx::to_stream(_ofs_balls, _trajectories.size());
       _ofs_balls << "\n";
 
       all_markers.markers.push_back(marker);
@@ -921,30 +924,63 @@ public:
       _traj_nominal_publisher.publish(nominal_trajs_marker);
 
       marker.action = nominal_trajs_marker.action = markers_x0s.action = visualization_msgs::Marker::ADD;
-      DEBUG_VARS(_trajectories.size())
+      // DEBUG_VARS(_trajectories.size())
       std::scoped_lock lock(_trajectories_mutex);
-      while (_trajectories.size() > 0)
+      int total_states{ 0 };
+      for (auto traj_set : _trajectories)
       {
-        prx::to_stream(_ofs_trajs, _trajectories.back());
-        _ofs_trajs << "\n";
-        // DEBUG_VARS(_trajectories.back());
-        ml4kp_bridge::update_marker(marker, _trajectories.back(), 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+        std::stringstream strstr;
+        strstr << _prefix << "_trajs_";
+        strstr << _timestamp + "_";
+        strstr << std::setfill('0') << std::setw(5) << traj_set.first;
+        strstr << ".txt";
 
-        markers_x0s.points.emplace_back();
-        ml4kp_bridge::update_point(markers_x0s.points.back(), _trajectories.back().front(), 0, 1, 0.0);
+        std::ofstream ofs_traj(strstr.str());
 
-        _trajectories.pop_back();
+        while (traj_set.second.size() > 0)
+        {
+          const Trajectory& traj{ traj_set.second.back() };
+          total_states += traj.size();
+          prx::to_stream(ofs_traj, traj);
+          ofs_traj << "\n\n";
+
+          ml4kp_bridge::update_marker(marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+
+          markers_x0s.points.emplace_back();
+          ml4kp_bridge::update_point(markers_x0s.points.back(), traj.front(), 0, 1, 0.0);
+
+          traj_set.second.pop_back();
+        }
       }
-      while (_nominal_trajs.size() > 0)
+
+      DEBUG_VARS(total_states)
+      for (auto traj_set : _nominal_trajs)
       {
-        prx::to_stream(_ofs_nominal_trajs, _nominal_trajs.back());
-        _ofs_nominal_trajs << "\n";
-        ml4kp_bridge::update_marker(nominal_trajs_marker, _nominal_trajs.back(), 0, 1, 0.0,
-                                    visualization_msgs::Marker::LINE_LIST);
+        std::stringstream strstr;
+        strstr << _prefix << "_nominal_trajs_";
+        strstr << _timestamp + "_";
+        strstr << std::setfill('0') << std::setw(5) << traj_set.first;
+        strstr << ".txt";
 
-        _nominal_trajs.pop_back();
+        std::ofstream ofs_nominal_traj(strstr.str());
+        while (traj_set.second.size() > 0)
+        {
+          const Trajectory& traj{ traj_set.second.back() };
+          total_states += traj.size();
+          prx::to_stream(ofs_nominal_traj, traj);
+          ofs_nominal_traj << "\n\n";
+          ml4kp_bridge::update_marker(nominal_trajs_marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+
+          traj_set.second.pop_back();
+        }
       }
-
+      DEBUG_VARS(total_states)
+      _ofs_stats << "total_states: " << total_states << "\n";
+      _ofs_stats << "total_cells: " << _grid.size() << "\n";
+      _ofs_stats << "cell_size: ";
+      prx::to_stream(_ofs_stats, _grid.cell_sizes());
+      _ofs_stats << "\n";
+      _ofs_stats.close();
       // DEBUG_VARS(marker)
       _traj_nominal_publisher.publish(nominal_trajs_marker);
       _markers_publisher.publish(marker);
@@ -955,6 +991,7 @@ public:
     std::scoped_lock lock(_trajectories_mutex);
     _trajectories.clear();
     _nominal_trajs.clear();
+    grid_to_markers();
   }
 
 private:
@@ -969,7 +1006,7 @@ private:
   std::mutex _new_cell_mutex;
   std::mutex _trajectories_mutex, _queries_mutex, _nominal_trajectories_mutex;
 
-  std::vector<Trajectory> _trajectories, _nominal_trajs;
+  std::map<int, std::vector<Trajectory>> _trajectories, _nominal_trajs;
   // std::vector<Trajectory> _checked_trajectories;
 
   Controller _controller;
@@ -1012,7 +1049,7 @@ private:
 
   bool _short_circuit;
 
-  std::ofstream _ofs_balls, _ofs_trajs, _ofs_nominal_trajs, _ofs_grid;
+  std::ofstream _ofs_balls, _ofs_stats, _ofs_nominal_trajs, _ofs_grid;
   std::vector<std::tuple<int, State, double>> _safe_radii;
 
   // Trajectory _traj_nominal, _nominal_trajs;
@@ -1026,6 +1063,8 @@ private:
   std::shared_ptr<prx::chi_squared> _chi2;
 
   const Covariance _identity;
+
+  std::string _timestamp, _prefix;
 
   std::set<std::size_t> _cells_hashes;
 };
