@@ -22,9 +22,11 @@
     <arg name="repetitions" default="1"/>
     <arg name="random_seed" default="112392"/>
     <arg name="exit_after_query" default="false"/>
+    <arg name="simulation_step_in" default="0.01"/>
 
 
-    <param name="simulation_step" value="0.1"/>
+
+    <param name="simulation_step" value="$(arg simulation_step_in)"/>
     <param name="random_seed" value="$(arg random_seed)"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
@@ -35,6 +37,7 @@
     <arg name="state_topic" default="/mushr/state"/>
 
     <arg name="split_time" default="0.25"/>
+    <arg name="cell_size" value="0.05"/>
 
 <!-- launch-prefix="gdb -ex run - -args" -->
           <!-- launch-prefix="$(arg dbg)" -->
@@ -44,7 +47,7 @@
       <param name="state_topic" value="$(arg state_topic)"/>
       <param name="algorithm" value="$(arg algorithm)"/>
       <param name="total_threads" value="1"/>
-      <param name="cell_size" value="0.05"/>
+      <param name="cell_size" value="$(arg cell_size)"/>
       <param name="short_circuit" value="false"/>
       <!-- <param name="plant" value="mushrPolynomial"/> -->
       <param name="plant" value="$(arg plant)"/>
