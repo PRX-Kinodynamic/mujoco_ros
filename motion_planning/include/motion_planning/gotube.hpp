@@ -36,12 +36,12 @@
 namespace motion_planning
 {
 
-template <typename DynamicalSystem, typename Controller>
+template <typename DynamicalSystem, typename Controller, typename PlanMsg>
 class gotube_t
 {
 public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
-  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  // using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
   using State = typename DynamicalSystem::State;
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;

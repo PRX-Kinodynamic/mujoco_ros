@@ -3,6 +3,7 @@
 #include <fstream>
 #include <ostream>
 #include <regex>
+#include <mutex>
 
 #include <ros/ros.h>
 
@@ -29,6 +30,8 @@ namespace variables
 inline static const std::string lib_path{ prx::lib_path_safe("ML4KP_ROS") };
 inline static std::ofstream ofs_log;
 inline static std::string log_filename = "log.txt";
+inline static std::mutex log_mutex;
+
 }  // namespace variables
 
 inline void set_log_filename(const std::string filename)
@@ -297,6 +300,7 @@ void print_keys(const std::string fn_name, std::ostream& stream, Keys... vars)
 #define LOG_MSG(MSG)                                                                                                   \
   {                                                                                                                    \
     const std::string msg{ MSG };                                                                                      \
+    std::scoped_lock lock(::dbg::variables::log_mutex);                                                                \
     LOG_VARS(msg)                                                                                                      \
   };
 

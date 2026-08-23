@@ -138,9 +138,9 @@ public:
   StateDot ode(const State& x0, const Control& u0, OptJacX Hx = nullptr, OptJacU Hu = nullptr)
   {
     using Mx = Eigen::Matrix<double, 3, 2>;
-    const double& th{ x0.theta() };
-    const double cth{ std::cos(th) };
-    const double sth{ std::sin(th) };
+    // const double& th{ x0.theta() };
+    // const double cth{ std::cos(th) };
+    // const double sth{ std::sin(th) };
     // const Mx M{ (Mx() << cth, 0., sth, 0., 0., 1.).finished() };
     const Mx M{ (Mx() << 1, 0., 0, 0., 0., 1.).finished() };
     const Eigen::Vector3d xdot{ M * u0 };

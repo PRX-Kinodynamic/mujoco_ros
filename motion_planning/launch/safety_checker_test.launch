@@ -5,12 +5,13 @@
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <!-- <arg name="environment" default="unicycle_environment_0"/> -->
     <arg name="environment" default="empty"/>
-    <!-- <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/> -->
-    <arg name="plant_file" default="$(find motion_planning)/config/unicycle_system.yaml"/>
+    <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/>
+    <!-- <arg name="plant_file" default="$(find motion_planning)/config/unicycle_system.yaml"/> -->
     <arg name="algorithm" default="randup"/>
     <!-- <arg name="plant" value="unicycle"/> -->
 
-    <arg name="plant" default="unicycle"/>
+    <arg name="plant" default="SO2System"/>
+    <!-- <arg name="plant" default="unicycle"/> -->
     <arg name="record_rosbag" default="false"/>
 
     <!-- <arg name="output_directory" default="/tmp/"/> -->
@@ -37,7 +38,11 @@
     <arg name="state_topic" default="/mushr/state"/>
 
     <arg name="split_time" default="0.25"/>
-    <arg name="cell_size" value="0.05"/>
+    <arg name="cell_size" default="0.05"/>
+    <arg name="sleep_at_exit" default="5"/>
+
+    <arg name="chi2_alpha" default="0.01"/>
+
 
 <!-- launch-prefix="gdb -ex run - -args" -->
           <!-- launch-prefix="$(arg dbg)" -->
@@ -60,8 +65,9 @@
       <param name="file_prefix" value="$(arg file_prefix)"/>
       <param name="repetitions" value="$(arg repetitions)"/>
       <param name="exit_after_query" value="$(arg exit_after_query)"/>
+      <param name="sleep_at_exit" value="$(arg sleep_at_exit)"/>
 
-      <param name="Chi2_alpha" value="0.001"/>
+      <param name="Chi2_alpha" value="$(arg chi2_alpha)"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"
@@ -72,11 +78,11 @@
     </node>
 
 
-    <node pkg="nodelet" type="nodelet" name="analytical_sim_aux_nodelet"  args="manager" output="screen"/>
-    <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
+    <!-- <node pkg="nodelet" type="nodelet" name="analytical_sim_aux_nodelet"  args="manager" output="screen"/> -->
+    <!-- <node pkg="nodelet" type="nodelet" name="EnvironmentPublisher" 
         args="load utils/EnvironmentPublisher analytical_sim_aux_nodelet" 
         output="screen">
-    </node>  
+    </node>  --> 
     
     <include if="$(arg record_rosbag)" file="$(find interface)/launch/rosbag_record_mj_experiment.launch">
       <arg name="rosbag_directory" value="$(arg output_directory)"/>

@@ -68,12 +68,12 @@ inline CgalEpicKernel::Point_3 cgal_create(const gtsam::Pose2& state)
 namespace motion_planning
 {
 
-template <typename DynamicalSystem, typename Controller>
+template <typename DynamicalSystem, typename Controller, typename PlanMsg>
 class randup_t
 {
 public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
-  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  // using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
   using State = typename DynamicalSystem::State;
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;
@@ -507,10 +507,16 @@ public:
         std::scoped_lock lock(_checked_trajectories_mutex);
 
         DEBUG_VARS(_checked_trajectories.size())
+        int total_trajectories{ 0 };
         while (_checked_trajectories.size() > 0)
         {
           ml4kp_bridge::update_marker(marker, _checked_trajectories.back(), 0, 1, -0.1);
           _checked_trajectories.pop_back();
+          total_trajectories++;
+          if (total_trajectories > 1000)
+          {
+            break;
+          }
         }
       }
 

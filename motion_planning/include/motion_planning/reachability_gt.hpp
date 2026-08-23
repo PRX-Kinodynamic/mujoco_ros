@@ -66,12 +66,12 @@ public:
   State state;
 };
 
-template <typename DynamicalSystem, typename Controller>
+template <typename DynamicalSystem, typename Controller, typename PlanMsg>
 class reachability_gt_t
 {
 public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
-  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  // using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
   using State = typename DynamicalSystem::State;
   using StateDot = typename DynamicalSystem::StateDot;
   using Control = typename DynamicalSystem::Control;
@@ -189,7 +189,7 @@ public:
             prx::to_stream(_ofs_trajs, state);
             _ofs_trajs << "\n";
           }
-          _ofs_trajs << "\n";
+          _ofs_trajs << "\n\n";
           ml4kp_bridge::update_marker(_traj_marker, traj, 0, 1, -0.01);
           _trajs_markers++;
         }

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <ros/assert.h>
+#include <ml4kp_bridge/gtsam_bridge.hpp>
 
 #include <prx/simulation/playback/piecewise_plan.hpp>
 #include <prx/simulation/playback/plan.hpp>
+#include <ml4kp_bridge/SlsGain.h>
 
 #include <ml4kp_bridge/msgs_utils.hpp>
 #include <ml4kp_bridge/space_bridge.hpp>
@@ -76,6 +78,10 @@ split(std::vector<prx::piecewise_step_t<ControlType, double>>& plan, const doubl
     {
       break;
     }
+    else if (plan.front().duration < prx::simulation_step)
+    {
+      plan.erase(plan.begin());
+    }
     else if (plan.front().duration < remaining_time)
     {
       split_plan.push_back(plan.front());
@@ -91,20 +97,11 @@ split(std::vector<prx::piecewise_step_t<ControlType, double>>& plan, const doubl
       remaining_time = 0.;
     }
   }
-  // for (auto& step : plan)
-  // {
-  //   if (step.duration > split_time)
-  //   {
-  //     double remaining_time{ step.duration };
-  //     while (remaining_time > 0.)
-  //     {
-  //       const double dt{ std::min(remaining_time, split_time) };
-  //       split_plan.emplace_back(step.control, dt);
-  //       remaining_time -= dt;
-  //     }
-  //   }
-  // }
-  // DEBUG_VARS(split_plan);
+  if (plan.front().duration < prx::simulation_step)
+  {
+    plan.erase(plan.begin());
+  }
+
   return split_plan;
   // std::swap(split_plan, plan);
 }
@@ -157,6 +154,107 @@ split(std::vector<std::pair<Eigen::Matrix<double, DimU, DimX>, double>>& gains, 
   }
 
   return split_gains;
+}
+
+template <typename State, typename Control>
+inline std::vector<std::tuple<std::vector<State>, std::vector<Control>, Eigen::MatrixXd>>
+split(std::vector<std::tuple<std::vector<State>, std::vector<Control>, Eigen::MatrixXd>>& ctrl, const double split_time)
+{
+  std::vector<std::tuple<std::vector<State>, std::vector<Control>, Eigen::MatrixXd>> split_ctrl;
+
+  // double remaining_time{ split_time };
+  // while (remaining_time > 0.)
+  // {
+  //   if (ctrl.size() == 0)
+  //   {
+  //     break;
+  //   }
+  //   else
+  //   {
+  //     std::cout << "TODO" << std::endl;
+  //     // for (auto& [traj, ctrl, K] : ctrl)
+  //     // {
+  //     // }
+  //   }
+  // }
+  std::vector<State> traj_split;
+  std::vector<Control> ctrl_split;
+
+  double ti{ 0.0 };
+  // return split_ctrl;
+  for (auto& [traj, ctrl, K] : ctrl)
+  {
+    std::size_t idx{ 0 };
+    // std::vector<Eigen::VectorXd> K_split;
+    while (ti < split_time)
+    {
+      traj_split.push_back(traj[idx]);
+      ctrl_split.push_back(ctrl[idx]);
+      // K_split.append(K())
+
+      traj.erase(traj.begin());
+      ctrl.erase(ctrl.begin());
+
+      ti += prx::simulation_step;
+    }
+  }
+
+  const Eigen::MatrixXd old_K{ std::get<Eigen::MatrixXd>(ctrl.front()) };
+
+  const std::size_t car_rows{ ctrl_split.size() };
+  const std::size_t cdr_rows{ old_K.rows() - car_rows };
+
+  Eigen::MatrixXd K_car{ Eigen::MatrixXd::Zero(car_rows, old_K.cols()) };
+  Eigen::MatrixXd K_cdr{ Eigen::MatrixXd::Zero(cdr_rows, old_K.cols()) };
+  for (int i = 0; i < car_rows; ++i)
+  {
+    K_car.row(i) = old_K.row(i);
+  }
+  for (int i = 0; i < cdr_rows; ++i)
+  {
+    K_cdr.row(i) = old_K.row(car_rows + i);
+  }
+  std::get<Eigen::MatrixXd>(ctrl.front()) = K_cdr;
+  // for (double ti = 0.; ti < split_ctrl; ti += prx::simulation_step)
+  // {
+
+  split_ctrl.push_back(std::make_tuple(traj_split, ctrl_split, K_car));
+  return split_ctrl;
+}
+
+template <typename State, typename Control>
+inline void copy(std::vector<std::tuple<std::vector<State>, std::vector<Control>, Eigen::MatrixXd>>& ctrl,
+                 const ml4kp_bridge::SlsGain& msg)
+{
+  std::vector<State> trajectory;
+  std::vector<Control> controls;
+  Eigen::MatrixXd K{ Eigen::MatrixXd::Zero(msg.Krows, msg.Kcols) };
+
+  Control ut;
+  for (const auto& u_msg : msg.controls)
+  {
+    ml4kp_bridge::copy(ut, u_msg);
+    controls.push_back(ut);
+  }
+
+  State xt;
+  for (const auto& x_msg : msg.trajectory)
+  {
+    ml4kp_bridge::copy(xt, x_msg);
+    trajectory.push_back(xt);
+  }
+
+  std::size_t idx{ 0 };
+  for (int i = 0; i < msg.Krows; ++i)
+  {
+    for (int j = 0; j < msg.Kcols; ++j)
+    {
+      K(i, j) = msg.K[idx];
+      idx++;
+    }
+  }
+
+  ctrl.push_back(std::make_tuple(trajectory, controls, K));
 }
 
 inline void to_file(const ml4kp_bridge::PlanStep& msg, std::ofstream& ofs)

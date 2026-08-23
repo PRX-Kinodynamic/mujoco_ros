@@ -7,6 +7,7 @@
 #include <ml4kp_bridge/SpacePointStampedArray.h>
 #include <prx/simulation/system.hpp>
 #include <prx/simulation/forward_propagation.hpp>
+#include <prx/utilities/math/lie_utils.hpp>
 
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/LevenbergMarquardtParams.h>
@@ -49,7 +50,10 @@ public:
     {
       const StateDot xd{ f->ode(trajectory.back(), plan_step.control) };
       const StateDot xd_w{ noise(xd) };
+      // const State xi0{ f->integrate(trajectory.back(), xd, prx::simulation_step) };
       const State xi{ f->integrate(trajectory.back(), xd_w, prx::simulation_step) };
+      // PRX_DBG_VARS(xd, xd_w)
+      // PRX_DBG_VARS(xi0, xi)
       trajectory.push_back(std::move(xi));
       // trajectory.push_back(std::move(noise(xi)));
     }
@@ -273,6 +277,149 @@ public:
         trajectory.push_back(std::move(x1));
       }
     }
+  }
+
+protected:
+};
+
+template <typename DynamicalSystem>
+class forward_propagation_t<DynamicalSystem,                               // no-lint
+                            std::vector<typename DynamicalSystem::State>,  // no-lint
+                            std::vector<std::tuple<std::vector<typename DynamicalSystem::State>,
+                                                   std::vector<typename DynamicalSystem::Control>, Eigen::MatrixXd>>>
+{
+  static constexpr int DimX{ prx::dynamical_system_traits<DynamicalSystem>::StateDimension };
+  static constexpr int DimU{ prx::dynamical_system_traits<DynamicalSystem>::ControlDimension };
+
+public:
+  // using DynamicalSystem = dynamical_system_t<DerivedSystemType>;
+  using State = typename DynamicalSystem::State;
+  using StateDot = typename DynamicalSystem::StateDot;
+  using Control = typename DynamicalSystem::Control;
+  using ControlVec = Eigen::Vector<double, DimU>;
+  using DynamicalSystemPtr = std::shared_ptr<DynamicalSystem>;
+
+  using Trajectory = std::vector<State>;
+  using NominalControls = std::vector<ControlVec>;
+  using NominalTrajectory = std::vector<State>;
+  using K_SSL = Eigen::MatrixXd;
+  using Controller = std::vector<std::tuple<NominalTrajectory, NominalControls, K_SSL>>;
+
+  template <typename... Args>
+  static void propagate(Trajectory& trajectory, const State& x0, const Controller& ctrls, DynamicalSystemPtr f,
+                        Args&... args)
+  {
+    trajectory.push_back(x0);
+    propagate(trajectory, ctrls, f, args...);
+  }
+
+  static void propagate(Trajectory& trajectory, const Controller& ctrl, DynamicalSystemPtr f)
+  {
+    prx_assert(trajectory.size() > 0,
+               "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
+
+    for (auto& [nominal_traj, us, K] : ctrl)
+    {
+      // const K_SSL K{ std::get<K_SSL>(ctrl) };
+      // const NominalControls us{ std::get<NominalControls>(ctrl) };
+      // const NominalTrajectory nominal_traj{ std::get<NominalTrajectory>(ctrl) };
+
+      Eigen::VectorXd w{ Eigen::VectorXd::Zero(K.cols()) };
+
+      std::size_t idx{ 0 };
+      std::size_t u_idx{ 0 };
+      for (auto xi : nominal_traj)
+      {
+        const State& x0{ trajectory.back() };
+        w.segment<DimX>(idx) = prx::TangentBetween(xi, x0);
+
+        // const Eigen::MatrixXd dU{ K * w };
+        const Eigen::VectorXd dU{ K * w };  //
+        const ControlVec du_t{ dU.segment<DimU>(u_idx) };
+        const StateDot xd{ f->ode(x0, du_t) };
+        const State x1{ f->integrate(trajectory.back(), xd, prx::simulation_step) };
+        trajectory.push_back(std::move(x1));
+        idx += DimX;
+        u_idx += DimU;
+      }
+    }
+  }
+
+  // \dot{x} = f(x,u) + w;
+  template <typename NoiseSampler>
+  static void propagate(Trajectory& trajectory, const Controller& ctrl, DynamicalSystemPtr f, NoiseSampler& noise)
+  {
+    prx_assert(trajectory.size() > 0,
+               "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
+
+    PRX_DBG_VARS(ctrl.size());
+    for (auto& [nominal_traj, nominal_plan, K] : ctrl)
+    {
+      // const K_SSL K{ std::get<K_SSL>(ctrl) };
+      // const NominalControls us{ std::get<NominalControls>(ctrl) };
+      // const NominalTrajectory nominal_traj{ std::get<NominalTrajectory>(ctrl) };
+
+      Eigen::VectorXd w{ Eigen::VectorXd::Zero(K.cols()) };
+
+      std::size_t idx{ 0 };
+      std::size_t u_idx{ 0 };
+      std::size_t un_idx{ 0 };
+      // PRX_DBG_VARS(K);
+      for (auto xi : nominal_traj)
+      {
+        const State& x0{ trajectory.back() };
+        // if (idx == 0)
+        // {
+        //   // w.segment<DimX>(idx) = gtsam::traits<State>::Logmap(x0);
+        //   w[idx] = x0.x();
+        //   w[idx + 1] = x0.y();
+        //   w[idx + 2] = x0.theta();
+        // }
+        // else
+        // {
+        w[idx] = xi.x() - x0.x();
+        w[idx + 1] = xi.y() - x0.y();
+        w[idx + 2] = xi.theta() - x0.theta();
+        // w.segment<DimX>(idx) = gtsam::traits<State>::Logmap(xi) - gtsam::traits<State>::Logmap(x0);
+        // prx::TangentBetween(x0, xi);
+        // }
+
+        const Eigen::VectorXd dU{ K * w };  //
+        const ControlVec u_t{ nominal_plan[un_idx] };
+        const ControlVec du_t{ dU.segment<DimU>(u_idx) };
+        const ControlVec u_eff{ u_t + du_t };
+        const StateDot xd{ f->ode(x0, u_eff) };
+        // const StateDot xd{ f->ode(x0, u_t) };
+        const StateDot xd_w{ xd };
+        // PRX_DBG_VARS(w)
+        // PRX_DBG_VARS(dU)
+        PRX_DBG_VARS(u_t, du_t, u_eff)
+        PRX_DBG_VARS(x0, xi, xd)
+
+        // const StateDot xd_w{ noise(xd) };
+        const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
+        trajectory.push_back(std::move(x1));
+        idx += DimX;
+        u_idx += DimU;
+        un_idx++;
+      }
+      PRX_DBG_VARS(w)
+    }
+
+    /////
+    // trajectory.back() = std::move(noise(trajectory.back()));
+    // for (auto& [K, dt] : ctrls)
+    // {
+    //   for (double ti = 0.; ti < dt; ti += prx::simulation_step)
+    //   {
+    //     // const State x1{ propagate(trajectory.back(), K, f) };
+    //     // const StateDot xdot{ ode(x0, u0, jacs ? &xd_H_x0 : nullptr, jacs ? &xd_Hu_u0 : nullptr) };
+    //     const StateDot xd{ xdot(trajectory.back(), K, f) };
+    //     const StateDot xd_w{ noise(xd) };
+    //     const State x1{ f->integrate(trajectory.back(), xd_w, prx::simulation_step) };
+    //     trajectory.push_back(std::move(x1));
+    //   }
+    // }
   }
 
 protected:

@@ -35,24 +35,26 @@ namespace motion_planning
 template <typename State, typename Vertex>
 struct mg_cell_t
 {
-  mg_cell_t() : added_idx(0), propagated_idx(0), visited_idx(0), safe(true) {};
+  mg_cell_t() : added_idx(0), radius(-20), propagated_idx(0), visited_idx(0), safe(true), vertex_set(false) {};
 
   std::mutex mutex;
   bool safe;
   std::size_t added_idx;
   std::size_t propagated_idx;
   std::size_t visited_idx;
+  double radius;
   // std::size_t _idx;
+  bool vertex_set;
   State state;
   Vertex vertex;
 };
 
-template <typename DynamicalSystem, typename Controller>
+template <typename DynamicalSystem, typename Controller, typename PlanMsg>
 class morse_graph_reachability_t
 {
 public:
   using TrajectoryMsg = std::vector<ml4kp_bridge::SpacePointStamped>;
-  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  // using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
   using State = typename DynamicalSystem::State;
   using Control = typename DynamicalSystem::Control;
   using Trajectory = std::vector<State>;
@@ -90,13 +92,14 @@ public:
 
     double& cell_size{ _cell_size };
     bool& short_circuit{ _short_circuit };
-
+    bool& store_grid{ _store_grid };
     // MG step, how many states to step when iterating over each trajectory
     // Needed for randup comparison
     int& mg_step{ _mg_step };
     double& Chi2_alpha{ _Chi2_alpha };
     double& split_time{ _split_time };
     PARAM_SETUP(nh, cell_size);
+    PARAM_SETUP_WITH_DEFAULT(nh, store_grid, true)
     PARAM_SETUP_WITH_DEFAULT(nh, Chi2_alpha, 0.05)
     PARAM_SETUP_WITH_DEFAULT(nh, mg_step, 1);
     PARAM_SETUP_WITH_DEFAULT(nh, total_threads, 1);
@@ -104,6 +107,7 @@ public:
     PARAM_SETUP_WITH_DEFAULT(nh, visualize, true);
     PARAM_SETUP_WITH_DEFAULT(nh, split_time, 0.5);
 
+    _cell_size_2 = cell_size / 2.;
     // DEBUG_VARS(mg_step, cell_size, split_time)
 
     GLOBAL_PARAM_BLOCKER(environment);
@@ -118,6 +122,8 @@ public:
 
     _chi2 = std::make_shared<prx::chi_squared>();
     _plant = std::make_shared<DynamicalSystem>(plant_params);
+
+    _chi2_critical_value = _chi2->critical_value(DimX, _Chi2_alpha);
 
     _obstacles_bodies = prx::collision_checking::pqp::create_obstacles(env_params);
 
@@ -149,6 +155,9 @@ public:
     _ofs_balls.open(MG_OUTPUT_FILE);
     _ofs_grid.open(MG_GRID_FILE);
     _ofs_stats.open(MG_STATS_FILE);
+
+    cache_cells(10'000);
+
     // _ofs_nominal_trajs.open(MG_NOMINAL_TRAJS_FILE);
   }
 
@@ -165,6 +174,10 @@ public:
 
     {
       std::scoped_lock lock(cellptr->mutex);
+      if (not cellptr->vertex_set)
+      {
+        cellptr->radius = -3;
+      }
       if (cellptr->added_idx == _iter_idx)  // This cell's safety has been checked
         return;
     }
@@ -189,10 +202,10 @@ public:
 
     const double min_distance{ prx::collision_checking::pqp::minimum_distance(*query, _obstacles_bodies) };
 
-    std::scoped_lock lock(cellptr->mutex);
+    bool is_safe{ true };
     if (min_distance < safe_distance)
     {
-      cellptr->safe = false;
+      is_safe = false;
       _collision_found = true;
 
       // DEBUG_VARS(state, min_distance, safe_distance)
@@ -209,44 +222,78 @@ public:
       // DEBUG_VARS(query->plant_configurations[0].second, collision)
       if (collision)
       {
-        cellptr->safe = false;
+        is_safe = false;
         _collision_found = true;
       }
     }
-    // DEBUG_VARS(step_idx, state, safe_distance)
-    _safe_radii.push_back({ step_idx, state, safe_distance });
-    cellptr->state = state;
-    cellptr->vertex = _grid.vertex(state);
-    cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
+
+    {
+      std::scoped_lock lock(cellptr->mutex);
+
+      cellptr->safe = is_safe;
+      cellptr->state = state;
+      cellptr->vertex_set = true;
+      cellptr->vertex = _grid.vertex(state);
+      cellptr->added_idx = _iter_idx;  // This cell's safety has been checked
+    }
+
+    if (_visualize)
+    {
+      std::scoped_lock lock{ _safe_radii_mutex };
+      _safe_radii.push_back({ step_idx, state, safe_distance });
+    }
+  }
+
+  void cache_cells(const int total)
+  {
+    for (int i = 0; i < 1000; ++i)
+    {
+      _cells_buffer.push_back(std::make_shared<Cell>());
+      // _cells_buffer.back()->radius = -10;
+      // _cells_buffer.back()->vertex_set = false;
+    }
   }
 
   template <typename StateOrVertex>
   CellPtr init_cell(const StateOrVertex& x_in)
   {
-    std::scoped_lock lock(_new_cell_mutex);
-    if (_grid.cell(x_in) == nullptr)
+    bool x_exists;
     {
+      std::scoped_lock lock(_cell_exists_mutex);
+      x_exists = _grid.exists(x_in);
+    }
+    if (x_exists)
+    {
+      std::scoped_lock lock(_new_cell_mutex);
+      return _grid.cell(x_in);
+    }
+    else
+    {
+      std::scoped_lock lock0(_cells_buffer_mutex);
+
       if (_cells_buffer.empty())
       {
-        for (int i = 0; i < 100; ++i)
-        {
-          _cells_buffer.push_back(std::make_shared<Cell>());
-        }
+        cache_cells(1000);
       }
-      _grid.cell(x_in) = _cells_buffer.back();
+      CellPtr cellptr{ _cells_buffer.back() };
       _used_cells.push_back(_cells_buffer.back());
       _cells_buffer.pop_back();
+
+      std::scoped_lock lock(_new_cell_mutex);
+      _grid.cell(x_in) = cellptr;
+      return cellptr;
     }
-    return _grid.cell(x_in);
   }
 
   double compute_safe_distance(const double K_tau, const State& x0p, const State& xp_tau, const double tau,
-                               const Control& u0, const Control& ubar, const Trajectory& traj_nominal)
+                               const Trajectory& traj_nominal)
   {
     const double& d{ _cell_size };
     if (tau < prx::simulation_step)
     {
       // return 0.;
+      // const State& x0{ traj_nominal.front() };
+      // DEBUG_VARS(x0, x0p, _C2_w, d)
       return d / 2.;
     }
     // const double d2{ _cell_size * _cell_size / 4. };
@@ -264,7 +311,7 @@ public:
     // const double Lu{ lipschitz(x0, x0p, u0, ubar) };
     // const double Lu2{ Lu * Lu };
 
-    // const double Lerr{ prx::TangentBetween(x_tau, xp_tau).norm() };
+    // const double Kt{ prx::TangentBetween(x_tau, xp_tau).norm() };
 
     // const double P{ 4. * tau * _C2_w };  //+ 4. * tau * Lf * _C2_x0 };
 
@@ -283,13 +330,24 @@ public:
     // const double L{ std::sqrt(1. + Lerr / d2) };
 
     // const double L{ 2 * std::sqrt(Lerr) / d };
-    const double L{ lipschitz(x0, x0p, x_tau, xp_tau) };
-    const double wK{ _C2_w * tau };
+    // const double Kt{ lipschitz(x0, x0p, x_tau, xp_tau) };
+    // const double dx0{ prx::TangentBetween(x0, x0p).norm() };
+    const double Kt{ prx::TangentBetween(x_tau, xp_tau).norm() };
+
+    // const double Kt{ dxT };
+    const double Kw{ _C2_w * tau };
     // DEBUG_VARS(tau, L, wK, _C2_w)
 
-    // DEBUG_VARS(d2, tau, tau_K_tau, tau_noise, K_tau, Lf, Lu, noise, K, L)
-    // DEBUG_VARS(d2, tau, K_tau, Lf, Lu, noise, K, L)
-    return (L + wK) * d / 2.;
+    // const double L{ std::sqrt(Kt + Kw) };
+    // const double L{ std::sqrt(Kt + 4 * Kw / (d * d)) };
+    const double Ld2{ Kt + Kw };
+
+    // static double max_L
+    // DEBUG_VARS(_C2_w, Kt, Kw, Ld2)
+    // return L;
+    return Ld2;
+    // return L * d / 2;
+    // return L * d / 2;
   }
 
   void propagate(Trajectory& traj, const State state, const Controller controller) const
@@ -312,16 +370,14 @@ public:
   }
 
   void propagate_and_check(const State state, const Controller ctrl_head, const Controller controller,
-                           const Control& u0_nominal, const Trajectory traj_nominal, const int split_idx)
+                           const Trajectory traj_nominal, const int split_idx)
   {
     Trajectory traj;
 
-    // DEBUG_VARS(controller.size())
-    // const Controller current_ctrllr{ ml4kp_bridge::split(controller, _split_time) };
-
     propagate(traj, state, ctrl_head);
 
-    const Control ubar{ prx::controller_view_t<DynamicalSystem, Controller>::front(ctrl_head, state, _plant) };
+    // DEBUG_VARS(traj.size())
+    // const Control ubar{ prx::controller_view_t<DynamicalSystem, Controller>::front(ctrl_head, state, _plant) };
     std::set<std::size_t> hashes;
 
     const State x0V{ traj.front() };
@@ -336,8 +392,6 @@ public:
       const State& xbar{ traj[i] };
       const State& x{ traj_nominal[i] };
 
-      // <<<<<<< HEAD
-      // K_tau += compute_state_square_diff(xbar, x, tau - tau_prev);
       tau_prev = tau;
       const std::size_t h{ _grid.hash(xbar) };
       // DEBUG_VARS(i, x, xbar, h)
@@ -345,16 +399,19 @@ public:
       if (hashes.count(h) == 0)
       {
         hashes.insert(h);
-        safe_distance = compute_safe_distance(K_tau, x0V, xbar, tau, u0_nominal, ubar, traj_nominal);
+        safe_distance = compute_safe_distance(K_tau, x0V, xbar, tau, traj_nominal);
         // DEBUG_VARS(safe_distance)
-        _pool.detach_task(
-            [xbar, safe_distance, split_idx, this] { this->collision_check(xbar, safe_distance, split_idx); });
+        // _pool.detach_task([xbar, safe_distance, split_idx, this] {  // no-lint
+        this->collision_check(xbar, safe_distance, split_idx);
+        // });
 
-        if (safe_distance > _cell_size / 4.)
-        {
-          const double r2{ safe_distance * safe_distance };
-          _pool.detach_task([xbar, r2, this] { add_cells_inside_ellipse(xbar, xbar, _identity, r2); });
-        }
+        // if (safe_distance > _cell_size / 4.)
+        // {
+        const double r2{ safe_distance * safe_distance };
+        _pool.detach_task([xbar, r2, this] {  // no-lint
+          add_cells_inside_ellipse(xbar, xbar, _identity, r2);
+        });
+        // }
       }
     }
 
@@ -368,10 +425,9 @@ public:
     // DEBUG_VARS(traj.back())
     const State xT{ traj.back() };
 
-    // _pool.detach_task([xT, controller, split_idx, this] { this->propagate_cube(xT, controller, split_idx); });
-
-    propagate_neighbors(xT, xT, _identity, safe_distance * safe_distance, controller, split_idx);
-    // }
+    _pool.detach_task([xT, safe_distance, controller, split_idx, this] {  // no-lint
+      this->propagate_neighbors(xT, xT, this->_identity, safe_distance * safe_distance, controller, split_idx);
+    });
     // _unchecked_trajectories++;
   }
 
@@ -382,7 +438,6 @@ public:
     const Tangent center_tg{ _grid.center(state) };
     const State xc{ _grid.state(center_tg) };
 
-    // const Controller current_ctrllr{ ml4kp_bridge::split(controller, _split_time) };
     propagate(traj, xc, controller);
 
     if (_visualize)
@@ -393,49 +448,38 @@ public:
     return traj;
   }
 
-  void propagate_cube(const Vertex vx, Controller controller, const int split_idx)
+  void propagate_cube(const Vertex vx, const Controller controller_head, const Controller controller,
+                      const int split_idx)
   {
-    if (controller.size() == 0)
-      return;
-    // DEBUG_VARS(state)
-    // if (_collision_found)  // short-circuit
-    //   return;
-    CellPtr cellptr{ init_cell(vx) };
-    if (cellptr->propagated_idx == _propagated_idx)
-    {
-      // DEBUG_VARS(_propagated_idx, cellptr->)
-      return;
-    }
-
-    cellptr->propagated_idx = _propagated_idx;
     auto vertices = _grid.vertices(vx);
+    // DEBUG_VARS(vertices)
     const State x_center{ _grid.center_state(vx) };
-    const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
+    // DEBUG_VARS(x_center)
+    // const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
     const Trajectory traj_nominal{ get_nominal_trajectory(x_center, controller_head, split_idx) };
+    // DEBUG_VARS(traj_nominal.size())
 
-    const Control u_nominal{ prx::controller_view_t<DynamicalSystem, Controller>::front(controller_head, x_center,
-                                                                                        _plant) };
-
-    // DEBUG_VARS(state)
     // DEBUG_VARS(controller_head, controller, split_idx)
-    for (auto v : vertices)
+
+    for (auto&& v : vertices)
     {
       const State xv{ _grid.state_from_vertex(v) };
-      // DEBUG_VARS(v)
+      // DEBUG_VARS(split_idx, vx, xv)
 
-      _pool.detach_task([xv, controller_head, controller, traj_nominal, split_idx, u_nominal, this] {
-        this->propagate_and_check(xv, controller_head, controller, u_nominal, traj_nominal, split_idx + 1);
+      _pool.detach_task([xv, controller_head, controller, traj_nominal, split_idx, this] {
+        this->propagate_and_check(xv, controller_head, controller, traj_nominal, split_idx + 1);
       });
     }
   }
 
   const double distribution_bound(const Covariance& cov)
   {
-    const double chi2_critical_value{ _chi2->critical_value(DimX, _Chi2_alpha) };
+    // const double chi2_critical_value{ _chi2->critical_value(DimX, _Chi2_alpha) };
 
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(cov);
-    const Tangent D_marginal{ es.eigenvalues().cwiseSqrt() * chi2_critical_value };
+    const Tangent D_marginal{ es.eigenvalues().cwiseSqrt() * _chi2_critical_value };
     const double C_bound{ D_marginal.maxCoeff() };
+    DEBUG_VARS(es.eigenvalues(), _chi2_critical_value)
     return std::pow(C_bound, 2);
   }
 
@@ -463,60 +507,114 @@ public:
   bool cell_intersects_with_ellipse(const State& x0, const Vertex& vertex, const Covariance& epsilon_inv,
                                     const double chi_confidence) const
   {
-    const State xv{ _grid.state_from_vertex(vertex) };
-    std::vector<Vertex> vertices{ _grid.vertices(xv) };
-    bool inside{ false };
-    for (auto v : vertices)
+    const State xc{ _grid.center_state(vertex) };
+    const Tangent tg_btw{ prx::TangentBetween(x0, xc) };
+    const double norm{ tg_btw.norm() };
+
+    if (_cell_size_2 > norm)
     {
-      const State xv_i{ _grid.state_from_vertex(v) };
-      const Tangent tg_v{ prx::TangentBetween(x0, xv_i) };
-      const double err{ tg_v.transpose() * epsilon_inv * tg_v };
-      if (err < chi_confidence)
-      {
-        // DEBUG_VARS(xv_i, err, chi_confidence)
-        return true;
-      }
+      return true;
     }
+    // const State xv{ _grid.state_from_vertex(vertex) };
+    // std::vector<Vertex> vertices{ _grid.vertices(xv) };
+    const Tangent vec{ (tg_btw / norm) * _cell_size_2 };
+
+    const Tangent tg_v{ tg_btw - vec };
+    const double err{ tg_v.transpose() * epsilon_inv * tg_v };
+
+    // DEBUG_VARS(x0, xc, tg_btw, vec, tg_v, err, chi_confidence);
+    // bool inside{ false };
+    // for (auto v : vertices)
+    // {
+    //   const State xv_i{ _grid.state_from_vertex(v) };
+    //   const Tangent tg_v{ prx::TangentBetween(x0, xv_i) };
+    //   const double err{ tg_v.transpose() * epsilon_inv * tg_v };
+    if (err < chi_confidence)
+    {
+      // DEBUG_VARS(xv_i, err, chi_confidence)
+      return true;
+    }
+    // }
     return false;
   }
 
   bool is_cell_unvisited(const Vertex vx)
   {
     CellPtr cellptr{ init_cell(vx) };
+    std::scoped_lock lock(cellptr->mutex);
 
+    if (not cellptr->vertex_set)
+    {
+      cellptr->radius = -3;
+    }
     if (cellptr->visited_idx < _visited_idx)
     {
       cellptr->vertex = vx;
       cellptr->visited_idx = _visited_idx;
+      cellptr->vertex_set = true;
+
       return true;
     }
     return false;
   }
 
   void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
-                           const Controller controller, const std::size_t split_idx)
+                           Controller controller, const std::size_t split_idx)
   {
+    // DEBUG_VARS(x0, state, chi_confidence, split_idx)
+    if (controller.size() == 0)
+      return;
     // std::scoped_lock lock{ _log_mutex };
     std::vector<Vertex> vertices_q;
     std::set<Vertex, typename ImplicitGrid::state_compare_t> local_hashes;
 
     const Vertex v0{ _grid.vertex(state) };
+    // DEBUG_VARS(x0, v0)
     vertices_q.push_back(v0);
-    // LOG_VARS(x0, v0, state, chi_confidence)
     int total_vertices{ 0 };
+    // DEBUG_VARS(total_vertices, controller.size(), split_idx)
+    const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
+    // DEBUG_VARS(v0, controller.size())
+    // DEBUG_VARS(controller_head.size(), controller_head)
     while (not vertices_q.empty())
     {
       Vertex v_next{ vertices_q.back() };
       vertices_q.pop_back();
-      // LOG_VARS(v_next, vertices_q.size());
+      // DEBUG_VARS(total_vertices);
+      // DEBUG_VARS(vertices_q.size());
       total_vertices++;
 
       const bool vx_inside{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
       if (vx_inside)
       {
+        {
+          const State xi{ _grid.center_state(v_next) };
+          CellPtr cellptr{ init_cell(v_next) };
+          std::scoped_lock lock(cellptr->mutex);
+
+          if (cellptr->propagated_idx == _propagated_idx)
+          {
+            continue;
+          }
+
+          cellptr->vertex = v_next;
+          cellptr->vertex_set = true;
+          cellptr->propagated_idx = _propagated_idx;
+          //
+          // cellptr->radius = std::max(eff_rad, 0.);
+          // cellptr->state = _grid.center_state(v_next);
+          // cellptr->vertex_set = true;
+          // cellptr->vertex = v_next;
+        }
+
         const State xv_i{ _grid.state_from_vertex(v_next) };
-        _pool.detach_task(
-            [v_next, controller, split_idx, this] { this->propagate_cube(v_next, controller, split_idx); });
+
+        // DEBUG_VARS(v_next, vx_inside)
+        // THREAD
+        // _pool.detach_task([v_next, controller_head, controller, split_idx, this] {
+        this->propagate_cube(v_next, controller_head, controller, split_idx);
+        // });
+
         // LOG_VARS(total_vertices, v_next, vx_inside, xv_i)
         for (int i = 0; i < DimX; ++i)
         {
@@ -540,87 +638,73 @@ public:
             local_hashes.insert(v_next);
             vertices_q.push_back(v_next);
           }
-          // LOG_VARS(i, v_next, hp)
-          // if (local_hashes.count(hp) == 0)
-          // {
-          //   local_hashes.insert(hp);
-          //   const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-          //   const State xv_p{ _grid.state_from_vertex(v_next) };
-          //   LOG_VARS(i, xv_p, v_next, inside_p);
-          //   if (inside_p)
-          //   {
-          //     // if (prop_p)
-          //     // {
-          //     vertices_q.push_back(v_next);
-          //     _pool.detach_task(
-          //         [xv_p, controller, split_idx, this] { this->propagate_cube(xv_p, controller, split_idx); });
-          //     // }
-          //     // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-          //   }
-          // }
-          // // As v_next[i] has already a +1, we need to remove it and do -1
-          // v_next[i] -= 2;
-          // const std::size_t hm{ _grid.hash(v_next) };
-          // LOG_VARS(i, v_next, hm)
-          // if (local_hashes.count(hm) == 0)
-          // {
-          //   local_hashes.insert(hm);
-          //   const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-          //   // const bool prop_m{ is_cell_unvisited(v_next) };
-          //   const State xv_m{ _grid.state_from_vertex(v_next) };
-          //   LOG_VARS(i, xv_m, v_next, inside_m);
-          //   if (inside_m)
-          //   {
-          //     // if (prop_m)
-          //     // {
-          //     vertices_q.push_back(v_next);
-          //     _pool.detach_task(
-          //         [xv_m, controller, split_idx, this] { this->propagate_cube(xv_m, controller, split_idx); });
-          //     // }
-          //     // is_cell_unvisited(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-          //     // propagate_neighbors(x0, v_next, epsilon_inv, chi_confidence, controller, split_idx);
-          //   }
-          // }
+
           // Reset it...
           v_next[i] += 1;
           // LOG_VARS(v_next);
         }
       }
-      else
-      {
-        // LOG_VARS(total_vertices, v_next, vx_inside)
-      }
-      // const State xv{ _grid.state_from_vertex(vertex) };
-
-      // Go over every vertex neighbor: +1 and -1 per dimension
-
-      // DEBUG_VARS(states_q.size())
     }
-    // LOG_VARS(total_vertices, local_hashes)
+    // DEBUG_VARS(total_vertices)
     // return true;
   }
 
-  void add_cells_inside_ellipse(const State x0, const State state, const Covariance epsilon_inv,
-                                const double chi_confidence)
+  double effective_rad(const State x0, const State xi, const double rad) const
   {
+    const double dist{ prx::TangentBetween(x0, xi).norm() };
+    return rad - dist;
+  }
+
+  void add_cells_inside_ellipse(const State x0, const State state, const Covariance epsilon_inv, const double radius_sq)
+  {
+    if (not _store_grid)
+      return;
+
     std::vector<Vertex> vertices_q;
     std::set<Vertex, typename ImplicitGrid::state_compare_t> visited;
     const Vertex v0{ _grid.vertex(state) };
+    // DEBUG_VARS(x0, state, v0)
+
+    const double rad{ std::sqrt(radius_sq) };
+    {
+      CellPtr cellptr_0{ init_cell(v0) };
+      std::scoped_lock lock{ cellptr_0->mutex };
+      if (cellptr_0->radius > rad)
+      {
+        return;
+      }
+      cellptr_0->radius = -1;
+      // cellptr_0->radius = rad;
+    }
 
     // std::set<std::size_t> local_hashes;
     vertices_q.push_back(v0);
-    // DEBUG_VARS(x0, state, chi_confidence)
+
     while (not vertices_q.empty())
     {
       Vertex v_next{ vertices_q.back() };
       vertices_q.pop_back();
 
-      const bool vx_inside{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
+      const bool vx_inside{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, radius_sq) };
       if (vx_inside)
       {
-        CellPtr cellptr{ init_cell(v_next) };
-        cellptr->state = _grid.center_state(v_next);
-        cellptr->vertex = v_next;
+        {
+          const State xi{ _grid.center_state(v_next) };
+          const double eff_rad{ effective_rad(x0, xi, rad) };
+          CellPtr cellptr{ init_cell(v_next) };
+          std::scoped_lock lock(cellptr->mutex);
+
+          if (cellptr->radius > eff_rad)
+          {
+            // DEBUG_VARS(cellptr->radius, eff_rad, rad)
+            continue;
+          }
+          cellptr->radius = std::max(eff_rad, 0.);
+          cellptr->state = _grid.center_state(v_next);
+          cellptr->vertex_set = true;
+          cellptr->vertex = v_next;
+        }
+
         for (int i = 0; i < DimX; ++i)
         {
           v_next[i] += 1;
@@ -641,61 +725,6 @@ public:
           v_next[i] += 1;
         }
       }
-
-      // for (int i = 0; i < DimX; ++i)
-      // {
-      //   // Tangent v_next{ vertex };
-      //   v_next[i] += 1;
-
-      //   const State xv_p{ _grid.state_from_vertex(v_next) };
-      //   // const Tangent center_tg_p{ _grid.center(xv_p) };
-      //   // const State center_p{ _grid.state(center_tg_p) };
-      //   const std::size_t hp{ _grid.hash(v_next) };
-      //   const bool inside_p{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-      //   if (_cells_hashes.count(hp) == 0)
-      //   {
-      //     _cells_hashes.insert(hp);
-      //     if (inside_p)
-      //     {
-      //       CellPtr cellptr{ init_cell(v_next) };
-      //       cellptr->state = xv_p;
-      //       cellptr->vertex = v_next;
-      //       // vertices_q.push_back(xv_p);
-      //     }
-      //   }
-      //   if (local_hashes.count(hp) == 0 and inside_p)
-      //   {
-      //     local_hashes.insert(hp);
-      //     vertices_q.push_back(v_next);
-      //   }
-
-      //   // As v_next[i] has already a +1, we need to remove it and do -1
-      //   v_next[i] -= 2;
-      //   const State xv_m{ _grid.state_from_vertex(v_next) };
-      //   // const Tangent center_tg{ _grid.center(xv_m) };
-      //   // const State center{ _grid.state(center_tg) };
-      //   const std::size_t hm{ _grid.hash(v_next) };
-      //   const bool inside_m{ cell_intersects_with_ellipse(x0, v_next, epsilon_inv, chi_confidence) };
-      //   if (_cells_hashes.count(hm) == 0)
-      //   {
-      //     _cells_hashes.insert(hm);
-      //     if (inside_m)
-      //     {
-      //       CellPtr cellptr{ init_cell(v_next) };
-      //       cellptr->state = xv_m;
-      //       cellptr->vertex = v_next;
-      //       // vertices_q.push_back(center);
-      //     }
-      //   }
-      //   if (local_hashes.count(hm) == 0 and inside_m)
-      //   {
-      //     local_hashes.insert(hm);
-      //     vertices_q.push_back(v_next);
-      //   }
-      //   v_next[i] += 1;
-      // }
-
-      // DEBUG_VARS(states_q.size())
     }
 
     // return true;
@@ -713,7 +742,6 @@ public:
     // Where u_0 could be valid from [0,t_0], t_0 > simulation_step.
     // The Split function divides u_0 into as many u_0^j such that each u_0^j is in [t_i, t_j],
     // where t_j - t_i = simulation_step
-    // ml4kp_bridge::split(_controller, _split_time);
 
     _w_sampler.set(w_noise);
 
@@ -725,7 +753,8 @@ public:
     const State x0_center{ gtsam::traits<State>::Compose(_state, x_d2) };
 
     // DEBUG_VARS(_state, x0_center, cell_size)
-    _grid.reset(_state, _cell_size / 2.);
+    // _grid.reset(_state, _cell_size);
+    _grid.reset(_state, cell_size);
 
     DEBUG_VARS(_grid.cell_sizes())
     _safe_radii.clear();
@@ -738,22 +767,22 @@ public:
     // propagate(_traj_nominal, _state, _controller);
 
     _C2_x0 = distribution_bound(x0_noise);
-    _C2_w = distribution_bound(2. * w_noise);
+    _C2_w = distribution_bound(w_noise);
     _C2_u = distribution_bound(u_noise);
 
-    // DEBUG_VARS(_cell_size, _C2_x0, _C2_w)
+    DEBUG_VARS(_store_grid, _cell_size, _C2_x0, _C2_w)
 
-    const std::size_t total_threads{ _pool.get_thread_count() };
+    // const std::size_t total_threads{ _pool.get_thread_count() };
 
+    PRINT_MSG("[TFR] Initial propagation...")
     _propagated_idx++;
-    // Propagate \bar{x0} \in V(\xi)
-    // _pool.detach_task([&] { this->propagate_cube(_state, _controller, 0); });
     _visited_idx++;
-    const double chi2_critical_value{ _chi2->critical_value(DimX, _Chi2_alpha) };
-    // DEBUG_VARS(chi2_critical_value, DimX, _Chi2_alpha)
-    propagate_neighbors(_state, _state, x0_noise.inverse(), chi2_critical_value, _controller, 0);
+    // DEBUG_VARS(_propagated_idx, _visited_idx, _chi2_critical_value)
+    // DEBUG_VARS(_controller)
+    propagate_neighbors(_state, _state, x0_noise.inverse(), _chi2_critical_value, _controller, 0);
 
     _pool.wait();
+    DEBUG_VARS(_grid.cell_sizes())
 
     if (_visualize)
     {
@@ -762,23 +791,30 @@ public:
 
       interface::gaussian_params_t gparams;
       gparams.cov_to_3Dellipse(x0_noise, true);
-      gparams.confidence = chi2_critical_value;
+      gparams.confidence = _chi2_critical_value;
       // DEBUG_VARS(chi2_critical_value, gparams.axis)
 
+      // DEBUG_VARS(gparams.orientation, gparams.axis, _state)
       interface::gaussian_to_ellipse_marker(x0_noise_marker, gparams);
-      ml4kp_bridge::update_pose(x0_noise_marker.pose, _state, 0, 1, 0.01);
-      _x0_noise_publisher.publish(x0_noise_marker);
       if (DimX == 2)
       {
+        ml4kp_bridge::update_pose(x0_noise_marker.pose, _state, 0, 1, 0.01);
         x0_noise_marker.scale.z = 0.01;
       }
+      else
+      {
+        ml4kp_bridge::update_pose(x0_noise_marker.pose, _state, 0, 1, 2);
+      }
+      _x0_noise_publisher.publish(x0_noise_marker);
     }
 
     _collision_msg.data = _collision_found;
     _collision_publisher.publish(_collision_msg);
     // _pool.detach_task([&] { this->grid_to_markers(); });
+    PRINT_MSG("Writing to files");
     _pool.detach_task([&] { this->trajectories_to_marker(); });
 
+    PRINT_MSG("Finished...");
     return _collision_found;
   }
 
@@ -792,10 +828,18 @@ public:
     auto cell_size = _grid.cell_sizes();
     marker_lie.scale.x = cell_size[0] * 0.96;
     marker_lie.scale.y = cell_size[1] * 0.96;
-    marker_lie.scale.z = 0.1;
     marker_state.scale.x = cell_size[0] * 0.96;
     marker_state.scale.y = cell_size[1] * 0.96;
-    marker_state.scale.z = 0.1;
+    if (DimX == 2)
+    {
+      marker_lie.scale.z = 0.1;
+      marker_state.scale.z = 0.1;
+    }
+    else
+    {
+      marker_lie.scale.z = cell_size[2] * 0.96;
+      marker_state.scale.z = cell_size[2] * 0.96;
+    }
     // DEBUG_VARS(cell_size)
 
     auto plant_config = _plant->configuration(_grid.x0());
@@ -827,10 +871,11 @@ public:
     // const bool y_sign{ plant_config[0].second[1] > 0 };
     for (auto cell : _grid)
     {
+      std::scoped_lock lock(cell.second->mutex);
       // const State state{ cell.second->state };
-      const State xv{ _grid.state_from_vertex(cell.second->vertex) };
-      const Tangent center_tg{ _grid.center(xv) };
-      const State center{ _grid.state(center_tg) };
+      const State center{ _grid.center_state(cell.first) };
+      const Tangent center_tg{ _grid.center(cell.first) };
+      // const State center{ _grid.state(center_tg) };
       // const State center{ _grid.state(center_tg) };
       // LOG_VARS(center);
       // DEBUG_VARS(state, center)
@@ -839,42 +884,38 @@ public:
       // marker.points.back().x = center[0];  //- (x_sign ? 0. : cell_size[0]);
       // marker.points.back().y = center[1];  //- (y_sign ? 0. : cell_size[1]);
       // marker.points.back().z = -0.101;
-      ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.051);
-      ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.051);
+      if (DimX == 2)
+      {
+        ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, -0.051);
+        ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.051);
+      }
+      else
+      {
+        ml4kp_bridge::update_point(marker_lie.points.back(), center_tg, 0, 1, 2);
+        ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, 2);
+      }
 
       // prx::to_stream(_ofs_grid, cell.second->state);
       prx::to_stream(_ofs_grid, center);
       prx::to_stream(_ofs_grid, center_tg);
-      prx::to_stream(_ofs_grid, cell.second->vertex);
+      prx::to_stream(_ofs_grid, cell.first);
+      // prx::to_stream(_ofs_grid, cell.second->vertex);
       prx::to_stream(_ofs_grid, cell.second->safe);
-      _ofs_grid << "\n";
-      // DEBUG_VARS(cell.second->added_idx, cell.second->propagated_idx, cell.second->visited_idx)
-    }
-    // DEBUG_VARS(_grid.size(), marker_lie.points.back(), mar)
-    // const Covariance identity{ Covariance::Identity() };
-    // for (auto&& [idx, state, radius] : _safe_radii)
-    // {
-    //   auto vertex = _grid.vertex(state);
-    //   // Go over every vertex neighbor: +1 and -1 per dimension
-    //   for (int i = 0; i < DimX; ++i)
-    //   {
-    //     Tangent v_next{ vertex };
-    //     v_next[i] += 1;
-    //     const bool inside_p{ cell_intersects_with_ellipse(state, v_next, identity, radius) };
-    //     ml4kp_bridge::update_point(marker_state.points.back(), center, 0, 1, -0.101);
+      // prx::to_stream(_ofs_grid, cell.second->vertex_set);
 
-    //     // As v_next[i] has already a +1, we need to remove it and do -1
-    //     v_next[i] -= 2;
-    //     cell_intersects_with_ellipse(state, v_next, identity, radius);
-    //   }
-    // }
+      if (not cell.second->vertex_set)
+      {
+        DEBUG_VARS(cell.second->radius)
+        DEBUG_VARS(cell.second->vertex_set, cell.second->vertex, cell.second->state)
+        DEBUG_VARS(cell.second->added_idx, cell.second->propagated_idx, cell.second->visited_idx);
+      }
+      _ofs_grid << "\n";
+    }
 
     _cubes_algebra_publisher.publish(marker_lie);
     _cubes_state_publisher.publish(marker_state);
-    // _cubes_publisher.publish(marker);
     _grid.clear();
     _ofs_grid.close();
-    // DEBUG_PRINT
   }
 
   void radii_to_markers()
@@ -887,7 +928,14 @@ public:
       visualization_msgs::Marker marker{ ml4kp_bridge::create_marker(0.01, /*color*/ { 0.5, 1, 0, 0 }) };
       marker.type = visualization_msgs::Marker::SPHERE;
       marker.action = visualization_msgs::Marker::ADD;
-      ml4kp_bridge::update_pose(marker.pose, state, 0, 1, 0.0);
+      if (DimX == 2)
+      {
+        ml4kp_bridge::update_pose(marker.pose, state, 0, 1, 0.0);
+      }
+      else
+      {
+        ml4kp_bridge::update_pose(marker.pose, state, 0, 1, 2);
+      }
       marker.scale.x = marker.scale.y = marker.scale.z = 2 * radius;
       marker.id = id;
       id++;
@@ -944,10 +992,17 @@ public:
           prx::to_stream(ofs_traj, traj);
           ofs_traj << "\n\n";
 
-          ml4kp_bridge::update_marker(marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
-
           markers_x0s.points.emplace_back();
-          ml4kp_bridge::update_point(markers_x0s.points.back(), traj.front(), 0, 1, 0.0);
+          if (DimX == 2)
+          {
+            ml4kp_bridge::update_marker(marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+            ml4kp_bridge::update_point(markers_x0s.points.back(), traj.front(), 0, 1, 0.0);
+          }
+          else
+          {
+            ml4kp_bridge::update_marker(marker, traj, 0, 1, 2, visualization_msgs::Marker::LINE_LIST);
+            ml4kp_bridge::update_point(markers_x0s.points.back(), traj.front(), 0, 1, 2);
+          }
 
           traj_set.second.pop_back();
         }
@@ -969,7 +1024,14 @@ public:
           total_states += traj.size();
           prx::to_stream(ofs_nominal_traj, traj);
           ofs_nominal_traj << "\n\n";
-          ml4kp_bridge::update_marker(nominal_trajs_marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+          if (DimX == 2)
+          {
+            ml4kp_bridge::update_marker(nominal_trajs_marker, traj, 0, 1, 0.0, visualization_msgs::Marker::LINE_LIST);
+          }
+          else
+          {
+            ml4kp_bridge::update_marker(nominal_trajs_marker, traj, 0, 1, 2, visualization_msgs::Marker::LINE_LIST);
+          }
 
           traj_set.second.pop_back();
         }
@@ -1002,8 +1064,8 @@ private:
   std::atomic<int> _total_checked_trajectories;
   std::atomic<int> _unchecked_trajectories, _collisions_in_check;
 
-  std::mutex _log_mutex;
-  std::mutex _new_cell_mutex;
+  std::mutex _log_mutex, _safe_radii_mutex;
+  std::mutex _new_cell_mutex, _cell_exists_mutex, _cells_buffer_mutex;
   std::mutex _trajectories_mutex, _queries_mutex, _nominal_trajectories_mutex;
 
   std::map<int, std::vector<Trajectory>> _trajectories, _nominal_trajs;
@@ -1040,14 +1102,14 @@ private:
   // StateSampler _x0_sampler;
   StateSampler _w_sampler;
 
-  double _cell_size;
+  double _cell_size, _cell_size_2;
 
   int _mg_step;
   std::size_t _iter_idx;
   std::vector<CellPtr> _cells_buffer, _used_cells;
   ImplicitGrid _grid;
 
-  bool _short_circuit;
+  bool _short_circuit, _store_grid;
 
   std::ofstream _ofs_balls, _ofs_stats, _ofs_nominal_trajs, _ofs_grid;
   std::vector<std::tuple<int, State, double>> _safe_radii;
@@ -1067,5 +1129,7 @@ private:
   std::string _timestamp, _prefix;
 
   std::set<std::size_t> _cells_hashes;
+
+  double _chi2_critical_value;
 };
 }  // namespace motion_planning

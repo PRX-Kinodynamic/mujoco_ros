@@ -106,7 +106,7 @@ inline void update_point(geometry_msgs::Point& pt,
   pt.y = state.y();
   if constexpr (std::is_integral_v<ZValue>)
   {
-    pt.z = 0.0;
+    pt.z = state.theta();
   }
   else if constexpr (std::is_floating_point_v<ZValue>)
   {
@@ -143,7 +143,6 @@ inline void update_pose(geometry_msgs::Pose& pose,
   update_point(pose.position, state, x_value, y_value, 0.);
   const Eigen::Quaterniond q{ prx::euler_to_rotation<Eigen::Quaterniond>(std::vector<double>({ state.first.theta() }),
                                                                          "z") };
-
   pose.orientation.w = q.w();
   pose.orientation.x = q.x();
   pose.orientation.y = q.y();
@@ -156,7 +155,16 @@ inline void update_pose(geometry_msgs::Pose& pose,
                         const XValue x_value, const YValue y_value, const ZValue z_value)
 {
   update_point(pose.position, state, x_value, y_value, z_value);
-  const Eigen::Quaterniond q{ prx::euler_to_rotation<Eigen::Quaterniond>(std::vector<double>({ state.theta() }), "z") };
+  // const Eigen::Quaterniond q{ prx::euler_to_rotation<Eigen::Quaterniond>(std::vector<double>({ state.theta() }), "z")
+  // };
+
+  const Eigen::Quaterniond q{ prx::axis_to_rotation_matrix(state.theta(), 'Z') };
+
+  if constexpr (std::is_integral_v<ZValue>)
+  {
+    pose.position.z = state.theta();
+  }
+
   pose.orientation.w = q.w();
   pose.orientation.x = q.x();
   pose.orientation.y = q.y();

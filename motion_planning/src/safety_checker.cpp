@@ -2,6 +2,7 @@
 #include <thread>
 
 #include <ml4kp_bridge/defs.h>
+#include <ml4kp_bridge/SlsGain.h>
 #include <utils/std_utils.hpp>
 #include <utils/dbg_utils.hpp>
 
@@ -34,17 +35,17 @@
 #include <motion_planning/gotube.hpp>
 // #include <motion_planning/scene_optimization.hpp>
 
-template <typename DynamicalSystem, typename Controller>
+template <typename DynamicalSystem, typename Controller, typename InputMsg>
 struct safety_helper_t
 {
   static constexpr int DimX{ prx::dynamical_system_traits<DynamicalSystem>::StateDimension };
   static constexpr int DimU{ prx::dynamical_system_traits<DynamicalSystem>::ControlDimension };
 
-  using Randup = motion_planning::randup_t<DynamicalSystem, Controller>;
-  using GoTube = motion_planning::gotube_t<DynamicalSystem, Controller>;
-  using ReachabilityGT = motion_planning::reachability_gt_t<DynamicalSystem, Controller>;
+  using Randup = motion_planning::randup_t<DynamicalSystem, Controller, InputMsg>;
+  using GoTube = motion_planning::gotube_t<DynamicalSystem, Controller, InputMsg>;
+  using ReachabilityGT = motion_planning::reachability_gt_t<DynamicalSystem, Controller, InputMsg>;
   using RandupCovariance = typename Randup::Covariance;
-  using MGReachability = motion_planning::morse_graph_reachability_t<DynamicalSystem, Controller>;
+  using MGReachability = motion_planning::morse_graph_reachability_t<DynamicalSystem, Controller, InputMsg>;
 
   using Gain = Eigen::Matrix<double, DimU, DimX>;
   ros::Timer timer;
@@ -53,7 +54,7 @@ struct safety_helper_t
   std::shared_ptr<motion_planning::safety_checker_t> safety_checker;
 
   ml4kp_bridge::SpacePointStamped _state_estimate;
-  ml4kp_bridge::PlanStepStampedArray _plan;
+  InputMsg _plan;
 
   std::vector<Gain> _gains;
 
@@ -82,6 +83,7 @@ struct safety_helper_t
 
   bool exit_after_query;
 
+  double _sleep_at_exit;
   safety_helper_t(ros::NodeHandle& nh)
     : valid_state(false)
     , valid_plan(false)
@@ -96,10 +98,12 @@ struct safety_helper_t
   {
     std::string state_topic;
 
+    double& sleep_at_exit{ _sleep_at_exit };
     PARAM_SETUP(nh, state_topic)
     PARAM_SETUP(nh, algorithm)
     PARAM_SETUP(nh, repetitions)
     PARAM_SETUP_WITH_DEFAULT(nh, exit_after_query, false)
+    PARAM_SETUP_WITH_DEFAULT(nh, sleep_at_exit, 5.0)
 
     // prx_assert(algorithm == "randup" or algorithm == "mg" or algorithm == "gt" or algorithm == "gotube",
     //            "[safety_checker_t] Parameter 'algorithm' needs to be 'randup' or 'mg' ");
@@ -174,11 +178,20 @@ struct safety_helper_t
     DEBUG_VARS(valid_state)
   }
 
-  void plan_callback(const ml4kp_bridge::PlanStepStampedArrayConstPtr msg)
+  // void plan_callback(const ml4kp_bridge::PlanStepStampedArrayConstPtr msg)
+  void plan_callback(const boost::shared_ptr<InputMsg const> msg)
   {
     _plan = *msg;
     valid_plan = true;
     DEBUG_VARS(valid_plan)
+
+    // DEBUG_VARS(_plan)
+    // Controller ctrl;
+
+    // ml4kp_bridge::copy(ctrl, _plan);
+    // Controller head{ ml4kp_bridge::split(ctrl, 1.0) };
+
+    // DEBUG_VARS(ctrl.size(), head.size())
   }
 
   // void lqr_callback(const ml4kp_bridge::PlanStepStampedConstPtr msg)
@@ -274,7 +287,7 @@ struct safety_helper_t
 
       if (exit_after_query)
       {
-        ros::Duration(5.0).sleep();
+        ros::Duration(_sleep_at_exit).sleep();
         ros::shutdown();
       }
     }
@@ -297,13 +310,22 @@ int main(int argc, char** argv)
   using UnicyclePieceWiseStep = prx::piecewise_step_t<prx::unicycle_model_t::Control, double>;
   using UnicycleController = std::vector<UnicyclePieceWiseStep>;
 
-  using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller>;
-  using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController>;
-  using UnicycleHelperPiecewise = safety_helper_t<prx::unicycle_model_t, UnicycleController>;
+  using UnicycleSLS = std::vector<std::tuple<std::vector<prx::unicycle_model_t::State>,
+                                             std::vector<prx::unicycle_model_t::Control>, Eigen::MatrixXd>>;
+  // using UnicycleSLSController = std::vector<UnicyclePieceWiseStep>;
+
+  using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
+  using SlsGainMsg = ml4kp_bridge::SlsGain;
+
+  using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller, PlanMsg>;
+  using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController, PlanMsg>;
+  using UnicycleHelperPiecewise = safety_helper_t<prx::unicycle_model_t, UnicycleController, PlanMsg>;
+  using UnicycleHelperSLS = safety_helper_t<prx::unicycle_model_t, UnicycleSLS, SlsGainMsg>;
 
   std::shared_ptr<SO2HelperPiecewise> SO2_helper;
   std::shared_ptr<MushrHelperPiecewise> mushr_helper;
   std::shared_ptr<UnicycleHelperPiecewise> unicycle_helper;
+  std::shared_ptr<UnicycleHelperSLS> unicycle_sls_helper;
 
   std::string plant;
   PARAM_SETUP(nh, plant)
@@ -319,6 +341,10 @@ int main(int argc, char** argv)
   else if (plant == "unicycle")
   {
     unicycle_helper = std::make_shared<UnicycleHelperPiecewise>(nh);
+  }
+  else if (plant == "unicycleSLS")
+  {
+    unicycle_sls_helper = std::make_shared<UnicycleHelperSLS>(nh);
   }
   else
   {
