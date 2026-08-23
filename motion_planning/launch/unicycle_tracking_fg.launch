@@ -1,0 +1,53 @@
+<launch> 
+    <!-- <arg name="plant_file" default="$(env ML4KP_ROS)/src/mujoco_ros/motion_planning/config/mushr.yaml"/> -->
+    <arg name="randup_time" default="false"/>
+    <!-- <arg name="environment" default="SO2_single_obstacle"/> -->
+    <!-- <arg name="environment" default="unicycle_environment_0"/> -->
+    <!-- <arg name="environment" default="unicycle_environment_0"/> -->
+    <arg name="environment" default="empty"/>
+    <!-- <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/> -->
+    <arg name="plant_file" default="$(find motion_planning)/config/unicycle_system.yaml"/>
+    <arg name="algorithm" default="randup"/>
+    <!-- <arg name="plant" value="unicycle"/> -->
+
+    <arg name="plant" default="unicycle"/>
+    <arg name="record_rosbag" default="false"/>
+
+    <!-- <arg name="output_directory" default="/tmp/"/> -->
+    <arg name="output_directory" default="/tmp/"/>
+    <!-- <arg name="output_directory" default="$(env ML4KP_ROS)/data/reachability/pendulum/gt/sep/"/> -->
+    <!-- output_directory:=${ML4KP_ROS}/data/reachability/pendulum/gt/sep/ -->
+
+    <arg name="file_prefix" default="low"/>
+    <arg name="repetitions" default="1"/>
+    <arg name="random_seed" default="112392"/>
+    <arg name="exit_after_query" default="false"/>
+
+
+    <param name="simulation_step" value="0.1"/>
+    <param name="random_seed" value="$(arg random_seed)"/>
+    <param name="plant_parameters" textfile="$(arg plant_file)"/>
+    <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />
+
+
+    <arg name="dbg" value="lldb --"/>
+
+    <arg name="state_topic" default="/mushr/state"/>
+
+    <arg name="split_time" default="0.25"/>
+
+<!-- launch-prefix="gdb -ex run - -args" -->
+          <!-- launch-prefix="$(arg dbg)" -->
+    <node pkg="motion_planning" name="unicycle_tracking_fg" type="unicycle_tracking_fg" 
+          output="screen" respawn="false" required="true">     
+      <param name="lm/iterations" value="1"/>
+      <!-- <param name="lm/verbosity_level" value="SUMMARY"/> -->
+      <param name="lm/verbosity_level" value="SILENT"/>
+    </node>
+
+  
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_world"
+    args="0 0 0 0 0 1 0 other world" />
+
+
+</launch>

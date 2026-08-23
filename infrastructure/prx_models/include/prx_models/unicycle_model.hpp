@@ -144,6 +144,16 @@ public:
     // const Mx M{ (Mx() << cth, 0., sth, 0., 0., 1.).finished() };
     const Mx M{ (Mx() << 1, 0., 0, 0., 0., 1.).finished() };
     const Eigen::Vector3d xdot{ M * u0 };
+
+    if (Hx)
+    {
+      *Hx = JacX::Zero();
+    }
+    if (Hu)
+    {
+      *Hu = M;
+    }
+
     return xdot;
   }
 
@@ -153,13 +163,13 @@ public:
     using LieIntegrator = prx::fg::lie_integrator_t<gtsam::Pose2, Eigen::Vector3d, double>;
     const bool jacs{ Hx or Hxd or Hdt };
 
-    Eigen::Matrix<double, 3, 3> x1_H_x0, x1_H_xdot;
-    Eigen::Matrix<double, 3, 1> x1_H_dt;
+    // Eigen::Matrix<double, 3, 3> x1_H_x0, x1_H_xdot;
+    // Eigen::Matrix<double, 3, 1> x1_H_dt;
 
-    const gtsam::Pose2 x1{ LieIntegrator::integrate(x0, xd0, dt,                  // no-lint
-                                                    jacs ? &x1_H_x0 : nullptr,    // no-lint
-                                                    jacs ? &x1_H_xdot : nullptr,  // no-lint
-                                                    jacs ? &x1_H_dt : nullptr) };
+    const gtsam::Pose2 x1{ LieIntegrator::integrate(x0, xd0, dt,           // no-lint
+                                                    jacs ? Hx : nullptr,   // no-lint
+                                                    jacs ? Hxd : nullptr,  // no-lint
+                                                    jacs ? Hdt : nullptr) };
     return x1;
   }
 

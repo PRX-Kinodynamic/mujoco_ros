@@ -7,6 +7,7 @@
 #include <ml4kp_bridge/SpacePointStampedArray.h>
 #include <prx/simulation/system.hpp>
 #include <prx/simulation/forward_propagation.hpp>
+#include <prx/factor_graphs/factors/constraint_factor.hpp>
 #include <prx/utilities/math/lie_utils.hpp>
 
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -125,64 +126,125 @@ protected:
 };
 
 template <typename DynamicalSystem>
-class forward_propagation_t<
-    DynamicalSystem,                               // no-lint
-    std::vector<typename DynamicalSystem::State>,  // no-lint
-    std::tuple<gtsam::NonlinearFactorGraph, gtsam::Values, gtsam::LevenbergMarquardtParams, int>>
+struct fg_trajectory_tracking_controller_t
+{
+  using State = typename DynamicalSystem::State;
+  using Control = typename DynamicalSystem::Control;
+  using Plan = std::vector<prx::piecewise_step_t<Control, double>>;
+  using Trajectory = std::vector<State>;
+  using FgValues = std::pair<gtsam::NonlinearFactorGraph, gtsam::Values>;
+
+  std::vector<Plan> plans;
+  std::vector<Trajectory> trajs_nominal;
+  // Control u_min;
+  // Control u_max;
+  gtsam::LevenbergMarquardtParams lm_params;
+  std::function<Control(const State&, const Trajectory&, const Plan&)> fg_control;
+
+  std::size_t size() const
+  {
+    return trajs_nominal.size();
+  }
+};
+
+template <typename DynamicalSystem>
+class forward_propagation_t<DynamicalSystem,                               // no-lint
+                            std::vector<typename DynamicalSystem::State>,  // no-lint
+                            fg_trajectory_tracking_controller_t<DynamicalSystem>>
 {
 public:
   // using DynamicalSystem = dynamical_system_t<DerivedSystemType>;
   using State = typename DynamicalSystem::State;
+  using StateDot = typename DynamicalSystem::StateDot;
+
+  using Control = typename DynamicalSystem::Control;
+
   using DynamicalSystemPtr = std::shared_ptr<DynamicalSystem>;
 
+  using Plan = std::vector<prx::piecewise_step_t<Control, double>>;
   using Trajectory = std::vector<State>;
-  using Controller = std::tuple<gtsam::NonlinearFactorGraph, gtsam::Values, gtsam::LevenbergMarquardtParams, int>;
+  using Controller = fg_trajectory_tracking_controller_t<DynamicalSystem>;
+
+  using NoiseModel = gtsam::noiseModel::Base::shared_ptr;
 
   // static void propagate(Trajectory& trajectory, const Controller& graph_values, DynamicalSystemPtr f)
-  static void propagate(Trajectory& trajectory, const Controller& graph_values, DynamicalSystemPtr f)
+  static void propagate(Trajectory& trajectory, const Controller& ctrls, DynamicalSystemPtr f)
   {
-    const gtsam::NonlinearFactorGraph& graph{ std::get<gtsam::NonlinearFactorGraph>(graph_values) };
-    const gtsam::Values& values{ std::get<gtsam::Values>(graph_values) };
-    const gtsam::LevenbergMarquardtParams& lm_params{ std::get<gtsam::LevenbergMarquardtParams>(graph_values) };
-    const int& N{ std::get<int>(graph_values) };
-    gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
-
-    for (int i = 0; i < N; ++i)
+    prx_assert(trajectory.size() > 0,
+               "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
+    for (int i = 0; i < ctrls.size(); ++i)
     {
-      const gtsam::Key kxi{ gtsam::Symbol('X', i) };
-      trajectory.push_back(values.at<State>());
+      Plan plan{ ctrls.plans[i] };
+      Trajectory traj{ ctrls.trajs_nominal[i] };
+
+      for (int j = 0; j < ctrls.trajs_nominal[i].size() - 1; ++j)
+      {
+        const State& x0{ trajectory.back() };
+
+        const Control u{ ctrls.fg_control(x0, traj, plan) };
+
+        const StateDot xd{ f->ode(x0, u) };
+        const State x1{ f->integrate(x0, xd, prx::simulation_step) };
+
+        trajectory.push_back(std::move(x1));
+
+        traj.erase(traj.begin());
+        plan.erase(plan.begin());
+      }
     }
   }
-
-  static void propagate(Trajectory& trajectory, const State x0, const Controller& graph_values, DynamicalSystemPtr f)
+  template <typename... Args>
+  static void propagate(Trajectory& trajectory, const State& x0, const Controller& ctrls, DynamicalSystemPtr f,
+                        Args&... args)
   {
-    const gtsam::NonlinearFactorGraph& graph{ std::get<gtsam::NonlinearFactorGraph>(graph_values) };
-    const gtsam::Values& values{ std::get<gtsam::Values>(graph_values) };
-    const gtsam::LevenbergMarquardtParams& lm_params{ std::get<gtsam::LevenbergMarquardtParams>(graph_values) };
-    const int& N{ std::get<int>(graph_values) };
-
-    values.update(gtsam::Symbol('X', 0), x0);
-
-    propagate(trajectory, graph_values, f);
+    trajectory.push_back(x0);
+    propagate(trajectory, ctrls, f, args...);
   }
+  // static void propagate(Trajectory& trajectory, const State x0, const Controller& ctrls, DynamicalSystemPtr f)
+  // {
+  //   trajectory.push_back(x0);
+  //   propagate(trajectory, ctrls, f);
+  // }
 
   // \dot{x} = f(x,u) + w;
   template <typename NoiseSampler>
-  static void propagate(Trajectory& trajectory, const State x0, const Controller& graph_values, DynamicalSystemPtr f,
-                        NoiseSampler& noise)
+  static void propagate(Trajectory& trajectory, const Controller& ctrls, DynamicalSystemPtr f, NoiseSampler& noise)
   {
-    Controller graph_values_p{ graph_values };
-
-    const int& N{ std::get<int>(graph_values) };
-    const gtsam::Values& values{ std::get<gtsam::Values>(graph_values) };
-    for (int i = 1; i < N; ++i)
+    // prx_assert(trajectory.size() > 0,
+    //            "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
+    for (int i = 0; i < ctrls.size(); ++i)
     {
-      const gtsam::Key kxi{ gtsam::Symbol('X', i) };
-      const State xi{ values.at<State>(kxi) };
-      std::get<gtsam::Values>(graph_values_p).update(kxi, std::move(noise(xi)));
-    }
+      Plan plan{ ctrls.plans[i] };
+      Trajectory traj{ ctrls.trajs_nominal[i] };
 
-    propagate(trajectory, x0, graph_values_p, f);
+      for (int j = 0; j < ctrls.trajs_nominal[i].size() - 1; ++j)
+      {
+        const State& x0{ trajectory.back() };
+
+        const Control u{ ctrls.fg_control(x0, traj, plan) };
+
+        const StateDot xd{ f->ode(x0, u) };
+        const StateDot xd_w{ noise(xd) };
+        const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
+
+        trajectory.push_back(std::move(x1));
+
+        traj.erase(traj.begin());
+        plan.erase(plan.begin());
+      }
+    }
+    // Controller graph_values_p{ graph_values };
+
+    // const int& N{ std::get<int>(graph_values) };
+    // const gtsam::Values& values{ std::get<gtsam::Values>(graph_values) };
+    // for (int i = 1; i < N; ++i)
+    // {
+    //   const gtsam::Key kxi{ gtsam::Symbol('X', i) };
+    //   const State xi{ values.at<State>(kxi) };
+    //   std::get<gtsam::Values>(graph_values_p).update(kxi, std::move(noise(xi)));
+    // }
+
+    // propagate(trajectory, x0, graph_values_p, f);
   }
 
 protected:
