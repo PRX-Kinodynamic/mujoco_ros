@@ -18,6 +18,7 @@
 #include <motion_planning/utils.hpp>
 #include <utils/dbg_utils.hpp>
 
+#include <prx_models/defs.hpp>
 #include <prx/factor_graphs/utilities/dbg_utills.hpp>
 #include <prx/simulation/collision_checking/pqp_collision_checker.hpp>
 #include <utils/rosparams_utils.hpp>

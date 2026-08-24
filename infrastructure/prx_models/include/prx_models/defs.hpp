@@ -7,3 +7,5 @@
 #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_first_order.hpp>
 #include <prx_models/SO2_system.hpp>
+#include <prx_models/unicycle_model.hpp>
+#include <prx_models/unicycle_fg_tracking.hpp>

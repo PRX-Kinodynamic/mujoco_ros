@@ -33,6 +33,7 @@
 #include <motion_planning/reachability_gt.hpp>
 #include <prx_models/unicycle_model.hpp>
 #include <motion_planning/gotube.hpp>
+#include <prx_models/unicycle_fg_tracking.hpp>
 // #include <motion_planning/scene_optimization.hpp>
 
 template <typename DynamicalSystem, typename Controller, typename InputMsg>
@@ -310,8 +311,9 @@ int main(int argc, char** argv)
   using UnicyclePieceWiseStep = prx::piecewise_step_t<prx::unicycle_model_t::Control, double>;
   using UnicycleController = std::vector<UnicyclePieceWiseStep>;
 
-  using UnicycleSLS = std::vector<std::tuple<std::vector<prx::unicycle_model_t::State>,
-                                             std::vector<prx::unicycle_model_t::Control>, Eigen::MatrixXd>>;
+  // using UnicycleFGController = prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>;
+  // using UnicycleSLS = std::vector<std::tuple<std::vector<prx::unicycle_model_t::State>,
+  //                                            std::vector<prx::unicycle_model_t::Control>, Eigen::MatrixXd>>;
   // using UnicycleSLSController = std::vector<UnicyclePieceWiseStep>;
 
   using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
@@ -320,12 +322,13 @@ int main(int argc, char** argv)
   using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller, PlanMsg>;
   using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController, PlanMsg>;
   using UnicycleHelperPiecewise = safety_helper_t<prx::unicycle_model_t, UnicycleController, PlanMsg>;
-  using UnicycleHelperSLS = safety_helper_t<prx::unicycle_model_t, UnicycleSLS, SlsGainMsg>;
+  using UnicycleHelperFG = safety_helper_t<prx::unicycle_model_t,
+                                           prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>, SlsGainMsg>;
 
   std::shared_ptr<SO2HelperPiecewise> SO2_helper;
   std::shared_ptr<MushrHelperPiecewise> mushr_helper;
   std::shared_ptr<UnicycleHelperPiecewise> unicycle_helper;
-  std::shared_ptr<UnicycleHelperSLS> unicycle_sls_helper;
+  std::shared_ptr<UnicycleHelperFG> unicycle_sls_helper;
 
   std::string plant;
   PARAM_SETUP(nh, plant)
@@ -342,9 +345,9 @@ int main(int argc, char** argv)
   {
     unicycle_helper = std::make_shared<UnicycleHelperPiecewise>(nh);
   }
-  else if (plant == "unicycleSLS")
+  else if (plant == "unicycleFG")
   {
-    unicycle_sls_helper = std::make_shared<UnicycleHelperSLS>(nh);
+    unicycle_sls_helper = std::make_shared<UnicycleHelperFG>(nh);
   }
   else
   {

@@ -9,7 +9,8 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 
-#include <prx_models/SO2_system.hpp>
+#include <prx_models/defs.hpp>
+#include <prx_models/unicycle_fg_tracking.hpp>
 
 #include <motion_planning/stela_sliding_window.hpp>
 #include <motion_planning/tree_validation.hpp>
@@ -48,125 +49,90 @@ using GreaterThanFactor = prx::fg::constraint_factor_t<Control, GreaterThanFn>;
 
 using UnicyclePieceWiseStep = prx::piecewise_step_t<prx::unicycle_model_t::Control, double>;
 using UnicycleOpenLoopController = std::vector<UnicyclePieceWiseStep>;
-using UnicycleFGController = prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>;
+// using UnicycleFGController = prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>;
 
 using FwdPropOpenLoop = prx::forward_propagation_t<prx::unicycle_model_t, Trajectory, UnicycleOpenLoopController>;
-using FwdPropFG = prx::forward_propagation_t<prx::unicycle_model_t, Trajectory, UnicycleFGController>;
+using FwdPropFG = prx::forward_propagation_t<prx::unicycle_model_t, Trajectory,
+                                             prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>>;
 
 // template <typename State, typename Control>
-class unicycle_factor_t : public gtsam::NoiseModelFactorN<prx::unicycle_model_t::State, prx::unicycle_model_t::State,
-                                                          prx::unicycle_model_t::Control>
-{
-public:
-  using State = prx::unicycle_model_t::State;
-  using Control = prx::unicycle_model_t::Control;
-  using Base = gtsam::NoiseModelFactorN<State, State, Control>;
 
-  unicycle_factor_t(const gtsam::Key& x1, const gtsam::Key& x0, const gtsam::Key& u01,  // no-lint
-                    std::shared_ptr<prx::unicycle_model_t> plant, const NoiseModel& cost_model = nullptr)
-    : _plant(plant), Base(cost_model, x1, x0, u01)
-  {
-  }
+// struct UnicycleFGController
+//   : public prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t::State, prx::unicycle_model_t::Control>
+// {
+//   using Base = fg_trajectory_tracking_controller_t<prx::unicycle_model_t::State, prx::unicycle_model_t::Control>;
+//   using State = prx::unicycle_model_t::State;
+//   using Control = prx::unicycle_model_t::Control;
 
-  virtual Eigen::VectorXd evaluateError(const State& x1, const State& x0, const Control& u01,  // no-lint
-                                        boost::optional<Eigen::MatrixXd&> Hx1 = boost::none,   // no-lint
-                                        boost::optional<Eigen::MatrixXd&> Hx0 = boost::none,   // no-lint
-                                        boost::optional<Eigen::MatrixXd&> Hu01 = boost::none) const override
-  {
-    Eigen::Matrix3d x1p_H_x0;
-    Eigen::Matrix<double, 3, 2> x1p_H_u;
-    Eigen::Matrix3d err_H_x1p, err_H_x1;
+//   std::shared_ptr<prx::unicycle_model_t> plant;
+//   Control u_min;
+//   Control u_max;
+//   // Control fg_control(std::shared_ptr<prx::unicycle_model_t> plant, const Trajectory traj_gt, const Plan plan,
+//   //                      const State& xt, const Control u_min, const Control u_max,
+//   //                      gtsam::LevenbergMarquardtParams& lm_params)
 
-    const State x1p{ _plant->propagate(x0, u01, prx::simulation_step, &x1p_H_x0, &x1p_H_u) };
+//   virtual Control fg_control(const State& xt, const Base::Trajectory& traj_gt, const Base::Plan& plan) const override
+//   {
+//     gtsam::Values values;
+//     gtsam::NonlinearFactorGraph graph;
 
-    const Eigen::Vector3d error{ prx::TangentBetween(x1p, x1, &err_H_x1p, &err_H_x1) };
+//     // PRINT_MSG("Building FG")
+//     const NoiseModel f_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
+//     const NoiseModel x0_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-3) };
 
-    if (Hx1)
-    {
-      *Hx1 = err_H_x1;
-      // DEBUG_VARS(*Hx1)
-    }
-    if (Hx0)
-    {
-      *Hx0 = err_H_x1p * x1p_H_x0;
-      // DEBUG_VARS(*Hx0)
-    }
-    if (Hu01)
-    {
-      *Hu01 = err_H_x1p * x1p_H_u;
-      // DEBUG_VARS(*Hu01)
-    }
+//     // DEBUG_VARS(traj_gt.size())
+//     for (int i = 0; i < traj_gt.size() - 1; ++i)
+//     {
+//       const gtsam::Key xk0{ gtsam::Symbol('X', i) };
+//       const gtsam::Key xk1{ gtsam::Symbol('X', i + 1) };
+//       const gtsam::Key uk01{ gtsam::Symbol('U', i) };
 
-    return error;
-  }
+//       // const State xi_w{ traj_w[i] };
+//       const State xi_gt{ traj_gt[i] };
 
-protected:
-  std::shared_ptr<prx::unicycle_model_t> _plant;
-};
+//       values.insert(xk0, xi_gt);
+//       values.insert(uk01, plan[i].control);
 
-Control plan_from_fg(std::shared_ptr<prx::unicycle_model_t> plant, const Trajectory traj_gt, const Plan plan,
-                     const State& xt, const Control u_min, const Control u_max,
-                     gtsam::LevenbergMarquardtParams& lm_params)
-{
-  gtsam::Values values;
-  gtsam::NonlinearFactorGraph graph;
+//       if (i != 0)
+//       {
+//         graph.addPrior(xk0, xi_gt);
+//       }
+//       graph.emplace_shared<LessThanFactor>(uk01, u_min);
+//       graph.emplace_shared<GreaterThanFactor>(uk01, u_max);
+//       graph.emplace_shared<prx::unicycle_factor_t>(xk1, xk0, uk01, plant, f_nm);
+//     }
 
-  PRINT_MSG("Building FG")
-  const NoiseModel f_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
-  const NoiseModel x0_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-3) };
+//     const gtsam::Key xk0{ gtsam::Symbol('X', 0) };
+//     const gtsam::Key xkT{ gtsam::Symbol('X', traj_gt.size() - 1) };
+//     // values.insert(xk0, traj_w.front());
+//     graph.addPrior(xk0, xt, x0_nm);
+//     values.insert(xkT, traj_gt.back());
 
-  DEBUG_VARS(traj_gt.size())
-  for (int i = 0; i < traj_gt.size() - 1; ++i)
-  {
-    const gtsam::Key xk0{ gtsam::Symbol('X', i) };
-    const gtsam::Key xk1{ gtsam::Symbol('X', i + 1) };
-    const gtsam::Key uk01{ gtsam::Symbol('U', i) };
+//     // values.print();
 
-    // const State xi_w{ traj_w[i] };
-    const State xi_gt{ traj_gt[i] };
+//     std::vector<State> traj;
+//     std::vector<Control> ctrls;
 
-    values.insert(xk0, xi_gt);
-    values.insert(uk01, plan[i].control);
+//     gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
 
-    if (i != 0)
-    {
-      graph.addPrior(xk0, xi_gt);
-    }
-    graph.emplace_shared<LessThanFactor>(uk01, u_min);
-    graph.emplace_shared<GreaterThanFactor>(uk01, u_max);
-    graph.emplace_shared<unicycle_factor_t>(xk1, xk0, uk01, plant, f_nm);
-  }
+//     gtsam::Values result{ optimizer.optimize() };
+//     // for (int i = 0; i < traj_gt.size(); ++i)
+//     // {
+//     //   const gtsam::Key xk0{ gtsam::Symbol('X', i) };
+//     //   traj.push_back(result.at<State>(xk0));
+//     // }
+//     // for (int i = 0; i < traj_gt.size() - 1; ++i)
+//     // {
+//     // const gtsam::Key uk{ gtsam::Symbol('U', i) };
+//     // ctrls.push_back(result.at<Control>(uk));
+//     // }
+//     const gtsam::Key ku0{ gtsam::Symbol('U', 0) };
+//     const Control u0{ result.at<Control>(ku0) };
 
-  const gtsam::Key xk0{ gtsam::Symbol('X', 0) };
-  const gtsam::Key xkT{ gtsam::Symbol('X', traj_gt.size() - 1) };
-  // values.insert(xk0, traj_w.front());
-  graph.addPrior(xk0, xt, x0_nm);
-  values.insert(xkT, traj_gt.back());
-
-  // values.print();
-
-  std::vector<State> traj;
-  std::vector<Control> ctrls;
-
-  gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
-
-  gtsam::Values result{ optimizer.optimize() };
-  // for (int i = 0; i < traj_gt.size(); ++i)
-  // {
-  //   const gtsam::Key xk0{ gtsam::Symbol('X', i) };
-  //   traj.push_back(result.at<State>(xk0));
-  // }
-  // for (int i = 0; i < traj_gt.size() - 1; ++i)
-  // {
-  // const gtsam::Key uk{ gtsam::Symbol('U', i) };
-  // ctrls.push_back(result.at<Control>(uk));
-  // }
-  const gtsam::Key ku0{ gtsam::Symbol('U', 0) };
-  const Control u0{ result.at<Control>(ku0) };
-
-  return u0;
-  // return { traj, ctrls };
-}
+//     return u0;
+//     // return { traj, ctrls };
+//   }
+// };
 
 int main(int argc, char** argv)
 {
@@ -216,17 +182,18 @@ int main(int argc, char** argv)
   w_sampler.set(cov_w);
   x0_sampler.set(cov_x0);
 
-  const Control u_max{ 1.1, 1.1 };
-  const Control u_min{ -1.1, -1.1 };
+  // prx::unicycle_fg_controller_t fg_controller;
+  prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t> fg_controller;
+  fg_controller.plant = plant;
+  fg_controller.u_max = Control(1.1, 1.1);
+  fg_controller.u_min = Control(-1.1, -1.1);
 
-  UnicycleFGController fg_controller;
-
-  fg_controller.plans = { plan };
-  fg_controller.trajs_nominal = { traj_gt };
+  fg_controller.plan = plan;
+  fg_controller.traj_nominal = traj_gt;
   fg_controller.lm_params = lm_params;
-  fg_controller.fg_control = [&](const State& x0, const Trajectory& traj, const Plan& plan) {
-    return plan_from_fg(plant, traj, plan, x0, u_min, u_max, lm_params);
-  };
+  // fg_controller.fg_control = [&](const State& x0, const Trajectory& traj, const Plan& plan) {
+  //   return plan_from_fg(plant, traj, plan, x0, u_min, u_max, lm_params);
+  // };
 
   while (true)
   {

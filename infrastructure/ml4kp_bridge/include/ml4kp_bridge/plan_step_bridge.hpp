@@ -3,6 +3,7 @@
 #include <ros/assert.h>
 #include <ml4kp_bridge/gtsam_bridge.hpp>
 
+#include <ml4kp_bridge/forward_propagation_bridge.hpp>
 #include <prx/simulation/playback/piecewise_plan.hpp>
 #include <prx/simulation/playback/plan.hpp>
 #include <ml4kp_bridge/SlsGain.h>
@@ -255,6 +256,36 @@ inline void copy(std::vector<std::tuple<std::vector<State>, std::vector<Control>
   }
 
   ctrl.push_back(std::make_tuple(trajectory, controls, K));
+}
+
+template <typename DynamicalSystem>
+inline prx::fg_trajectory_tracking_controller_t<DynamicalSystem>
+split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const double split_time)
+{
+  return prx::fg_trajectory_tracking_controller_t<DynamicalSystem>(ctrl);
+}
+
+template <typename DynamicalSystem>
+inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const ml4kp_bridge::SlsGain& msg)
+{
+  using State = typename DynamicalSystem::State;
+  using Control = typename DynamicalSystem::Control;
+  // std::vector<State> trajectory;
+  // std::vector<Control> controls;
+
+  Control ut;
+  for (const auto& u_msg : msg.controls)
+  {
+    ml4kp_bridge::copy(ut, u_msg);
+    ctrl.plan.emplace_back(ut, prx::simulation_step);
+  }
+
+  State xt;
+  for (const auto& x_msg : msg.trajectory)
+  {
+    ml4kp_bridge::copy(xt, x_msg);
+    ctrl.traj_nominal.push_back(xt);
+  }
 }
 
 inline void to_file(const ml4kp_bridge::PlanStep& msg, std::ofstream& ofs)

@@ -134,16 +134,21 @@ struct fg_trajectory_tracking_controller_t
   using Trajectory = std::vector<State>;
   using FgValues = std::pair<gtsam::NonlinearFactorGraph, gtsam::Values>;
 
-  std::vector<Plan> plans;
-  std::vector<Trajectory> trajs_nominal;
+  Plan plan;
+  Trajectory traj_nominal;
   // Control u_min;
   // Control u_max;
   gtsam::LevenbergMarquardtParams lm_params;
-  std::function<Control(const State&, const Trajectory&, const Plan&)> fg_control;
+  // std::function<Control(const State&, const Trajectory&, const Plan&)> fg_control;
 
-  std::size_t size() const
+  virtual Control fg_control(const State&, const Trajectory&, const Plan&) const
   {
-    return trajs_nominal.size();
+    PRX_NOT_IMPLEMENTED;
+  };
+
+  virtual std::size_t size() const
+  {
+    return plan.size();
   }
 };
 
@@ -172,25 +177,25 @@ public:
   {
     prx_assert(trajectory.size() > 0,
                "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
-    for (int i = 0; i < ctrls.size(); ++i)
+    // for (int i = 0; i < ctrls.size(); ++i)
+    // {
+    Plan plan{ ctrls.plan };
+    Trajectory traj{ ctrls.traj_nominal };
+
+    for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
     {
-      Plan plan{ ctrls.plans[i] };
-      Trajectory traj{ ctrls.trajs_nominal[i] };
+      const State& x0{ trajectory.back() };
 
-      for (int j = 0; j < ctrls.trajs_nominal[i].size() - 1; ++j)
-      {
-        const State& x0{ trajectory.back() };
+      const Control u{ ctrls.fg_control(x0, traj, plan) };
 
-        const Control u{ ctrls.fg_control(x0, traj, plan) };
+      const StateDot xd{ f->ode(x0, u) };
+      const State x1{ f->integrate(x0, xd, prx::simulation_step) };
 
-        const StateDot xd{ f->ode(x0, u) };
-        const State x1{ f->integrate(x0, xd, prx::simulation_step) };
+      trajectory.push_back(std::move(x1));
 
-        trajectory.push_back(std::move(x1));
-
-        traj.erase(traj.begin());
-        plan.erase(plan.begin());
-      }
+      traj.erase(traj.begin());
+      plan.erase(plan.begin());
+      // }
     }
   }
   template <typename... Args>
@@ -200,11 +205,6 @@ public:
     trajectory.push_back(x0);
     propagate(trajectory, ctrls, f, args...);
   }
-  // static void propagate(Trajectory& trajectory, const State x0, const Controller& ctrls, DynamicalSystemPtr f)
-  // {
-  //   trajectory.push_back(x0);
-  //   propagate(trajectory, ctrls, f);
-  // }
 
   // \dot{x} = f(x,u) + w;
   template <typename NoiseSampler>
@@ -212,27 +212,27 @@ public:
   {
     // prx_assert(trajectory.size() > 0,
     //            "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
-    for (int i = 0; i < ctrls.size(); ++i)
+    // for (int i = 0; i < ctrls.size(); ++i)
+    // {
+    Plan plan{ ctrls.plan };
+    Trajectory traj{ ctrls.traj_nominal };
+
+    for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
     {
-      Plan plan{ ctrls.plans[i] };
-      Trajectory traj{ ctrls.trajs_nominal[i] };
+      const State& x0{ trajectory.back() };
 
-      for (int j = 0; j < ctrls.trajs_nominal[i].size() - 1; ++j)
-      {
-        const State& x0{ trajectory.back() };
+      const Control u{ ctrls.fg_control(x0, traj, plan) };
 
-        const Control u{ ctrls.fg_control(x0, traj, plan) };
+      const StateDot xd{ f->ode(x0, u) };
+      const StateDot xd_w{ noise(xd) };
+      const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
 
-        const StateDot xd{ f->ode(x0, u) };
-        const StateDot xd_w{ noise(xd) };
-        const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
+      trajectory.push_back(std::move(x1));
 
-        trajectory.push_back(std::move(x1));
-
-        traj.erase(traj.begin());
-        plan.erase(plan.begin());
-      }
+      traj.erase(traj.begin());
+      plan.erase(plan.begin());
     }
+    // }
     // Controller graph_values_p{ graph_values };
 
     // const int& N{ std::get<int>(graph_values) };

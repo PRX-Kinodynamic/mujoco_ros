@@ -84,7 +84,8 @@ public:
   unicycle_model_t() : Base(default_params()) {};
   unicycle_model_t(const std::string params) : unicycle_model_t(prx::param_loader::create(params)) {};
   // unicycle_model_t(const std::string name) : Base(name) {};
-  unicycle_model_t(prx::param_loader params) : Base(params)
+  unicycle_model_t(prx::param_loader params)
+    : Base(params), _M((Eigen::Matrix<double, 3, 2>() << 1, 0., 0, 0., 0., 1.).finished())
   {
   }
 
@@ -142,8 +143,7 @@ public:
     // const double cth{ std::cos(th) };
     // const double sth{ std::sin(th) };
     // const Mx M{ (Mx() << cth, 0., sth, 0., 0., 1.).finished() };
-    const Mx M{ (Mx() << 1, 0., 0, 0., 0., 1.).finished() };
-    const Eigen::Vector3d xdot{ M * u0 };
+    const Eigen::Vector3d xdot{ _M * u0 };
 
     if (Hx)
     {
@@ -151,7 +151,7 @@ public:
     }
     if (Hu)
     {
-      *Hu = M;
+      *Hu = _M;
     }
 
     return xdot;
@@ -220,9 +220,13 @@ public:
   // virtual void sense(const State& x0, const Control& u0, const double& dt, const Parameters& params) = 0;
 
 protected:
+  // const Mx M{ (Mx() << 1, 0., 0, 0., 0., 1.).finished() };
+  const Eigen::Matrix<double, 3, 2> _M;
+
   StateSpacePtr _state_space;
   ControlSpacePtr _control_space;
   ParametersSpacePtr _parameter_space;
   ObservationSpacePtr _sensor_space;
 };
+
 }  // namespace prx
