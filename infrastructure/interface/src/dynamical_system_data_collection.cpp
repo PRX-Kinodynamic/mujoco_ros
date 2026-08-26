@@ -78,7 +78,7 @@ struct collector_t
 
 int main(int argc, char** argv)
 {
-  const std::string node_name{ "MushrExperiments" };
+  const std::string node_name{ "DynamicalSystemDataCollector" };
   ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 

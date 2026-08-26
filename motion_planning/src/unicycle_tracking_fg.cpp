@@ -176,9 +176,9 @@ int main(int argc, char** argv)
 
   StateSampler x0_sampler;
   StateDotSampler w_sampler;
-  Eigen::Matrix3d cov_w{ Eigen::Matrix3d::Identity() * 0.001 };
-  Eigen::Matrix3d cov_x0{ Eigen::Matrix3d::Identity() * 0.0005 };
-  cov_x0(2, 2) = 0.01;
+  Eigen::Matrix3d cov_w{ Eigen::Matrix3d::Identity() * 0.01 };
+  Eigen::Matrix3d cov_x0{ Eigen::Matrix3d::Identity() * 0.001 };
+  cov_x0(2, 2) *= 4;
   w_sampler.set(cov_w);
   x0_sampler.set(cov_x0);
 
