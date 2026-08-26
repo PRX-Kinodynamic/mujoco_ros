@@ -19,6 +19,7 @@
 #include <ml4kp_bridge/sampler_bridge.hpp>
 #include <ml4kp_bridge/lie_ode_observation.hpp>
 #include <interface/SensorDataStamped.h>
+#include <interface/levenberg_marquardt_interface.hpp>
 
 // ML4KP
 #include <prx/simulation/plant.hpp>
@@ -120,8 +121,12 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
 
   fg_trajectory_tracking_controller_t() : u_max(1.1, 1.1), u_min(-1.1, -1.1)
   {
+    ros::NodeHandle nh("~");
     GLOBAL_PARAM_BLOCKER(plant_parameters);
     plant = prx::unicycle_model_t::create(plant_parameters);
+    // gtsam::LevenbergMarquardtParams lm_params;
+    interface::initialize(lm_params, ros::NodeHandle(nh, "lm"));
+    lm_params.print();
   }
 
   static fg_trajectory_tracking_controller_t init(fg_trajectory_tracking_controller_t& other)
@@ -150,10 +155,19 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
     // PRINT_MSG("Building FG")
     const NoiseModel f_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
     const NoiseModel x0_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-3) };
+    const NoiseModel xT_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
 
     // DEBUG_VARS(traj_gt.size())
-    for (int i = 0; i < traj_gt.size() - 1; ++i)
+    // for (int i = 0; i < traj_gt.size() - 1; ++i)
+    std::size_t i{ 0 };
+
+    // DEBUG_VARS(plan.size());
+    for (auto&& step : plan)
     {
+      // double ti{ 0. };
+      // DEBUG_VARS(step.control, step.duration);
+      // while (ti < step.duration)
+      // {
       const gtsam::Key xk0{ gtsam::Symbol('X', i) };
       const gtsam::Key xk1{ gtsam::Symbol('X', i + 1) };
       const gtsam::Key uk01{ gtsam::Symbol('U', i) };
@@ -162,21 +176,28 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
       const State xi_gt{ traj_gt[i] };
 
       values.insert(xk0, xi_gt);
-      values.insert(uk01, plan[i].control);
+      values.insert(uk01, step.control);
+      // values.insert(uk01, plan[i].control);
 
-      if (i != 0)
-      {
-        graph.addPrior(xk0, xi_gt);
-      }
+      // if (i != 0)
+      // {
+      //   graph.addPrior(xk0, xi_gt);
+      // }
       graph.emplace_shared<LessThanFactor>(uk01, u_min);
       graph.emplace_shared<GreaterThanFactor>(uk01, u_max);
       graph.emplace_shared<prx::unicycle_factor_t>(xk1, xk0, uk01, plant, f_nm);
+
+      i++;
+      // ti += prx::simulation_step;
+      // }
     }
 
     const gtsam::Key xk0{ gtsam::Symbol('X', 0) };
     const gtsam::Key xkT{ gtsam::Symbol('X', traj_gt.size() - 1) };
 
     graph.addPrior(xk0, xt, x0_nm);
+    graph.addPrior(xkT, traj_gt.back(), xT_nm);
+
     values.insert(xkT, traj_gt.back());
 
     std::vector<State> traj;
@@ -186,9 +207,14 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
 
     gtsam::Values result{ optimizer.optimize() };
 
+    // const double err_prev{ graph.error(values) };
+    // const double err_after{ graph.error(result) };
+    // DEBUG_VARS(err_prev, err_after, optimizer.iterations())
+
     const gtsam::Key ku0{ gtsam::Symbol('U', 0) };
     const Control u0{ result.at<Control>(ku0) };
 
+    // DEBUG_VARS(u0)
     return u0;
   };
 };

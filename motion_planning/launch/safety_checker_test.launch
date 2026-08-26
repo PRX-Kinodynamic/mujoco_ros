@@ -42,6 +42,7 @@
     <arg name="sleep_at_exit" default="5"/>
 
     <arg name="chi2_alpha" default="0.01"/>
+    <arg name="fg_iterations" default="1"/>
 
 
 <!-- launch-prefix="gdb -ex run - -args" -->
@@ -68,6 +69,10 @@
       <param name="sleep_at_exit" value="$(arg sleep_at_exit)"/>
 
       <param name="Chi2_alpha" value="$(arg chi2_alpha)"/>
+
+      <param name="lm/iterations" value="$(arg fg_iterations)"/>
+      <!-- <param name="lm/verbosity_level" value="SUMMARY"/> -->
+      <param name="lm/verbosity_level" value="SILENT"/>
     </node>
 
     <node pkg="nodelet" type="nodelet" name="SpacepointToMarkerPublisher"

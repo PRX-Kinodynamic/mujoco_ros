@@ -26,6 +26,7 @@
 
 #include <ml4kp_bridge/TrajectoryStamped.h>
 #include <ml4kp_bridge/PlanStamped.h>
+#include <ml4kp_bridge/SlsGain.h>
 #include <ml4kp_bridge/defs.h>
 
 #include <ackermann_msgs/AckermannDriveStamped.h>
@@ -87,6 +88,7 @@ struct ros_qs_types_t
   interface::rosbag_queue_t<ml4kp_bridge::SpacePointStamped> spoint_st_queue;
   interface::rosbag_queue_t<ml4kp_bridge::StelaTrajectory> stela_traj_queue;
   interface::rosbag_queue_t<ml4kp_bridge::PlanStepStampedArray> plan_step_stamped_array_queue;
+  interface::rosbag_queue_t<ml4kp_bridge::SlsGain> sls_gain_queue;
 
   interface::rosbag_queue_t<prx_models::Tree> prx_tree_queue;
   interface::rosbag_queue_t<prx_models::MushrPlan> prx_mushr_plan_queue;
@@ -134,6 +136,7 @@ struct ros_qs_types_t
     , spoint_st_queue("ml4kp_bridge::SpacePointStamped")
     , stela_traj_queue("ml4kp_bridge::StelaTrajectory")
     , plan_step_stamped_array_queue("ml4kp_bridge::PlanStepStampedArray")
+    , sls_gain_queue("ml4kp_bridge::SlsGain")
     // PRX MODELS
     , prx_mushr_obs_queue("prx_models::MushrObservation")
     , prx_mushr_plan_queue("prx_models::MushrPlan")
@@ -165,7 +168,7 @@ struct ros_qs_types_t
                                  twist_stamped_queue, pose2d_queue, pose_stamped_queue,              // geometry_msgs
                                  plan_queue, plan_st_queue, traj_queue, traj_st_queue,               // ml4kp
                                  spoint_queue, spoint_st_queue, stela_traj_queue, stela_traj_queue,  // ml4kp
-                                 plan_step_stamped_array_queue,                                      // ml4kp
+                                 plan_step_stamped_array_queue, sls_gain_queue,                      // ml4kp
                                  prx_tree_queue, prx_mushr_ctrl_queue, prx_mushr_plan_queue,         // prx_models 1
                                  prx_mushr_obs_queue, planner_stats_queue,                           // prx_models 2
                                  tf_queue,                                                           // TF

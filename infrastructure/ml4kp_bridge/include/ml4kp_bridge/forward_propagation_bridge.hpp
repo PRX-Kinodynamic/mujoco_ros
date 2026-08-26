@@ -217,6 +217,10 @@ public:
     Plan plan{ ctrls.plan };
     Trajectory traj{ ctrls.traj_nominal };
 
+    // PRX_DBG_VARS(plan)
+    // PRX_DBG_VARS(traj)
+
+    // std::cout << "\n\n";
     for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
     {
       const State& x0{ trajectory.back() };
@@ -224,9 +228,11 @@ public:
       const Control u{ ctrls.fg_control(x0, traj, plan) };
 
       const StateDot xd{ f->ode(x0, u) };
+      // const StateDot xd_w{ xd };
       const StateDot xd_w{ noise(xd) };
       const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
 
+      // PRX_DBG_VARS(u, xd, x1)
       trajectory.push_back(std::move(x1));
 
       traj.erase(traj.begin());
@@ -455,8 +461,6 @@ public:
         const StateDot xd_w{ xd };
         // PRX_DBG_VARS(w)
         // PRX_DBG_VARS(dU)
-        PRX_DBG_VARS(u_t, du_t, u_eff)
-        PRX_DBG_VARS(x0, xi, xd)
 
         // const StateDot xd_w{ noise(xd) };
         const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
@@ -465,7 +469,6 @@ public:
         u_idx += DimU;
         un_idx++;
       }
-      PRX_DBG_VARS(w)
     }
 
     /////

@@ -12,6 +12,7 @@
 #include <ml4kp_bridge/space_bridge.hpp>
 #include <prx/simulation/system.hpp>
 
+#include <ml4kp_bridge/FgTrajectoryTracking.h>
 #include <ml4kp_bridge/PlanStepStamped.h>
 #include <ml4kp_bridge/PlanStepStampedArray.h>
 
@@ -56,13 +57,19 @@ inline void copy(prx::piecewise_step_t<ControlType, double>& plan_step, const ml
 
 template <typename ControlType>
 inline void copy(std::vector<prx::piecewise_step_t<ControlType, double>>& plan,
+                 const std::vector<ml4kp_bridge::PlanStepStamped>& msg)
+{
+  plan.resize(msg.size());
+  for (int i = 0; i < msg.size(); ++i)
+  {
+    copy(plan[i], msg[i]);
+  }
+}
+template <typename ControlType>
+inline void copy(std::vector<prx::piecewise_step_t<ControlType, double>>& plan,
                  const ml4kp_bridge::PlanStepStampedArray& msg)
 {
-  plan.resize(msg.data.size());
-  for (int i = 0; i < msg.data.size(); ++i)
-  {
-    copy(plan[i], msg.data[i]);
-  }
+  ml4kp_bridge::copy(plan, msg.data);
 }
 
 template <typename ControlType>
@@ -266,26 +273,46 @@ split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const dou
 }
 
 template <typename DynamicalSystem>
-inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const ml4kp_bridge::SlsGain& msg)
+inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl,
+                 const ml4kp_bridge::FgTrajectoryTracking& msg)
 {
   using State = typename DynamicalSystem::State;
   using Control = typename DynamicalSystem::Control;
+  using Trajectory = typename prx::fg_trajectory_tracking_controller_t<DynamicalSystem>::Trajectory;
+  using Plan = typename prx::fg_trajectory_tracking_controller_t<DynamicalSystem>::Plan;
+
+  using FwdPropOpenLoop = prx::forward_propagation_t<DynamicalSystem, Trajectory, Plan>;
   // std::vector<State> trajectory;
   // std::vector<Control> controls;
 
-  Control ut;
-  for (const auto& u_msg : msg.controls)
-  {
-    ml4kp_bridge::copy(ut, u_msg);
-    ctrl.plan.emplace_back(ut, prx::simulation_step);
-  }
+  Plan plan;
+  ml4kp_bridge::copy(plan, msg.plan);
 
-  State xt;
-  for (const auto& x_msg : msg.trajectory)
+  Control ut;
+  // PRX_DBG_VARS(plan);
+  for (const auto& u_dt : plan)
   {
-    ml4kp_bridge::copy(xt, x_msg);
-    ctrl.traj_nominal.push_back(xt);
+    // ml4kp_bridge::copy(ut, u_msg);
+    double ti{ 0. };
+    while (ti < u_dt.duration)
+    {
+      // ml4kp_bridge::copy();
+      ctrl.plan.emplace_back(u_dt.control, prx::simulation_step);
+      ti += prx::simulation_step;
+    }
   }
+  PRX_DBG_VARS(ctrl.plan);
+
+  State x0;
+  ml4kp_bridge::copy(x0, msg.x0);
+  FwdPropOpenLoop::propagate(ctrl.traj_nominal, x0, ctrl.plan, ctrl.plant);
+  // for (const auto& x_msg : msg.trajectory)
+  // {
+  //   ml4kp_bridge::copy(xt, x_msg);
+  //   ctrl.traj_nominal.push_back(xt);
+  // }
+
+  PRX_DBG_VARS(ctrl.traj_nominal)
 }
 
 inline void to_file(const ml4kp_bridge::PlanStep& msg, std::ofstream& ofs)

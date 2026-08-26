@@ -317,13 +317,14 @@ int main(int argc, char** argv)
   // using UnicycleSLSController = std::vector<UnicyclePieceWiseStep>;
 
   using PlanMsg = ml4kp_bridge::PlanStepStampedArray;
-  using SlsGainMsg = ml4kp_bridge::SlsGain;
+  using FgTrajectoryTrackingMsg = ml4kp_bridge::FgTrajectoryTracking;
 
   using SO2HelperPiecewise = safety_helper_t<prx::SO2_system_t, SO2Controller, PlanMsg>;
   using MushrHelperPiecewise = safety_helper_t<prx::mushrPolynomial_t, MushrController, PlanMsg>;
   using UnicycleHelperPiecewise = safety_helper_t<prx::unicycle_model_t, UnicycleController, PlanMsg>;
-  using UnicycleHelperFG = safety_helper_t<prx::unicycle_model_t,
-                                           prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>, SlsGainMsg>;
+  using UnicycleHelperFG =
+      safety_helper_t<prx::unicycle_model_t, prx::fg_trajectory_tracking_controller_t<prx::unicycle_model_t>,
+                      FgTrajectoryTrackingMsg>;
 
   std::shared_ptr<SO2HelperPiecewise> SO2_helper;
   std::shared_ptr<MushrHelperPiecewise> mushr_helper;
@@ -332,6 +333,8 @@ int main(int argc, char** argv)
 
   std::string plant;
   PARAM_SETUP(nh, plant)
+
+  DEBUG_VARS(plant)
 
   if (plant == "SO2System")
   {

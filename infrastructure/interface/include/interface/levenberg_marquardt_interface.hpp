@@ -1,3 +1,4 @@
+#pragma once
 #include <gtsam/nonlinear/LevenbergMarquardtParams.h>
 #include <ros/node_handle.h>
 #include <string>
