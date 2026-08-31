@@ -44,6 +44,7 @@ template <typename State, typename Control>
 class linear_gaussian_model_t
 {
 public:
+  using LGM = linear_gaussian_model_t<State, Control>;
   static constexpr Eigen::Index DimX{ gtsam::traits<State>::dimension };
   static constexpr Eigen::Index DimU{ gtsam::traits<Control>::dimension };
   static constexpr Eigen::Index DimZ{ DimX + DimU };
@@ -311,15 +312,126 @@ public:
     return { error_bound_A.back(), error_bound_B.back() };
   }
 
+  static std::string header()
+  {
+    return "# id DimX DimU A(DimX,DimX) B(DimX,DimU) Mean(DimX) Cov(DimX,DimX)\n";
+  }
+
+  void to_file(std::ofstream& ofs)
+  {
+    ofs << _id << " ";
+    ofs << DimX << " ";
+    ofs << DimU << " ";
+
+    // Mat A
+    for (int i = 0; i < _A.rows(); ++i)
+    {
+      for (int j = 0; j < _A.cols(); ++j)
+      {
+        ofs << _A(i, j) << " ";
+      }
+    }
+
+    // Mat B
+    for (int i = 0; i < _B.rows(); ++i)
+    {
+      for (int j = 0; j < _B.cols(); ++j)
+      {
+        ofs << _B(i, j) << " ";
+      }
+    }
+
+    // Mean
+    const Eigen::Vector<double, DimZ> vec_z{ gtsam::traits<Z>::Logmap(_mean) };
+    for (int i = 0; i < DimZ; ++i)
+    {
+      ofs << vec_z[i] << " ";
+    }
+
+    // Covariance
+    const Covariance cov{ _inv_covariance.inverse() };
+    for (int i = 0; i < cov.rows(); ++i)
+    {
+      for (int j = 0; j < cov.cols(); ++j)
+      {
+        ofs << cov(i, j) << " ";
+      }
+    }
+    ofs << "\n";
+  }
+
+  static LGM from_string(const std::string str)
+  {
+    std::vector<double> values;
+    try
+    {
+      values = prx::split<double>(str);
+    }
+    catch (...)
+    {
+      PRINT_MSG("[linear_mixture_model] Error reading line.");
+    }
+
+    const std::size_t idx{ static_cast<std::size_t>(values[0]) };
+    const std::size_t Xdim{ static_cast<std::size_t>(values[1]) };
+    const std::size_t Udim{ static_cast<std::size_t>(values[2]) };
+    // prx_assert()
+    std::size_t v_idx{ 3 };
+    Amatrix A;
+    for (int i = 0; i < Xdim; ++i)
+    {
+      for (int j = 0; j < Xdim; ++j, ++v_idx)
+      {
+        A(i, j) = values[v_idx];
+      }
+    }
+
+    Bmatrix B;
+    for (int i = 0; i < Xdim; ++i)
+    {
+      for (int j = 0; j < Udim; ++j, ++v_idx)
+      {
+        B(i, j) = values[v_idx];
+      }
+    }
+
+    Eigen::Vector<double, DimZ> vec_z;
+    for (int i = 0; i < Xdim + Udim; ++i, ++v_idx)
+    {
+      vec_z[i] = values[v_idx];
+    }
+    const Z mean{ gtsam::traits<Z>::Expmap(vec_z) };
+
+    Covariance cov;
+    for (int i = 0; i < Xdim; ++i)
+    {
+      for (int j = 0; j < Udim; ++j, ++v_idx)
+      {
+        cov(i, j) = values[v_idx];
+      }
+    }
+    const State x_mean{ mean.first };
+    const Control u_mean{ mean.second };
+    return linear_gaussian_model_t(A, B, cov, x_mean, u_mean, idx);
+  }
+  // friend std::ostream& operator<<(std::ostream& os, const PiecewiseStep& obj)
+  // {
+
+  // }
+
 private:
   bool _verbose;
-  const std::size_t _id;
+
+  // Constant part of PDF, from Covariance
   const double _cte_pdf;
+
+  const std::size_t _id;
   const Amatrix _A;
   const Bmatrix _B;
   const Z _mean;
   const Covariance _inv_covariance;
   const prx::multivariate_gaussian_t<DimZ> _gaussian_sampler;
+
   // [1] Dean, Sarah, Horia Mania, Nikolai Matni, Benjamin Recht, and Stephen Tu. "On the sample
   //     complexity of the linear quadratic regulator." Foundations of Computational Mathematics
   //     20, no. 4 (2020): 633-679.
@@ -343,67 +455,19 @@ public:
   {
   }
 
-  static LinearMixtureModelPtr from_files(const std::string linear_systems_file, const std::string covariances_file,
-                                          const std::string means_file)
+  static LinearMixtureModelPtr from_files(const std::string filename)
   {
-    using prx::utilities::convert_to;
+    LinearMixtureModelPtr lmm;
+    std::ifstream file(filename.c_str());
 
-    std::vector<int> ids;
-    std::map<int, Zmatrix> linear_systems;
-    std::map<int, Covariance> covs;
-    std::map<int, Mean> means;
-    prx::utilities::csv_reader_t linear_systems_reader(linear_systems_file);
-    prx::utilities::csv_reader_t covs_reader(covariances_file);
-    prx::utilities::csv_reader_t means_reader(means_file);
-
-    std::vector<std::string> line;
-    const int mat_size{ DimX * (DimX + DimU) };
-    while (linear_systems_reader.next_valid_line(line))
+    for (std::string line; std::getline(file, line);)
     {
-      const int id{ convert_to<int>(line[0]) };
-      ids.push_back(id);
-      Eigen::MatrixXd m_in(mat_size, 1);
-      for (int i = 0; i < mat_size; ++i)
+      if (utils::skip_line(line))
       {
-        m_in(i, 0) = convert_to<double>(line[i + 1]);
+        continue;
       }
-      linear_systems[id] = m_in.reshaped(DimX, DimX + DimU);
+      lmm._models.push_back(LinearGaussianModel::from_string(line));
     }
-
-    const int cov_size{ (DimX + DimU) * (DimX + DimU) };
-    while (covs_reader.next_valid_line(line))
-    {
-      const int id{ convert_to<int>(line[0]) };
-      Eigen::MatrixXd m_in(cov_size, 1);
-      for (int i = 0; i < cov_size; ++i)
-      {
-        m_in(i, 0) = convert_to<double>(line[i + 1]);
-      }
-      covs[id] = m_in.reshaped(DimX + DimU, DimX + DimU);
-    }
-
-    const int mean_size{ DimX + DimU };
-    while (means_reader.next_valid_line(line))
-    {
-      const int id{ convert_to<int>(line[0]) };
-      Mean mu;
-      for (int i = 0; i < mean_size; ++i)
-      {
-        mu[i] = convert_to<double>(line[i + 1]);
-      }
-      means[id] = mu;
-    }
-
-    LinearMixtureModelPtr model{ std::make_shared<linear_mixture_model_t>() };
-
-    for (auto id : ids)
-    {
-      const Zmatrix z{ linear_systems[id] };
-      const Covariance cov{ covs[id] };
-      const Mean mean{ means[id] };
-      model->_models.emplace_back(z, cov, mean);
-    }
-    return model;
   }
 
   template <typename... Args>
@@ -510,6 +574,19 @@ public:
     if (_verbose)
       LOG_VARS(w_delta, xbar)
     return { true, xbar };
+  }
+
+  void to_file(const std::string filename)
+  {
+    std::ofstream ofs(filename.c_str());
+
+    ofs << "# Each lines represent one model, corresponding to:";
+    ofs << LinearGaussianModel::header();
+    for (auto model : _models)
+    {
+      model.to_file(ofs);
+    }
+    ofs.close();
   }
 
 private:

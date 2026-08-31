@@ -93,11 +93,11 @@ int main(int argc, char** argv)
   ros::Publisher markers_x1_lmm_euclidean_publisher{ nh.advertise<visualization_msgs::MarkerArray>(
       "/clustering/x1/lmm/euclidean/markers", 1, true) };
 
-  std::string data_file, output_dir;
+  std::string data_file, output_file;
   int batch_size, test_size;
 
   PARAM_SETUP(nh, data_file)
-  PARAM_SETUP(nh, output_dir)
+  PARAM_SETUP(nh, output_file)
   PARAM_SETUP_WITH_DEFAULT(nh, batch_size, 1e3);
   PARAM_SETUP_WITH_DEFAULT(nh, test_size, batch_size * 0.1);
 
@@ -464,6 +464,8 @@ int main(int argc, char** argv)
     x1_euclidean_marker_array.markers.push_back(marker_x1_euclidean_pts);
     x1_predict_euclidean_marker_array.markers.push_back(marker_x1_predict_euclidean_pts);
   }
+
+  lmm.to_file(output_file);
   // ofs_clusters.close();
   markers_lie_ellipses_publisher.publish(lie_ellipses_array);
   markers_euclidean_publisher.publish(data_euclidean_marker_array);
@@ -524,6 +526,7 @@ int main(int argc, char** argv)
 
   markers_x1_lmm_euclidean_publisher.publish(x1_lmm_euclidean_marker_array);
 
+  PRINT_MSG("Finished... (spinning)")
   ros::spin();
   return 0;
 }

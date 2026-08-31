@@ -136,6 +136,7 @@ struct fg_trajectory_tracking_controller_t
 
   Plan plan;
   Trajectory traj_nominal;
+  std::size_t steps_to_propagate;
   // Control u_min;
   // Control u_max;
   gtsam::LevenbergMarquardtParams lm_params;
@@ -166,7 +167,8 @@ public:
 
   using DynamicalSystemPtr = std::shared_ptr<DynamicalSystem>;
 
-  using Plan = std::vector<prx::piecewise_step_t<Control, double>>;
+  using PlanStep = prx::piecewise_step_t<Control, double>;
+  using Plan = std::vector<PlanStep>;
   using Trajectory = std::vector<State>;
   using Controller = fg_trajectory_tracking_controller_t<DynamicalSystem>;
 
@@ -181,20 +183,26 @@ public:
     // {
     Plan plan{ ctrls.plan };
     Trajectory traj{ ctrls.traj_nominal };
+    double t0{ 0 };
 
     for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
     {
-      const State& x0{ trajectory.back() };
+      // traj.erase(traj.begin());
 
-      const Control u{ ctrls.fg_control(x0, traj, plan) };
+      const PlanStep& u0{ plan.front() };
 
-      const StateDot xd{ f->ode(x0, u) };
-      const State x1{ f->integrate(x0, xd, prx::simulation_step) };
+      // for (double ti = 0.; ti < u0.duration; ti += prx::simulation_step)
+      for (double ti = 0.; ti < u0.duration; ti += prx::simulation_step, t0 += prx::simulation_step)
+      {
+        const State& x0{ trajectory.back() };
+        const Control u{ ctrls.fg_control(x0, traj, plan, t0) };
 
-      trajectory.push_back(std::move(x1));
+        const StateDot xd{ f->ode(x0, u) };
+        const State x1{ f->integrate(x0, xd, prx::simulation_step) };
+        trajectory.push_back(std::move(x1));
+      }
 
-      traj.erase(traj.begin());
-      plan.erase(plan.begin());
+      // plan.erase(plan.begin());
       // }
     }
   }
@@ -217,26 +225,28 @@ public:
     Plan plan{ ctrls.plan };
     Trajectory traj{ ctrls.traj_nominal };
 
-    // PRX_DBG_VARS(plan)
-    // PRX_DBG_VARS(traj)
-
-    // std::cout << "\n\n";
-    for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
+    double t0{ 0. };
+    // for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
+    for (std::size_t i = 0; i < ctrls.steps_to_propagate; ++i)
     {
-      const State& x0{ trajectory.back() };
+      // traj.erase(traj.begin());
 
-      const Control u{ ctrls.fg_control(x0, traj, plan) };
+      const PlanStep& u0{ plan[i] };
 
-      const StateDot xd{ f->ode(x0, u) };
-      // const StateDot xd_w{ xd };
-      const StateDot xd_w{ noise(xd) };
-      const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
+      for (double ti = 0.; ti < u0.duration; ti += prx::simulation_step, t0 += prx::simulation_step)
+      {
+        const State& x0{ trajectory.back() };
+        const Control u{ ctrls.fg_control(x0, traj, plan, t0) };
+        const StateDot xd{ f->ode(x0, u) };
 
-      // PRX_DBG_VARS(u, xd, x1)
-      trajectory.push_back(std::move(x1));
+        // const StateDot xd_w{ xd };
+        const StateDot xd_w{ noise(xd) };
+        const State x1{ f->integrate(x0, xd_w, prx::simulation_step) };
 
-      traj.erase(traj.begin());
-      plan.erase(plan.begin());
+        trajectory.push_back(std::move(x1));
+      }
+
+      // plan.erase(plan.begin());
     }
     // }
     // Controller graph_values_p{ graph_values };

@@ -64,4 +64,23 @@ std::string time_to_string(const ros::Time& time)
   return ti;
 }
 
+// Skip a line if it starts with '#' or has trailing blanks and then '#' (i.e. "   # abc")
+// A '#' in the middle is not skipped.
+inline bool skip_line(const std::string line)
+{
+  for (auto ch : line)
+  {
+    if (std::isblank(ch))
+    {
+      continue;
+    }
+    if (ch == '#')
+    {
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
 }  // namespace utils

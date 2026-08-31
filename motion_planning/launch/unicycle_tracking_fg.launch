@@ -24,7 +24,7 @@
     <arg name="exit_after_query" default="false"/>
 
 
-    <param name="simulation_step" value="0.1"/>
+    <param name="simulation_step" value="0.01"/>
     <param name="random_seed" value="$(arg random_seed)"/>
     <param name="plant_parameters" textfile="$(arg plant_file)"/>
     <param name="environment" textfile="$(find prx_models)/models/environments/$(arg environment).yaml" />

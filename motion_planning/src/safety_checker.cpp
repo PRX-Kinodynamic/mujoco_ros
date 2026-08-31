@@ -177,6 +177,7 @@ struct safety_helper_t
     _state_estimate = *msg;
     valid_state = true;
     DEBUG_VARS(valid_state)
+    DEBUG_VARS(_state_estimate)
   }
 
   // void plan_callback(const ml4kp_bridge::PlanStepStampedArrayConstPtr msg)

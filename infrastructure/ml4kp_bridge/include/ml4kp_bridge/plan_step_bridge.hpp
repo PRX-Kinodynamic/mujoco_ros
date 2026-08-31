@@ -285,33 +285,39 @@ inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl
   // std::vector<State> trajectory;
   // std::vector<Control> controls;
 
-  Plan plan;
-  ml4kp_bridge::copy(plan, msg.plan);
-
-  Control ut;
+  // Plan plan;
+  ml4kp_bridge::copy(ctrl.plan, msg.plan);
+  ctrl.steps_to_propagate = msg.steps_to_propagate;
+  ctrl.fg_dt = msg.fg_dt;
+  // Control ut;
   // PRX_DBG_VARS(plan);
-  for (const auto& u_dt : plan)
-  {
-    // ml4kp_bridge::copy(ut, u_msg);
-    double ti{ 0. };
-    while (ti < u_dt.duration)
-    {
-      // ml4kp_bridge::copy();
-      ctrl.plan.emplace_back(u_dt.control, prx::simulation_step);
-      ti += prx::simulation_step;
-    }
-  }
+  // for (const auto& u_dt : plan)
+  // {
+  //   // ml4kp_bridge::copy(ut, u_msg);
+  //   double ti{ 0. };
+  //   while (ti < u_dt.duration)
+  //   {
+  //     // ml4kp_bridge::copy();
+  //     ctrl.plan.emplace_back(u_dt.control, prx::simulation_step);
+  //     ti += prx::simulation_step;
+  //   }
+  // }
   PRX_DBG_VARS(ctrl.plan);
 
   State x0;
   ml4kp_bridge::copy(x0, msg.x0);
+
+  std::swap(ctrl.fg_dt, prx::simulation_step);
   FwdPropOpenLoop::propagate(ctrl.traj_nominal, x0, ctrl.plan, ctrl.plant);
+  std::swap(ctrl.fg_dt, prx::simulation_step);
   // for (const auto& x_msg : msg.trajectory)
   // {
   //   ml4kp_bridge::copy(xt, x_msg);
   //   ctrl.traj_nominal.push_back(xt);
   // }
 
+  PRX_DBG_VARS(msg)
+  PRX_DBG_VARS(x0)
   PRX_DBG_VARS(ctrl.traj_nominal)
 }
 

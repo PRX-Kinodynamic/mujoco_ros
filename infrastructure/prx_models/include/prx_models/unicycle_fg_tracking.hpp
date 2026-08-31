@@ -53,9 +53,10 @@ public:
   using Control = prx::unicycle_model_t::Control;
   using Base = gtsam::NoiseModelFactorN<State, State, Control>;
 
-  unicycle_factor_t(const gtsam::Key& x1, const gtsam::Key& x0, const gtsam::Key& u01,  // no-lint
-                    std::shared_ptr<prx::unicycle_model_t> plant, const NoiseModel& cost_model = nullptr)
-    : _plant(plant), Base(cost_model, x1, x0, u01)
+  unicycle_factor_t(const gtsam::Key& x1, const gtsam::Key& x0, const gtsam::Key& u01,                     // no-lint
+                    std::shared_ptr<prx::unicycle_model_t> plant, const double dt = prx::simulation_step,  // no-lint
+                    const NoiseModel& cost_model = nullptr)
+    : _plant(plant), Base(cost_model, x1, x0, u01), _dt(dt)
   {
   }
 
@@ -68,7 +69,7 @@ public:
     Eigen::Matrix<double, 3, 2> x1p_H_u;
     Eigen::Matrix3d err_H_x1p, err_H_x1;
 
-    const State x1p{ _plant->propagate(x0, u01, prx::simulation_step, &x1p_H_x0, &x1p_H_u) };
+    const State x1p{ _plant->propagate(x0, u01, _dt, &x1p_H_x0, &x1p_H_u) };
 
     const Eigen::Vector3d error{ prx::TangentBetween(x1p, x1, &err_H_x1p, &err_H_x1) };
 
@@ -90,6 +91,7 @@ public:
 
 protected:
   std::shared_ptr<prx::unicycle_model_t> _plant;
+  const double _dt;
 };
 
 template <>
@@ -102,7 +104,8 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
   using State = prx::unicycle_model_t::State;
   using Control = prx::unicycle_model_t::Control;
 
-  using Plan = std::vector<prx::piecewise_step_t<Control, double>>;
+  using PlanStep = prx::piecewise_step_t<Control, double>;
+  using Plan = std::vector<PlanStep>;
   using Trajectory = std::vector<State>;
 
   using LessThanFn = prx::fg::VectorLessThanCmp<Control>;
@@ -114,12 +117,14 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
   std::string plant_parameters;
   Control u_min;
   Control u_max;
+  double fg_dt;
 
   Plan plan;
   Trajectory traj_nominal;
   gtsam::LevenbergMarquardtParams lm_params;
+  std::size_t steps_to_propagate;
 
-  fg_trajectory_tracking_controller_t() : u_max(1.1, 1.1), u_min(-1.1, -1.1)
+  fg_trajectory_tracking_controller_t() : u_max(1.2, 1.2), u_min(-1.2, -1.2)
   {
     ros::NodeHandle nh("~");
     GLOBAL_PARAM_BLOCKER(plant_parameters);
@@ -147,68 +152,81 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
   //                      gtsam::LevenbergMarquardtParams& lm_params)
   // std::function<Control(const State&, const Trajectory&, const Plan&)> fg_control =
 
-  virtual Control fg_control(const State& xt, const Trajectory& traj_gt, const Plan& plan) const
+  virtual Control fg_control(const State& zt, const Trajectory& traj_gt, const Plan& plan_in, const double t0) const
   {
     gtsam::Values values;
     gtsam::NonlinearFactorGraph graph;
 
     // PRINT_MSG("Building FG")
-    const NoiseModel f_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-0) };
+    const NoiseModel f_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e0) };
     const NoiseModel x0_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-3) };
+    const NoiseModel xi_nm{ gtsam::noiseModel::Isotropic::Sigmas(Eigen::Vector3d(0.5, 0.5, 1.0)) };
     const NoiseModel xT_nm{ gtsam::noiseModel::Isotropic::Sigma(3, 1e-1) };
 
+    const double epsilon{ 0.0001 };
     // DEBUG_VARS(traj_gt.size())
     // for (int i = 0; i < traj_gt.size() - 1; ++i)
-    std::size_t i{ 0 };
+    std::size_t idx{ 0 };
 
-    // DEBUG_VARS(plan.size());
-    for (auto&& step : plan)
+    // DEBUG_VARS(ti)
+    double t_accum{ 0. };
+    while (t_accum + plan[idx].duration < t0)
     {
-      // double ti{ 0. };
-      // DEBUG_VARS(step.control, step.duration);
-      // while (ti < step.duration)
-      // {
-      const gtsam::Key xk0{ gtsam::Symbol('X', i) };
-      const gtsam::Key xk1{ gtsam::Symbol('X', i + 1) };
-      const gtsam::Key uk01{ gtsam::Symbol('U', i) };
-
-      // const State xi_w{ traj_w[i] };
-      const State xi_gt{ traj_gt[i] };
-
-      values.insert(xk0, xi_gt);
-      values.insert(uk01, step.control);
-      // values.insert(uk01, plan[i].control);
-
-      // if (i != 0)
-      // {
-      //   graph.addPrior(xk0, xi_gt);
-      // }
-      graph.emplace_shared<LessThanFactor>(uk01, u_min);
-      graph.emplace_shared<GreaterThanFactor>(uk01, u_max);
-      graph.emplace_shared<prx::unicycle_factor_t>(xk1, xk0, uk01, plant, f_nm);
-
-      i++;
-      // ti += prx::simulation_step;
-      // }
+      // DEBUG_VARS(t_accum)
+      idx++;
+      t_accum += plan[idx].duration;
     }
+    double ti{ t0 - t_accum };
+    std::size_t traj_idx{ static_cast<std::size_t>((t0 + epsilon) / fg_dt) + 1 };
+    // const std::size_t traj_step{ static_cast<std::size_t>((fg_dt + epsilon) / prx::simulation_step) };
+    const std::size_t traj_step{ 1 };
+    // DEBUG_VARS(traj_nominal.size(), plan.size())
+    // DEBUG_VARS(t0, t_accum, idx, traj_idx, ti, traj_step)
 
-    const gtsam::Key xk0{ gtsam::Symbol('X', 0) };
-    const gtsam::Key xkT{ gtsam::Symbol('X', traj_gt.size() - 1) };
+    int i{ 0 };
+    // Add the first
+    const gtsam::Key xk0{ gtsam::Symbol('X', i) };
+    graph.addPrior(xk0, zt, x0_nm);
+    values.insert(xk0, zt);
 
-    graph.addPrior(xk0, xt, x0_nm);
+    double dt{ std::fmod(ti, fg_dt) };
+    for (; idx < plan.size(); ++idx)
+    {
+      // DEBUG_VARS(idx)
+      for (; ti < plan[idx].duration; ti += fg_dt, ++i, traj_idx += traj_step)
+      {
+        const gtsam::Key xk0{ gtsam::Symbol('X', i) };
+        const gtsam::Key xk1{ gtsam::Symbol('X', i + 1) };
+        const gtsam::Key uk01{ gtsam::Symbol('U', i) };
+
+        const State xi_gt{ traj_nominal[traj_idx] };
+        const Control ui{ plan[idx].control };
+
+        values.insert(uk01, ui);
+        values.insert(xk1, xi_gt);
+
+        // graph.addPrior(xk1, xi_gt, xi_nm);
+        // graph.emplace_shared<LessThanFactor>(uk01, u_min);
+        // graph.emplace_shared<GreaterThanFactor>(uk01, u_max);
+        graph.emplace_shared<prx::unicycle_factor_t>(xk1, xk0, uk01, plant, dt, f_nm);
+
+        dt = fg_dt;
+        // DEBUG_VARS(i, t_accum, ti, traj_idx, idx, xi_gt, ui)
+      }
+      ti = 0;
+    }
+    // DEBUG_VARS(i, t_accum, ti, traj_idx, idx)
+    const gtsam::Key xkT{ gtsam::Symbol('X', i) };
     graph.addPrior(xkT, traj_gt.back(), xT_nm);
-
-    values.insert(xkT, traj_gt.back());
-
-    std::vector<State> traj;
-    std::vector<Control> ctrls;
 
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, values, lm_params);
 
     gtsam::Values result{ optimizer.optimize() };
+    // graph.printErrors(result);
+    // result.print();
 
-    // const double err_prev{ graph.error(values) };
-    // const double err_after{ graph.error(result) };
+    const double err_prev{ graph.error(values) };
+    const double err_after{ graph.error(result) };
     // DEBUG_VARS(err_prev, err_after, optimizer.iterations())
 
     const gtsam::Key ku0{ gtsam::Symbol('U', 0) };

@@ -162,7 +162,7 @@ public:
     const std::string trajs_filename{ output_directory + "/" + file_prefix + "_" + _timestamp + "_trajs.txt" };
     _ofs_trajs.open(trajs_filename.c_str());
     // DEBUG_VARS(OUTPUT_FILE)
-    _traj_marker = ml4kp_bridge::create_marker(0.01, { 1, 1, 0, 0 });
+    _traj_marker = ml4kp_bridge::create_marker(0.005, { 1, 1, 0, 0 });
     _traj_marker.type = visualization_msgs::Marker::LINE_LIST;
     _traj_marker.action = visualization_msgs::Marker::ADD;
   }
@@ -335,6 +335,7 @@ public:
     for (int traj_idx = 0; traj_idx < total_trajectories; ++traj_idx)
     {
       propagate();
+      // if (traj_idx % 10 == 0)
       if (traj_idx % 100'000 == 0)
       {
         DEBUG_VARS(traj_idx)
