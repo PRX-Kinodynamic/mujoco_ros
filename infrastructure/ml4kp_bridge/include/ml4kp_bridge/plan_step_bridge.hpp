@@ -269,7 +269,51 @@ template <typename DynamicalSystem>
 inline prx::fg_trajectory_tracking_controller_t<DynamicalSystem>
 split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const double split_time)
 {
-  return prx::fg_trajectory_tracking_controller_t<DynamicalSystem>(ctrl);
+  using Controller = prx::fg_trajectory_tracking_controller_t<DynamicalSystem>;
+  Controller head{ Controller::init(ctrl) };
+
+  double ti{ 0. };
+  std::size_t idx{ 0 };
+  PRX_DBG_VARS(ctrl.traj_nominal.size())
+  while (ti <= split_time)
+  {
+    ti += head.fg_dt;
+    PRX_DBG_VARS(ti)
+    ctrl.traj_nominal.erase(ctrl.traj_nominal.begin());
+  }
+  PRX_DBG_VARS(ctrl.traj_nominal.size())
+
+  PRX_DBG_VARS(ti)
+  ti = 0;
+  head.steps_to_propagate = 0;
+  while (ti + ctrl.plan[0].duration < split_time)
+  {
+    ti += ctrl.plan[0].duration;
+    head.steps_to_propagate++;
+    idx++;
+    ctrl.plan.erase(ctrl.plan.begin());
+    if (ctrl.plan.size() == 0)
+    {
+      break;
+    }
+  }
+
+  if (ctrl.plan.size() > 0 and ti + ctrl.plan[0].duration > split_time)
+  {
+    const double t_cdr{ ti + ctrl.plan[0].duration - split_time };
+    const double t_car{ ctrl.plan[0].duration - t_cdr };
+
+    head.plan.insert(head.plan.begin() + idx, head.plan[idx]);
+    head.plan[idx].duration = t_car;
+    head.plan[idx + 1].duration = t_cdr;
+    head.steps_to_propagate = idx + 1;
+
+    ctrl.plan[0].duration = t_cdr;
+  }
+  ctrl.steps_to_propagate = ctrl.plan.size();
+  // PRX_DBG_VARS(head.plan);
+
+  return head;
 }
 
 template <typename DynamicalSystem>
@@ -302,7 +346,7 @@ inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl
   //     ti += prx::simulation_step;
   //   }
   // }
-  PRX_DBG_VARS(ctrl.plan);
+  // PRX_DBG_VARS(ctrl.plan);
 
   State x0;
   ml4kp_bridge::copy(x0, msg.x0);
@@ -316,9 +360,9 @@ inline void copy(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl
   //   ctrl.traj_nominal.push_back(xt);
   // }
 
-  PRX_DBG_VARS(msg)
-  PRX_DBG_VARS(x0)
-  PRX_DBG_VARS(ctrl.traj_nominal)
+  // PRX_DBG_VARS(msg)
+  // PRX_DBG_VARS(x0)
+  // PRX_DBG_VARS(ctrl.traj_nominal)
 }
 
 inline void to_file(const ml4kp_bridge::PlanStep& msg, std::ofstream& ofs)

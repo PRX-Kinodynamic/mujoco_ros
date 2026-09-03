@@ -1,0 +1,31 @@
+<launch> 
+
+    
+    <arg name="data_file" />
+    <arg name="output_file" />
+    <arg name="initial_sigmas" />
+    <arg name="spin_after_finished" />
+
+    <!-- <arg name="test_noise_w" /> -->
+    <arg name="confidence_level" />
+    <arg name="M_trials" />
+
+
+    <arg name="dbg" value="lldb --"/>
+
+
+          <!-- launch-prefix="$(arg dbg)" -->
+    <!-- launch-prefix="gdb -ex run - -args" -->
+    <node pkg="motion_planning" name="SO2_clustering" type="SO2_clustering" 
+          output="screen" respawn="false" required="true">     
+      <param name="data_file" value="$(arg data_file)"/>
+      <param name="output_file" value="$(arg output_file)"/>
+      <param name="initial_sigmas" type="yaml" value="$(arg initial_sigmas)"/>
+      <param name="spin_after_finished" value="$(arg spin_after_finished)"/>
+      <!-- <param name="test_noise_w" value="$(arg test_noise_w)"/> -->
+      <param name="confidence_level" value="$(arg confidence_level)"/>
+      <param name="M_trials" value="$(arg M_trials)"/>
+      
+    </node>
+
+</launch>

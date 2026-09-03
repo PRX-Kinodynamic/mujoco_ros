@@ -1,0 +1,20 @@
+<launch>
+  <!-- Used to convert data from aruco topics ==> TF ==> files (poses + ctrls)  -->
+  <arg name="dt" default="0.01"/>
+  <arg name="total_trajectories" default="1000000"/>
+  <arg name="filename" default="/tmp/pendulum"/>
+  <arg name="covariance_as_vector"  default="[0.001,0.,0.,0.001]"/>
+  <arg name="plant_file" default="$(find motion_planning)/config/SO2_system.yaml"/>
+
+  <param name="simulation_step" value="$(arg dt)"/>
+  <param name="plant_parameters" textfile="$(arg plant_file)"/>
+
+
+  <node pkg="interface" type="dynamical_system_data_collection" name="dynamical_system_data_collection" output="screen" >
+      <param name="dt" value="$(arg dt)"/>
+      <param name="total_trajectories" value="$(arg total_trajectories)"/>
+      <param name="filename" value="$(arg filename)"/>
+      <param name="covariance_as_vector" type="yaml" value="$(arg covariance_as_vector)"/>
+  </node>
+
+</launch>

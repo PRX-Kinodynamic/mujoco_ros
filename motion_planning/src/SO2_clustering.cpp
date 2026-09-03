@@ -95,23 +95,45 @@ int main(int argc, char** argv)
 
   std::string data_file, output_file;
   int batch_size, test_size;
+  bool spin_after_finished;
 
+  std::vector<double> initial_sigmas;
+
+  // 0.05, 20, 0.001
+  double confidence_level;
+  int M_trials;
+  std::vector<double> test_noise_w;
+
+  PARAM_SETUP(nh, M_trials)
   PARAM_SETUP(nh, data_file)
   PARAM_SETUP(nh, output_file)
+  // PARAM_SETUP(nh, test_noise_w)
+  PARAM_SETUP(nh, initial_sigmas)
+  PARAM_SETUP(nh, confidence_level)
   PARAM_SETUP_WITH_DEFAULT(nh, batch_size, 1e3);
   PARAM_SETUP_WITH_DEFAULT(nh, test_size, batch_size * 0.1);
+  PARAM_SETUP_WITH_DEFAULT(nh, spin_after_finished, true);
 
   DEBUG_VARS(batch_size, test_size)
   prx::utilities::csv_reader_t reader(data_file);
 
+  prx::chi_squared chi2(confidence_level);
+
   Line line;
   // Data data;
-  // Element element;
+  // prx_assert(test_noise_w.size() == 2, "[SO2_clustering] test_noise_w must be size 2 (DimX)");
+  prx_assert(initial_sigmas.size() == 3, "[SO2_clustering] initial_sigmas must be size 3 (DimX+DimU)");
   Eigen::VectorXd sigmas(3);
   // sigmas << 0.1, 0.1, 0.1;
-  sigmas << 1, 1, 0.1;
+  sigmas << initial_sigmas[0], initial_sigmas[1], initial_sigmas[2];
   auto nm = DiagonalNM::Sigmas(sigmas);
 
+  Eigen::Matrix2d test_w{ Eigen::Matrix2d::Identity() * 0.001 };
+  // test_w(0, 0) = test_noise_w[0];
+  // test_w(1, 1) = test_noise_w[1];
+  // test_w(2, 2) = test_noise_w[2];
+  DEBUG_VARS(sigmas)
+  DEBUG_VARS(test_w)
   std::vector<Data> input_data, test_set;
   // std::vector<Element> input_elements;
 
@@ -154,15 +176,22 @@ int main(int argc, char** argv)
   std::size_t prev_output{ 0 };
   while (not converged and iter < max_iterations)
   {
+    DEBUG_VARS(iter, max_iterations, input_data.size(), input.clusters.size())
     iter++;
     output.clear();
     if (input_data.size() > 0)
     {
       iter--;
-      const std::size_t tot_elements_to_cluster{ std::min(static_cast<std::size_t>(batch_size), input_data.size()) };
+      // const std::size_t tot_elements_to_cluster{ std::min(static_cast<std::size_t>(batch_size), input_data.size()) };
       // for (int i = initial_size; i < tot_elements_to_cluster; ++i)
-      while (input.clusters.size() < tot_elements_to_cluster)
+      // while (input.clusters.size() < tot_elements_to_cluster)
+      for (int i = 0; i < batch_size; ++i)
       {
+        if (input_data.empty())
+        {
+          break;
+        }
+
         const Data& data{ input_data.back() };
         auto& [x0, u0, x1] = data;
         const Element element(x0, u0);
@@ -177,14 +206,16 @@ int main(int argc, char** argv)
     }
     std::shuffle(input.clusters.begin(), input.clusters.end(), prx::global_generator);
 
+    // DEBUG_VARS(input.clusters.size(), output.clusters.size());
     int max_steps{ -1 };
-    cluster_multiple_iterations(output, input, max_steps);
+    cluster_multiple_iterations(output, input, max_steps, chi2);
 
     converged = prev_output == output.clusters.size();
     prev_output = output.clusters.size();
     DEBUG_VARS(max_steps, converged, input.clusters.size(), output.clusters.size());
 
     input.clear();
+    // DEBUG_VARS(input.clusters.size());
 
     using LGM = prx_models::linear_gaussian_model_t<State, Control>;
     // Eigen::Matrix<double, DimX, DimX + DimU> A{ LGM::LSE_AB(all_zts, all_xdots) };
@@ -200,6 +231,12 @@ int main(int argc, char** argv)
       if (total_clustered < 2 * (DimX + DimU))
       {
         const std::string rejected_key{ gtsam::DefaultKeyFormatter(cluster.key) };
+        // input.clusters.emplace_back(cluster);
+        for (auto [x0, u0, x1] : cluster.data)
+        {
+          const Element ei(x0, u0);
+          input.push_back(ei, { x0, u0, x1 }, nm);
+        }
         DEBUG_VARS(i, rejected_key, total_clustered)
         continue;
       }
@@ -210,7 +247,7 @@ int main(int argc, char** argv)
 
       const Eigen::Matrix<double, DimX, DimZ> Zmat{ LGM::LSE_AB(cluster.data) };
       LGM lgm(Zmat, cov, element);
-      const auto [ebA, ebB] = lgm.compute_error_bounds(0.05, 20, 0.001);
+      const auto [ebA, ebB] = lgm.compute_error_bounds(confidence_level, M_trials, test_w);
 
       double mean_error{ 0 };
       for (auto [x0, u0, x1] : cluster.data)
@@ -220,7 +257,7 @@ int main(int argc, char** argv)
         mean_error += v_err.norm();
       }
       mean_error = mean_error / total_clustered;
-      if (mean_error > std::max(ebA, ebB))
+      if (mean_error > std::min(ebA, ebB))
       {
         const std::size_t& rejected{ cluster.idx };
         DEBUG_VARS(rejected, mean_error, ebA, ebB);
@@ -527,6 +564,10 @@ int main(int argc, char** argv)
   markers_x1_lmm_euclidean_publisher.publish(x1_lmm_euclidean_marker_array);
 
   PRINT_MSG("Finished... (spinning)")
-  ros::spin();
+
+  if (spin_after_finished)
+  {
+    ros::spin();
+  }
   return 0;
 }

@@ -180,10 +180,8 @@ template <typename Element, typename Data>
 bool merge_clusters(cluster_t<Element, Data>& c0, const cluster_t<Element, Data>& c1,  // no-lint
                     prx::chi_squared& chi2, const double alpha, const gtsam::GaussNewtonParams& params)
 {
-  // if (c0.total_clustered + c1.total_clustered < 2)
-  // {
+  // prx::timer_t timer;
 
-  // }
   const std::map<gtsam::Key, gtsam::Key> rekey_mapping{ { c1.key, c0.key } };
 
   gtsam::NonlinearFactorGraph graph{ c1.factor_graph.rekey(rekey_mapping) };
@@ -193,6 +191,10 @@ bool merge_clusters(cluster_t<Element, Data>& c0, const cluster_t<Element, Data>
 
   double error{ 0.0 };
   gtsam::Values result;
+
+  // const double fg_build_dt{ timer() };
+  // timer.reset();
+
   try
   {
     result = gtsam::GaussNewtonOptimizer(graph, values, params).optimize();
@@ -205,20 +207,16 @@ bool merge_clusters(cluster_t<Element, Data>& c0, const cluster_t<Element, Data>
     PRINT_MSG(e.what());
     return false;
   }
-  const double chi2_critical_value{ chi2.critical_value(graph.size(), alpha) };
-  // if (error > chi2_critical_value)
-  // {
-  //   return { false, gtsam::NonlinearFactorGraph(), Element() };
-  // }
-  // else
-  // {
-  //   return { true, graph, result.at<Element>(c0.key) };
-  // }
-  // if (c0.locked and error < chi2_critical_value)
-  // {
-  //   return true;
-  // }
 
+  // const double fg_optimize_dt{ timer() };
+  // timer.reset();
+
+  const double chi2_critical_value{ chi2.critical_value(graph.size(), alpha) };
+
+  // const double chi2_dt{ timer() };
+  // timer.reset();
+
+  bool merged{ false };
   if (error < chi2_critical_value)
   {
     if (not c0.locked)
@@ -234,41 +232,45 @@ bool merge_clusters(cluster_t<Element, Data>& c0, const cluster_t<Element, Data>
       c0.data.insert(c0.data.end(), c1.data.begin(), c1.data.end());
       c0.total_clustered += c1.total_clustered;
     }
-    return true;
+    merged = true;
   }
-  return false;
+  // const double merge_dt{ timer() };
+  // timer.reset();
+
+  // DEBUG_VARS(fg_build_dt, fg_optimize_dt, chi2_dt, merge_dt)
+  return merged;
 }
 
-template <typename Element>
-std::tuple<bool, gtsam::NonlinearFactorGraph, Element>
-merge_factor_graphs(const gtsam::NonlinearFactorGraph& fg0, const gtsam::NonlinearFactorGraph& fg1,
-                    const gtsam::Key& k0,
-                    const gtsam::Key& k1,                  // no-lint
-                    const Element& e0, const Element& e1,  // no-lint
-                    prx::chi_squared& chi2, const double alpha, const gtsam::GaussNewtonParams& params)
-{
-  // rekey_mapping is a map of old->new keys
-  const std::map<gtsam::Key, gtsam::Key> rekey_mapping{ { k1, k0 } };
+// template <typename Element>
+// std::tuple<bool, gtsam::NonlinearFactorGraph, Element>
+// merge_factor_graphs(const gtsam::NonlinearFactorGraph& fg0, const gtsam::NonlinearFactorGraph& fg1,
+//                     const gtsam::Key& k0,
+//                     const gtsam::Key& k1,                  // no-lint
+//                     const Element& e0, const Element& e1,  // no-lint
+//                     prx::chi_squared& chi2, const double alpha, const gtsam::GaussNewtonParams& params)
+// {
+//   // rekey_mapping is a map of old->new keys
+//   const std::map<gtsam::Key, gtsam::Key> rekey_mapping{ { k1, k0 } };
 
-  gtsam::NonlinearFactorGraph graph{ fg1.rekey(rekey_mapping) };
-  graph.push_back(fg0);
-  gtsam::Values values;
-  values.insert(k0, e0);
+//   gtsam::NonlinearFactorGraph graph{ fg1.rekey(rekey_mapping) };
+//   graph.push_back(fg0);
+//   gtsam::Values values;
+//   values.insert(k0, e0);
 
-  gtsam::Values result{ gtsam::GaussNewtonOptimizer(graph, values, params).optimize() };
-  // result.print("result");
-  const double error{ graph.error(result) };
+//   gtsam::Values result{ gtsam::GaussNewtonOptimizer(graph, values, params).optimize() };
+//   // result.print("result");
+//   const double error{ graph.error(result) };
 
-  const double chi2_critical_value{ chi2.critical_value(graph.size(), alpha) };
-  if (error > chi2_critical_value)
-  {
-    return { false, gtsam::NonlinearFactorGraph(), Element() };
-  }
-  else
-  {
-    return { true, graph, result.at<Element>(k0) };
-  }
-}
+//   const double chi2_critical_value{ chi2.critical_value(graph.size(), alpha) };
+//   if (error > chi2_critical_value)
+//   {
+//     return { false, gtsam::NonlinearFactorGraph(), Element() };
+//   }
+//   else
+//   {
+//     return { true, graph, result.at<Element>(k0) };
+//   }
+// }
 
 template <typename Element, typename Data>
 static void cluster_recursive(nonlinear_cluster_values_t<Element, Data>& output,  // no-lint
@@ -286,68 +288,31 @@ static void cluster_recursive(nonlinear_cluster_values_t<Element, Data>& output,
 
   // gtsam::Values values;
 
-  double prev_error{ 0 };
-  double adjusted_error{ 0 };
+  // double prev_error{ 0 };
+  // double adjusted_error{ 0 };
 
   nonlinear_cluster_values_t<Element, Data> rejected;
 
   Cluster c0{ input.clusters.front() };
 
-  // std::size_t cluster_idx{ cluster.idx };
-  // std::size_t clustered{ cluster.total_clustered };
-  // Element e0{ cluster.element };
-  // gtsam::Key k0{ cluster.key };
-  // gtsam::NonlinearFactorGraph fg0{ cluster.factor_graph };
-  // std::vector<Data> data{ cluster.data };
-  // std::vector<Element> clustered_elements{ cluster.clustered_elements };
-
+  // prx::timer_t timer;
+  // timer.reset();
   for (int i = 1; i < input.clusters.size(); ++i)
   {
     const Cluster& ci{ input.clusters[i] };
-    // const gtsam::Key& k1{ cl_i.key };
-    // const Element& e1{ cl_i.element };
-    // const gtsam::NonlinearFactorGraph& fg1{ cl_i.factor_graph };
 
-    // auto [merge, new_graph, cluster_element] =
-    //     merge_factor_graphs(fg0, fg1, k0, k1, e0, e1, chi2, input.alpha, input.optimizer_params);
-
-    // const bool merged{ false };
     const bool merged{ merge_clusters(c0, ci, chi2, input.alpha, input.optimizer_params) };
-    // if (merge)
-    // {
-    //   fg0 = new_graph;
-    //   e0 = cluster_element;
-    //   clustered_elements.insert(clustered_elements.end(),  // no-lint
-    //                             cl_i.clustered_elements.begin(), cl_i.clustered_elements.end());
-    //   data.insert(data.end(), cl_i.data.begin(), cl_i.data.end());
-    //   clustered += cl_i.total_clustered;
-    // }
-    // else
+
     if (not merged)
     {
-      // const std::size_t rejected_idx{ cl_i.idx };
-      // const std::size_t rejected_total_clustered{ input.clusters[i].total_clustered };
       rejected.clusters.emplace_back(ci);
-      // rejected.clusters.emplace_back(cl_i.idx, fg1, k1, e1, data, clustered_elements, cl_i.total_clustered);
-
-      // rejected.keys.push_back(k1);
-      // rejected.values.push_back(e1);
-      // rejected.factor_graphs.push_back(fg1);
-      // // rejected.noise_models.push_back(input.noise_models[i]);
-      // rejected.total_clustered.push_back(input.total_clustered[i]);
-      // rejected.data.push_back(input.data[i]);
-      // rejected.clustered_elements.push_back(input.clustered_elements[i]);
     }
   }
 
+  // const double merge_dt{ timer() };
+  // DEBUG_VARS(c0.idx, input.clusters.size(), merge_dt)
+
   output.clusters.emplace_back(c0);
-  // output.clusters.emplace_back(cluster_idx, fg0, k0, e0, data, clustered_elements, clustered);
-  // output.factor_graphs.push_back(fg0);
-  // output.keys.push_back(k0);
-  // output.values.push_back(e0);
-  // output.total_clustered.push_back(clustered);
-  // output.data.push_back(data);
-  // output.clustered_elements.push_back(clustered_elements);
 
   cluster_recursive(output, rejected, chi2);
 }
@@ -355,19 +320,19 @@ static void cluster_recursive(nonlinear_cluster_values_t<Element, Data>& output,
 template <typename Element, typename Data>
 static void cluster_multiple_iterations(nonlinear_cluster_values_t<Element, Data>& output,       // no-lint
                                         const nonlinear_cluster_values_t<Element, Data>& input,  // no-lint
-                                        int& max_steps)
+                                        int& max_steps, prx::chi_squared& chi2)
 {
   if (max_steps == 0)
     return;
-  prx::chi_squared chi2(0.001);
+  // prx::chi_squared chi2(0.001);
 
   std::size_t prev_size{ input.clusters.size() };
 
   nonlinear_cluster_values_t<Element, Data> output_aux, input_aux;
 
-  DEBUG_VARS(input.clusters.size())
+  // DEBUG_VARS(input.clusters.size())
   cluster_recursive(output_aux, input, chi2);
-  DEBUG_VARS(output_aux.clusters.size())
+  // DEBUG_VARS(output_aux.clusters.size())
 
   // DEBUG_VARS(output_aux.noise_models);
   max_steps--;
@@ -379,9 +344,9 @@ static void cluster_multiple_iterations(nonlinear_cluster_values_t<Element, Data
 
     prev_size = input_aux.clusters.size();
 
-    DEBUG_VARS(input_aux.clusters.size())
+    // DEBUG_VARS(input_aux.clusters.size())
     cluster_recursive(output_aux, input_aux, chi2);
-    DEBUG_VARS(output_aux.clusters.size())
+    // DEBUG_VARS(output_aux.clusters.size())
 
     max_steps--;
     // DEBUG_VARS(max_steps, prev_size, output_aux.values.size())

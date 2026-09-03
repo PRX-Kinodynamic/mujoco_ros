@@ -121,8 +121,8 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
 
   Plan plan;
   Trajectory traj_nominal;
-  gtsam::LevenbergMarquardtParams lm_params;
   std::size_t steps_to_propagate;
+  gtsam::LevenbergMarquardtParams lm_params;
 
   fg_trajectory_tracking_controller_t() : u_max(1.2, 1.2), u_min(-1.2, -1.2)
   {
@@ -136,11 +136,19 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
 
   static fg_trajectory_tracking_controller_t init(fg_trajectory_tracking_controller_t& other)
   {
-    // : u_max(other.u_max), u_min(other.u_min), plant(prx::unicycle_model_t::create(other.plant_parameters))
     fg_trajectory_tracking_controller_t new_obj;
     new_obj.plant = prx::unicycle_model_t::create(other.plant_parameters);
+    new_obj.plant_parameters = other.plant_parameters;
+    new_obj.u_min = other.u_min;
+    new_obj.u_max = other.u_max;
+    new_obj.fg_dt = other.fg_dt;
+
+    new_obj.plan = other.plan;
+    new_obj.traj_nominal = other.traj_nominal;
+    new_obj.lm_params = other.lm_params;
+    new_obj.steps_to_propagate = other.steps_to_propagate;
+
     return new_obj;
-    // plant = prx::unicycle_model_t::create(other.plant_parameters);
   }
 
   std::size_t size() const
@@ -236,18 +244,28 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
     return u0;
   };
 };
-}  // namespace prx
 
-namespace ml4kp_bridge
+template <>  // primary template
+struct stream_specialization<fg_trajectory_tracking_controller_t<prx::unicycle_model_t>> : std::true_type
 {
+};
 
-// inline prx::unicycle_fg_controller_t split(prx::unicycle_fg_controller_t& ctrl, const double split_time)
-// {
-//   return prx::unicycle_fg_controller_t();
-// }
+template <>
+struct streamer_t<fg_trajectory_tracking_controller_t<prx::unicycle_model_t>> : std::true_type
+{
+  using Ctrl = fg_trajectory_tracking_controller_t<prx::unicycle_model_t>;
 
-// inline void copy(prx::unicycle_fg_controller_t& ctrl, const ml4kp_bridge::SlsGain& msg)
-// {
-// }
-
-}  // namespace ml4kp_bridge
+public:
+  static void to_stream(std::ostream& os, const Ctrl& ctrl)
+  {
+    os << "Plan:\n";
+    prx::to_stream(os, ctrl.plan);
+    os << "Nominal Trajectory:\n";
+    prx::to_stream(os, ctrl.traj_nominal);
+    os << "Steps to Propagate: ";
+    prx::to_stream(os, ctrl.steps_to_propagate);
+    os << "\n";
+  }
+};
+//
+}  // namespace prx

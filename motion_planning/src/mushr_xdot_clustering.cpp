@@ -83,6 +83,8 @@ int main(int argc, char** argv)
   PARAM_SETUP_WITH_DEFAULT(nh, batch_size, 1e3);
   PARAM_SETUP_WITH_DEFAULT(nh, test_size, batch_size);
 
+  prx::chi_squared chi2(0.001);
+
   prx::utilities::csv_reader_t reader(data_file);
 
   // motion_planning::cluster_in_out_t<Element, Data> input, output;
@@ -165,7 +167,7 @@ int main(int argc, char** argv)
     std::shuffle(input.clusters.begin(), input.clusters.end(), prx::global_generator);
 
     int max_steps{ -1 };
-    cluster_multiple_iterations(output, input, max_steps);
+    cluster_multiple_iterations(output, input, max_steps, chi2);
 
     converged = prev_output == output.clusters.size();
     prev_output = output.clusters.size();

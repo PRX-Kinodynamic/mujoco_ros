@@ -1,0 +1,39 @@
+<launch> 
+
+    <arg name="plant" default="pendulum_analytical"/>
+    <!-- <arg name="plant" default="unicycle"/> -->
+
+    <!-- <arg name="data_dir" default="" -->
+
+
+    <arg name="test" default="PendulumAnalyticalLQR"/>
+    <arg name="lmm_filename" default="$(env ML4KP_ROS)/data/LGMs/pendulum_analytical/sigmaInitp5p5p01_noise0.0_trajs1k.txt"/>
+    <arg name="total_samples" default="1000"/>
+    <arg name="output_filename" default="/tmp/lmm_test"/>
+    
+
+
+<!-- /Users/Gary/pracsys/catkin_ws/data/LGMs/pendulum_analytical/sigmaInit0.5_noise0.0_trajs1k.txt -->
+
+    <!-- <param name="plant_parameters" textfile="$(arg plant_file)"/> -->
+
+
+    <arg name="dbg" value="lldb --"/>
+
+
+          <!-- launch-prefix="$(arg dbg)" -->
+<!-- launch-prefix="gdb -ex run - -args" -->
+    <node pkg="motion_planning" name="glm_testing" type="glm_testing" 
+          output="screen" respawn="false" required="true">     
+      <param name="plant" value="$(arg plant)"/>
+      <param name="test" value="$(arg test)"/>
+      <param name="lmm_filename" value="$(arg lmm_filename)"/>
+      <param name="total_samples" value="$(arg total_samples)"/>
+      <param name="output_filename" value="$(arg output_filename)"/>
+      <!-- <param name="test_noise_w" value="$(arg test_noise_w)"/>
+      <param name="confidence_level" value="$(arg confidence_level)"/>
+      <param name="M_trials" value="$(arg M_trials)"/> -->
+      
+    </node>
+
+</launch>

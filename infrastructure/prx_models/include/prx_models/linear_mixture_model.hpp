@@ -257,8 +257,14 @@ public:
     _verbose = verbose_;
   }
 
-  // Algorithm 2 of [1]
   std::pair<double, double> compute_error_bounds(const double confidence_delta, const int M, const double sigma_w)
+  {
+    const Eigen::Matrix<double, DimX, DimX> wI{ sigma_w * Eigen::Matrix<double, DimX, DimX>::Identity() };
+    return compute_error_bounds(confidence_delta, M, wI);
+  }
+  // Algorithm 2 of [1]
+  std::pair<double, double> compute_error_bounds(const double confidence_delta, const int M,
+                                                 const Eigen::Matrix<double, DimX, DimX> wI)
   {
     using NormalW = prx::multivariate_gaussian_t<DimX>;
     // static Eigen::Matrix<double, DimX, DimZ> LSE_AB(const std::vector<DeltaZ> all_zts,
@@ -268,7 +274,6 @@ public:
     // Theoretically, only O(DimX + DimU) are needed. This higher N would just add robustness (?)
     const double N_raw{ 8. * DimZ + 16. * std::log(4. / confidence_delta) };
     const std::size_t N{ static_cast<std::size_t>(N_raw / DimX) };
-    const Eigen::Matrix<double, DimX, DimX> wI{ sigma_w * Eigen::Matrix<double, DimX, DimX>::Identity() };
     NormalW w_sampler{ NormalW(wI) };
 
     std::vector<double> error_bound_A, error_bound_B;
@@ -314,7 +319,7 @@ public:
 
   static std::string header()
   {
-    return "# id DimX DimU A(DimX,DimX) B(DimX,DimU) Mean(DimX) Cov(DimX,DimX)\n";
+    return "# id DimX DimU A(DimX,DimX) B(DimX,DimU) Mean(DimX+DimU) Cov(DimX+DimU,DimX+DimU)\n";
   }
 
   void to_file(std::ofstream& ofs)
@@ -375,7 +380,9 @@ public:
     const std::size_t idx{ static_cast<std::size_t>(values[0]) };
     const std::size_t Xdim{ static_cast<std::size_t>(values[1]) };
     const std::size_t Udim{ static_cast<std::size_t>(values[2]) };
-    // prx_assert()
+
+    // DEBUG_VARS(idx, Xdim, Udim);
+    // DEBUG_VARS(values);
     std::size_t v_idx{ 3 };
     Amatrix A;
     for (int i = 0; i < Xdim; ++i)
@@ -386,6 +393,9 @@ public:
       }
     }
 
+    // DEBUG_VARS(v_idx);
+    // DEBUG_VARS(A);
+
     Bmatrix B;
     for (int i = 0; i < Xdim; ++i)
     {
@@ -394,6 +404,8 @@ public:
         B(i, j) = values[v_idx];
       }
     }
+    // DEBUG_VARS(v_idx);
+    // DEBUG_VARS(B);
 
     Eigen::Vector<double, DimZ> vec_z;
     for (int i = 0; i < Xdim + Udim; ++i, ++v_idx)
@@ -403,9 +415,9 @@ public:
     const Z mean{ gtsam::traits<Z>::Expmap(vec_z) };
 
     Covariance cov;
-    for (int i = 0; i < Xdim; ++i)
+    for (int i = 0; i < Xdim + Udim; ++i)
     {
-      for (int j = 0; j < Udim; ++j, ++v_idx)
+      for (int j = 0; j < Xdim + Udim; ++j, ++v_idx)
       {
         cov(i, j) = values[v_idx];
       }
@@ -455,10 +467,10 @@ public:
   {
   }
 
-  static LinearMixtureModelPtr from_files(const std::string filename)
+  void from_file(const std::string linear_mixture_model_filename)
   {
-    LinearMixtureModelPtr lmm;
-    std::ifstream file(filename.c_str());
+    // LinearMixtureModelPtr lmm{ std::make_shared<linear_mixture_model_t>() };
+    std::ifstream file(linear_mixture_model_filename.c_str());
 
     for (std::string line; std::getline(file, line);)
     {
@@ -466,8 +478,9 @@ public:
       {
         continue;
       }
-      lmm._models.push_back(LinearGaussianModel::from_string(line));
+      _models.push_back(LinearGaussianModel::from_string(line));
     }
+    // return lmm;
   }
 
   template <typename... Args>
@@ -576,17 +589,18 @@ public:
     return { true, xbar };
   }
 
-  void to_file(const std::string filename)
+  void to_file(const std::string output_filename)
   {
-    std::ofstream ofs(filename.c_str());
+    std::ofstream ofs(output_filename.c_str());
 
-    ofs << "# Each lines represent one model, corresponding to:";
+    ofs << "# Each lines represent one model, corresponding to:\n";
     ofs << LinearGaussianModel::header();
     for (auto model : _models)
     {
       model.to_file(ofs);
     }
     ofs.close();
+    DEBUG_VARS(output_filename)
   }
 
 private:

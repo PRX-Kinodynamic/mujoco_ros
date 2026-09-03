@@ -25,6 +25,7 @@
 #include <motion_planning/safety_checker.hpp>
 #include <motion_planning/randup.hpp>
 #include <prx_models/mushr.hpp>
+#include <ml4kp_bridge/plan_step_bridge.hpp>
 
 // #include <prx_models/mushr_torch.hpp>
 #include <prx_models/mushr_mujoco.hpp>
@@ -185,12 +186,18 @@ struct safety_helper_t
   {
     _plan = *msg;
     valid_plan = true;
-    DEBUG_VARS(valid_plan)
+    // DEBUG_VARS(valid_plan)
 
-    // DEBUG_VARS(_plan)
     // Controller ctrl;
-
     // ml4kp_bridge::copy(ctrl, _plan);
+    // Controller car{ ml4kp_bridge::split(ctrl, 0.2) };
+    // Controller caar{ ml4kp_bridge::split(ctrl, 0.4) };
+    // Controller caaar{ ml4kp_bridge::split(ctrl, 0.1) };
+
+    // DEBUG_VARS(car)
+    // DEBUG_VARS(caar)
+    // DEBUG_VARS(caaar)
+    // DEBUG_VARS(ctrl)
     // Controller head{ ml4kp_bridge::split(ctrl, 1.0) };
 
     // DEBUG_VARS(ctrl.size(), head.size())
