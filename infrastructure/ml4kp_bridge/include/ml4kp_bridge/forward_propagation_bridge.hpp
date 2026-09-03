@@ -179,31 +179,30 @@ public:
   {
     prx_assert(trajectory.size() > 0,
                "forward_propagation_t::propagate] trajectory needs to contain at least the initial state");
-    // for (int i = 0; i < ctrls.size(); ++i)
-    // {
     Plan plan{ ctrls.plan };
     Trajectory traj{ ctrls.traj_nominal };
-    double t0{ 0 };
 
-    for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
+    double t0{ 0. };
+    // for (int j = 0; j < ctrls.traj_nominal.size() - 1; ++j)
+    for (std::size_t i = 0; i < ctrls.steps_to_propagate; ++i)
     {
       // traj.erase(traj.begin());
 
-      const PlanStep& u0{ plan.front() };
+      const PlanStep& u0{ plan[i] };
 
-      // for (double ti = 0.; ti < u0.duration; ti += prx::simulation_step)
       for (double ti = 0.; ti < u0.duration; ti += prx::simulation_step, t0 += prx::simulation_step)
       {
         const State& x0{ trajectory.back() };
         const Control u{ ctrls.fg_control(x0, traj, plan, t0) };
-
         const StateDot xd{ f->ode(x0, u) };
+
+        // const StateDot xd_w{ xd };
         const State x1{ f->integrate(x0, xd, prx::simulation_step) };
+
         trajectory.push_back(std::move(x1));
       }
 
       // plan.erase(plan.begin());
-      // }
     }
   }
   template <typename... Args>
