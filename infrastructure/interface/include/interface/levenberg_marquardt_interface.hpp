@@ -17,11 +17,11 @@ void initialize(gtsam::LevenbergMarquardtParams& lm_params, const ros::NodeHandl
   PARAM_SETUP_WITH_DEFAULT(nh_optimizer, iterations, 10);
   PARAM_SETUP_WITH_DEFAULT(nh_optimizer, verbosity_level, verbosity_level);
 
-  DEBUG_VARS(iterations)
+  // DEBUG_VARS(iterations)
 
   lm_params.setMaxIterations(iterations);
   lm_params.setVerbosityLM(verbosity_level);
-  DEBUG_VARS(lm_params.getVerbosityLM())
+  // DEBUG_VARS(lm_params.getVerbosityLM())
 }
 void initialize(gtsam::LevenbergMarquardtParams& lm_params, const std::string parent_namespace)
 {

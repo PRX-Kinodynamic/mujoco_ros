@@ -131,7 +131,7 @@ struct fg_trajectory_tracking_controller_t<prx::unicycle_model_t>
     plant = prx::unicycle_model_t::create(plant_parameters);
     // gtsam::LevenbergMarquardtParams lm_params;
     interface::initialize(lm_params, ros::NodeHandle(nh, "lm"));
-    lm_params.print();
+    // lm_params.print();
   }
 
   static fg_trajectory_tracking_controller_t init(fg_trajectory_tracking_controller_t& other)

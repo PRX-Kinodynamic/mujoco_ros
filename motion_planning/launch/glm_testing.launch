@@ -7,7 +7,7 @@
 
 
     <arg name="test" default="PendulumAnalyticalLQR"/>
-    <arg name="lmm_filename" default="$(env ML4KP_ROS)/data/LGMs/pendulum_analytical/sigmaInitp5p5p01_noise0.0_trajs1k.txt"/>
+    <arg name="lmm_filename" default="$(env ML4KP_ROS)/data/LGMs/pendulum_analytical/sigmaInit0.1_noise0.0_trajs10k.txt"/>
     <arg name="total_samples" default="1000"/>
     <arg name="output_filename" default="/tmp/lmm_test"/>
     
@@ -20,9 +20,9 @@
 
     <arg name="dbg" value="lldb --"/>
 
-
-          <!-- launch-prefix="$(arg dbg)" -->
 <!-- launch-prefix="gdb -ex run - -args" -->
+          <!-- launch-prefix="$(arg dbg)" -->
+
     <node pkg="motion_planning" name="glm_testing" type="glm_testing" 
           output="screen" respawn="false" required="true">     
       <param name="plant" value="$(arg plant)"/>

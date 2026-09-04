@@ -561,7 +561,8 @@ public:
   void propagate_neighbors(const State x0, const State state, const Covariance epsilon_inv, const double chi_confidence,
                            Controller controller, const std::size_t split_idx)
   {
-    // DEBUG_VARS(x0, state, chi_confidence, split_idx)
+    DEBUG_VARS(x0, state, chi_confidence, split_idx, controller.size())
+    DEBUG_VARS(controller)
     if (controller.size() == 0)
       return;
     // std::scoped_lock lock{ _log_mutex };
@@ -575,7 +576,7 @@ public:
     // DEBUG_VARS(total_vertices, controller.size(), split_idx)
     const Controller controller_head{ ml4kp_bridge::split(controller, _split_time) };
     // DEBUG_VARS(v0, controller.size())
-    // DEBUG_VARS(controller_head.size(), controller_head)
+    DEBUG_VARS(controller_head.size(), controller_head)
     while (not vertices_q.empty())
     {
       Vertex v_next{ vertices_q.back() };
@@ -645,8 +646,6 @@ public:
         }
       }
     }
-    // DEBUG_VARS(total_vertices)
-    // return true;
   }
 
   double effective_rad(const State x0, const State xi, const double rad) const

@@ -273,43 +273,89 @@ split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const dou
   Controller head{ Controller::init(ctrl) };
 
   double ti{ 0. };
-  std::size_t idx{ 0 };
-  PRX_DBG_VARS(ctrl.traj_nominal.size())
+  // PRX_DBG_VARS(ctrl.traj_nominal.size())
   while (ti <= split_time)
   {
     ti += head.fg_dt;
-    PRX_DBG_VARS(ti)
+    // PRX_DBG_VARS(ti)
     ctrl.traj_nominal.erase(ctrl.traj_nominal.begin());
   }
-  PRX_DBG_VARS(ctrl.traj_nominal.size())
+  // PRX_DBG_VARS(ctrl.traj_nominal.size())
 
-  PRX_DBG_VARS(ti)
+  // PRX_DBG_VARS(ti)
   ti = 0;
   head.steps_to_propagate = 0;
-  while (ti + ctrl.plan[0].duration < split_time)
+
+  std::size_t idx{ 0 };
+  while (ti < split_time)
   {
-    ti += ctrl.plan[0].duration;
-    head.steps_to_propagate++;
+    ti += ctrl.plan[idx].duration;
+    // head.steps_to_propagate++;
     idx++;
-    ctrl.plan.erase(ctrl.plan.begin());
-    if (ctrl.plan.size() == 0)
-    {
-      break;
-    }
+    // ctrl.plan.erase(ctrl.plan.begin());
+    // if (ctrl.plan.size() == 0)
+    // {
+    //   break;
+    // }
+    // ti = 1.5
+    // split = 1.3
+    // ctrl.plan = 0.5
   }
 
-  if (ctrl.plan.size() > 0 and ti + ctrl.plan[0].duration > split_time)
+  const double excess{ ti - split_time };
+  const double head_dt{ ctrl.plan[idx - 1].duration - excess };
+  for (int i = 0; i < idx - 1; ++i)
   {
-    const double t_cdr{ ti + ctrl.plan[0].duration - split_time };
-    const double t_car{ ctrl.plan[0].duration - t_cdr };
-
-    head.plan.insert(head.plan.begin() + idx, head.plan[idx]);
-    head.plan[idx].duration = t_car;
-    head.plan[idx + 1].duration = t_cdr;
-    head.steps_to_propagate = idx + 1;
-
-    ctrl.plan[0].duration = t_cdr;
+    ctrl.plan.erase(ctrl.plan.begin());
   }
+  if (ti > split_time)
+  {
+    ctrl.plan.front().duration = excess;
+  }
+  if (ctrl.plan.front().duration < ctrl.fg_dt / 2.)
+  {
+    ctrl.plan.erase(ctrl.plan.begin());
+  }
+  ///
+
+  // while()
+  head.steps_to_propagate = idx;
+  if (ti > split_time)
+  {
+    // const double t_cdr{ ti + ctrl.plan[0].duration - split_time };
+    // const double t_car{ ctrl.plan[0].duration - t_cdr };
+
+    // if (t_car > head.fg_dt)
+    // {
+    head.plan.insert(head.plan.begin() + idx - 1, head.plan[idx - 1]);
+    head.plan[idx - 1].duration = head_dt;
+    head.plan[idx].duration = excess;
+    // head.steps_to_propagate++;
+    // }
+
+    // ctrl.plan[0].duration = t_cdr;
+  }
+  else
+  {
+    // head.plan.insert(head.plan.begin() + idx, head.plan[idx]);
+    head.plan[idx].duration = ti;
+    // head.plan[idx + 1].duration = ti - split_time;
+    // head.steps_to_propagate++;
+  }
+
+  //   // if (ctrl.plan[0].duration < ctrl.fg_dt)
+  //   // {
+  //   //   ctrl.plan.erase(ctrl.plan.begin());
+  //   // }
+  //   // else
+  //   // {
+  //   // }
+  // }
+  // if (ctrl.plan[0].duration < ctrl.fg_dt)
+  // {
+  //   ctrl.plan.erase(ctrl.plan.begin());
+  // }
+
   ctrl.steps_to_propagate = ctrl.plan.size();
   // PRX_DBG_VARS(head.plan);
 

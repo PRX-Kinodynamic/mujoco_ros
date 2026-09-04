@@ -257,7 +257,19 @@ int main(int argc, char** argv)
         mean_error += v_err.norm();
       }
       mean_error = mean_error / total_clustered;
-      if (mean_error > std::min(ebA, ebB))
+
+      const double rateAB{ ebA / ebB };
+      const double rateBA{ ebB / ebA };
+      if (mean_error < std::max(ebA, ebB) and (rateAB < 2. or rateBA < 2.))
+      {
+        // lmm.emplace(A, cov, element, i);
+        const std::size_t& accepted{ cluster.idx };
+        DEBUG_VARS(accepted, mean_error, ebA, ebB);
+        input.clusters.emplace_back(cluster);
+        input.clusters.back().locked = true;
+        cluster_map.emplace(cluster.idx, std::make_tuple(input.clusters.back(), cov, Zmat));
+      }
+      else
       {
         const std::size_t& rejected{ cluster.idx };
         DEBUG_VARS(rejected, mean_error, ebA, ebB);
@@ -268,49 +280,12 @@ int main(int argc, char** argv)
           input.push_back(ei, { x0, u0, x1 }, nm);
         }
       }
-      else
-      {
-        // lmm.emplace(A, cov, element, i);
-        const std::size_t& accepted{ cluster.idx };
-        DEBUG_VARS(accepted, mean_error, ebA, ebB);
-        input.clusters.emplace_back(cluster);
-        input.clusters.back().locked = true;
-        cluster_map.emplace(cluster.idx, std::make_tuple(input.clusters.back(), cov, Zmat));
-      }
     }
 
     // converged = true;
   }
 
   DEBUG_VARS(cluster_map.size());
-
-  // int max_steps{ -1 };
-  // cluster_multiple_iterations(output, input, max_steps);
-
-  // DEBUG_VARS(output.total_clustered.size(), output.data.size());
-  // DEBUG_VARS(output.factor_graphs.size(), output.keys.size());
-
-  // int kidx{ 0 };
-  // for (auto& fg : output.factor_graphs)
-  // {
-  //   // DEBUG_VARS(kidx);
-  //   fg.print("kidx ");
-  // }
-  // kidx = 0;
-  // for (auto& k : output.keys)
-  // {
-  //   const std::string key{ gtsam::DefaultKeyFormatter(k) };
-  //   DEBUG_VARS(kidx, key);
-  //   kidx++;
-  // }
-  // const std::string clusters_filename{ output_dir + "/clusters.txt" };
-  // const std::string values_filename{ output_dir + "/values.txt" };
-  // const std::string covs_filename{ output_dir + "/covariances.txt" };
-  // const std::string covs_Ais{ output_dir + "/linear_systems.txt" };
-  // std::ofstream ofs_values(values_filename.c_str());
-  // std::ofstream ofs_covs(covs_filename.c_str());
-  // std::ofstream ofs_clusters(clusters_filename.c_str());
-  // std::ofstream ofs_Ais(covs_Ais.c_str());
 
   interface::gaussian_params_t gauss_lie_params, gauss_euclidean_params;
   gauss_euclidean_params.frame_id = "world";
@@ -441,55 +416,7 @@ int main(int argc, char** argv)
       //   LOG_VARS(tg0, tg1);
       // }
     }
-
-    // using LGM = prx_models::linear_gaussian_model_t<State, Control>;
-    // Eigen::Matrix<double, DimX, DimX + DimU> A{ LGM::LSE_AB(all_zts, all_xdots) };
-    // const Eigen::Matrix<double, DimX, DimZ> A{ LGM::LSE_AB(cluster.data) };
-
-    // LGM lgm(A, cov, element);
-
-    // lgm.verbose(i == element_to_debug);
-    // const auto [ebA, ebB] = lgm.compute_error_bounds(0.05, 20, 0.001);
-
-    // if (i == element_to_debug)
-    // {
-    //   LOG_VARS(A);
-    // }
-    // double mean_error{ 0 };
-    // // for (auto& [x0, u] : all_zts)
-    // for (auto [x0, u0, x1] : cluster.data)
-    // {
-    //   const State x1p{ lgm.evaluate(x0, u0) };
-
-    //   marker_x1_predict_euclidean_pts.points.emplace_back();
-    //   marker_x1_predict_euclidean_pts.points.back().x = x1p.first.theta();
-    //   marker_x1_predict_euclidean_pts.points.back().y = x1p.second;
-    //   marker_x1_predict_euclidean_pts.points.back().z = 0.0;
-    //   if (i == element_to_debug)
-    //   {
-    //     LOG_VARS(x1, x1p);
-    //   }
-    //   const Eigen::Vector<double, DimX> v_err{ prx::TangentBetween(x1, x1p) };
-    //   mean_error += v_err.norm();
-    // }
-    // double total_clustered = cluster.data.size();
-    // mean_error = mean_error / total_clustered;
-    // if (mean_error > std::max(ebA, ebB))
-    // {
-    //   const std::size_t& i_rejected{ i };
-    //   DEBUG_VARS(i_rejected, mean_error, ebA, ebB);
-    // }
-    // else
-    // {
     lmm.emplace(Zmat, cov, element, i);
-    //   const std::size_t& i_accepted{ i };
-    //   DEBUG_VARS(i_accepted, mean_error, ebA, ebB);
-    // }
-
-    // gtsam::Values values;
-    // values.insert(cluster.key, cluster.element);
-    // const double fg_error{ cluster.factor_graph.error(values) };
-    // DEBUG_VARS(i, element, total_clustered, fg_error, mean_error)
 
     const visualization_msgs::Marker euclidean_ellipse{ interface::gaussian_to_ellipse_marker(gauss_euclidean_params) };
     const visualization_msgs::Marker lie_ellipse{ interface::gaussian_to_ellipse_marker(gauss_lie_params) };

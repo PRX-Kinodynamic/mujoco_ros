@@ -188,16 +188,21 @@ struct safety_helper_t
     valid_plan = true;
     // DEBUG_VARS(valid_plan)
 
-    // Controller ctrl;
-    // ml4kp_bridge::copy(ctrl, _plan);
-    // Controller car{ ml4kp_bridge::split(ctrl, 0.2) };
-    // Controller caar{ ml4kp_bridge::split(ctrl, 0.4) };
-    // Controller caaar{ ml4kp_bridge::split(ctrl, 0.1) };
+    Controller ctrl;
+    ml4kp_bridge::copy(ctrl, _plan);
+    DEBUG_VARS(ctrl)
+    Controller car{ ml4kp_bridge::split(ctrl, 0.3) };
+    Controller caar{ ml4kp_bridge::split(ctrl, 0.3) };
+    Controller caaar{ ml4kp_bridge::split(ctrl, 0.3) };
 
-    // DEBUG_VARS(car)
-    // DEBUG_VARS(caar)
-    // DEBUG_VARS(caaar)
+    DEBUG_VARS(car)
+    DEBUG_VARS(caar)
+    DEBUG_VARS(caaar)
+    DEBUG_VARS(ctrl)
+    // Controller caaaar{ ml4kp_bridge::split(ctrl, 0.3) };
+    // DEBUG_VARS(caaaar)
     // DEBUG_VARS(ctrl)
+
     // Controller head{ ml4kp_bridge::split(ctrl, 1.0) };
 
     // DEBUG_VARS(ctrl.size(), head.size())
