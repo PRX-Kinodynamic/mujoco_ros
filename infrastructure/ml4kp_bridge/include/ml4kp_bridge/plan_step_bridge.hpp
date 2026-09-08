@@ -267,18 +267,28 @@ inline void copy(std::vector<std::tuple<std::vector<State>, std::vector<Control>
 
 template <typename DynamicalSystem>
 inline prx::fg_trajectory_tracking_controller_t<DynamicalSystem>
-split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const double split_time)
+split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const double split_time_in)
 {
   using Controller = prx::fg_trajectory_tracking_controller_t<DynamicalSystem>;
   Controller head{ Controller::init(ctrl) };
+  const double epsilon{ 0.001 };
 
+  double split_time{ split_time_in };
   double ti{ 0. };
   // PRX_DBG_VARS(ctrl.traj_nominal.size())
   while (ti <= split_time)
   {
-    ti += head.fg_dt;
     // PRX_DBG_VARS(ti)
-    ctrl.traj_nominal.erase(ctrl.traj_nominal.begin());
+    if (not ctrl.traj_nominal.empty())
+    {
+      ti += head.fg_dt;
+      ctrl.traj_nominal.erase(ctrl.traj_nominal.begin());
+    }
+    else
+    {
+      split_time = ti;
+      break;
+    }
   }
   // PRX_DBG_VARS(ctrl.traj_nominal.size())
 
@@ -289,8 +299,15 @@ split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const dou
   std::size_t idx{ 0 };
   while (ti < split_time)
   {
-    ti += ctrl.plan[idx].duration;
-    // head.steps_to_propagate++;
+    if (idx >= ctrl.plan.size())
+    {
+      idx++;
+      break;
+    }
+    else
+    {
+      ti += ctrl.plan[idx].duration;
+    }
     idx++;
     // ctrl.plan.erase(ctrl.plan.begin());
     // if (ctrl.plan.size() == 0)
@@ -308,18 +325,19 @@ split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const dou
   {
     ctrl.plan.erase(ctrl.plan.begin());
   }
-  if (ti > split_time)
+  // if (ti > split_time)
+  if (ti + epsilon >= split_time)
   {
     ctrl.plan.front().duration = excess;
   }
-  if (ctrl.plan.front().duration < ctrl.fg_dt / 2.)
+  if (ctrl.plan.size() > 0 and ctrl.plan.front().duration < ctrl.fg_dt / 2.)
   {
     ctrl.plan.erase(ctrl.plan.begin());
   }
   ///
 
   // while()
-  head.steps_to_propagate = idx;
+  head.steps_to_propagate = std::min(idx, head.plan.size());
   if (ti > split_time)
   {
     // const double t_cdr{ ti + ctrl.plan[0].duration - split_time };
@@ -342,19 +360,6 @@ split(prx::fg_trajectory_tracking_controller_t<DynamicalSystem>& ctrl, const dou
     // head.plan[idx + 1].duration = ti - split_time;
     // head.steps_to_propagate++;
   }
-
-  //   // if (ctrl.plan[0].duration < ctrl.fg_dt)
-  //   // {
-  //   //   ctrl.plan.erase(ctrl.plan.begin());
-  //   // }
-  //   // else
-  //   // {
-  //   // }
-  // }
-  // if (ctrl.plan[0].duration < ctrl.fg_dt)
-  // {
-  //   ctrl.plan.erase(ctrl.plan.begin());
-  // }
 
   ctrl.steps_to_propagate = ctrl.plan.size();
   // PRX_DBG_VARS(head.plan);

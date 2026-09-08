@@ -7,7 +7,7 @@
 
 
     <arg name="test" default="PendulumAnalyticalLQR"/>
-    <arg name="lmm_filename" default="$(env ML4KP_ROS)/data/LGMs/pendulum_analytical/sigmaInit0.1_noise0.0_trajs10k.txt"/>
+    <arg name="lmm_filename" default="$(env ML4KP_ROS)/data/LGMs/pendulum_analytical/sigmaInit0.25_noise0.0_trajs10k.txt"/>
     <arg name="total_samples" default="1000"/>
     <arg name="output_filename" default="/tmp/lmm_test"/>
     

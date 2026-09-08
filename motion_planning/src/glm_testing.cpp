@@ -91,7 +91,7 @@ struct tester_t
       State x0{ state_sampler() };
       std::cout << "\n";
 
-      DEBUG_VARS(x0)
+      DEBUG_VARS(i, x0)
 
       for (double ti = 0.; ti < 5.; ti += prx::simulation_step)
       {

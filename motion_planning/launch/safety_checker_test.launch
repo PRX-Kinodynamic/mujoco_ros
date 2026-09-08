@@ -37,7 +37,7 @@
 
     <arg name="state_topic" default="/mushr/state"/>
 
-    <arg name="split_time" default="0.5"/>
+    <arg name="split_time" default="1.0"/>
     <arg name="cell_size" default="0.05"/>
     <arg name="sleep_at_exit" default="5"/>
 
@@ -46,8 +46,8 @@
 
 
 <!-- launch-prefix="gdb -ex run - -args" -->
-          <!-- launch-prefix="$(arg dbg)" -->
     <node pkg="motion_planning" name="safety_checker" type="safety_checker" 
+          launch-prefix="$(arg dbg)"
           output="screen" respawn="false" required="true">     
       <param name="randup_time" value="$(arg randup_time)"/>
       <param name="state_topic" value="$(arg state_topic)"/>

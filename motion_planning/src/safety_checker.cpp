@@ -181,6 +181,26 @@ struct safety_helper_t
     DEBUG_VARS(_state_estimate)
   }
 
+  void test_split(const double split_time)
+  {
+    Controller ctrl;
+    ml4kp_bridge::copy(ctrl, _plan);
+
+    std::cout << "~-~-~-~-~-~-~-~-~-~-~-~-~-~-\n";
+    const int count(std::ceil(1. / split_time));
+    DEBUG_VARS(split_time, count)
+    DEBUG_VARS(ctrl)
+    for (int i = 0; i < count; ++i)
+    {
+      DEBUG_VARS(split_time, count, i)
+      Controller car{ ml4kp_bridge::split(ctrl, split_time) };
+      DEBUG_VARS(car)
+      DEBUG_VARS(ctrl)
+    }
+    // Controller caar{ ml4kp_bridge::split(ctrl, 0.5) };
+    // Controller caaar{ ml4kp_bridge::split(ctrl, 0.3) };
+  }
+
   // void plan_callback(const ml4kp_bridge::PlanStepStampedArrayConstPtr msg)
   void plan_callback(const boost::shared_ptr<InputMsg const> msg)
   {
@@ -188,17 +208,20 @@ struct safety_helper_t
     valid_plan = true;
     // DEBUG_VARS(valid_plan)
 
-    Controller ctrl;
-    ml4kp_bridge::copy(ctrl, _plan);
-    DEBUG_VARS(ctrl)
-    Controller car{ ml4kp_bridge::split(ctrl, 0.3) };
-    Controller caar{ ml4kp_bridge::split(ctrl, 0.3) };
-    Controller caaar{ ml4kp_bridge::split(ctrl, 0.3) };
+    // ml4kp_bridge::copy(_plan);
+    // test_split(1.0);
+    // test_split(0.5);
+    // test_split(0.3);
+    // test_split(0.2);
+    // Controller ctrl;
+    // Controller car{ ml4kp_bridge::split(ctrl, 1.0) };
+    // // Controller caar{ ml4kp_bridge::split(ctrl, 0.5) };
+    // // Controller caaar{ ml4kp_bridge::split(ctrl, 0.3) };
 
-    DEBUG_VARS(car)
-    DEBUG_VARS(caar)
-    DEBUG_VARS(caaar)
-    DEBUG_VARS(ctrl)
+    // DEBUG_VARS(car)
+    // // DEBUG_VARS(caar)
+    // // DEBUG_VARS(caaar)
+    // DEBUG_VARS(ctrl)
     // Controller caaaar{ ml4kp_bridge::split(ctrl, 0.3) };
     // DEBUG_VARS(caaaar)
     // DEBUG_VARS(ctrl)
